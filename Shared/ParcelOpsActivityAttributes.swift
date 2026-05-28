@@ -1,3 +1,4 @@
+#if canImport(ActivityKit)
 import ActivityKit
 import Foundation
 
@@ -12,3 +13,4 @@ struct ParcelOpsActivityAttributes: ActivityAttributes {
   var store: String
   var destination: String
 }
+#endif

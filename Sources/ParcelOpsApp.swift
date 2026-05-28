@@ -16,9 +16,16 @@ struct ParcelOpsRootView: View {
 
   var body: some View {
     NavigationSplitView {
-      List(ParcelSection.allCases, selection: $selection) { section in
-        Label(section.title, systemImage: section.symbol)
-          .tag(section)
+      List {
+        ForEach(ParcelSection.allCases) { section in
+          Button {
+            selection = section
+          } label: {
+            Label(section.title, systemImage: section.symbol)
+              .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+          }
+          .buttonStyle(.plain)
+        }
       }
       .navigationTitle("ParcelOps")
       .safeAreaInset(edge: .bottom) {
