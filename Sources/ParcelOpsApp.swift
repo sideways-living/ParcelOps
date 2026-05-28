@@ -274,44 +274,60 @@ enum ConnectionKind: String, Hashable {
 
 struct DashboardView: View {
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        HStack {
+        VStack(alignment: .leading, spacing: 12) {
           VStack(alignment: .leading, spacing: 6) {
             Text("Operations overview")
-              .font(.largeTitle.bold())
+              .font(isCompact ? .title.bold() : .largeTitle.bold())
             Text("Mail intake, supplier accounts, Shopify orders, and carrier scans in one queue.")
               .foregroundStyle(.secondary)
           }
-          Spacer()
-          Button("Create manual order", systemImage: "plus") {}
-            .buttonStyle(.borderedProminent)
-          Button("Sync sources", systemImage: "arrow.clockwise") {}
-            .buttonStyle(.bordered)
+          HStack {
+            Button("Create manual order", systemImage: "plus") {}
+              .buttonStyle(.borderedProminent)
+            Button("Sync", systemImage: "arrow.clockwise") {}
+              .buttonStyle(.bordered)
+          }
         }
 
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 2 : 4), spacing: 12) {
           MetricCard(title: "Active orders", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
           MetricCard(title: "Exceptions", value: "\(store.exceptionCount)", symbol: "exclamationmark.triangle.fill", color: .red)
           MetricCard(title: "Mailbox events", value: "\(store.mailEvents.count)", symbol: "envelope.fill", color: .blue)
           MetricCard(title: "Connected sources", value: "\(store.connections.count)", symbol: "link.badge.plus", color: .purple)
         }
 
-        HStack(alignment: .top, spacing: 14) {
+        stack {
           OrdersCompactView(orders: store.orders)
           MailboxCompactView(events: store.mailEvents)
         }
       }
-      .padding(24)
+      .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  @ViewBuilder
+  private func stack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    if isCompact {
+      VStack(alignment: .leading, spacing: 14, content: content)
+    } else {
+      HStack(alignment: .top, spacing: 14, content: content)
+    }
   }
 }
 
 struct OrdersView: View {
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
     @Bindable var store = store
@@ -319,13 +335,23 @@ struct OrdersView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         HStack {
-          Picker("Status", selection: $store.selectedStatus) {
-            Text("All").tag(nil as OrderStatus?)
-            ForEach(OrderStatus.allCases) { status in
-              Text(status.rawValue).tag(status as OrderStatus?)
+          if horizontalSizeClass == .compact {
+            Picker("Status", selection: $store.selectedStatus) {
+              Text("All").tag(nil as OrderStatus?)
+              ForEach(OrderStatus.allCases) { status in
+                Text(status.rawValue).tag(status as OrderStatus?)
+              }
             }
+            .pickerStyle(.menu)
+          } else {
+            Picker("Status", selection: $store.selectedStatus) {
+              Text("All").tag(nil as OrderStatus?)
+              ForEach(OrderStatus.allCases) { status in
+                Text(status.rawValue).tag(status as OrderStatus?)
+              }
+            }
+            .pickerStyle(.segmented)
           }
-          .pickerStyle(.segmented)
           Spacer()
           Button("Add order", systemImage: "plus") {}
             .buttonStyle(.bordered)
@@ -340,7 +366,7 @@ struct OrdersView: View {
           .buttonStyle(.plain)
         }
       }
-      .padding(24)
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .searchable(text: $store.searchText, prompt: "Search orders, tracking, email, store")
   }
@@ -348,23 +374,29 @@ struct OrdersView: View {
 
 struct OrderDetailView: View {
   var order: TrackedOrder
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 10) {
           VStack(alignment: .leading, spacing: 6) {
             Text(order.orderNumber)
-              .font(.largeTitle.bold())
+              .font(isCompact ? .title.bold() : .largeTitle.bold())
             Text(order.store)
               .foregroundStyle(.secondary)
           }
-          Spacer()
-          Badge(order.status.rawValue, color: order.status.color)
-          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          HStack {
+            Badge(order.status.rawValue, color: order.status.color)
+            Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          }
         }
 
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
           DetailCell("Tracked email", order.trackedEmail, symbol: "at")
           DetailCell("Customer/team", order.customer, symbol: "person.2.fill")
           DetailCell("Carrier", order.carrier, symbol: "truck.box.fill")
@@ -383,19 +415,20 @@ struct OrderDetailView: View {
           }
         }
       }
-      .padding(24)
+      .padding(isCompact ? 14 : 24)
     }
   }
 }
 
 struct MailboxView: View {
   var events: [MailEvent]
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
         ForEach(events) { event in
-          HStack(alignment: .top, spacing: 14) {
+          VStack(alignment: .leading, spacing: 10) {
             Image(systemName: "envelope.open.fill")
               .foregroundStyle(event.severity.color)
               .frame(width: 30, height: 30)
@@ -422,26 +455,32 @@ struct MailboxView: View {
           .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
         }
       }
-      .padding(24)
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
   }
 }
 
 struct IntegrationsView: View {
   var connections: [SourceConnection]
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
-        HStack {
+        VStack(alignment: .leading, spacing: 10) {
           Text("Connected sources")
-            .font(.title.bold())
-          Spacer()
-          Button("Connect Shopify", systemImage: "cart.badge.plus") {}
-          Button("Add store login", systemImage: "key.fill") {}
+            .font(isCompact ? .title2.bold() : .title.bold())
+          HStack {
+            Button("Connect Shopify", systemImage: "cart.badge.plus") {}
+            Button("Add login", systemImage: "key.fill") {}
+          }
         }
         ForEach(connections) { connection in
-          HStack(spacing: 14) {
+          HStack(alignment: .top, spacing: 14) {
             Image(systemName: connection.kind.symbol)
               .foregroundStyle(.teal)
               .frame(width: 34)
@@ -466,12 +505,13 @@ struct IntegrationsView: View {
           .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
         }
       }
-      .padding(24)
+      .padding(isCompact ? 14 : 24)
     }
   }
 }
 
 struct AutomationView: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private var steps: [(String, String, String)] = [
     ("Mailbox parsing", "Extract order numbers, sender domains, totals, delivery warnings, and recipient aliases.", "envelope.open.fill"),
     ("Account sync", "Refresh supplier portals and Shopify OAuth stores without overwriting reviewed data.", "arrow.triangle.2.circlepath"),
@@ -484,7 +524,7 @@ struct AutomationView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         Text("Automation flow")
-          .font(.largeTitle.bold())
+          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
         ForEach(steps, id: \.0) { step in
           HStack(alignment: .top, spacing: 14) {
             Image(systemName: step.2)
@@ -505,7 +545,7 @@ struct AutomationView: View {
           .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
         }
       }
-      .padding(24)
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
   }
 }
@@ -556,12 +596,12 @@ struct OrderListRow: View {
   var order: TrackedOrder
 
   var body: some View {
-    HStack(spacing: 14) {
+    HStack(alignment: .top, spacing: 12) {
       Image(systemName: order.status == .exception ? "exclamationmark.triangle.fill" : order.source.symbol)
         .foregroundStyle(order.status.color)
         .frame(width: 28)
       VStack(alignment: .leading, spacing: 4) {
-        HStack {
+        VStack(alignment: .leading, spacing: 2) {
           Text(order.orderNumber)
             .font(.headline)
           Text(order.store)
