@@ -13,43 +13,61 @@ struct ParcelOpsApp: App {
 struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
-    NavigationSplitView {
-      List {
-        ForEach(ParcelSection.allCases) { section in
-          Button {
-            selection = section
-          } label: {
-            Label(section.title, systemImage: section.symbol)
-              .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+    Group {
+      if horizontalSizeClass == .compact {
+        TabView(selection: $selection) {
+          ForEach(ParcelSection.allCases) { section in
+            NavigationStack {
+              content(for: section)
+                .navigationTitle(section.title)
+            }
+            .tabItem {
+              Label(section.title, systemImage: section.symbol)
+            }
+            .tag(section)
           }
-          .buttonStyle(.plain)
+        }
+      } else {
+        NavigationSplitView {
+          List {
+            ForEach(ParcelSection.allCases) { section in
+              Button {
+                selection = section
+              } label: {
+                Label(section.title, systemImage: section.symbol)
+                  .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+              }
+              .buttonStyle(.plain)
+            }
+          }
+          .navigationTitle("ParcelOps")
+          .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+              Label("Review required", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+              Text("\(store.reviewQueueCount) risky email/order matches are waiting for confirmation.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+          }
+        } detail: {
+          content(for: selection)
+            .navigationTitle(selection.title)
         }
       }
-      .navigationTitle("ParcelOps")
-      .safeAreaInset(edge: .bottom) {
-        VStack(alignment: .leading, spacing: 10) {
-          Label("Review required", systemImage: "exclamationmark.triangle.fill")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.orange)
-          Text("\(store.reviewQueueCount) risky email/order matches are waiting for confirmation.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-      }
-    } detail: {
-      content
-        .navigationTitle(selection.title)
     }
     .tint(.teal)
   }
 
   @ViewBuilder
-  private var content: some View {
-    switch selection {
+  private func content(for section: ParcelSection) -> some View {
+    switch section {
     case .dashboard:
       DashboardView(store: store)
     case .orders:

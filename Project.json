@@ -43,7 +43,9 @@
       "info": {
         "path": "App/Info.plist",
         "properties": {
-          "UILaunchScreen": {},
+          "UILaunchScreen": {
+            "UIColorName": "LaunchBackground"
+          },
           "NSSupportsLiveActivities": true,
           "NSSupportsLiveActivitiesFrequentUpdates": true,
           "LSApplicationCategoryType": "public.app-category.business"
