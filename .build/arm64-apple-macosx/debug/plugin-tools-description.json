@@ -1,0 +1,241 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.ParcelOps-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/sources",
+      "importPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "ParcelOps",
+      "moduleOutputPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules/ParcelOps.swiftmodule",
+      "objects" : [
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j18",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "ParcelOps_main",
+        "-parse-as-library",
+        "-swift-version",
+        "5",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "_3e6f27a_d74a_47dd_8e7b_11add38d8ec2"
+      ],
+      "outputFileMapPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules/ParcelOps.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+      ],
+      "tempsPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "ParcelOps" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "ParcelOps",
+      "-package-name",
+      "_3e6f27a_d74a_47dd_8e7b_11add38d8ec2",
+      "-c",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift",
+      "-I",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j18",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "ParcelOps_main",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "_3e6f27a_d74a_47dd_8e7b_11add38d8ec2",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "ParcelOps" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps-entitlement.plist" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<entitlement-plist>"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<com.apple.security.get-task-allow>"
+        }
+      ],
+      "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps-entitlement.plist"
+    },
+    "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/sources"
+    },
+    "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.product/Objects.LinkFileList"
+    },
+    "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}
