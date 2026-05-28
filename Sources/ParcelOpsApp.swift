@@ -5,8 +5,19 @@ struct ParcelOpsApp: App {
   var body: some Scene {
     WindowGroup {
       ParcelOpsRootView()
-        .frame(minWidth: 1120, minHeight: 760)
+        .parcelOpsWindowFrame()
     }
+  }
+}
+
+extension View {
+  @ViewBuilder
+  func parcelOpsWindowFrame() -> some View {
+    #if os(macOS)
+    self.frame(minWidth: 1120, minHeight: 760)
+    #else
+    self
+    #endif
   }
 }
 
@@ -16,8 +27,11 @@ struct ParcelOpsRootView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
-    Group {
-      if horizontalSizeClass == .compact {
+    GeometryReader { proxy in
+      let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
+
+      Group {
+        if usePhoneLayout {
         TabView(selection: $selection) {
           ForEach(ParcelSection.allCases) { section in
             NavigationStack {
@@ -60,6 +74,7 @@ struct ParcelOpsRootView: View {
           content(for: selection)
             .navigationTitle(selection.title)
         }
+      }
       }
     }
     .tint(.teal)
