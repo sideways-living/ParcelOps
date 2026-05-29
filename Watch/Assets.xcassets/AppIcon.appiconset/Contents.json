@@ -2,15 +2,9 @@
   "images" : [
     {
       "filename" : "Icon.png",
-      "idiom" : "ios-marketing",
+      "idiom" : "watch-marketing",
       "scale" : "1x",
       "size" : "1024x1024"
-    },
-    {
-      "filename" : "Icon.png",
-      "idiom" : "mac",
-      "scale" : "2x",
-      "size" : "512x512"
     }
   ],
   "info" : {

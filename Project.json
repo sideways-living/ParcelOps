@@ -74,7 +74,7 @@
           "path": "Watch"
         },
         {
-          "path": "App/Assets.xcassets"
+          "path": "Watch/Assets.xcassets"
         }
       ],
       "info": {
