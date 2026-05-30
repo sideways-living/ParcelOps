@@ -95,7 +95,7 @@ struct ParcelOpsRootView: View {
     case .review:
       NeedsReviewView(store: store)
     case .wishlist:
-      WishlistView(items: store.wishlistItems)
+      WishlistView(items: store.wishlistItems, deletedItems: store.deletedWishlistItems)
     case .integrations:
       IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders, connections: store.connections)
     case .automation:
@@ -205,6 +205,7 @@ final class ParcelOpsStore {
   var shopifyConnections: [ShopifyConnection] = SampleData.shopifyConnections
   var watchedFolders: [WatchedFolder] = SampleData.watchedFolders
   var wishlistItems: [WishlistItem] = SampleData.wishlistItems
+  var deletedWishlistItems: [WishlistItem] = SampleData.deletedWishlistItems
   var connections: [SourceConnection] = SampleData.connections
 
   var activeCount: Int {
@@ -844,6 +845,7 @@ struct ReviewMailEventRow: View {
 
 struct WishlistView: View {
   var items: [WishlistItem]
+  var deletedItems: [WishlistItem]
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
@@ -873,6 +875,15 @@ struct WishlistView: View {
         SettingsPanel(title: "Wishlist items", symbol: "star.square.fill") {
           ForEach(items) { item in
             WishlistItemRow(item: item)
+          }
+        }
+
+        SettingsPanel(title: "Deleted items", symbol: "trash.fill") {
+          Text("Deleted wishlist items are retained for 90 days before permanent removal.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          ForEach(deletedItems) { item in
+            WishlistItemRow(item: item, isDeleted: true)
           }
         }
       }
@@ -907,6 +918,7 @@ struct CaptureChannelRow: View {
 
 struct WishlistItemRow: View {
   var item: WishlistItem
+  var isDeleted = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -932,11 +944,32 @@ struct WishlistItemRow: View {
       Text(item.capturedDetail)
         .font(.caption)
         .foregroundStyle(.secondary)
-      HStack {
-        Button("Convert to order", systemImage: "shippingbox.fill") {}
-          .buttonStyle(.borderedProminent)
-        Button("Discard", systemImage: "trash") {}
-          .buttonStyle(.bordered)
+      if isDeleted {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
+          Button("Restore", systemImage: "arrow.uturn.backward") {}
+            .buttonStyle(.bordered)
+          Button("Delete now", systemImage: "trash.fill") {}
+            .buttonStyle(.bordered)
+        }
+      } else {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 8)], alignment: .leading, spacing: 8) {
+          if let url = URL(string: item.storefrontURL) {
+            Link(destination: url) {
+              Label("Open shopfront", systemImage: "safari")
+            }
+            .buttonStyle(.borderedProminent)
+            ShareLink(item: url) {
+              Label("Share link", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.bordered)
+          }
+          Button("Convert to order", systemImage: "shippingbox.fill") {}
+            .buttonStyle(.bordered)
+          Button("Link order", systemImage: "link") {}
+            .buttonStyle(.bordered)
+          Button("Delete", systemImage: "trash") {}
+            .buttonStyle(.bordered)
+        }
       }
     }
     .padding(12)
@@ -1649,6 +1682,10 @@ enum SampleData {
     WishlistItem(itemName: "Thermal label rolls", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/thermal-rolls", estimatedCost: "$42.50", owner: "Jordan Lee", pool: "Personal wishlist", source: .screenshot, status: "Needs review", capturedDetail: "Screenshot parser found item title and price, but storefront URL needs confirmation."),
     WishlistItem(itemName: "Dock safety cones", storefront: "Northwind Wholesale", storefrontURL: "https://northwind.example/cones", estimatedCost: "$76.00", owner: "Priya Shah", pool: "Facilities team", source: .browserExtension, status: "Ready", capturedDetail: "Captured through Chrome/Firefox extension path for cross-device wishlist intake."),
     WishlistItem(itemName: "Replacement printer tray", storefront: "Acme Parts", storefrontURL: "https://acme-parts.example/printer-tray", estimatedCost: "$118.20", owner: "Mia Chen", pool: "Shared company pool", source: .pdf, status: "Ready", capturedDetail: "PDF quote upload parsed supplier, SKU, item name, and estimated cost.")
+  ]
+
+  static var deletedWishlistItems: [WishlistItem] = [
+    WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]
 
   static var connections: [SourceConnection] = [
