@@ -846,6 +846,7 @@ struct ReviewMailEventRow: View {
 struct WishlistView: View {
   var items: [WishlistItem]
   var deletedItems: [WishlistItem]
+  @State private var showDeletedItems = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
@@ -879,11 +880,28 @@ struct WishlistView: View {
         }
 
         SettingsPanel(title: "Deleted items", symbol: "trash.fill") {
-          Text("Deleted wishlist items are retained for 90 days before permanent removal.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          ForEach(deletedItems) { item in
-            WishlistItemRow(item: item, isDeleted: true)
+          Button {
+            withAnimation(.snappy) {
+              showDeletedItems.toggle()
+            }
+          } label: {
+            HStack {
+              Label("\(deletedItems.count) deleted item", systemImage: showDeletedItems ? "folder.fill.badge.minus" : "folder.fill")
+              Spacer()
+              Image(systemName: showDeletedItems ? "chevron.up" : "chevron.down")
+                .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          if showDeletedItems {
+            Text("Deleted wishlist items are retained for 90 days before permanent removal.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(deletedItems) { item in
+              WishlistItemRow(item: item, isDeleted: true)
+            }
           }
         }
       }
