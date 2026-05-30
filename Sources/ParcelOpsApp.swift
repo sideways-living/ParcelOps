@@ -119,21 +119,6 @@ struct ExpandableBottomMenu: View {
 
   var body: some View {
     VStack(spacing: 8) {
-      if isExpanded {
-        HStack(spacing: 0) {
-          ForEach(secondaryItems) { section in
-            BottomMenuButton(
-              title: section.shortTitle,
-              symbol: section.symbol,
-              isSelected: selection == section
-            ) {
-              onSelect(section)
-            }
-          }
-        }
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-      }
-
       HStack(spacing: 0) {
         ForEach(primaryItems) { section in
           BottomMenuButton(
@@ -157,6 +142,21 @@ struct ExpandableBottomMenu: View {
             isExpanded.toggle()
           }
         }
+      }
+
+      if isExpanded {
+        HStack(spacing: 0) {
+          ForEach(secondaryItems) { section in
+            BottomMenuButton(
+              title: section.shortTitle,
+              symbol: section.symbol,
+              isSelected: selection == section
+            ) {
+              onSelect(section)
+            }
+          }
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
       }
     }
     .padding(.horizontal, 10)
