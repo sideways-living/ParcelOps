@@ -90,11 +90,11 @@ struct ParcelOpsRootView: View {
     case .mailbox:
       MailboxView(events: store.mailEvents)
     case .integrations:
-      IntegrationsView(mailboxes: store.mailboxes, connections: store.connections)
+      IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, connections: store.connections)
     case .automation:
       AutomationView()
     case .settings:
-      SettingsView(mailboxes: store.mailboxes)
+      SettingsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections)
     }
   }
 }
@@ -107,6 +107,7 @@ final class ParcelOpsStore {
   var orders: [TrackedOrder] = SampleData.orders
   var mailEvents: [MailEvent] = SampleData.mailEvents
   var mailboxes: [TrackedMailbox] = SampleData.mailboxes
+  var shopifyConnections: [ShopifyConnection] = SampleData.shopifyConnections
   var connections: [SourceConnection] = SampleData.connections
 
   var activeCount: Int {
@@ -223,6 +224,17 @@ struct TrackedMailbox: Identifiable, Hashable {
   var status: String
   var lastChecked: String
   var routingRule: String
+}
+
+struct ShopifyConnection: Identifiable, Hashable {
+  var id = UUID()
+  var storeName: String
+  var storeDomain: String
+  var mappedMailbox: String
+  var mappedTeam: String
+  var status: String
+  var lastSync: String
+  var isEnabled: Bool
 }
 
 enum FulfillmentMethod: String, Hashable {
@@ -528,6 +540,7 @@ struct MailboxView: View {
 
 struct IntegrationsView: View {
   var mailboxes: [TrackedMailbox]
+  var shopifyConnections: [ShopifyConnection]
   var connections: [SourceConnection]
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -550,6 +563,11 @@ struct IntegrationsView: View {
         SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
           ForEach(mailboxes) { mailbox in
             MailboxConnectionRow(mailbox: mailbox)
+          }
+        }
+        SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
+          ForEach(shopifyConnections) { connection in
+            ShopifyConnectionRow(connection: connection)
           }
         }
         ForEach(connections) { connection in
@@ -616,6 +634,39 @@ struct MailboxConnectionRow: View {
   }
 }
 
+struct ShopifyConnectionRow: View {
+  var connection: ShopifyConnection
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: "cart.fill")
+        .foregroundStyle(.green)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(connection.storeName)
+          .font(.headline)
+        Text(connection.storeDomain)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("\(connection.mappedTeam) • \(connection.mappedMailbox)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 4) {
+        Text(connection.isEnabled ? connection.status : "Disabled")
+          .font(.callout.weight(.semibold))
+        Text(connection.lastSync)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct AutomationView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private var steps: [(String, String, String)] = [
@@ -658,6 +709,7 @@ struct AutomationView: View {
 
 struct SettingsView: View {
   var mailboxes: [TrackedMailbox]
+  var shopifyConnections: [ShopifyConnection]
   @AppStorage("mailboxMonitoringEnabled") private var mailboxMonitoringEnabled = true
   @AppStorage("autoCreateOrdersFromEmail") private var autoCreateOrdersFromEmail = true
   @AppStorage("shopifySyncEnabled") private var shopifySyncEnabled = true
@@ -696,6 +748,14 @@ struct SettingsView: View {
             MailboxConnectionRow(mailbox: mailbox)
           }
           Button("Add tracked mailbox", systemImage: "plus") {}
+            .buttonStyle(.bordered)
+        }
+
+        SettingsPanel(title: "Shopify accounts", symbol: "cart.badge.plus") {
+          ForEach(shopifyConnections) { connection in
+            ShopifyConnectionRow(connection: connection)
+          }
+          Button("Connect Shopify account", systemImage: "plus") {}
             .buttonStyle(.bordered)
         }
 
@@ -1049,9 +1109,15 @@ enum SampleData {
     TrackedMailbox(address: "ap-invoices@parcelops.example", provider: .imap, monitoredFolders: "Orders", status: "Needs auth", lastChecked: "Yesterday", routingRule: "Invoice-only matching")
   ]
 
+  static var shopifyConnections: [ShopifyConnection] = [
+    ShopifyConnection(storeName: "Acme Parts", storeDomain: "acme-parts.myshopify.com", mappedMailbox: "field-purchasing@parcelops.example", mappedTeam: "Brisbane Field Team", status: "Synced", lastSync: "6 min ago", isEnabled: true),
+    ShopifyConnection(storeName: "SafetyPro Direct", storeDomain: "safetypro-direct.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Melbourne Operations", status: "Synced", lastSync: "12 min ago", isEnabled: true),
+    ShopifyConnection(storeName: "Office Kit Store", storeDomain: "office-kit.myshopify.com", mappedMailbox: "ap-invoices@parcelops.example", mappedTeam: "Perth Office", status: "Needs reauth", lastSync: "Yesterday", isEnabled: false)
+  ]
+
   static var connections: [SourceConnection] = [
     SourceConnection(name: "3 tracked mailboxes", kind: .mailbox, account: "Microsoft 365, Gmail, IMAP", status: "2 watching", lastSync: "2 min ago"),
-    SourceConnection(name: "Acme Parts", kind: .shopify, account: "OAuth connected", status: "Synced", lastSync: "6 min ago"),
+    SourceConnection(name: "3 Shopify stores", kind: .shopify, account: "OAuth connections", status: "2 active", lastSync: "6 min ago"),
     SourceConnection(name: "Northwind Wholesale", kind: .vaultLogin, account: "Password vault", status: "Needs 2FA soon", lastSync: "1 hr ago"),
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
   ]
