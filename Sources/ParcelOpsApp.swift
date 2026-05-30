@@ -24,6 +24,7 @@ extension View {
 struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
+  @State private var isMoreMenuExpanded = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
@@ -32,19 +33,21 @@ struct ParcelOpsRootView: View {
 
       Group {
         if usePhoneLayout {
-        TabView(selection: $selection) {
-          ForEach(ParcelSection.allCases) { section in
-            NavigationStack {
-              content(for: section)
-                .navigationTitle(section.title)
-            }
-            .tabItem {
-              Label(section.title, systemImage: section.symbol)
-            }
-            .tag(section)
+          NavigationStack {
+            content(for: selection)
+              .navigationTitle(selection.title)
           }
-        }
-      } else {
+          .safeAreaInset(edge: .bottom) {
+            ExpandableBottomMenu(
+              selection: $selection,
+              isExpanded: $isMoreMenuExpanded,
+              onSelect: { section in
+              withAnimation(.snappy) {
+                selection = section
+              }
+            })
+          }
+        } else {
         NavigationSplitView {
           List {
             ForEach(ParcelSection.allCases) { section in
@@ -98,6 +101,94 @@ struct ParcelOpsRootView: View {
     case .settings:
       SettingsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders)
     }
+  }
+}
+
+struct ExpandableBottomMenu: View {
+  @Binding var selection: ParcelSection
+  @Binding var isExpanded: Bool
+  var onSelect: (ParcelSection) -> Void
+
+  private var primaryItems: [ParcelSection] {
+    [.dashboard, .orders, .review, .settings]
+  }
+
+  private var secondaryItems: [ParcelSection] {
+    [.mailbox, .integrations, .automation]
+  }
+
+  var body: some View {
+    VStack(spacing: 8) {
+      if isExpanded {
+        HStack(spacing: 0) {
+          ForEach(secondaryItems) { section in
+            BottomMenuButton(
+              title: section.shortTitle,
+              symbol: section.symbol,
+              isSelected: selection == section
+            ) {
+              onSelect(section)
+            }
+          }
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+      }
+
+      HStack(spacing: 0) {
+        ForEach(primaryItems) { section in
+          BottomMenuButton(
+            title: section.shortTitle,
+            symbol: section.symbol,
+            isSelected: selection == section
+          ) {
+            withAnimation(.snappy) {
+              isExpanded = false
+              onSelect(section)
+            }
+          }
+        }
+
+        BottomMenuButton(
+          title: isExpanded ? "Less" : "More",
+          symbol: isExpanded ? "chevron.down" : "ellipsis",
+          isSelected: isExpanded
+        ) {
+          withAnimation(.snappy) {
+            isExpanded.toggle()
+          }
+        }
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.top, 10)
+    .padding(.bottom, 8)
+    .background(.bar)
+  }
+}
+
+struct BottomMenuButton: View {
+  var title: String
+  var symbol: String
+  var isSelected: Bool
+  var action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      VStack(spacing: 4) {
+        Image(systemName: symbol)
+          .font(.system(size: 18, weight: .semibold))
+        Text(title)
+          .font(.caption2.weight(.semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.72)
+      }
+      .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+      .frame(maxWidth: .infinity)
+      .frame(height: 48)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(title)
   }
 }
 
@@ -167,6 +258,18 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .review: "Needs Review"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .settings: "Settings"
+    }
+  }
+
+  var shortTitle: String {
+    switch self {
+    case .dashboard: "Dashboard"
+    case .orders: "Orders"
+    case .mailbox: "Mailbox"
+    case .review: "Review"
+    case .integrations: "Sources"
+    case .automation: "Flow"
     case .settings: "Settings"
     }
   }
