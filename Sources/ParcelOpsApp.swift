@@ -93,6 +93,8 @@ struct ParcelOpsRootView: View {
       IntegrationsView(connections: store.connections)
     case .automation:
       AutomationView()
+    case .settings:
+      SettingsView()
     }
   }
 }
@@ -139,6 +141,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case mailbox
   case integrations
   case automation
+  case settings
 
   var id: String { rawValue }
 
@@ -149,6 +152,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .mailbox: "Mailbox Monitor"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .settings: "Settings"
     }
   }
 
@@ -159,6 +163,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .mailbox: "envelope.badge.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
+    case .settings: "gearshape.fill"
     }
   }
 }
@@ -562,6 +567,87 @@ struct AutomationView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+struct SettingsView: View {
+  @AppStorage("mailboxMonitoringEnabled") private var mailboxMonitoringEnabled = true
+  @AppStorage("autoCreateOrdersFromEmail") private var autoCreateOrdersFromEmail = true
+  @AppStorage("shopifySyncEnabled") private var shopifySyncEnabled = true
+  @AppStorage("storeLoginSyncEnabled") private var storeLoginSyncEnabled = true
+  @AppStorage("carrierTrackingEnabled") private var carrierTrackingEnabled = true
+  @AppStorage("requireReviewForRiskyMatches") private var requireReviewForRiskyMatches = true
+  @AppStorage("notifyOnDeliveryExceptions") private var notifyOnDeliveryExceptions = true
+  @AppStorage("exceptionThreshold") private var exceptionThreshold = 3.0
+  @AppStorage("matchConfidencePolicy") private var matchConfidencePolicy = "Balanced"
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        Text("Settings")
+          .font(isCompact ? .title.bold() : .largeTitle.bold())
+
+        SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
+          Toggle("Monitor forwarded tracking mailbox", isOn: $mailboxMonitoringEnabled)
+          Toggle("Create orders from recognized emails", isOn: $autoCreateOrdersFromEmail)
+          Picker("Match confidence", selection: $matchConfidencePolicy) {
+            Text("Strict").tag("Strict")
+            Text("Balanced").tag("Balanced")
+            Text("Permissive").tag("Permissive")
+          }
+          .pickerStyle(.menu)
+        }
+
+        SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
+          Toggle("Require review for risky email/order matches", isOn: $requireReviewForRiskyMatches)
+          Toggle("Notify on delivery exceptions", isOn: $notifyOnDeliveryExceptions)
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Exception alert threshold: \(Int(exceptionThreshold))")
+              .font(.callout.weight(.medium))
+            Slider(value: $exceptionThreshold, in: 1...10, step: 1) {
+              Text("Exception alert threshold")
+            } minimumValueLabel: {
+              Image(systemName: "1.circle")
+            } maximumValueLabel: {
+              Image(systemName: "10.circle")
+            }
+          }
+        }
+
+        SettingsPanel(title: "Connected sources", symbol: "link.badge.plus") {
+          Toggle("Sync Shopify OAuth suppliers", isOn: $shopifySyncEnabled)
+          Toggle("Sync password-vault store logins", isOn: $storeLoginSyncEnabled)
+          Toggle("Track carrier status after shipment", isOn: $carrierTrackingEnabled)
+        }
+      }
+      .padding(isCompact ? 14 : 24)
+    }
+  }
+}
+
+struct SettingsPanel<Content: View>: View {
+  var title: String
+  var symbol: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Label(title, systemImage: symbol)
+        .font(.headline)
+      VStack(alignment: .leading, spacing: 12) {
+        content
+      }
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 
