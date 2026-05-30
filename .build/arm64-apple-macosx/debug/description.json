@@ -24,7 +24,55 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/AutomationViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/DashboardViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/IntegrationsSettingsViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/MailboxReviewViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Models.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/OrderViews.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Repositories.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SampleData.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Services.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SharedViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/WishlistViews.swift"
         },
         {
           "kind" : "file",
@@ -39,7 +87,19 @@
       "moduleName" : "ParcelOps",
       "moduleOutputPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules/ParcelOps.swiftmodule",
       "objects" : [
-        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/AutomationViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/DashboardViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/IntegrationsSettingsViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/MailboxReviewViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Models.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/OrderViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsStore.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Repositories.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SampleData.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Services.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SharedViews.swift.o",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/WishlistViews.swift.o"
       ],
       "otherArguments" : [
         "-target",
@@ -62,7 +122,6 @@
         "-entry-point-function-name",
         "-Xfrontend",
         "ParcelOps_main",
-        "-parse-as-library",
         "-swift-version",
         "5",
         "-I",
@@ -89,7 +148,55 @@
       "outputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/AutomationViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/DashboardViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/IntegrationsSettingsViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/MailboxReviewViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Models.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/OrderViews.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Repositories.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SampleData.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Services.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SharedViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/WishlistViews.swift.o"
         },
         {
           "kind" : "file",
@@ -98,7 +205,19 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/AutomationViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/DashboardViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/IntegrationsSettingsViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/MailboxReviewViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Models.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/OrderViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsStore.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Repositories.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SampleData.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Services.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SharedViews.swift",
+        "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/WishlistViews.swift"
       ],
       "tempsPath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build",
       "wholeModuleOptimization" : false
@@ -115,7 +234,19 @@
       "-package-name",
       "_3e6f27a_d74a_47dd_8e7b_11add38d8ec2",
       "-c",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/AutomationViews.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/DashboardViews.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/IntegrationsSettingsViews.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/MailboxReviewViews.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Models.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/OrderViews.swift",
       "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsStore.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Repositories.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SampleData.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Services.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SharedViews.swift",
+      "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/WishlistViews.swift",
       "-I",
       "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/Modules",
       "-target",
@@ -138,7 +269,6 @@
       "-entry-point-function-name",
       "-Xfrontend",
       "ParcelOps_main",
-      "-parse-as-library",
       "-swift-version",
       "5",
       "-I",
@@ -204,7 +334,55 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/AutomationViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/DashboardViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/IntegrationsSettingsViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/MailboxReviewViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Models.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/OrderViews.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/ParcelOpsStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Repositories.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SampleData.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/Services.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/SharedViews.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/Sources/WishlistViews.swift"
         }
       ],
       "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/sources"
@@ -218,7 +396,55 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/AutomationViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/DashboardViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/IntegrationsSettingsViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/MailboxReviewViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Models.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/OrderViews.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/ParcelOpsStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Repositories.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SampleData.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/Services.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/SharedViews.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.build/WishlistViews.swift.o"
         }
       ],
       "outputFilePath" : "/Users/greenyer/Library/Bitrig/Projects/83e6f27a-d74a-47dd-8e7b-11add38d8ec2/.build/arm64-apple-macosx/debug/ParcelOps.product/Objects.LinkFileList"

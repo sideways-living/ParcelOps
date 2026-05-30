@@ -1,0 +1,207 @@
+import SwiftUI
+
+struct OrdersView: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  var body: some View {
+    @Bindable var store = store
+
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        HStack {
+          if horizontalSizeClass == .compact {
+            statusPicker
+              .pickerStyle(.menu)
+          } else {
+            statusPicker
+              .pickerStyle(.segmented)
+          }
+          Spacer()
+          Button("Add order", systemImage: "plus", action: store.createManualOrderPlaceholder)
+            .buttonStyle(.bordered)
+        }
+
+        ForEach(store.filteredOrders) { order in
+          NavigationLink {
+            OrderDetailView(order: order, store: store)
+          } label: {
+            OrderListRow(order: order)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+    .searchable(text: $store.searchText, prompt: "Search orders, tracking, email, store")
+  }
+
+  private var statusPicker: some View {
+    @Bindable var store = store
+    return Picker("Status", selection: $store.selectedStatus) {
+      Text("All").tag(nil as OrderStatus?)
+      ForEach(OrderStatus.allCases) { status in
+        Text(status.rawValue).tag(status as OrderStatus?)
+      }
+    }
+  }
+}
+
+struct OrderListRow: View {
+  var order: TrackedOrder
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: order.status == .exception ? "exclamationmark.triangle.fill" : order.source.symbol)
+        .foregroundStyle(order.status.color)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(order.orderNumber)
+          .font(.headline)
+        Text(order.store)
+          .foregroundStyle(.secondary)
+        Text("\(order.customer) • recipient \(order.recipientEmail)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("Checked in \(order.checkedMailbox)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 5) {
+        Badge(order.status.rawValue, color: order.status.color)
+        Text(order.eta)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct OrderDetailView: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text(order.orderNumber)
+            .font(isCompact ? .title.bold() : .largeTitle.bold())
+          Text(order.store)
+            .foregroundStyle(.secondary)
+          HStack {
+            Badge(order.status.rawValue, color: order.status.color)
+            Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          }
+        }
+
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
+          DetailCell("Recipient email", order.recipientEmail, symbol: "at")
+          DetailCell("Checked mailbox", order.checkedMailbox, symbol: "envelope.badge.fill")
+          DetailCell("Customer/team", order.customer, symbol: "person.2.fill")
+          DetailCell("Fulfillment", order.fulfillment.rawValue, symbol: order.fulfillment.symbol)
+          DetailCell(order.fulfillment == .delivery ? "Carrier" : "Collection point", order.carrier, symbol: order.fulfillment.symbol)
+          DetailCell(order.fulfillment == .delivery ? "Tracking number" : "Collection reference", order.trackingNumber, symbol: "barcode.viewfinder")
+          DetailCell(order.fulfillment == .delivery ? "Destination" : "Pickup address", order.destination, symbol: "mappin.and.ellipse")
+          DetailCell(order.fulfillment == .delivery ? "Delivery ETA" : "Pickup window", order.eta, symbol: "calendar")
+          DetailCell("Source", order.source.rawValue, symbol: order.source.symbol)
+          DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
+        }
+
+        if order.fulfillment == .delivery {
+          Button("Send to Parcel", systemImage: "square.and.arrow.up") {
+            store.exportToParcel(order: order)
+          }
+          .buttonStyle(.borderedProminent)
+        }
+
+        Panel(title: "Timeline", symbol: "clock.fill") {
+          VStack(spacing: 0) {
+            ForEach(order.timeline) { event in
+              TimelineRow(event: event)
+            }
+          }
+        }
+
+        Panel(title: "Full contact history", symbol: "tray.full.fill") {
+          VStack(spacing: 10) {
+            ForEach(order.contactHistory) { event in
+              ContactHistoryRow(event: event)
+            }
+          }
+        }
+      }
+      .padding(isCompact ? 14 : 24)
+    }
+  }
+}
+
+struct TimelineRow: View {
+  var event: TimelineEvent
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: event.symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 24, height: 24)
+      VStack(alignment: .leading, spacing: 4) {
+        HStack {
+          Text(event.title)
+            .font(.callout.bold())
+          Spacer()
+          Text(event.time)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Text(event.detail)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(.vertical, 10)
+  }
+}
+
+struct ContactHistoryRow: View {
+  var event: ContactHistoryEvent
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: event.source.symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 26, height: 26)
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(event.source.rawValue)
+              .font(.headline)
+            Text(event.contactPoint)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          VStack(alignment: .trailing, spacing: 4) {
+            Badge(event.reviewState.rawValue, color: event.reviewState.color)
+            Text(event.time)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        Text(event.summary)
+        Text(event.evidence)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
