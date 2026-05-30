@@ -90,11 +90,11 @@ struct ParcelOpsRootView: View {
     case .mailbox:
       MailboxView(events: store.mailEvents)
     case .integrations:
-      IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, connections: store.connections)
+      IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders, connections: store.connections)
     case .automation:
       AutomationView()
     case .settings:
-      SettingsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections)
+      SettingsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders)
     }
   }
 }
@@ -108,6 +108,7 @@ final class ParcelOpsStore {
   var mailEvents: [MailEvent] = SampleData.mailEvents
   var mailboxes: [TrackedMailbox] = SampleData.mailboxes
   var shopifyConnections: [ShopifyConnection] = SampleData.shopifyConnections
+  var watchedFolders: [WatchedFolder] = SampleData.watchedFolders
   var connections: [SourceConnection] = SampleData.connections
 
   var activeCount: Int {
@@ -237,6 +238,17 @@ struct ShopifyConnection: Identifiable, Hashable {
   var isEnabled: Bool
 }
 
+struct WatchedFolder: Identifiable, Hashable {
+  var id = UUID()
+  var name: String
+  var location: String
+  var platform: String
+  var fileTypes: String
+  var cadence: String
+  var status: String
+  var lastScan: String
+}
+
 enum FulfillmentMethod: String, Hashable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"
@@ -333,12 +345,14 @@ enum ConnectionKind: String, Hashable {
   case mailbox = "Forwarded mailbox"
   case shopify = "Shopify"
   case vaultLogin = "Password vault"
+  case watchedFolder = "Watched folder"
 
   var symbol: String {
     switch self {
     case .mailbox: "envelope.fill"
     case .shopify: "cart.badge.plus"
     case .vaultLogin: "key.horizontal.fill"
+    case .watchedFolder: "folder.fill.badge.gearshape"
     }
   }
 }
@@ -541,6 +555,7 @@ struct MailboxView: View {
 struct IntegrationsView: View {
   var mailboxes: [TrackedMailbox]
   var shopifyConnections: [ShopifyConnection]
+  var watchedFolders: [WatchedFolder]
   var connections: [SourceConnection]
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -557,6 +572,7 @@ struct IntegrationsView: View {
           HStack {
             Button("Add mailbox", systemImage: "envelope.badge.fill") {}
             Button("Connect Shopify", systemImage: "cart.badge.plus") {}
+            Button("Watch folder", systemImage: "folder.badge.plus") {}
             Button("Add login", systemImage: "key.fill") {}
           }
         }
@@ -568,6 +584,11 @@ struct IntegrationsView: View {
         SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
           ForEach(shopifyConnections) { connection in
             ShopifyConnectionRow(connection: connection)
+          }
+        }
+        SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+          ForEach(watchedFolders) { folder in
+            WatchedFolderRow(folder: folder)
           }
         }
         ForEach(connections) { connection in
@@ -667,6 +688,39 @@ struct ShopifyConnectionRow: View {
   }
 }
 
+struct WatchedFolderRow: View {
+  var folder: WatchedFolder
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: "folder.fill.badge.gearshape")
+        .foregroundStyle(.orange)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(folder.name)
+          .font(.headline)
+        Text(folder.location)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("\(folder.platform) • \(folder.fileTypes) • \(folder.cadence)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 4) {
+        Text(folder.status)
+          .font(.callout.weight(.semibold))
+        Text(folder.lastScan)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct AutomationView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private var steps: [(String, String, String)] = [
@@ -710,6 +764,9 @@ struct AutomationView: View {
 struct SettingsView: View {
   var mailboxes: [TrackedMailbox]
   var shopifyConnections: [ShopifyConnection]
+  var watchedFolders: [WatchedFolder]
+  @AppStorage("folderWatchingEnabled") private var folderWatchingEnabled = true
+  @AppStorage("folderScanCadence") private var folderScanCadence = "Every 15 minutes"
   @AppStorage("mailboxMonitoringEnabled") private var mailboxMonitoringEnabled = true
   @AppStorage("autoCreateOrdersFromEmail") private var autoCreateOrdersFromEmail = true
   @AppStorage("shopifySyncEnabled") private var shopifySyncEnabled = true
@@ -756,6 +813,22 @@ struct SettingsView: View {
             ShopifyConnectionRow(connection: connection)
           }
           Button("Connect Shopify account", systemImage: "plus") {}
+            .buttonStyle(.bordered)
+        }
+
+        SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+          Toggle("Regularly scan saved folders", isOn: $folderWatchingEnabled)
+          Picker("Scan cadence", selection: $folderScanCadence) {
+            Text("Every 5 minutes").tag("Every 5 minutes")
+            Text("Every 15 minutes").tag("Every 15 minutes")
+            Text("Hourly").tag("Hourly")
+            Text("Manual only").tag("Manual only")
+          }
+          .pickerStyle(.menu)
+          ForEach(watchedFolders) { folder in
+            WatchedFolderRow(folder: folder)
+          }
+          Button("Add folder", systemImage: "folder.badge.plus") {}
             .buttonStyle(.bordered)
         }
 
@@ -1115,9 +1188,16 @@ enum SampleData {
     ShopifyConnection(storeName: "Office Kit Store", storeDomain: "office-kit.myshopify.com", mappedMailbox: "ap-invoices@parcelops.example", mappedTeam: "Perth Office", status: "Needs reauth", lastSync: "Yesterday", isEnabled: false)
   ]
 
+  static var watchedFolders: [WatchedFolder] = [
+    WatchedFolder(name: "Desktop screenshots", location: "~/Desktop", platform: "macOS", fileTypes: "PNG, JPG, PDF", cadence: "Every 15 minutes", status: "Watching", lastScan: "3 min ago"),
+    WatchedFolder(name: "Downloads invoices", location: "~/Downloads", platform: "macOS", fileTypes: "PDF, CSV", cadence: "Every 15 minutes", status: "Watching", lastScan: "8 min ago"),
+    WatchedFolder(name: "Order uploads", location: "iCloud Drive/ParcelOps Orders", platform: "iOS and macOS", fileTypes: "PDF, images, email exports", cadence: "Hourly", status: "Watching", lastScan: "23 min ago")
+  ]
+
   static var connections: [SourceConnection] = [
     SourceConnection(name: "3 tracked mailboxes", kind: .mailbox, account: "Microsoft 365, Gmail, IMAP", status: "2 watching", lastSync: "2 min ago"),
     SourceConnection(name: "3 Shopify stores", kind: .shopify, account: "OAuth connections", status: "2 active", lastSync: "6 min ago"),
+    SourceConnection(name: "3 watched folders", kind: .watchedFolder, account: "Desktop, Downloads, iCloud Drive", status: "Watching", lastSync: "3 min ago"),
     SourceConnection(name: "Northwind Wholesale", kind: .vaultLogin, account: "Password vault", status: "Needs 2FA soon", lastSync: "1 hr ago"),
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
   ]
