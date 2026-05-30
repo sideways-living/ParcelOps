@@ -174,7 +174,9 @@ struct TrackedOrder: Identifiable, Hashable {
   var orderNumber: String
   var store: String
   var trackedEmail: String
+  var checkedMailbox: String
   var customer: String
+  var fulfillment: FulfillmentMethod
   var carrier: String
   var trackingNumber: String
   var destination: String
@@ -221,6 +223,18 @@ struct TrackedMailbox: Identifiable, Hashable {
   var status: String
   var lastChecked: String
   var routingRule: String
+}
+
+enum FulfillmentMethod: String, Hashable {
+  case delivery = "Delivery"
+  case clickAndCollect = "Click and collect"
+
+  var symbol: String {
+    switch self {
+    case .delivery: "truck.box.fill"
+    case .clickAndCollect: "bag.fill"
+    }
+  }
 }
 
 enum MailboxProvider: String, Hashable {
@@ -332,7 +346,7 @@ struct DashboardView: View {
           VStack(alignment: .leading, spacing: 6) {
             Text("Operations overview")
               .font(isCompact ? .title.bold() : .largeTitle.bold())
-            Text("Mail intake, supplier accounts, Shopify orders, and carrier scans in one queue.")
+            Text("Mail intake, supplier accounts, recipient email matching, collections, and delivery exports in one queue.")
               .foregroundStyle(.secondary)
           }
           HStack {
@@ -442,14 +456,21 @@ struct OrderDetailView: View {
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
-          DetailCell("Tracked email", order.trackedEmail, symbol: "at")
+          DetailCell("Recipient email", order.trackedEmail, symbol: "at")
+          DetailCell("Checked mailbox", order.checkedMailbox, symbol: "envelope.badge.fill")
           DetailCell("Customer/team", order.customer, symbol: "person.2.fill")
-          DetailCell("Carrier", order.carrier, symbol: "truck.box.fill")
-          DetailCell("Tracking number", order.trackingNumber, symbol: "barcode.viewfinder")
-          DetailCell("Destination", order.destination, symbol: "mappin.and.ellipse")
-          DetailCell("Delivery ETA", order.eta, symbol: "calendar")
+          DetailCell("Fulfillment", order.fulfillment.rawValue, symbol: order.fulfillment.symbol)
+          DetailCell(order.fulfillment == .delivery ? "Carrier" : "Collection point", order.carrier, symbol: order.fulfillment.symbol)
+          DetailCell(order.fulfillment == .delivery ? "Tracking number" : "Collection reference", order.trackingNumber, symbol: "barcode.viewfinder")
+          DetailCell(order.fulfillment == .delivery ? "Destination" : "Pickup address", order.destination, symbol: "mappin.and.ellipse")
+          DetailCell(order.fulfillment == .delivery ? "Delivery ETA" : "Pickup window", order.eta, symbol: "calendar")
           DetailCell("Source", order.source.rawValue, symbol: order.source.symbol)
           DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
+        }
+
+        if order.fulfillment == .delivery {
+          Button("Send to Parcel", systemImage: "square.and.arrow.up") {}
+            .buttonStyle(.borderedProminent)
         }
 
         Panel(title: "Timeline", symbol: "clock.fill") {
@@ -600,9 +621,9 @@ struct AutomationView: View {
   private var steps: [(String, String, String)] = [
     ("Mailbox parsing", "Extract order numbers, sender domains, totals, delivery warnings, and recipient aliases.", "envelope.open.fill"),
     ("Account sync", "Refresh supplier portals and Shopify OAuth stores without overwriting reviewed data.", "arrow.triangle.2.circlepath"),
-    ("Order matching", "Compare order number, store, tracked email, customer team, and tracking IDs.", "link"),
+    ("Order matching", "Compare supplier order number, checked mailbox, original recipient email, store, and customer team.", "link"),
     ("Review gate", "Risky matches enter a review state before changing order records.", "checkmark.shield.fill"),
-    ("Carrier tracking", "Monitor carrier name, tracking number, ETA, destination, and exception scans.", "location.fill")
+    ("Delivery handoff", "Use a free carrier API if available, otherwise export delivery details to the Parcel app.", "square.and.arrow.up")
   ]
 
   var body: some View {
@@ -642,6 +663,7 @@ struct SettingsView: View {
   @AppStorage("shopifySyncEnabled") private var shopifySyncEnabled = true
   @AppStorage("storeLoginSyncEnabled") private var storeLoginSyncEnabled = true
   @AppStorage("carrierTrackingEnabled") private var carrierTrackingEnabled = true
+  @AppStorage("carrierTrackingMode") private var carrierTrackingMode = "Export to Parcel"
   @AppStorage("requireReviewForRiskyMatches") private var requireReviewForRiskyMatches = true
   @AppStorage("notifyOnDeliveryExceptions") private var notifyOnDeliveryExceptions = true
   @AppStorage("exceptionThreshold") private var exceptionThreshold = 3.0
@@ -696,7 +718,13 @@ struct SettingsView: View {
         SettingsPanel(title: "Connected sources", symbol: "link.badge.plus") {
           Toggle("Sync Shopify OAuth suppliers", isOn: $shopifySyncEnabled)
           Toggle("Sync password-vault store logins", isOn: $storeLoginSyncEnabled)
-          Toggle("Track carrier status after shipment", isOn: $carrierTrackingEnabled)
+          Toggle("Enable delivery handoff after shipment", isOn: $carrierTrackingEnabled)
+          Picker("Carrier tracking mode", selection: $carrierTrackingMode) {
+            Text("Export to Parcel").tag("Export to Parcel")
+            Text("Free carrier API").tag("Free carrier API")
+            Text("Manual updates").tag("Manual updates")
+          }
+          .pickerStyle(.menu)
         }
       }
       .padding(isCompact ? 14 : 24)
@@ -782,7 +810,10 @@ struct OrderListRow: View {
           Text(order.store)
             .foregroundStyle(.secondary)
         }
-        Text("\(order.customer) • \(order.trackedEmail)")
+        Text("\(order.customer) • recipient \(order.trackedEmail)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("Checked in \(order.checkedMailbox)")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -928,7 +959,9 @@ enum SampleData {
       orderNumber: "SP-10492",
       store: "SafetyPro Supplies",
       trackedEmail: "ops-orders@parcelops.example",
+      checkedMailbox: "tracking-intake@parcelops.example",
       customer: "Melbourne Operations",
+      fulfillment: .delivery,
       carrier: "Australia Post",
       trackingNumber: "33AUL8841295",
       destination: "18 Collins Street, Melbourne VIC",
@@ -939,15 +972,17 @@ enum SampleData {
       latestStatus: "Arrived at Melbourne sorting facility",
       timeline: [
         TimelineEvent(title: "Arrived at facility", detail: "Carrier scan received from Melbourne VIC.", time: "Today 9:12 AM", symbol: "shippingbox.fill"),
-        TimelineEvent(title: "Shipment email parsed", detail: "Forwarded email matched by order number and tracked team email.", time: "Yesterday 6:10 PM", symbol: "envelope.fill"),
-        TimelineEvent(title: "Order created", detail: "Confirmation email opened a new tracked order.", time: "Tue 2:18 PM", symbol: "tray.and.arrow.down.fill")
+        TimelineEvent(title: "Shipment email parsed", detail: "Order SP-10492 was found in tracking-intake@parcelops.example and logged against recipient ops-orders@parcelops.example.", time: "Yesterday 6:10 PM", symbol: "envelope.fill"),
+        TimelineEvent(title: "Order created", detail: "Supplier order number opened a new tracked order.", time: "Tue 2:18 PM", symbol: "tray.and.arrow.down.fill")
       ]
     ),
     TrackedOrder(
       orderNumber: "SHP-8831",
       store: "Acme Parts Shopify",
       trackedEmail: "field-orders@parcelops.example",
+      checkedMailbox: "field-purchasing@parcelops.example",
       customer: "Brisbane Field Team",
+      fulfillment: .delivery,
       carrier: "DHL",
       trackingNumber: "JD0146000098312",
       destination: "77 Eagle Street, Brisbane QLD",
@@ -965,11 +1000,13 @@ enum SampleData {
       orderNumber: "NWS-7720",
       store: "Northwind Wholesale",
       trackedEmail: "office-orders@parcelops.example",
+      checkedMailbox: "tracking-intake@parcelops.example",
       customer: "Perth Office",
-      carrier: "StarTrack",
-      trackingNumber: "Awaiting dispatch",
-      destination: "125 St Georges Terrace, Perth WA",
-      eta: "Not available",
+      fulfillment: .clickAndCollect,
+      carrier: "Northwind Perth counter",
+      trackingNumber: "Pickup code NW7720",
+      destination: "Northwind Trade Desk, Perth WA",
+      eta: "Ready tomorrow",
       source: .storeLogin,
       status: .ordered,
       reviewState: .monitor,
@@ -983,7 +1020,9 @@ enum SampleData {
       orderNumber: "MAN-2194",
       store: "Regional Courier Desk",
       trackedEmail: "facilities@parcelops.example",
+      checkedMailbox: "tracking-intake@parcelops.example",
       customer: "Facilities",
+      fulfillment: .delivery,
       carrier: "TNT",
       trackingNumber: "TNT55928103",
       destination: "Dock 4, 9 Harbour Road, Sydney NSW",
