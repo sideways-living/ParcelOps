@@ -304,6 +304,7 @@ struct TrackedOrder: Identifiable, Hashable {
   var reviewState: ReviewState
   var latestStatus: String
   var timeline: [TimelineEvent]
+  var contactHistory: [ContactHistoryEvent]
 }
 
 struct TimelineEvent: Identifiable, Hashable {
@@ -312,6 +313,36 @@ struct TimelineEvent: Identifiable, Hashable {
   var detail: String
   var time: String
   var symbol: String
+}
+
+struct ContactHistoryEvent: Identifiable, Hashable {
+  var id = UUID()
+  var time: String
+  var source: ContactSource
+  var contactPoint: String
+  var summary: String
+  var evidence: String
+  var reviewState: ReviewState
+}
+
+enum ContactSource: String, Hashable {
+  case mailbox = "Mailbox"
+  case shopify = "Shopify"
+  case watchedFolder = "Watched folder"
+  case supplierPortal = "Supplier portal"
+  case carrier = "Carrier"
+  case manual = "Manual"
+
+  var symbol: String {
+    switch self {
+    case .mailbox: "envelope.fill"
+    case .shopify: "cart.fill"
+    case .watchedFolder: "folder.fill"
+    case .supplierPortal: "person.crop.circle.badge.checkmark"
+    case .carrier: "truck.box.fill"
+    case .manual: "square.and.pencil"
+    }
+  }
 }
 
 struct MailEvent: Identifiable, Hashable {
@@ -619,6 +650,14 @@ struct OrderDetailView: View {
           VStack(spacing: 0) {
             ForEach(order.timeline) { event in
               TimelineRow(event: event)
+            }
+          }
+        }
+
+        Panel(title: "Full contact history", symbol: "tray.full.fill") {
+          VStack(spacing: 10) {
+            ForEach(order.contactHistory) { event in
+              ContactHistoryRow(event: event)
             }
           }
         }
@@ -1279,6 +1318,44 @@ struct TimelineRow: View {
   }
 }
 
+struct ContactHistoryRow: View {
+  var event: ContactHistoryEvent
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: event.source.symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 26, height: 26)
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(event.source.rawValue)
+              .font(.headline)
+            Text(event.contactPoint)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          VStack(alignment: .trailing, spacing: 4) {
+            Badge(event.reviewState.rawValue, color: event.reviewState.color)
+            Text(event.time)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        Text(event.summary)
+          .font(.callout)
+        Text(event.evidence)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct Badge: View {
   var text: String
   var color: Color
@@ -1320,6 +1397,11 @@ enum SampleData {
         TimelineEvent(title: "Arrived at facility", detail: "Carrier scan received from Melbourne VIC.", time: "Today 9:12 AM", symbol: "shippingbox.fill"),
         TimelineEvent(title: "Shipment email parsed", detail: "Order SP-10492 was found in tracking-intake@parcelops.example and logged against recipient ops-orders@parcelops.example.", time: "Yesterday 6:10 PM", symbol: "envelope.fill"),
         TimelineEvent(title: "Order created", detail: "Supplier order number opened a new tracked order.", time: "Tue 2:18 PM", symbol: "tray.and.arrow.down.fill")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Today 9:12 AM", source: .carrier, contactPoint: "Australia Post 33AUL8841295", summary: "Carrier scan placed shipment at Melbourne sorting facility.", evidence: "Carrier tracking update linked to supplier order SP-10492.", reviewState: .accepted),
+        ContactHistoryEvent(time: "Yesterday 6:10 PM", source: .mailbox, contactPoint: "tracking-intake@parcelops.example", summary: "Shipping email forwarded into checked mailbox.", evidence: "Recipient email ops-orders@parcelops.example matched the purchase identity.", reviewState: .accepted),
+        ContactHistoryEvent(time: "Tue 2:18 PM", source: .mailbox, contactPoint: "tracking-intake@parcelops.example", summary: "Order confirmation created the order record.", evidence: "Supplier order number SP-10492 extracted from forwarded message.", reviewState: .accepted)
       ]
     ),
     TrackedOrder(
@@ -1340,6 +1422,11 @@ enum SampleData {
       timeline: [
         TimelineEvent(title: "Review required", detail: "Support email may belong to this order, but suite details differ.", time: "Today 8:05 AM", symbol: "checkmark.shield.fill"),
         TimelineEvent(title: "Fulfillment synced", detail: "Shopify OAuth connection added the shipment record.", time: "Yesterday 11:34 AM", symbol: "cart.fill")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Today 8:05 AM", source: .mailbox, contactPoint: "field-purchasing@parcelops.example", summary: "DHL support email requested destination confirmation.", evidence: "Matched by tracking number, but address details differ and need user review.", reviewState: .needsReview),
+        ContactHistoryEvent(time: "Yesterday 11:34 AM", source: .shopify, contactPoint: "acme-parts.myshopify.com", summary: "Shopify fulfillment added DHL shipment.", evidence: "OAuth sync mapped store order SHP-8831 to Brisbane Field Team.", reviewState: .accepted),
+        ContactHistoryEvent(time: "Mon 4:22 PM", source: .shopify, contactPoint: "acme-parts.myshopify.com", summary: "Original Shopify order imported.", evidence: "Recipient email field-orders@parcelops.example linked to checked mailbox field-purchasing@parcelops.example.", reviewState: .accepted)
       ]
     ),
     TrackedOrder(
@@ -1360,6 +1447,11 @@ enum SampleData {
       timeline: [
         TimelineEvent(title: "Portal sync", detail: "Password-vault login found order status inside supplier account.", time: "Today 7:30 AM", symbol: "lock.shield.fill"),
         TimelineEvent(title: "Invoice matched", detail: "Forwarded invoice matched the Perth Office tracked email.", time: "Yesterday 5:01 PM", symbol: "doc.text.fill")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Today 7:30 AM", source: .supplierPortal, contactPoint: "Northwind Wholesale login", summary: "Portal sync confirmed click-and-collect order status.", evidence: "Pickup code NW7720 found in supplier account.", reviewState: .monitor),
+        ContactHistoryEvent(time: "Yesterday 5:01 PM", source: .mailbox, contactPoint: "tracking-intake@parcelops.example", summary: "Invoice email matched the order.", evidence: "Recipient office-orders@parcelops.example and supplier order NWS-7720 matched.", reviewState: .accepted),
+        ContactHistoryEvent(time: "Yesterday 4:54 PM", source: .watchedFolder, contactPoint: "~/Downloads", summary: "PDF invoice saved from browser was scanned.", evidence: "PDF text extraction found NWS-7720 and Northwind Wholesale.", reviewState: .monitor)
       ]
     ),
     TrackedOrder(
@@ -1379,6 +1471,10 @@ enum SampleData {
       latestStatus: "Shipment created manually from supplier call",
       timeline: [
         TimelineEvent(title: "Manual order created", detail: "Operator entered supplier, carrier, destination, and tracking number.", time: "Today 10:20 AM", symbol: "square.and.pencil")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Today 10:20 AM", source: .manual, contactPoint: "Facilities user entry", summary: "Manual order was created from supplier phone call.", evidence: "Operator entered TNT55928103, Dock 4 destination, and supplier details.", reviewState: .accepted),
+        ContactHistoryEvent(time: "Today 10:22 AM", source: .watchedFolder, contactPoint: "iCloud Drive/ParcelOps Orders", summary: "Supporting PDF was uploaded to the order folder.", evidence: "Filename Regional-Courier-MAN-2194.pdf matched the manual order number.", reviewState: .accepted)
       ]
     )
   ]
