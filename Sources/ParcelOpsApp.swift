@@ -94,6 +94,8 @@ struct ParcelOpsRootView: View {
       MailboxView(events: store.mailEvents)
     case .review:
       NeedsReviewView(store: store)
+    case .wishlist:
+      WishlistView(items: store.wishlistItems)
     case .integrations:
       IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders, connections: store.connections)
     case .automation:
@@ -114,7 +116,7 @@ struct ExpandableBottomMenu: View {
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.mailbox, .integrations, .automation]
+    [.wishlist, .mailbox, .integrations, .automation]
   }
 
   var body: some View {
@@ -202,6 +204,7 @@ final class ParcelOpsStore {
   var mailboxes: [TrackedMailbox] = SampleData.mailboxes
   var shopifyConnections: [ShopifyConnection] = SampleData.shopifyConnections
   var watchedFolders: [WatchedFolder] = SampleData.watchedFolders
+  var wishlistItems: [WishlistItem] = SampleData.wishlistItems
   var connections: [SourceConnection] = SampleData.connections
 
   var activeCount: Int {
@@ -244,6 +247,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case orders
   case mailbox
   case review
+  case wishlist
   case integrations
   case automation
   case settings
@@ -256,6 +260,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .orders: "Orders"
     case .mailbox: "Mailbox Monitor"
     case .review: "Needs Review"
+    case .wishlist: "Wishlist"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
     case .settings: "Settings"
@@ -268,6 +273,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .orders: "Orders"
     case .mailbox: "Mailbox"
     case .review: "Review"
+    case .wishlist: "Wishlist"
     case .integrations: "Sources"
     case .automation: "Flow"
     case .settings: "Settings"
@@ -280,6 +286,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .orders: "shippingbox.fill"
     case .mailbox: "envelope.badge.fill"
     case .review: "checkmark.shield.fill"
+    case .wishlist: "star.square.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
     case .settings: "gearshape.fill"
@@ -394,6 +401,37 @@ struct WatchedFolder: Identifiable, Hashable {
   var cadence: String
   var status: String
   var lastScan: String
+}
+
+struct WishlistItem: Identifiable, Hashable {
+  var id = UUID()
+  var itemName: String
+  var storefront: String
+  var storefrontURL: String
+  var estimatedCost: String
+  var owner: String
+  var pool: String
+  var source: WishlistSource
+  var status: String
+  var capturedDetail: String
+}
+
+enum WishlistSource: String, Hashable {
+  case pdf = "PDF upload"
+  case screenshot = "Screenshot"
+  case shareSheet = "Share"
+  case browserExtension = "Browser extension"
+  case manual = "Manual"
+
+  var symbol: String {
+    switch self {
+    case .pdf: "doc.richtext.fill"
+    case .screenshot: "photo.fill"
+    case .shareSheet: "square.and.arrow.down.fill"
+    case .browserExtension: "puzzlepiece.extension.fill"
+    case .manual: "square.and.pencil"
+    }
+  }
 }
 
 enum FulfillmentMethod: String, Hashable {
@@ -795,6 +833,109 @@ struct ReviewMailEventRow: View {
         Button("Add to order", systemImage: "checkmark.circle.fill") {}
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash") {}
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct WishlistView: View {
+  var items: [WishlistItem]
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Wishlist")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Per-user purchase ideas can be captured from files, screenshots, browser sharing, or extensions before converting to orders.")
+            .foregroundStyle(.secondary)
+        }
+
+        HStack {
+          Button("Upload PDF", systemImage: "doc.badge.plus") {}
+          Button("Add screenshot", systemImage: "photo.badge.plus") {}
+          Button("Manual item", systemImage: "plus") {}
+        }
+        .buttonStyle(.bordered)
+
+        SettingsPanel(title: "Capture channels", symbol: "square.and.arrow.down.fill") {
+          CaptureChannelRow(symbol: "doc.richtext.fill", title: "PDF upload", detail: "Parse supplier PDFs and invoices for storefront, item name, price, and order clues.")
+          CaptureChannelRow(symbol: "photo.fill", title: "Screenshot upload", detail: "Extract storefront URL, item title, visible price, and availability from saved screenshots.")
+          CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "iOS and macOS Share", detail: "Accept shared web pages from Safari or another browser into the signed-in user's wishlist.")
+          CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Chrome and Firefox extension", detail: "Browser extension capture path for desktop browsers and Android phones.")
+        }
+
+        SettingsPanel(title: "Wishlist items", symbol: "star.square.fill") {
+          ForEach(items) { item in
+            WishlistItemRow(item: item)
+          }
+        }
+      }
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+}
+
+struct CaptureChannelRow: View {
+  var symbol: String
+  var title: String
+  var detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.headline)
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct WishlistItemRow: View {
+  var item: WishlistItem
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: item.source.symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(item.itemName)
+            .font(.headline)
+          Text("\(item.storefront) • \(item.estimatedCost)")
+            .foregroundStyle(.secondary)
+          Text(item.storefrontURL)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("\(item.owner) • \(item.pool)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(item.status, color: .blue)
+      }
+      Text(item.capturedDetail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      HStack {
+        Button("Convert to order", systemImage: "shippingbox.fill") {}
+          .buttonStyle(.borderedProminent)
+        Button("Discard", systemImage: "trash") {}
           .buttonStyle(.bordered)
       }
     }
@@ -1501,6 +1642,13 @@ enum SampleData {
     WatchedFolder(name: "Desktop screenshots", location: "~/Desktop", platform: "macOS", fileTypes: "PNG, JPG, PDF", cadence: "Every 15 minutes", status: "Watching", lastScan: "3 min ago"),
     WatchedFolder(name: "Downloads invoices", location: "~/Downloads", platform: "macOS", fileTypes: "PDF, CSV", cadence: "Every 15 minutes", status: "Watching", lastScan: "8 min ago"),
     WatchedFolder(name: "Order uploads", location: "iCloud Drive/ParcelOps Orders", platform: "iOS and macOS", fileTypes: "PDF, images, email exports", cadence: "Hourly", status: "Watching", lastScan: "23 min ago")
+  ]
+
+  static var wishlistItems: [WishlistItem] = [
+    WishlistItem(itemName: "Compact barcode scanner", storefront: "SafetyPro Direct", storefrontURL: "https://safetypro.example/scanner-compact", estimatedCost: "$189.00", owner: "Mia Chen", pool: "Shared company pool", source: .shareSheet, status: "Ready", capturedDetail: "Shared from Safari with item URL, visible price, and supplier page title."),
+    WishlistItem(itemName: "Thermal label rolls", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/thermal-rolls", estimatedCost: "$42.50", owner: "Jordan Lee", pool: "Personal wishlist", source: .screenshot, status: "Needs review", capturedDetail: "Screenshot parser found item title and price, but storefront URL needs confirmation."),
+    WishlistItem(itemName: "Dock safety cones", storefront: "Northwind Wholesale", storefrontURL: "https://northwind.example/cones", estimatedCost: "$76.00", owner: "Priya Shah", pool: "Facilities team", source: .browserExtension, status: "Ready", capturedDetail: "Captured through Chrome/Firefox extension path for cross-device wishlist intake."),
+    WishlistItem(itemName: "Replacement printer tray", storefront: "Acme Parts", storefrontURL: "https://acme-parts.example/printer-tray", estimatedCost: "$118.20", owner: "Mia Chen", pool: "Shared company pool", source: .pdf, status: "Ready", capturedDetail: "PDF quote upload parsed supplier, SKU, item name, and estimated cost.")
   ]
 
   static var connections: [SourceConnection] = [
