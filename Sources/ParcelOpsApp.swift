@@ -228,6 +228,33 @@ final class ParcelOpsStore {
     mailEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
 
+  func clearIssue(for orderNumber: String) {
+    for index in orders.indices where orders[index].orderNumber == orderNumber {
+      orders[index].reviewState = .accepted
+      if orders[index].status == .exception {
+        orders[index].status = .inTransit
+      }
+      orders[index].latestStatus = "Issue cleared by user review"
+    }
+
+    for index in mailEvents.indices where mailEvents[index].matchedOrder == orderNumber {
+      mailEvents[index].reviewState = .accepted
+      mailEvents[index].severity = .info
+      mailEvents[index].summary = "Reviewed and cleared. \(mailEvents[index].summary)"
+    }
+  }
+
+  func discardSpam(for orderNumber: String) {
+    mailEvents.removeAll { $0.matchedOrder == orderNumber }
+    for index in orders.indices where orders[index].orderNumber == orderNumber {
+      orders[index].reviewState = .accepted
+      if orders[index].status == .exception {
+        orders[index].status = .ordered
+      }
+      orders[index].latestStatus = "Related exception discarded as spam"
+    }
+  }
+
   var filteredOrders: [TrackedOrder] {
     orders.filter { order in
       let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -766,13 +793,21 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
-            ReviewOrderRow(order: order)
+            ReviewOrderRow(order: order) {
+              store.clearIssue(for: order.orderNumber)
+            } onDiscard: {
+              store.discardSpam(for: order.orderNumber)
+            }
           }
         }
 
         SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
           ForEach(store.reviewMailEvents) { event in
-            ReviewMailEventRow(event: event)
+            ReviewMailEventRow(event: event) {
+              store.clearIssue(for: event.matchedOrder)
+            } onDiscard: {
+              store.discardSpam(for: event.matchedOrder)
+            }
           }
         }
       }
@@ -783,6 +818,8 @@ struct NeedsReviewView: View {
 
 struct ReviewOrderRow: View {
   var order: TrackedOrder
+  var onClear: () -> Void
+  var onDiscard: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -801,9 +838,9 @@ struct ReviewOrderRow: View {
         Badge(order.reviewState.rawValue, color: order.reviewState.color)
       }
       HStack {
-        Button("Add to orders", systemImage: "checkmark.circle.fill") {}
+        Button("Add to orders", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
-        Button("Discard spam", systemImage: "trash") {}
+        Button("Discard spam", systemImage: "trash", action: onDiscard)
           .buttonStyle(.bordered)
       }
     }
@@ -815,6 +852,8 @@ struct ReviewOrderRow: View {
 
 struct ReviewMailEventRow: View {
   var event: MailEvent
+  var onClear: () -> Void
+  var onDiscard: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -831,9 +870,9 @@ struct ReviewMailEventRow: View {
         Badge(event.severity.rawValue, color: event.severity.color)
       }
       HStack {
-        Button("Add to order", systemImage: "checkmark.circle.fill") {}
+        Button("Add to order", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
-        Button("Discard spam", systemImage: "trash") {}
+        Button("Discard spam", systemImage: "trash", action: onDiscard)
           .buttonStyle(.bordered)
       }
     }
