@@ -89,6 +89,8 @@ struct ParcelOpsRootView: View {
       OrdersView(store: store)
     case .mailbox:
       MailboxView(events: store.mailEvents)
+    case .review:
+      NeedsReviewView(store: store)
     case .integrations:
       IntegrationsView(mailboxes: store.mailboxes, shopifyConnections: store.shopifyConnections, watchedFolders: store.watchedFolders, connections: store.connections)
     case .automation:
@@ -120,7 +122,15 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    orders.filter { $0.reviewState == .needsReview }.count + mailEvents.filter { $0.reviewState == .needsReview }.count
+    reviewOrders.count + reviewMailEvents.count
+  }
+
+  var reviewOrders: [TrackedOrder] {
+    orders.filter { $0.status == .exception || $0.reviewState != .accepted }
+  }
+
+  var reviewMailEvents: [MailEvent] {
+    mailEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -142,6 +152,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
   case orders
   case mailbox
+  case review
   case integrations
   case automation
   case settings
@@ -153,6 +164,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .dashboard: "Dashboard"
     case .orders: "Orders"
     case .mailbox: "Mailbox Monitor"
+    case .review: "Needs Review"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
     case .settings: "Settings"
@@ -164,6 +176,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .dashboard: "rectangle.grid.2x2.fill"
     case .orders: "shippingbox.fill"
     case .mailbox: "envelope.badge.fill"
+    case .review: "checkmark.shield.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
     case .settings: "gearshape.fill"
@@ -549,6 +562,103 @@ struct MailboxView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+struct NeedsReviewView: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        HStack {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Needs review")
+              .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+            Text("Exceptions, risky matches, and lower-confidence intake wait here until a user accepts or discards them.")
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          Badge("\(store.reviewQueueCount)", color: .orange)
+        }
+
+        SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
+          ForEach(store.reviewOrders) { order in
+            ReviewOrderRow(order: order)
+          }
+        }
+
+        SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
+          ForEach(store.reviewMailEvents) { event in
+            ReviewMailEventRow(event: event)
+          }
+        }
+      }
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+}
+
+struct ReviewOrderRow: View {
+  var order: TrackedOrder
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("\(order.orderNumber) • \(order.store)")
+            .font(.headline)
+          Text("Recipient \(order.trackedEmail), checked in \(order.checkedMailbox)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(order.latestStatus)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(order.reviewState.rawValue, color: order.reviewState.color)
+      }
+      HStack {
+        Button("Add to orders", systemImage: "checkmark.circle.fill") {}
+          .buttonStyle(.borderedProminent)
+        Button("Discard spam", systemImage: "trash") {}
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct ReviewMailEventRow: View {
+  var event: MailEvent
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(event.sender)
+            .font(.headline)
+          Text(event.summary)
+            .foregroundStyle(.secondary)
+          Text("Suggested match: \(event.matchedOrder)")
+            .font(.caption.weight(.semibold))
+        }
+        Spacer()
+        Badge(event.severity.rawValue, color: event.severity.color)
+      }
+      HStack {
+        Button("Add to order", systemImage: "checkmark.circle.fill") {}
+          .buttonStyle(.borderedProminent)
+        Button("Discard spam", systemImage: "trash") {}
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
