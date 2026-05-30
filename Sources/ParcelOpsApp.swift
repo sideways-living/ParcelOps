@@ -137,7 +137,7 @@ struct ExpandableBottomMenu: View {
 
         BottomMenuButton(
           title: isExpanded ? "Less" : "More",
-          symbol: isExpanded ? "chevron.down" : "ellipsis",
+          symbol: isExpanded ? "arrow.down" : "arrow.up",
           isSelected: isExpanded
         ) {
           withAnimation(.snappy) {
