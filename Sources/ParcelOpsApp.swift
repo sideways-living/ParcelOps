@@ -90,11 +90,11 @@ struct ParcelOpsRootView: View {
     case .mailbox:
       MailboxView(events: store.mailEvents)
     case .integrations:
-      IntegrationsView(connections: store.connections)
+      IntegrationsView(mailboxes: store.mailboxes, connections: store.connections)
     case .automation:
       AutomationView()
     case .settings:
-      SettingsView()
+      SettingsView(mailboxes: store.mailboxes)
     }
   }
 }
@@ -106,6 +106,7 @@ final class ParcelOpsStore {
 
   var orders: [TrackedOrder] = SampleData.orders
   var mailEvents: [MailEvent] = SampleData.mailEvents
+  var mailboxes: [TrackedMailbox] = SampleData.mailboxes
   var connections: [SourceConnection] = SampleData.connections
 
   var activeCount: Int {
@@ -210,6 +211,30 @@ struct SourceConnection: Identifiable, Hashable {
   var account: String
   var status: String
   var lastSync: String
+}
+
+struct TrackedMailbox: Identifiable, Hashable {
+  var id = UUID()
+  var address: String
+  var provider: MailboxProvider
+  var monitoredFolders: String
+  var status: String
+  var lastChecked: String
+  var routingRule: String
+}
+
+enum MailboxProvider: String, Hashable {
+  case microsoft365 = "Microsoft 365"
+  case gmail = "Gmail"
+  case imap = "IMAP"
+
+  var symbol: String {
+    switch self {
+    case .microsoft365: "mail.stack.fill"
+    case .gmail: "envelope.fill"
+    case .imap: "server.rack"
+    }
+  }
 }
 
 enum IntakeSource: String, CaseIterable, Hashable {
@@ -481,6 +506,7 @@ struct MailboxView: View {
 }
 
 struct IntegrationsView: View {
+  var mailboxes: [TrackedMailbox]
   var connections: [SourceConnection]
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -495,8 +521,14 @@ struct IntegrationsView: View {
           Text("Connected sources")
             .font(isCompact ? .title2.bold() : .title.bold())
           HStack {
+            Button("Add mailbox", systemImage: "envelope.badge.fill") {}
             Button("Connect Shopify", systemImage: "cart.badge.plus") {}
             Button("Add login", systemImage: "key.fill") {}
+          }
+        }
+        SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+          ForEach(mailboxes) { mailbox in
+            MailboxConnectionRow(mailbox: mailbox)
           }
         }
         ForEach(connections) { connection in
@@ -527,6 +559,39 @@ struct IntegrationsView: View {
       }
       .padding(isCompact ? 14 : 24)
     }
+  }
+}
+
+struct MailboxConnectionRow: View {
+  var mailbox: TrackedMailbox
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: mailbox.provider.symbol)
+        .foregroundStyle(.blue)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(mailbox.address)
+          .font(.headline)
+        Text("\(mailbox.provider.rawValue) • \(mailbox.monitoredFolders)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text(mailbox.routingRule)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 4) {
+        Text(mailbox.status)
+          .font(.callout.weight(.semibold))
+        Text(mailbox.lastChecked)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -571,6 +636,7 @@ struct AutomationView: View {
 }
 
 struct SettingsView: View {
+  var mailboxes: [TrackedMailbox]
   @AppStorage("mailboxMonitoringEnabled") private var mailboxMonitoringEnabled = true
   @AppStorage("autoCreateOrdersFromEmail") private var autoCreateOrdersFromEmail = true
   @AppStorage("shopifySyncEnabled") private var shopifySyncEnabled = true
@@ -601,6 +667,14 @@ struct SettingsView: View {
             Text("Permissive").tag("Permissive")
           }
           .pickerStyle(.menu)
+        }
+
+        SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+          ForEach(mailboxes) { mailbox in
+            MailboxConnectionRow(mailbox: mailbox)
+          }
+          Button("Add tracked mailbox", systemImage: "plus") {}
+            .buttonStyle(.bordered)
         }
 
         SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
@@ -930,8 +1004,14 @@ enum SampleData {
     MailEvent(sender: "Northwind Wholesale", summary: "Invoice matched, but no dispatch or carrier information yet.", receivedTime: "Yesterday 5:01 PM", matchedOrder: "NWS-7720", severity: .watch, reviewState: .monitor)
   ]
 
+  static var mailboxes: [TrackedMailbox] = [
+    TrackedMailbox(address: "tracking-intake@parcelops.example", provider: .microsoft365, monitoredFolders: "Inbox, Forwarded Orders", status: "Watching", lastChecked: "2 min ago", routingRule: "Default order intake and carrier alerts"),
+    TrackedMailbox(address: "field-purchasing@parcelops.example", provider: .gmail, monitoredFolders: "Purchases, Shipping", status: "Watching", lastChecked: "5 min ago", routingRule: "Field team purchases"),
+    TrackedMailbox(address: "ap-invoices@parcelops.example", provider: .imap, monitoredFolders: "Orders", status: "Needs auth", lastChecked: "Yesterday", routingRule: "Invoice-only matching")
+  ]
+
   static var connections: [SourceConnection] = [
-    SourceConnection(name: "tracking-intake@parcelops.example", kind: .mailbox, account: "Forwarded mailbox", status: "Watching", lastSync: "2 min ago"),
+    SourceConnection(name: "3 tracked mailboxes", kind: .mailbox, account: "Microsoft 365, Gmail, IMAP", status: "2 watching", lastSync: "2 min ago"),
     SourceConnection(name: "Acme Parts", kind: .shopify, account: "OAuth connected", status: "Synced", lastSync: "6 min ago"),
     SourceConnection(name: "Northwind Wholesale", kind: .vaultLogin, account: "Password vault", status: "Needs 2FA soon", lastSync: "1 hr ago"),
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
