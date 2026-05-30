@@ -945,30 +945,44 @@ struct WishlistItemRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
       if isDeleted {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
           Button("Restore", systemImage: "arrow.uturn.backward") {}
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Restore")
           Button("Delete now", systemImage: "trash.fill") {}
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Delete permanently")
         }
       } else {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 8)], alignment: .leading, spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
           if let url = URL(string: item.storefrontURL) {
             Link(destination: url) {
               Label("Open shopfront", systemImage: "safari")
             }
             .buttonStyle(.borderedProminent)
+            .labelStyle(.iconOnly)
+            .help("Open shopfront")
             ShareLink(item: url) {
               Label("Share link", systemImage: "square.and.arrow.up")
             }
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Share link")
           }
           Button("Convert to order", systemImage: "shippingbox.fill") {}
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Convert to order")
           Button("Link order", systemImage: "link") {}
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Link to existing order")
           Button("Delete", systemImage: "trash") {}
             .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Move to deleted items")
         }
       }
     }
