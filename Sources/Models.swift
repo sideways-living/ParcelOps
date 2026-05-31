@@ -289,3 +289,23 @@ struct ParcelOpsSettings: Hashable {
   var exceptionThreshold = 3
   var matchConfidencePolicy = "Balanced"
 }
+
+enum WorkflowTrigger: Hashable {
+  case manualSync
+  case mailboxEventSeverity(Severity)
+  case wishlistConverted
+}
+
+enum WorkflowTemplateAction: String, Hashable {
+  case ingestMailboxes = "Ingest mailboxes"
+  case syncShopify = "Sync Shopify"
+  case scanFolders = "Scan watched folders"
+  case refreshCarriers = "Refresh carrier handoff"
+  case routeToNeedsReview = "Route to Needs Review"
+  case appendContactHistory = "Append contact history"
+}
+
+struct WorkflowTemplateRule: Hashable {
+  var trigger: WorkflowTrigger
+  var actions: [WorkflowTemplateAction]
+}

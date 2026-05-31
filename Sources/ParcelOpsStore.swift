@@ -25,6 +25,7 @@ final class ParcelOpsStore {
   private let shopifySyncService: ShopifySyncService
   private let carrierTrackingService: CarrierTrackingService
   private let parcelExportService: ParcelExportService
+  private let workflowTemplateEngine: WorkflowTemplateEngine
 
   init(
     repository: InMemoryParcelOpsRepository = InMemoryParcelOpsRepository(),
@@ -32,7 +33,8 @@ final class ParcelOpsStore {
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),
     carrierTrackingService: CarrierTrackingService = MockCarrierTrackingService(),
-    parcelExportService: ParcelExportService = MockParcelExportService()
+    parcelExportService: ParcelExportService = MockParcelExportService(),
+    workflowTemplateEngine: WorkflowTemplateEngine = RuleBasedWorkflowTemplateEngine()
   ) {
     self.orderRepository = repository
     self.mailEventRepository = repository
@@ -44,6 +46,7 @@ final class ParcelOpsStore {
     self.shopifySyncService = shopifySyncService
     self.carrierTrackingService = carrierTrackingService
     self.parcelExportService = parcelExportService
+    self.workflowTemplateEngine = workflowTemplateEngine
     self.orders = repository.loadOrders()
     self.mailEvents = repository.loadMailEvents()
     self.mailboxes = repository.loadMailboxes()
@@ -90,12 +93,13 @@ final class ParcelOpsStore {
   }
 
   func syncSources() {
-    appendSystemContact("Sync requested", evidence: "Mailbox, Shopify, watched folder, and carrier mock services queued.")
+    let actions = workflowTemplateEngine.actions(for: .manualSync).map(\.rawValue).joined(separator: ", ")
+    appendSystemContact("Sync requested", evidence: "Workflow template actions queued: \(actions).")
   }
 
   func createManualOrderPlaceholder() {
     let order = TrackedOrder(
-      orderNumber: "MAN-\(Int.random(in: 3000...9999))",
+      orderNumber: "MAN-\(3000 + orders.count + 1)",
       store: "Manual supplier",
       recipientEmail: "unassigned@parcelops.example",
       checkedMailbox: "tracking-intake@parcelops.example",
@@ -186,7 +190,7 @@ final class ParcelOpsStore {
 
   func convertWishlistToOrder(_ item: WishlistItem) {
     let order = TrackedOrder(
-      orderNumber: "WISH-\(Int.random(in: 1000...9999))",
+      orderNumber: "WISH-\(1000 + orders.count + 1)",
       store: item.storefront,
       recipientEmail: "wishlist@parcelops.example",
       checkedMailbox: "tracking-intake@parcelops.example",

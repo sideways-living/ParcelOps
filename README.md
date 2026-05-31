@@ -7,6 +7,7 @@ ParcelOps is a SwiftUI product skeleton for tracking company orders, mail intake
 - Dashboard, Orders, Mailbox Monitor, Needs Review, Wishlist, Integrations, Automation Flow, and Settings.
 - Mock orders created from forwarded mailboxes, Shopify syncs, store logins, watched folders, manual entry, and wishlist conversion.
 - Review-safe matching: risky email/order matches go to Needs Review and keep contact history/evidence instead of silently overwriting order data.
+- Workflow progression is deterministic: `WorkflowTemplateRule` values drive task triggering, not AI decisions.
 - Multiple tracked mailboxes, Shopify accounts, watched folders, and wishlist sources.
 - Service protocols and in-memory repository protocols are defined for Xcode implementation work.
 
