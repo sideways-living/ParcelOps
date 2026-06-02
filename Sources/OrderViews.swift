@@ -114,6 +114,10 @@ struct OrderDetailView: View {
             isEditing = true
           }
           .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: order)
+          }
+          .buttonStyle(.bordered)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -164,6 +168,8 @@ struct OrderDetailView: View {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
+                } onCreateTask: {
+                  store.createReviewTask(from: event)
                 }
               }
             }
@@ -198,6 +204,8 @@ struct OrderDetailView: View {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
                   store.removeEvidence(attachment)
+                } onCreateTask: {
+                  store.createReviewTask(from: attachment)
                 }
               }
             }

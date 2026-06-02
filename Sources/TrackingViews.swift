@@ -47,6 +47,8 @@ struct TrackingView: View {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
+              } onCreateTask: {
+                store.createReviewTask(from: event)
               }
             }
           }
@@ -99,6 +101,7 @@ struct TrackingEventRow: View {
   var order: TrackedOrder?
   var onReviewed: () -> Void
   var onRemove: () -> Void
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -146,6 +149,8 @@ struct TrackingEventRow: View {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }

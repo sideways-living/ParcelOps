@@ -63,7 +63,12 @@ protocol SavedFilterRepository {
   func saveSavedFilters(_ filters: [SavedFilter])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository {
+protocol ReviewTaskRepository {
+  func loadReviewTasks() -> [ReviewTask]
+  func saveReviewTasks(_ tasks: [ReviewTask])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -201,6 +206,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(filters, to: .savedFilters)
   }
 
+  func loadReviewTasks() -> [ReviewTask] {
+    load([ReviewTask].self, from: .reviewTasks, defaultValue: SampleData.reviewTasks)
+  }
+
+  func saveReviewTasks(_ tasks: [ReviewTask]) {
+    save(tasks, to: .reviewTasks)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -272,10 +285,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case carrierTrackingEvents = "carrier-tracking-events.json"
     case automationRules = "automation-rules.json"
     case savedFilters = "saved-filters.json"
+    case reviewTasks = "review-tasks.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -291,6 +305,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var carrierTrackingEvents = SampleData.carrierTrackingEvents
   private var automationRules = SampleData.automationRules
   private var savedFilters = SampleData.savedFilters
+  private var reviewTasks = SampleData.reviewTasks
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -336,4 +351,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadSavedFilters() -> [SavedFilter] { savedFilters }
   func saveSavedFilters(_ filters: [SavedFilter]) { savedFilters = filters }
+
+  func loadReviewTasks() -> [ReviewTask] { reviewTasks }
+  func saveReviewTasks(_ tasks: [ReviewTask]) { reviewTasks = tasks }
 }

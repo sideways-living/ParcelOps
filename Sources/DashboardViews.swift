@@ -32,7 +32,7 @@ struct DashboardView: View {
               ("Queue", "\(store.reviewQueueCount)", .orange),
               ("Intake", "\(store.reviewIntakeEmails.count)", .blue),
               ("Evidence", "\(store.reviewEvidenceAttachments.count)", .purple),
-              ("Tracking", "\(store.reviewCarrierTrackingEvents.count)", .red)
+              ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .red)
             ])
             CompactIntakeList(emails: store.newestIntakeEmails)
           }
@@ -61,6 +61,15 @@ struct DashboardView: View {
               ("Rules", "\(store.automationRules.count)", .teal)
             ])
             CompactAutomationList(rules: Array(store.automationRules.prefix(4)))
+          }
+
+          AnalyticsSection(title: "Tasks", symbol: "checklist") {
+            MetricStrip(items: [
+              ("Open", "\(store.openReviewTasks.count)", .blue),
+              ("Attention", "\(store.reviewTasksNeedingAttention.count)", .orange),
+              ("Total", "\(store.reviewTasks.count)", .teal)
+            ])
+            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)))
           }
         }
 
@@ -220,6 +229,23 @@ struct CompactAutomationList: View {
           detail: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
           badge: rule.isEnabled ? "Enabled" : "Disabled",
           color: rule.isEnabled ? .green : .gray
+        )
+      }
+    }
+  }
+}
+
+struct CompactTaskList: View {
+  var tasks: [ReviewTask]
+
+  var body: some View {
+    CompactList(title: "Task escalations", symbol: "checklist") {
+      ForEach(tasks) { task in
+        CompactRow(
+          title: task.title,
+          detail: "\(task.assignee) • due \(task.dueDate)",
+          badge: task.priority.rawValue,
+          color: task.priority.color
         )
       }
     }

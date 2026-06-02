@@ -63,6 +63,8 @@ struct SearchView: View {
                   store.toggleSavedFilterPinned(filter)
                 } onRemove: {
                   store.removeSavedFilter(filter)
+                } onCreateTask: {
+                  store.createReviewTask(from: filter)
                 }
               }
             }
@@ -154,6 +156,7 @@ struct SavedFilterRow: View {
   var onApply: () -> Void
   var onTogglePin: () -> Void
   var onRemove: () -> Void
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -180,6 +183,7 @@ struct SavedFilterRow: View {
         Button(filter.isPinned ? "Unpin" : "Pin", systemImage: filter.isPinned ? "pin.slash" : "pin", action: onTogglePin)
         Button("Remove", systemImage: "trash", action: onRemove)
           .foregroundStyle(.red)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
       }
       .buttonStyle(.borderless)
     }

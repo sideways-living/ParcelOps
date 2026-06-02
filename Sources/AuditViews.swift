@@ -36,7 +36,9 @@ struct AuditView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              AuditEventRow(event: event)
+              AuditEventRow(event: event) {
+                store.createReviewTask(from: event)
+              }
             }
           }
         }
@@ -76,6 +78,7 @@ struct AuditView: View {
 
 struct AuditEventRow: View {
   var event: AuditEvent
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -121,6 +124,9 @@ struct AuditEventRow: View {
           }
         }
       }
+
+      Button("Task", systemImage: "checklist", action: onCreateTask)
+        .buttonStyle(.bordered)
     }
     .padding(12)
     .background(.quinary)

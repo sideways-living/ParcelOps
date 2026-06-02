@@ -10,6 +10,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case automation
   case tracking
   case evidence
+  case tasks
   case search
   case audit
   case settings
@@ -27,6 +28,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "Automation Flow"
     case .tracking: "Tracking"
     case .evidence: "Evidence"
+    case .tasks: "Tasks"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -44,6 +46,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "Flow"
     case .tracking: "Tracking"
     case .evidence: "Evidence"
+    case .tasks: "Tasks"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -61,6 +64,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "arrow.triangle.branch"
     case .tracking: "location.fill.viewfinder"
     case .evidence: "paperclip"
+    case .tasks: "checklist"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -210,6 +214,21 @@ struct SavedFilter: Identifiable, Hashable, Codable {
   var isPinned: Bool
 }
 
+struct ReviewTask: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var summary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var priority: TaskPriority
+  var dueDate: String
+  var assignee: String
+  var status: TaskStatus
+  var createdDate: String
+  var completedDate: String?
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -328,6 +347,8 @@ enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case cleared = "Cleared"
   case pinned = "Pinned"
   case unpinned = "Unpinned"
+  case completed = "Completed"
+  case reopened = "Reopened"
   case removed = "Removed"
 
   var id: String { rawValue }
@@ -341,6 +362,37 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case trackingEvent = "Tracking event"
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
+  case reviewTask = "Review task"
+
+  var id: String { rawValue }
+}
+
+enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case automationRule = "Automation rule"
+  case savedFilter = "Saved filter"
+  case auditEvent = "Audit event"
+
+  var id: String { rawValue }
+}
+
+enum TaskPriority: String, CaseIterable, Identifiable, Hashable, Codable {
+  case low = "Low"
+  case normal = "Normal"
+  case high = "High"
+  case urgent = "Urgent"
+
+  var id: String { rawValue }
+}
+
+enum TaskStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case open = "Open"
+  case inProgress = "In progress"
+  case blocked = "Blocked"
+  case completed = "Completed"
 
   var id: String { rawValue }
 }

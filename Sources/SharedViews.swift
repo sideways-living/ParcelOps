@@ -64,6 +64,8 @@ extension AuditAction {
     case .cleared: .orange
     case .pinned: .purple
     case .unpinned: .gray
+    case .completed: .green
+    case .reopened: .orange
     case .removed: .red
     }
   }
@@ -79,6 +81,43 @@ extension AuditEntityType {
     case .trackingEvent: "location.fill.viewfinder"
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
+    case .reviewTask: "checklist"
+    }
+  }
+}
+
+extension ReviewTaskLinkedEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .trackingEvent: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .automationRule: "arrow.triangle.branch"
+    case .savedFilter: "line.3.horizontal.decrease.circle.fill"
+    case .auditEvent: "list.clipboard.fill"
+    }
+  }
+}
+
+extension TaskPriority {
+  var color: Color {
+    switch self {
+    case .low: .gray
+    case .normal: .blue
+    case .high: .orange
+    case .urgent: .red
+    }
+  }
+}
+
+extension TaskStatus {
+  var color: Color {
+    switch self {
+    case .open: .orange
+    case .inProgress: .blue
+    case .blocked: .red
+    case .completed: .green
     }
   }
 }

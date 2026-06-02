@@ -319,6 +319,48 @@ enum SampleData {
     )
   ]
 
+  static var reviewTasks: [ReviewTask] = [
+    ReviewTask(
+      title: "Confirm DHL delivery address",
+      summary: "Contact Brisbane Field Team for suite or reception details before DHL continues delivery.",
+      linkedEntityType: .order,
+      linkedEntityID: orders[1].id.uuidString,
+      priority: .urgent,
+      dueDate: "Today 2:00 PM",
+      assignee: "Brisbane Field Team",
+      status: .open,
+      createdDate: "Today 8:07 AM",
+      completedDate: nil,
+      reviewState: .needsReview
+    ),
+    ReviewTask(
+      title: "Create Office Kit order record",
+      summary: "Review forwarded confirmation and create a tracked order after merchant and destination are accepted.",
+      linkedEntityType: .intakeEmail,
+      linkedEntityID: intakeEmails[1].id.uuidString,
+      priority: .high,
+      dueDate: "Today 4:00 PM",
+      assignee: "Operations",
+      status: .inProgress,
+      createdDate: "Today 11:45 AM",
+      completedDate: nil,
+      reviewState: .needsReview
+    ),
+    ReviewTask(
+      title: "Check evidence retention path",
+      summary: "Confirm placeholder evidence path is acceptable before marking the Office Kit attachment reviewed.",
+      linkedEntityType: .evidence,
+      linkedEntityID: evidenceAttachments[1].id.uuidString,
+      priority: .normal,
+      dueDate: "Tomorrow",
+      assignee: "Records",
+      status: .open,
+      createdDate: "Today 11:50 AM",
+      completedDate: nil,
+      reviewState: .monitor
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

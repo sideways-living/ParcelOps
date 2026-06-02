@@ -32,6 +32,8 @@ struct MailboxView: View {
               store.markEvidenceReviewed(attachment)
             } onRemoveEvidence: { attachment in
               store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: email)
             }
           }
         }
@@ -59,6 +61,7 @@ struct IntakeEmailRow: View {
   var onAddEvidence: () -> Void
   var onReviewEvidence: (EvidenceAttachment) -> Void
   var onRemoveEvidence: (EvidenceAttachment) -> Void
+  var onCreateTask: () -> Void = {}
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -120,6 +123,8 @@ struct IntakeEmailRow: View {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Ignore", systemImage: "trash", action: onIgnore)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
 
@@ -294,6 +299,8 @@ struct NeedsReviewView: View {
               store.clearIssue(for: order.orderNumber)
             } onDiscard: {
               store.discardSpam(for: order.orderNumber)
+            } onCreateTask: {
+              store.createReviewTask(from: order)
             }
           }
         }
@@ -304,6 +311,14 @@ struct NeedsReviewView: View {
               store.clearIssue(for: event.matchedOrder)
             } onDiscard: {
               store.discardSpam(for: event.matchedOrder)
+            } onCreateTask: {
+              store.createReviewTask(
+                linkedEntityType: .auditEvent,
+                linkedEntityID: event.id.uuidString,
+                label: event.matchedOrder,
+                summary: "Follow up mailbox event from \(event.sender): \(event.summary)",
+                priority: event.severity == .critical ? .urgent : .high
+              )
             }
           }
         }
@@ -326,6 +341,8 @@ struct NeedsReviewView: View {
               store.markEvidenceReviewed(attachment)
             } onRemoveEvidence: { attachment in
               store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: email)
             }
           }
         }
@@ -336,6 +353,8 @@ struct NeedsReviewView: View {
               store.markEvidenceReviewed(attachment)
             } onRemove: {
               store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: attachment)
             }
           }
         }
@@ -346,6 +365,24 @@ struct NeedsReviewView: View {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
+            } onCreateTask: {
+              store.createReviewTask(from: event)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Task escalations", symbol: "checklist") {
+          ForEach(store.reviewTasksNeedingAttention) { task in
+            ReviewTaskRow(task: task) { updatedTask in
+              store.updateReviewTask(updatedTask)
+            } onComplete: {
+              store.completeReviewTask(task)
+            } onReopen: {
+              store.reopenReviewTask(task)
+            } onReviewed: {
+              store.markReviewTaskReviewed(task)
+            } onRemove: {
+              store.removeReviewTask(task)
             }
           }
         }
@@ -360,6 +397,7 @@ struct ReviewOrderRow: View {
   var onSave: (TrackedOrder) -> Void
   var onClear: () -> Void
   var onDiscard: () -> Void
+  var onCreateTask: () -> Void = {}
   @State private var isEditing = false
 
   var body: some View {
@@ -384,6 +422,8 @@ struct ReviewOrderRow: View {
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
           .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
       }
     }
     .padding(12)
@@ -401,6 +441,7 @@ struct ReviewMailEventRow: View {
   var event: MailEvent
   var onClear: () -> Void
   var onDiscard: () -> Void
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -420,6 +461,8 @@ struct ReviewMailEventRow: View {
         Button("Add to order", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }

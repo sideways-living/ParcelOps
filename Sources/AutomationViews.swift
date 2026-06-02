@@ -61,6 +61,8 @@ struct AutomationView: View {
                 store.markAutomationRuleReviewed(rule)
               } onRemove: {
                 store.removeAutomationRule(rule)
+              } onCreateTask: {
+                store.createReviewTask(from: rule)
               }
             }
           }
@@ -124,6 +126,7 @@ struct AutomationRuleRow: View {
   var onToggle: () -> Void
   var onReviewed: () -> Void
   var onRemove: () -> Void
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -166,6 +169,8 @@ struct AutomationRuleRow: View {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }
