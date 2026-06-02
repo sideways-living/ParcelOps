@@ -387,6 +387,16 @@ struct NeedsReviewView: View {
           Badge("\(store.reviewQueueCount)", color: .orange)
         }
 
+        SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
+          ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
+            TimelineActivityRow(activity: activity) {
+              store.createReviewTask(from: activity)
+            } onCreateDraft: {
+              store.createDraftMessage(from: activity)
+            }
+          }
+        }
+
         SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
             ReviewOrderRow(order: order) { updatedOrder in

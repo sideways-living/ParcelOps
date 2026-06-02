@@ -32,7 +32,7 @@ struct DashboardView: View {
               ("Queue", "\(store.reviewQueueCount)", .orange),
               ("Intake", "\(store.reviewIntakeEmails.count)", .blue),
               ("Evidence", "\(store.reviewEvidenceAttachments.count)", .purple),
-              ("Drafts", "\(store.draftMessagesNeedingReview.count)", .red)
+              ("Watchlist", "\(store.timelineWatchlist.count)", .red)
             ])
             CompactIntakeList(emails: store.newestIntakeEmails)
           }
@@ -120,6 +120,16 @@ struct DashboardView: View {
               ("High risk", "\(store.highRiskEnabledVendorProfiles.count)", .red)
             ])
             CompactVendorProfileList(profiles: Array((store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles).prefix(4)))
+          }
+
+          AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
+            MetricStrip(items: [
+              ("Recent", "\(store.recentTimelineActivities.count)", .blue),
+              ("Watchlist", "\(store.timelineWatchlist.count)", .red),
+              ("Critical", "\(store.timelineWatchlist.filter { $0.risk == .critical }.count)", .red),
+              ("High", "\(store.timelineWatchlist.filter { $0.risk == .high }.count)", .orange)
+            ])
+            CompactTimelineList(activities: store.recentTimelineActivities)
           }
         }
 
@@ -398,6 +408,23 @@ struct CompactAuditList: View {
           detail: "\(event.entityType.rawValue) • \(event.entityLabel) • \(event.timestamp)",
           badge: event.action.rawValue,
           color: event.action.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactTimelineList: View {
+  var activities: [TimelineActivity]
+
+  var body: some View {
+    CompactList(title: "Recent timeline", symbol: "clock.badge.exclamationmark.fill") {
+      ForEach(activities) { activity in
+        CompactRow(
+          title: activity.title,
+          detail: "\(activity.entityType.rawValue) • \(activity.source.rawValue) • \(activity.timestampText)",
+          badge: activity.risk.rawValue,
+          color: activity.risk.color
         )
       }
     }

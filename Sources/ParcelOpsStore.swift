@@ -274,6 +274,316 @@ final class ParcelOpsStore {
     Array(intakeEmails.prefix(5))
   }
 
+  var timelineActivities: [TimelineActivity] {
+    orderTimelineActivities()
+      + intakeTimelineActivities()
+      + trackingTimelineActivities()
+      + evidenceTimelineActivities()
+      + taskTimelineActivities()
+      + slaTimelineActivities()
+      + communicationTimelineActivities()
+      + contactTimelineActivities()
+      + accountTimelineActivities()
+      + vendorProfileTimelineActivities()
+      + automationTimelineActivities()
+      + savedFilterTimelineActivities()
+      + auditTimelineActivities()
+  }
+
+  var timelineWatchlist: [TimelineActivity] {
+    timelineActivities.filter { activity in
+      activity.risk == .high
+        || activity.risk == .critical
+        || activity.reviewState == .needsReview
+        || activity.detail.localizedCaseInsensitiveContains("overdue")
+    }
+  }
+
+  var recentTimelineActivities: [TimelineActivity] {
+    Array(timelineActivities.prefix(6))
+  }
+
+  func filteredTimelineActivities(
+    entityType: TimelineEntityType?,
+    risk: TimelineRiskLevel?,
+    reviewState: ReviewState?,
+    source: TimelineActivitySource?
+  ) -> [TimelineActivity] {
+    timelineActivities.filter { activity in
+      let matchesEntity = entityType == nil || activity.entityType == entityType
+      let matchesRisk = risk == nil || activity.risk == risk
+      let matchesReview = reviewState == nil || activity.reviewState == reviewState
+      let matchesSource = source == nil || activity.source == source
+      return matchesEntity && matchesRisk && matchesReview && matchesSource
+    }
+  }
+
+  func groupedTimelineActivities(_ activities: [TimelineActivity]) -> [TimelineActivityGroup] {
+    let watchlist = activities.filter { timelineWatchlist.contains($0) }
+    let today = activities.filter { activity in
+      activity.timestampText.localizedCaseInsensitiveContains("today") && !watchlist.contains(activity)
+    }
+    let earlier = activities.filter { activity in
+      !activity.timestampText.localizedCaseInsensitiveContains("today") && !watchlist.contains(activity)
+    }
+
+    return [
+      TimelineActivityGroup(title: "Watchlist", activities: watchlist),
+      TimelineActivityGroup(title: "Today", activities: today),
+      TimelineActivityGroup(title: "Earlier", activities: earlier)
+    ].filter { !$0.activities.isEmpty }
+  }
+
+  private func orderTimelineActivities() -> [TimelineActivity] {
+    orders.map { order in
+      TimelineActivity(
+        id: "timeline-order-\(order.id.uuidString)",
+        timestampText: order.timeline.first?.time ?? order.eta,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        title: "\(order.store) \(order.orderNumber)",
+        subtitle: "\(order.status.rawValue) to \(order.destination)",
+        detail: order.latestStatus,
+        risk: order.status == .exception ? .critical : order.reviewState == .needsReview ? .watch : .normal,
+        reviewState: order.reviewState,
+        source: .order,
+        suggestedActionText: order.status == .exception ? "Create exception follow-up" : "Review order context"
+      )
+    }
+  }
+
+  private func intakeTimelineActivities() -> [TimelineActivity] {
+    intakeEmails.map { email in
+      TimelineActivity(
+        id: "timeline-intake-\(email.id.uuidString)",
+        timestampText: email.receivedDate,
+        entityType: .intakeEmail,
+        entityID: email.id.uuidString,
+        title: email.subject,
+        subtitle: "\(email.detectedMerchant) • \(email.detectedOrderNumber)",
+        detail: email.rawBodyPreview,
+        risk: email.reviewState == .needsReview ? .watch : .normal,
+        reviewState: email.reviewState.searchReviewState,
+        source: .mailbox,
+        suggestedActionText: "Review forwarded email"
+      )
+    }
+  }
+
+  private func trackingTimelineActivities() -> [TimelineActivity] {
+    carrierTrackingEvents.map { event in
+      TimelineActivity(
+        id: "timeline-tracking-\(event.id.uuidString)",
+        timestampText: event.eventTime,
+        entityType: .trackingEvent,
+        entityID: event.id.uuidString,
+        title: event.status,
+        subtitle: "\(event.carrier) • \(event.trackingNumber)",
+        detail: "\(event.location): \(event.detail)",
+        risk: event.severity.timelineRisk,
+        reviewState: event.reviewState,
+        source: .carrier,
+        suggestedActionText: event.severity == .critical ? "Escalate carrier event" : "Review tracking update"
+      )
+    }
+  }
+
+  private func evidenceTimelineActivities() -> [TimelineActivity] {
+    evidenceAttachments.map { attachment in
+      TimelineActivity(
+        id: "timeline-evidence-\(attachment.id.uuidString)",
+        timestampText: attachment.addedDate,
+        entityType: .evidence,
+        entityID: attachment.id.uuidString,
+        title: attachment.fileName,
+        subtitle: "\(attachment.fileType) • \(attachment.source.rawValue)",
+        detail: attachment.summary,
+        risk: attachment.reviewState == .needsReview ? .watch : .normal,
+        reviewState: attachment.reviewState,
+        source: .evidence,
+        suggestedActionText: "Review evidence"
+      )
+    }
+  }
+
+  private func taskTimelineActivities() -> [TimelineActivity] {
+    reviewTasks.map { task in
+      TimelineActivity(
+        id: "timeline-task-\(task.id.uuidString)",
+        timestampText: task.createdDate,
+        entityType: .reviewTask,
+        entityID: task.id.uuidString,
+        title: task.title,
+        subtitle: "\(task.assignee) • due \(task.dueDate)",
+        detail: task.isLocallyOverdue ? "Overdue: \(task.summary)" : task.summary,
+        risk: task.isLocallyOverdue || task.priority == .urgent ? .critical : task.priority == .high ? .high : task.reviewState == .needsReview ? .watch : .normal,
+        reviewState: task.reviewState,
+        source: .task,
+        suggestedActionText: task.status == .completed ? "Review completed task" : "Follow up task"
+      )
+    }
+  }
+
+  private func slaTimelineActivities() -> [TimelineActivity] {
+    slaPolicies.map { policy in
+      TimelineActivity(
+        id: "timeline-sla-\(policy.id.uuidString)",
+        timestampText: policy.lastEvaluatedDate,
+        entityType: .slaPolicy,
+        entityID: policy.id.uuidString,
+        title: policy.name,
+        subtitle: "\(policy.priority.rawValue) • \(policy.matchCount) matches",
+        detail: "\(policy.responseTarget); \(policy.resolutionTarget)",
+        risk: policy.priority == .urgent ? .critical : policy.priority == .high ? .high : policy.reviewState == .needsReview ? .watch : .normal,
+        reviewState: policy.reviewState,
+        source: .sla,
+        suggestedActionText: "Review SLA context"
+      )
+    }
+  }
+
+  private func communicationTimelineActivities() -> [TimelineActivity] {
+    let templates = communicationTemplates.map { template in
+      TimelineActivity(
+        id: "timeline-template-\(template.id.uuidString)",
+        timestampText: template.lastUsedDate,
+        entityType: .communicationTemplate,
+        entityID: template.id.uuidString,
+        title: template.name,
+        subtitle: "\(template.channel.rawValue) • \(template.usageCount) uses",
+        detail: template.subjectTemplate,
+        risk: template.reviewState == .needsReview ? .watch : .normal,
+        reviewState: template.reviewState,
+        source: .communication,
+        suggestedActionText: "Review template"
+      )
+    }
+    let drafts = draftMessages.map { draft in
+      TimelineActivity(
+        id: "timeline-draft-\(draft.id.uuidString)",
+        timestampText: draft.createdDate,
+        entityType: .draftMessage,
+        entityID: draft.id.uuidString,
+        title: draft.subject,
+        subtitle: "\(draft.recipient) • \(draft.status.rawValue)",
+        detail: draft.body,
+        risk: draft.status == .draft || draft.status == .reopened || draft.reviewState == .needsReview ? .watch : .normal,
+        reviewState: draft.reviewState,
+        source: .communication,
+        suggestedActionText: "Review draft message"
+      )
+    }
+    return templates + drafts
+  }
+
+  private func contactTimelineActivities() -> [TimelineActivity] {
+    contactDirectoryEntries.map { contact in
+      TimelineActivity(
+        id: "timeline-contact-\(contact.id.uuidString)",
+        timestampText: contact.lastContactedDate,
+        entityType: .contact,
+        entityID: contact.id.uuidString,
+        title: contact.name,
+        subtitle: "\(contact.organisation) • \(contact.role)",
+        detail: contact.notes,
+        risk: contact.reviewState == .needsReview ? .watch : .normal,
+        reviewState: contact.reviewState,
+        source: .directory,
+        suggestedActionText: "Review contact"
+      )
+    }
+  }
+
+  private func accountTimelineActivities() -> [TimelineActivity] {
+    accountCredentialRecords.map { account in
+      TimelineActivity(
+        id: "timeline-account-\(account.id.uuidString)",
+        timestampText: account.lastCheckedDate,
+        entityType: .account,
+        entityID: account.id.uuidString,
+        title: account.accountName,
+        subtitle: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        detail: "MFA: \(account.mfaStatus.rawValue). \(account.notes)",
+        risk: account.mfaStatus == .needsReview || account.reviewState == .needsReview ? .high : account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending ? .watch : .normal,
+        reviewState: account.reviewState,
+        source: .account,
+        suggestedActionText: "Review account placeholder"
+      )
+    }
+  }
+
+  private func vendorProfileTimelineActivities() -> [TimelineActivity] {
+    vendorProfiles.map { profile in
+      TimelineActivity(
+        id: "timeline-profile-\(profile.id.uuidString)",
+        timestampText: profile.lastReviewedDate,
+        entityType: .vendorProfile,
+        entityID: profile.id.uuidString,
+        title: profile.name,
+        subtitle: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
+        detail: profile.serviceLevelNotes,
+        risk: profile.riskLevel.timelineRisk,
+        reviewState: profile.reviewState,
+        source: .vendorProfile,
+        suggestedActionText: "Review vendor profile"
+      )
+    }
+  }
+
+  private func automationTimelineActivities() -> [TimelineActivity] {
+    automationRules.map { rule in
+      TimelineActivity(
+        id: "timeline-automation-\(rule.id.uuidString)",
+        timestampText: rule.lastRunDate,
+        entityType: .automationRule,
+        entityID: rule.id.uuidString,
+        title: rule.name,
+        subtitle: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
+        detail: "\(rule.conditionSummary) \(rule.actionSummary)",
+        risk: rule.reviewState == .needsReview ? .watch : .normal,
+        reviewState: rule.reviewState,
+        source: .automation,
+        suggestedActionText: "Review automation rule"
+      )
+    }
+  }
+
+  private func savedFilterTimelineActivities() -> [TimelineActivity] {
+    savedFilters.map { filter in
+      TimelineActivity(
+        id: "timeline-filter-\(filter.id.uuidString)",
+        timestampText: filter.createdDate,
+        entityType: .savedFilter,
+        entityID: filter.id.uuidString,
+        title: filter.name,
+        subtitle: filter.isPinned ? "Pinned filter" : "Saved filter",
+        detail: filter.queryText.isEmpty ? "No query text" : filter.queryText,
+        risk: filter.reviewStateFilter == .needsReview ? .watch : .normal,
+        reviewState: filter.reviewStateFilter,
+        source: .search,
+        suggestedActionText: "Review saved filter"
+      )
+    }
+  }
+
+  private func auditTimelineActivities() -> [TimelineActivity] {
+    auditEvents.map { event in
+      TimelineActivity(
+        id: "timeline-audit-\(event.id.uuidString)",
+        timestampText: event.timestamp,
+        entityType: .auditEvent,
+        entityID: event.id.uuidString,
+        title: event.summary,
+        subtitle: "\(event.entityType.rawValue) • \(event.action.rawValue)",
+        detail: event.entityLabel,
+        risk: event.action == .removed || event.action == .ignored ? .watch : .normal,
+        reviewState: nil,
+        source: .audit,
+        suggestedActionText: "Review audit entry"
+      )
+    }
+  }
+
   var filteredOrders: [TrackedOrder] {
     orders.filter { order in
       let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1929,6 +2239,27 @@ final class ParcelOpsStore {
       entityLabel: profile.name,
       summary: "Draft message created from vendor profile.",
       afterDetail: profile.auditDetail
+    )
+  }
+
+  func createReviewTask(from activity: TimelineActivity) {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return }
+    createReviewTask(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: activity.entityID,
+      label: activity.title,
+      summary: "Follow up timeline activity: \(activity.detail)",
+      priority: activity.risk == .critical ? .urgent : activity.risk == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from activity: TimelineActivity) {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return }
+    createDraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: activity.entityID,
+      label: activity.title,
+      recipient: "operations@parcelops.example"
     )
   }
 

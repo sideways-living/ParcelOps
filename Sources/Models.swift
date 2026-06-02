@@ -16,6 +16,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case contacts
   case accounts
   case vendorProfiles
+  case timeline
   case search
   case audit
   case settings
@@ -39,6 +40,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "Contacts"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
+    case .timeline: "Timeline"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -62,6 +64,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "Contacts"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
+    case .timeline: "Timeline"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -85,6 +88,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "person.crop.circle.badge.checkmark"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
+    case .timeline: "clock.badge.exclamationmark.fill"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -222,6 +226,27 @@ struct SearchResultGroup: Identifiable, Hashable {
   var results: [SearchResult]
 
   var id: SearchEntityType { entityType }
+}
+
+struct TimelineActivity: Identifiable, Hashable {
+  var id: String
+  var timestampText: String
+  var entityType: TimelineEntityType
+  var entityID: String
+  var title: String
+  var subtitle: String
+  var detail: String
+  var risk: TimelineRiskLevel
+  var reviewState: ReviewState?
+  var source: TimelineActivitySource
+  var suggestedActionText: String
+}
+
+struct TimelineActivityGroup: Identifiable, Hashable {
+  var title: String
+  var activities: [TimelineActivity]
+
+  var id: String { title }
 }
 
 struct SavedFilter: Identifiable, Hashable, Codable {
@@ -507,6 +532,52 @@ enum VendorRiskLevel: String, CaseIterable, Identifiable, Hashable, Codable {
   case medium = "Medium"
   case high = "High"
   case critical = "Critical"
+
+  var id: String { rawValue }
+}
+
+enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case reviewTask = "Review task"
+  case slaPolicy = "SLA policy"
+  case communicationTemplate = "Communication template"
+  case draftMessage = "Draft message"
+  case contact = "Contact"
+  case account = "Account"
+  case vendorProfile = "Vendor profile"
+  case automationRule = "Automation rule"
+  case savedFilter = "Saved filter"
+  case auditEvent = "Audit event"
+
+  var id: String { rawValue }
+}
+
+enum TimelineRiskLevel: String, CaseIterable, Identifiable, Hashable {
+  case normal = "Normal"
+  case watch = "Watch"
+  case high = "High"
+  case critical = "Critical"
+
+  var id: String { rawValue }
+}
+
+enum TimelineActivitySource: String, CaseIterable, Identifiable, Hashable {
+  case order = "Order"
+  case mailbox = "Mailbox"
+  case carrier = "Carrier"
+  case evidence = "Evidence"
+  case task = "Task"
+  case sla = "SLA"
+  case communication = "Communication"
+  case directory = "Directory"
+  case account = "Account"
+  case vendorProfile = "Vendor profile"
+  case automation = "Automation"
+  case search = "Search"
+  case audit = "Audit"
 
   var id: String { rawValue }
 }

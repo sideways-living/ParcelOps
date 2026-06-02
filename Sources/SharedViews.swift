@@ -39,6 +39,14 @@ extension Severity {
     case .critical: 2
     }
   }
+
+  var timelineRisk: TimelineRiskLevel {
+    switch self {
+    case .info: .normal
+    case .watch: .high
+    case .critical: .critical
+    }
+  }
 }
 
 extension IntakeEmailReviewState {
@@ -93,6 +101,67 @@ extension AuditEntityType {
   }
 }
 
+extension TimelineEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .trackingEvent: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .reviewTask: "checklist"
+    case .slaPolicy: "timer"
+    case .communicationTemplate: "text.badge.checkmark"
+    case .draftMessage: "envelope.open.fill"
+    case .contact: "person.crop.circle.badge.checkmark"
+    case .account: "key.horizontal.fill"
+    case .vendorProfile: "building.2.crop.circle.fill"
+    case .automationRule: "arrow.triangle.branch"
+    case .savedFilter: "line.3.horizontal.decrease.circle.fill"
+    case .auditEvent: "list.clipboard.fill"
+    }
+  }
+}
+
+extension TimelineRiskLevel {
+  var color: Color {
+    switch self {
+    case .normal: .blue
+    case .watch: .orange
+    case .high: .red
+    case .critical: .red
+    }
+  }
+
+  var rank: Int {
+    switch self {
+    case .normal: 0
+    case .watch: 1
+    case .high: 2
+    case .critical: 3
+    }
+  }
+}
+
+extension TimelineActivitySource {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .mailbox: "envelope.badge.fill"
+    case .carrier: "truck.box.fill"
+    case .evidence: "paperclip"
+    case .task: "checklist"
+    case .sla: "timer"
+    case .communication: "bubble.left.and.text.bubble.right.fill"
+    case .directory: "person.crop.circle.badge.checkmark"
+    case .account: "key.horizontal.fill"
+    case .vendorProfile: "building.2.crop.circle.fill"
+    case .automation: "arrow.triangle.branch"
+    case .search: "magnifyingglass"
+    case .audit: "list.clipboard.fill"
+    }
+  }
+}
+
 extension VendorProfileType {
   var symbol: String {
     switch self {
@@ -122,6 +191,15 @@ extension VendorRiskLevel {
     case .medium: 1
     case .high: 2
     case .critical: 3
+    }
+  }
+
+  var timelineRisk: TimelineRiskLevel {
+    switch self {
+    case .low: .normal
+    case .medium: .watch
+    case .high: .high
+    case .critical: .critical
     }
   }
 }
@@ -279,6 +357,35 @@ extension ReviewTask {
     return normalizedDueDate.contains("yesterday")
       || normalizedDueDate.contains("overdue")
       || normalizedDueDate.contains("past due")
+  }
+}
+
+extension TimelineActivity {
+  var reviewTaskLinkedEntityType: ReviewTaskLinkedEntityType? {
+    switch entityType {
+    case .order: .order
+    case .intakeEmail: .intakeEmail
+    case .trackingEvent: .trackingEvent
+    case .evidence: .evidence
+    case .reviewTask: .reviewTask
+    case .slaPolicy: .slaPolicy
+    case .communicationTemplate: nil
+    case .draftMessage: .draftMessage
+    case .contact: .contact
+    case .account: .account
+    case .vendorProfile: .vendorProfile
+    case .automationRule: .automationRule
+    case .savedFilter: .savedFilter
+    case .auditEvent: .auditEvent
+    }
+  }
+
+  var supportsReviewTask: Bool {
+    reviewTaskLinkedEntityType != nil
+  }
+
+  var supportsDraftMessage: Bool {
+    reviewTaskLinkedEntityType != nil
   }
 }
 
