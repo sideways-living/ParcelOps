@@ -403,6 +403,72 @@ enum SampleData {
     )
   ]
 
+  static var communicationTemplates: [CommunicationTemplate] = [
+    CommunicationTemplate(
+      name: "Carrier address clarification",
+      linkedEntityType: .trackingEvent,
+      subjectTemplate: "Address confirmation needed for {{record}}",
+      bodyTemplate: "Hello,\n\nWe are following up on tracking record {{record}}. Please confirm the delivery address details required to continue delivery.\n\nRegards,\nParcelOps",
+      channel: .email,
+      isEnabled: true,
+      createdDate: "Today 8:12 AM",
+      lastUsedDate: "Today 8:15 AM",
+      usageCount: 1,
+      reviewState: .accepted
+    ),
+    CommunicationTemplate(
+      name: "Internal task escalation",
+      linkedEntityType: .order,
+      subjectTemplate: "ParcelOps follow-up required for {{record}}",
+      bodyTemplate: "Hi team,\n\nParcelOps has flagged {{record}} for local review. Please confirm the next action and update the tracked record.\n\nThanks.",
+      channel: .internalNote,
+      isEnabled: true,
+      createdDate: "Yesterday 4:10 PM",
+      lastUsedDate: "Never",
+      usageCount: 0,
+      reviewState: .monitor
+    ),
+    CommunicationTemplate(
+      name: "Evidence review request",
+      linkedEntityType: .evidence,
+      subjectTemplate: "Evidence review requested for {{record}}",
+      bodyTemplate: "Please review the evidence attached to {{record}} and confirm whether it can be accepted locally.",
+      channel: .email,
+      isEnabled: false,
+      createdDate: "Yesterday 1:25 PM",
+      lastUsedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+  ]
+
+  static var draftMessages: [DraftMessage] = [
+    DraftMessage(
+      linkedEntityType: .trackingEvent,
+      linkedEntityID: carrierTrackingEvents[1].id.uuidString,
+      templateID: communicationTemplates[0].id,
+      recipient: "carrier-support@parcelops.example",
+      subject: "Address confirmation needed for JD0146000098312",
+      body: "Hello,\n\nWe are following up on tracking record JD0146000098312. Please confirm the delivery address details required to continue delivery.\n\nRegards,\nParcelOps",
+      channel: .email,
+      createdDate: "Today 8:15 AM",
+      status: .draft,
+      reviewState: .needsReview
+    ),
+    DraftMessage(
+      linkedEntityType: .order,
+      linkedEntityID: orders[1].id.uuidString,
+      templateID: communicationTemplates[1].id,
+      recipient: "Brisbane Field Team",
+      subject: "ParcelOps follow-up required for SHP-8831",
+      body: "Hi team,\n\nParcelOps has flagged SHP-8831 for local review. Please confirm the next action and update the tracked record.\n\nThanks.",
+      channel: .internalNote,
+      createdDate: "Today 8:20 AM",
+      status: .ready,
+      reviewState: .accepted
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

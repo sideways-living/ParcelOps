@@ -32,7 +32,7 @@ struct DashboardView: View {
               ("Queue", "\(store.reviewQueueCount)", .orange),
               ("Intake", "\(store.reviewIntakeEmails.count)", .blue),
               ("Evidence", "\(store.reviewEvidenceAttachments.count)", .purple),
-              ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .red)
+              ("Drafts", "\(store.draftMessagesNeedingReview.count)", .red)
             ])
             CompactIntakeList(emails: store.newestIntakeEmails)
           }
@@ -80,6 +80,16 @@ struct DashboardView: View {
               ("Overdue", "\(store.overdueOpenReviewTasks.count)", .red)
             ])
             CompactSLAPolicyList(policies: store.recentPolicyMatches)
+          }
+
+          AnalyticsSection(title: "Communication", symbol: "bubble.left.and.text.bubble.right.fill") {
+            MetricStrip(items: [
+              ("Templates", "\(store.enabledCommunicationTemplateCount)", .green),
+              ("Disabled", "\(store.disabledCommunicationTemplateCount)", .gray),
+              ("Drafts", "\(store.draftMessages.count)", .blue),
+              ("Review", "\(store.draftMessagesNeedingReview.count)", .orange)
+            ])
+            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(4)))
           }
         }
 
@@ -273,6 +283,23 @@ struct CompactSLAPolicyList: View {
           detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
           badge: "\(policy.matchCount)",
           color: policy.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactDraftMessageList: View {
+  var drafts: [DraftMessage]
+
+  var body: some View {
+    CompactList(title: "Draft messages", symbol: "envelope.open.fill") {
+      ForEach(drafts) { draft in
+        CompactRow(
+          title: draft.subject,
+          detail: "\(draft.recipient) • \(draft.channel.rawValue)",
+          badge: draft.status.rawValue,
+          color: draft.status.color
         )
       }
     }

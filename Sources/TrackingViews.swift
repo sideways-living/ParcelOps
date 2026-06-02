@@ -49,6 +49,8 @@ struct TrackingView: View {
                 store.removeTrackingEvent(event)
               } onCreateTask: {
                 store.createReviewTask(from: event)
+              } onCreateDraft: {
+                store.createDraftMessage(from: event)
               } relatedTasks: {
                 store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
               }
@@ -104,6 +106,7 @@ struct TrackingEventRow: View {
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
   var relatedTasks: () -> [ReviewTask] = { [] }
 
   var body: some View {
@@ -163,6 +166,8 @@ struct TrackingEventRow: View {
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
       }
     }

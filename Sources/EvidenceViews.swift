@@ -42,6 +42,8 @@ struct EvidenceView: View {
                 store.removeEvidence(attachment)
               } onCreateTask: {
                 store.createReviewTask(from: attachment)
+              } onCreateDraft: {
+                store.createDraftMessage(from: attachment)
               }
             }
           }
@@ -85,6 +87,7 @@ struct EvidenceAttachmentRow: View {
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -129,6 +132,8 @@ struct EvidenceAttachmentRow: View {
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
       }
     }

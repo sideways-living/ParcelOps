@@ -73,7 +73,14 @@ protocol SLAPolicyRepository {
   func saveSLAPolicies(_ policies: [SLAPolicy])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository {
+protocol CommunicationRepository {
+  func loadCommunicationTemplates() -> [CommunicationTemplate]
+  func saveCommunicationTemplates(_ templates: [CommunicationTemplate])
+  func loadDraftMessages() -> [DraftMessage]
+  func saveDraftMessages(_ messages: [DraftMessage])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -227,6 +234,22 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(policies, to: .slaPolicies)
   }
 
+  func loadCommunicationTemplates() -> [CommunicationTemplate] {
+    load([CommunicationTemplate].self, from: .communicationTemplates, defaultValue: SampleData.communicationTemplates)
+  }
+
+  func saveCommunicationTemplates(_ templates: [CommunicationTemplate]) {
+    save(templates, to: .communicationTemplates)
+  }
+
+  func loadDraftMessages() -> [DraftMessage] {
+    load([DraftMessage].self, from: .draftMessages, defaultValue: SampleData.draftMessages)
+  }
+
+  func saveDraftMessages(_ messages: [DraftMessage]) {
+    save(messages, to: .draftMessages)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -300,10 +323,12 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case savedFilters = "saved-filters.json"
     case reviewTasks = "review-tasks.json"
     case slaPolicies = "sla-policies.json"
+    case communicationTemplates = "communication-templates.json"
+    case draftMessages = "draft-messages.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -321,6 +346,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var savedFilters = SampleData.savedFilters
   private var reviewTasks = SampleData.reviewTasks
   private var slaPolicies = SampleData.slaPolicies
+  private var communicationTemplates = SampleData.communicationTemplates
+  private var draftMessages = SampleData.draftMessages
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -372,4 +399,10 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadSLAPolicies() -> [SLAPolicy] { slaPolicies }
   func saveSLAPolicies(_ policies: [SLAPolicy]) { slaPolicies = policies }
+
+  func loadCommunicationTemplates() -> [CommunicationTemplate] { communicationTemplates }
+  func saveCommunicationTemplates(_ templates: [CommunicationTemplate]) { communicationTemplates = templates }
+
+  func loadDraftMessages() -> [DraftMessage] { draftMessages }
+  func saveDraftMessages(_ messages: [DraftMessage]) { draftMessages = messages }
 }

@@ -12,6 +12,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case evidence
   case tasks
   case slaPolicies
+  case communication
   case search
   case audit
   case settings
@@ -31,6 +32,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "Evidence"
     case .tasks: "Tasks"
     case .slaPolicies: "SLA Policies"
+    case .communication: "Communication"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -50,6 +52,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "Evidence"
     case .tasks: "Tasks"
     case .slaPolicies: "SLA"
+    case .communication: "Comms"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -69,6 +72,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "paperclip"
     case .tasks: "checklist"
     case .slaPolicies: "timer"
+    case .communication: "bubble.left.and.text.bubble.right.fill"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -248,6 +252,34 @@ struct SLAPolicy: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct CommunicationTemplate: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var subjectTemplate: String
+  var bodyTemplate: String
+  var channel: CommunicationChannel
+  var isEnabled: Bool
+  var createdDate: String
+  var lastUsedDate: String
+  var usageCount: Int
+  var reviewState: ReviewState
+}
+
+struct DraftMessage: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var templateID: UUID?
+  var recipient: String
+  var subject: String
+  var body: String
+  var channel: CommunicationChannel
+  var createdDate: String
+  var status: DraftMessageStatus
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -384,6 +416,8 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case savedFilter = "Saved filter"
   case reviewTask = "Review task"
   case slaPolicy = "SLA policy"
+  case communicationTemplate = "Communication template"
+  case draftMessage = "Draft message"
 
   var id: String { rawValue }
 }
@@ -396,6 +430,8 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
   case auditEvent = "Audit event"
+  case reviewTask = "Review task"
+  case slaPolicy = "SLA policy"
 
   var id: String { rawValue }
 }
@@ -414,6 +450,24 @@ enum TaskStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case inProgress = "In progress"
   case blocked = "Blocked"
   case completed = "Completed"
+
+  var id: String { rawValue }
+}
+
+enum CommunicationChannel: String, CaseIterable, Identifiable, Hashable, Codable {
+  case email = "Email"
+  case phoneScript = "Phone script"
+  case internalNote = "Internal note"
+  case supplierPortal = "Supplier portal"
+
+  var id: String { rawValue }
+}
+
+enum DraftMessageStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case draft = "Draft"
+  case ready = "Ready"
+  case sentLocally = "Sent locally"
+  case reopened = "Reopened"
 
   var id: String { rawValue }
 }

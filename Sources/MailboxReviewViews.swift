@@ -34,6 +34,8 @@ struct MailboxView: View {
               store.removeEvidence(attachment)
             } onCreateTask: {
               store.createReviewTask(from: email)
+            } onCreateDraft: {
+              store.createDraftMessage(from: email)
             }
           }
         }
@@ -62,6 +64,7 @@ struct IntakeEmailRow: View {
   var onReviewEvidence: (EvidenceAttachment) -> Void
   var onRemoveEvidence: (EvidenceAttachment) -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -126,6 +129,8 @@ struct IntakeEmailRow: View {
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
       }
 
       VStack(alignment: .leading, spacing: 8) {
@@ -149,6 +154,8 @@ struct IntakeEmailRow: View {
               onReviewEvidence(attachment)
             } onRemove: {
               onRemoveEvidence(attachment)
+            } onCreateDraft: {
+              onCreateDraft()
             }
           }
         }
@@ -301,6 +308,8 @@ struct NeedsReviewView: View {
               store.discardSpam(for: order.orderNumber)
             } onCreateTask: {
               store.createReviewTask(from: order)
+            } onCreateDraft: {
+              store.createDraftMessage(from: order)
             }
           }
         }
@@ -343,6 +352,8 @@ struct NeedsReviewView: View {
               store.removeEvidence(attachment)
             } onCreateTask: {
               store.createReviewTask(from: email)
+            } onCreateDraft: {
+              store.createDraftMessage(from: email)
             }
           }
         }
@@ -355,6 +366,8 @@ struct NeedsReviewView: View {
               store.removeEvidence(attachment)
             } onCreateTask: {
               store.createReviewTask(from: attachment)
+            } onCreateDraft: {
+              store.createDraftMessage(from: attachment)
             }
           }
         }
@@ -367,6 +380,8 @@ struct NeedsReviewView: View {
               store.removeTrackingEvent(event)
             } onCreateTask: {
               store.createReviewTask(from: event)
+            } onCreateDraft: {
+              store.createDraftMessage(from: event)
             } relatedTasks: {
               store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
             }
@@ -383,6 +398,8 @@ struct NeedsReviewView: View {
               store.reopenReviewTask(task)
             } onReviewed: {
               store.markReviewTaskReviewed(task)
+            } onCreateDraft: {
+              store.createDraftMessage(from: task)
             } onRemove: {
               store.removeReviewTask(task)
             }
@@ -399,8 +416,26 @@ struct NeedsReviewView: View {
               store.markSLAPolicyReviewed(policy)
             } onEvaluate: {
               store.evaluateSLAPolicyPlaceholder(policy)
+            } onCreateDraft: {
+              store.createDraftMessage(from: policy)
             } onRemove: {
               store.removeSLAPolicy(policy)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Draft messages", symbol: "envelope.open.fill") {
+          ForEach(store.draftMessagesNeedingReview) { draft in
+            DraftMessageRow(draft: draft) { updatedDraft in
+              store.updateDraftMessage(updatedDraft)
+            } onReady: {
+              store.markDraftMessageReady(draft)
+            } onSent: {
+              store.markDraftMessageSentLocally(draft)
+            } onReopen: {
+              store.reopenDraftMessage(draft)
+            } onRemove: {
+              store.removeDraftMessage(draft)
             }
           }
         }
@@ -416,6 +451,7 @@ struct ReviewOrderRow: View {
   var onClear: () -> Void
   var onDiscard: () -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
   @State private var isEditing = false
 
   var body: some View {
@@ -441,6 +477,8 @@ struct ReviewOrderRow: View {
         Button("Discard spam", systemImage: "trash", action: onDiscard)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
       }
     }

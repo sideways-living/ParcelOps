@@ -64,6 +64,8 @@ struct TasksView: View {
                 store.reopenReviewTask(task)
               } onReviewed: {
                 store.markReviewTaskReviewed(task)
+              } onCreateDraft: {
+                store.createDraftMessage(from: task)
               } onRemove: {
                 store.removeReviewTask(task)
               }
@@ -138,6 +140,7 @@ struct ReviewTaskRow: View {
   var onComplete: () -> Void
   var onReopen: () -> Void
   var onReviewed: () -> Void
+  var onCreateDraft: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -200,6 +203,8 @@ struct ReviewTaskRow: View {
             .buttonStyle(.borderedProminent)
         }
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

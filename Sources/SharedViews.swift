@@ -84,6 +84,8 @@ extension AuditEntityType {
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .reviewTask: "checklist"
     case .slaPolicy: "timer"
+    case .communicationTemplate: "text.badge.checkmark"
+    case .draftMessage: "envelope.open.fill"
     }
   }
 }
@@ -98,6 +100,8 @@ extension ReviewTaskLinkedEntityType {
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .auditEvent: "list.clipboard.fill"
+    case .reviewTask: "checklist"
+    case .slaPolicy: "timer"
     }
   }
 }
@@ -120,6 +124,28 @@ extension TaskStatus {
     case .inProgress: .blue
     case .blocked: .red
     case .completed: .green
+    }
+  }
+}
+
+extension CommunicationChannel {
+  var symbol: String {
+    switch self {
+    case .email: "envelope.fill"
+    case .phoneScript: "phone.fill"
+    case .internalNote: "note.text"
+    case .supplierPortal: "person.crop.circle.badge.checkmark"
+    }
+  }
+}
+
+extension DraftMessageStatus {
+  var color: Color {
+    switch self {
+    case .draft: .orange
+    case .ready: .blue
+    case .sentLocally: .green
+    case .reopened: .purple
     }
   }
 }

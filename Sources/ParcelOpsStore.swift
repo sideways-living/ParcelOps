@@ -26,6 +26,8 @@ final class ParcelOpsStore {
   var savedFilters: [SavedFilter]
   var reviewTasks: [ReviewTask]
   var slaPolicies: [SLAPolicy]
+  var communicationTemplates: [CommunicationTemplate]
+  var draftMessages: [DraftMessage]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -40,6 +42,7 @@ final class ParcelOpsStore {
   private let savedFilterRepository: SavedFilterRepository
   private let reviewTaskRepository: ReviewTaskRepository
   private let slaPolicyRepository: SLAPolicyRepository
+  private let communicationRepository: CommunicationRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -47,7 +50,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -71,6 +74,7 @@ final class ParcelOpsStore {
     self.savedFilterRepository = repository
     self.reviewTaskRepository = repository
     self.slaPolicyRepository = repository
+    self.communicationRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -94,6 +98,8 @@ final class ParcelOpsStore {
     self.savedFilters = repository.loadSavedFilters()
     self.reviewTasks = repository.loadReviewTasks()
     self.slaPolicies = repository.loadSLAPolicies()
+    self.communicationTemplates = repository.loadCommunicationTemplates()
+    self.draftMessages = repository.loadDraftMessages()
   }
 
   var activeCount: Int {
@@ -121,7 +127,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -182,6 +188,18 @@ final class ParcelOpsStore {
     Array(slaPolicies.filter { $0.matchCount > 0 }.sorted { lhs, rhs in
       lhs.lastEvaluatedDate > rhs.lastEvaluatedDate
     }.prefix(5))
+  }
+
+  var enabledCommunicationTemplateCount: Int {
+    communicationTemplates.filter(\.isEnabled).count
+  }
+
+  var disabledCommunicationTemplateCount: Int {
+    communicationTemplates.filter { !$0.isEnabled }.count
+  }
+
+  var draftMessagesNeedingReview: [DraftMessage] {
+    draftMessages.filter { $0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened }
   }
 
   var recentAuditEvents: [AuditEvent] {
@@ -1116,6 +1134,211 @@ final class ParcelOpsStore {
     )
   }
 
+  func addCommunicationTemplatePlaceholder() {
+    let template = CommunicationTemplate(
+      name: "New communication template \(communicationTemplates.count + 1)",
+      linkedEntityType: .order,
+      subjectTemplate: "Update for {{record}}",
+      bodyTemplate: "Hi team,\n\nPlease review the latest ParcelOps update for {{record}}.\n\nThanks.",
+      channel: .email,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastUsedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+    communicationTemplates.insert(template, at: 0)
+    persistCommunicationTemplates()
+    logAudit(
+      action: .created,
+      entityType: .communicationTemplate,
+      entityID: template.id.uuidString,
+      entityLabel: template.name,
+      summary: "Communication template placeholder added.",
+      afterDetail: template.auditDetail
+    )
+  }
+
+  func updateCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index] = template
+    persistCommunicationTemplates()
+    logAudit(
+      action: .edited,
+      entityType: .communicationTemplate,
+      entityID: template.id.uuidString,
+      entityLabel: template.name,
+      summary: "Communication template details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: template.auditDetail
+    )
+  }
+
+  func toggleCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index].isEnabled.toggle()
+    persistCommunicationTemplates()
+    logAudit(
+      action: communicationTemplates[index].isEnabled ? .enabled : .disabled,
+      entityType: .communicationTemplate,
+      entityID: communicationTemplates[index].id.uuidString,
+      entityLabel: communicationTemplates[index].name,
+      summary: communicationTemplates[index].isEnabled ? "Communication template enabled." : "Communication template disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: communicationTemplates[index].auditDetail
+    )
+  }
+
+  func markCommunicationTemplateReviewed(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index].reviewState = .accepted
+    persistCommunicationTemplates()
+    logAudit(
+      action: .reviewed,
+      entityType: .communicationTemplate,
+      entityID: communicationTemplates[index].id.uuidString,
+      entityLabel: communicationTemplates[index].name,
+      summary: "Communication template marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: communicationTemplates[index].auditDetail
+    )
+  }
+
+  func removeCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let removed = communicationTemplates.remove(at: index)
+    persistCommunicationTemplates()
+    logAudit(
+      action: .removed,
+      entityType: .communicationTemplate,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Communication template removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addDraftMessagePlaceholder() {
+    let template = communicationTemplates.first
+    createDraftMessage(
+      linkedEntityType: template?.linkedEntityType ?? .order,
+      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      label: orders.first?.orderNumber ?? "Manual draft",
+      recipient: "operations@parcelops.example",
+      template: template
+    )
+  }
+
+  func createDraftMessage(
+    linkedEntityType: ReviewTaskLinkedEntityType,
+    linkedEntityID: String,
+    label: String,
+    recipient: String,
+    template: CommunicationTemplate? = nil
+  ) {
+    let selectedTemplate = template ?? communicationTemplates.first { $0.linkedEntityType == linkedEntityType && $0.isEnabled } ?? communicationTemplates.first
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
+    let body = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let draft = DraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      templateID: selectedTemplate?.id,
+      recipient: recipient,
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message created locally.",
+      afterDetail: draft.auditDetail
+    )
+  }
+
+  func createDraftMessage(from order: TrackedOrder) {
+    createDraftMessage(linkedEntityType: .order, linkedEntityID: order.id.uuidString, label: order.orderNumber, recipient: order.recipientEmail)
+  }
+
+  func createDraftMessage(from email: ForwardedEmailIntake) {
+    createDraftMessage(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.auditLabel, recipient: email.sender)
+  }
+
+  func createDraftMessage(from event: CarrierTrackingEvent) {
+    createDraftMessage(linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber, recipient: "carrier-support@parcelops.example")
+  }
+
+  func createDraftMessage(from attachment: EvidenceAttachment) {
+    createDraftMessage(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName, recipient: "records@parcelops.example")
+  }
+
+  func createDraftMessage(from task: ReviewTask) {
+    createDraftMessage(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title, recipient: task.assignee)
+  }
+
+  func createDraftMessage(from policy: SLAPolicy) {
+    createDraftMessage(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name, recipient: "operations@parcelops.example")
+  }
+
+  func updateDraftMessage(_ draft: DraftMessage) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let beforeDetail = draftMessages[index].auditDetail
+    draftMessages[index] = draft
+    persistDraftMessages()
+    logAudit(
+      action: .edited,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: draft.auditDetail
+    )
+  }
+
+  func markDraftMessageReady(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .ready, reviewState: .accepted, action: .reviewed, summary: "Draft message marked ready.")
+  }
+
+  func markDraftMessageSentLocally(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .sentLocally, reviewState: .accepted, action: .completed, summary: "Draft message marked sent locally.")
+  }
+
+  func reopenDraftMessage(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .reopened, reviewState: .needsReview, action: .reopened, summary: "Draft message reopened.")
+  }
+
+  func removeDraftMessage(_ draft: DraftMessage) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let removed = draftMessages.remove(at: index)
+    persistDraftMessages()
+    logAudit(
+      action: .removed,
+      entityType: .draftMessage,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.subject,
+      summary: "Draft message removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -1269,6 +1492,14 @@ final class ParcelOpsStore {
     slaPolicyRepository.saveSLAPolicies(slaPolicies)
   }
 
+  private func persistCommunicationTemplates() {
+    communicationRepository.saveCommunicationTemplates(communicationTemplates)
+  }
+
+  private func persistDraftMessages() {
+    communicationRepository.saveDraftMessages(draftMessages)
+  }
+
   private func addReviewTask(_ task: ReviewTask, summary: String) {
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
@@ -1279,6 +1510,29 @@ final class ParcelOpsStore {
       entityLabel: task.title,
       summary: summary,
       afterDetail: task.auditDetail
+    )
+  }
+
+  private func updateDraftMessageState(
+    _ draft: DraftMessage,
+    status: DraftMessageStatus,
+    reviewState: ReviewState,
+    action: AuditAction,
+    summary: String
+  ) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let beforeDetail = draftMessages[index].auditDetail
+    draftMessages[index].status = status
+    draftMessages[index].reviewState = reviewState
+    persistDraftMessages()
+    logAudit(
+      action: action,
+      entityType: .draftMessage,
+      entityID: draftMessages[index].id.uuidString,
+      entityLabel: draftMessages[index].subject,
+      summary: summary,
+      beforeDetail: beforeDetail,
+      afterDetail: draftMessages[index].auditDetail
     )
   }
 
@@ -1410,5 +1664,17 @@ private extension ReviewTask {
 private extension SLAPolicy {
   var auditDetail: String {
     "Name: \(name); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); response: \(responseTarget); resolution: \(resolutionTarget); review: \(reviewState.rawValue); created: \(createdDate); last evaluated: \(lastEvaluatedDate); matches: \(matchCount); condition: \(conditionSummary)."
+  }
+}
+
+private extension CommunicationTemplate {
+  var auditDetail: String {
+    "Name: \(name); linked: \(linkedEntityType.rawValue); channel: \(channel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last used: \(lastUsedDate); uses: \(usageCount); subject: \(subjectTemplate)."
+  }
+}
+
+private extension DraftMessage {
+  var auditDetail: String {
+    "Subject: \(subject); recipient: \(recipient); channel: \(channel.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); template: \(templateID?.uuidString ?? "none"); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate)."
   }
 }

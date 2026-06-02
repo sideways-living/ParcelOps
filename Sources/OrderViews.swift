@@ -118,6 +118,10 @@ struct OrderDetailView: View {
             store.createReviewTask(from: order)
           }
           .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: order)
+          }
+          .buttonStyle(.bordered)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -205,6 +209,8 @@ struct OrderDetailView: View {
                   store.removeTrackingEvent(event)
                 } onCreateTask: {
                   store.createReviewTask(from: event)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: event)
                 } relatedTasks: {
                   store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }
@@ -243,6 +249,8 @@ struct OrderDetailView: View {
                   store.removeEvidence(attachment)
                 } onCreateTask: {
                   store.createReviewTask(from: attachment)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: attachment)
                 }
               }
             }
