@@ -131,6 +131,16 @@ struct DashboardView: View {
             ])
             CompactTimelineList(activities: store.recentTimelineActivities)
           }
+
+          AnalyticsSection(title: "Validation health", symbol: "checkmark.seal.fill") {
+            MetricStrip(items: [
+              ("Health", "\(store.validationHealthScore)%", store.validationHealthScore >= 80 ? .green : .orange),
+              ("High", "\(store.highSeverityValidationIssues.count)", .red),
+              ("Low conf", "\(store.lowConfidenceValidationCount)", .orange),
+              ("Duplicates", "\(store.duplicateValidationCount)", .purple)
+            ])
+            CompactValidationIssueList(issues: Array(store.validationIssues.prefix(4)))
+          }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
@@ -425,6 +435,23 @@ struct CompactTimelineList: View {
           detail: "\(activity.entityType.rawValue) • \(activity.source.rawValue) • \(activity.timestampText)",
           badge: activity.risk.rawValue,
           color: activity.risk.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactValidationIssueList: View {
+  var issues: [ValidationIssue]
+
+  var body: some View {
+    CompactList(title: "Validation issues", symbol: "checkmark.seal.fill") {
+      ForEach(issues) { issue in
+        CompactRow(
+          title: issue.title,
+          detail: "\(issue.entityType.rawValue) • \(issue.status.rawValue) • confidence \(issue.confidenceScore)%",
+          badge: issue.severity.rawValue,
+          color: issue.severity.color
         )
       }
     }

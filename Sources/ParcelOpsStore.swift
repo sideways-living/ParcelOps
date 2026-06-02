@@ -139,7 +139,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -332,6 +332,458 @@ final class ParcelOpsStore {
       TimelineActivityGroup(title: "Today", activities: today),
       TimelineActivityGroup(title: "Earlier", activities: earlier)
     ].filter { !$0.activities.isEmpty }
+  }
+
+  var validationIssues: [ValidationIssue] {
+    (orderValidationIssues()
+      + intakeValidationIssues()
+      + trackingNumberValidationIssues()
+      + destinationValidationIssues()
+      + vendorProfileMatchValidationIssues()
+      + accountPlaceholderValidationIssues()
+      + contactSuggestionValidationIssues())
+      .sorted { lhs, rhs in
+        if lhs.severity.rank == rhs.severity.rank {
+          return lhs.confidenceScore < rhs.confidenceScore
+        }
+        return lhs.severity.rank > rhs.severity.rank
+      }
+  }
+
+  var highSeverityValidationIssues: [ValidationIssue] {
+    validationIssues.filter { $0.severity == .high || $0.severity == .critical }
+  }
+
+  var validationNeedsCorrectionCount: Int {
+    validationIssues.filter { $0.status == .needsCorrection || $0.status == .conflict }.count
+  }
+
+  var lowConfidenceValidationCount: Int {
+    validationIssues.filter { $0.status == .lowConfidence }.count
+  }
+
+  var duplicateValidationCount: Int {
+    validationIssues.filter { $0.status == .duplicate }.count
+  }
+
+  var validationHealthScore: Int {
+    guard !validationIssues.isEmpty else { return 100 }
+    let averageConfidence = validationIssues.map(\.confidenceScore).reduce(0, +) / validationIssues.count
+    let severityPenalty = min(40, highSeverityValidationIssues.count * 5)
+    return max(0, averageConfidence - severityPenalty)
+  }
+
+  func filteredValidationIssues(
+    entityType: ValidationEntityType?,
+    severity: ValidationSeverity?,
+    status: ValidationStatus?,
+    reviewState: ReviewState?
+  ) -> [ValidationIssue] {
+    validationIssues.filter { issue in
+      let matchesEntity = entityType == nil || issue.entityType == entityType
+      let matchesSeverity = severity == nil || issue.severity == severity
+      let matchesStatus = status == nil || issue.status == status
+      let matchesReview = reviewState == nil || issue.reviewState == reviewState
+      return matchesEntity && matchesSeverity && matchesStatus && matchesReview
+    }
+  }
+
+  func groupedValidationIssues(_ issues: [ValidationIssue]) -> [ValidationIssueGroup] {
+    ValidationSeverity.allCases.reversed().compactMap { severity in
+      let groupedIssues = issues.filter { $0.severity == severity }
+      guard !groupedIssues.isEmpty else { return nil }
+      return ValidationIssueGroup(severity: severity, issues: groupedIssues)
+    }
+  }
+
+  func createReviewTask(from issue: ValidationIssue) {
+    guard let linkedEntityType = issue.linkedEntityType else { return }
+    createReviewTask(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: issue.entityID,
+      label: issue.title,
+      summary: "Follow up validation issue: \(issue.detail)",
+      priority: issue.severity.taskPriority
+    )
+  }
+
+  func createDraftMessage(from issue: ValidationIssue) {
+    guard let linkedEntityType = issue.linkedEntityType else { return }
+    createDraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: issue.entityID,
+      label: issue.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  private func orderValidationIssues() -> [ValidationIssue] {
+    var issues: [ValidationIssue] = []
+    let orderNumberCounts = Dictionary(grouping: orders, by: { $0.orderNumber.normalizedValidationKey }).mapValues(\.count)
+    let trackingCounts = Dictionary(grouping: orders.filter { !$0.trackingNumber.isPlaceholderValidationValue }, by: { $0.trackingNumber.normalizedValidationKey }).mapValues(\.count)
+
+    for order in orders {
+      let missingFields = [
+        ("order number", order.orderNumber),
+        ("store", order.store),
+        ("recipient email", order.recipientEmail),
+        ("customer/team", order.customer),
+        ("carrier", order.carrier),
+        ("tracking number", order.trackingNumber),
+        ("destination", order.destination)
+      ].filter { $0.1.isPlaceholderValidationValue }.map(\.0)
+
+      if !missingFields.isEmpty {
+        issues.append(validationIssue(
+          id: "validation-order-missing-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: "\(order.store) \(order.orderNumber)",
+          subtitle: "Missing \(missingFields.joined(separator: ", "))",
+          detail: "Order has incomplete local fields: \(missingFields.joined(separator: ", ")).",
+          confidenceScore: max(35, 92 - missingFields.count * 12),
+          severity: missingFields.contains("tracking number") || missingFields.contains("destination") ? .high : .warning,
+          status: .incomplete,
+          reviewState: order.reviewState,
+          suggestedActionText: "Correct the tracked order fields."
+        ))
+      }
+
+      if orderNumberCounts[order.orderNumber.normalizedValidationKey, default: 0] > 1 {
+        issues.append(validationIssue(
+          id: "validation-order-duplicate-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.orderNumber,
+          subtitle: "\(order.store) duplicate order number",
+          detail: "More than one tracked order uses order number \(order.orderNumber).",
+          confidenceScore: 58,
+          severity: .high,
+          status: .duplicate,
+          reviewState: order.reviewState,
+          suggestedActionText: "Compare duplicate order records."
+        ))
+      }
+
+      if trackingCounts[order.trackingNumber.normalizedValidationKey, default: 0] > 1 {
+        issues.append(validationIssue(
+          id: "validation-order-tracking-duplicate-\(order.id.uuidString)",
+          entityType: .trackingNumber,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.trackingNumber,
+          subtitle: "\(order.orderNumber) duplicate tracking number",
+          detail: "More than one tracked order uses tracking number \(order.trackingNumber).",
+          confidenceScore: 55,
+          severity: .high,
+          status: .duplicate,
+          reviewState: order.reviewState,
+          suggestedActionText: "Verify whether this is a split shipment or duplicate order."
+        ))
+      }
+
+      if order.status == .exception && order.reviewState == .accepted {
+        issues.append(validationIssue(
+          id: "validation-order-stale-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.orderNumber,
+          subtitle: "Exception marked accepted",
+          detail: "Order is still in exception status but its review state is accepted.",
+          confidenceScore: 62,
+          severity: .warning,
+          status: .staleReview,
+          reviewState: order.reviewState,
+          suggestedActionText: "Re-check review state after exception correction."
+        ))
+      }
+    }
+
+    return issues
+  }
+
+  private func intakeValidationIssues() -> [ValidationIssue] {
+    intakeEmails.flatMap { email -> [ValidationIssue] in
+      var issues: [ValidationIssue] = []
+      let missingFields = [
+        ("merchant", email.detectedMerchant),
+        ("order number", email.detectedOrderNumber),
+        ("tracking number", email.detectedTrackingNumber),
+        ("destination address", email.detectedDestinationAddress)
+      ].filter { $0.1.isPlaceholderValidationValue }.map(\.0)
+      let score = intakeConfidenceScore(for: email, missingCount: missingFields.count)
+
+      if !missingFields.isEmpty || score < 70 {
+        issues.append(validationIssue(
+          id: "validation-intake-confidence-\(email.id.uuidString)",
+          entityType: .intakeEmail,
+          entityID: email.id.uuidString,
+          linkedEntityType: .intakeEmail,
+          title: email.subject,
+          subtitle: "\(email.sender) confidence \(score)%",
+          detail: missingFields.isEmpty ? "Detected fields are present but local confidence is below threshold." : "Forwarded intake email is missing \(missingFields.joined(separator: ", ")).",
+          confidenceScore: score,
+          severity: score < 45 ? .high : .warning,
+          status: missingFields.isEmpty ? .lowConfidence : .incomplete,
+          reviewState: email.reviewState.searchReviewState,
+          suggestedActionText: "Correct detected intake fields before accepting."
+        ))
+      }
+
+      if let linkedOrderID = email.linkedOrderID, let order = orders.first(where: { $0.id == linkedOrderID }) {
+        var conflicts: [String] = []
+        if !email.detectedOrderNumber.isPlaceholderValidationValue && !order.orderNumber.isPlaceholderValidationValue && !order.orderNumber.localizedCaseInsensitiveContains(email.detectedOrderNumber) && !email.detectedOrderNumber.localizedCaseInsensitiveContains(order.orderNumber) {
+          conflicts.append("order number")
+        }
+        if !email.detectedTrackingNumber.isPlaceholderValidationValue && !order.trackingNumber.isPlaceholderValidationValue && order.trackingNumber.normalizedValidationKey != email.detectedTrackingNumber.normalizedValidationKey {
+          conflicts.append("tracking number")
+        }
+        if !email.detectedDestinationAddress.isPlaceholderValidationValue && !order.destination.isPlaceholderValidationValue && !order.destination.localizedCaseInsensitiveContains(email.detectedDestinationAddress) && !email.detectedDestinationAddress.localizedCaseInsensitiveContains(order.destination) {
+          conflicts.append("destination")
+        }
+
+        if !conflicts.isEmpty {
+          issues.append(validationIssue(
+            id: "validation-intake-conflict-\(email.id.uuidString)",
+            entityType: .intakeEmail,
+            entityID: email.id.uuidString,
+            linkedEntityType: .intakeEmail,
+            title: email.detectedOrderNumber,
+            subtitle: "Conflicts with linked order \(order.orderNumber)",
+            detail: "Detected intake fields conflict with linked order for \(conflicts.joined(separator: ", ")).",
+            confidenceScore: 42,
+            severity: .critical,
+            status: .conflict,
+            reviewState: email.reviewState.searchReviewState,
+            suggestedActionText: "Review the intake link before creating or updating the order."
+          ))
+        }
+      }
+
+      if email.reviewState == .reviewed && email.linkedOrderID == nil {
+        issues.append(validationIssue(
+          id: "validation-intake-stale-\(email.id.uuidString)",
+          entityType: .intakeEmail,
+          entityID: email.id.uuidString,
+          linkedEntityType: .intakeEmail,
+          title: email.subject,
+          subtitle: "Reviewed without linked order",
+          detail: "Forwarded intake email is reviewed but has not been linked to an order.",
+          confidenceScore: 66,
+          severity: .warning,
+          status: .staleReview,
+          reviewState: email.reviewState.searchReviewState,
+          suggestedActionText: "Link the email to an order or mark it ignored."
+        ))
+      }
+
+      return issues
+    }
+  }
+
+  private func trackingNumberValidationIssues() -> [ValidationIssue] {
+    carrierTrackingEvents.compactMap { event in
+      guard let order = orders.first(where: { $0.id == event.orderID }) else {
+        return validationIssue(
+          id: "validation-tracking-unlinked-\(event.id.uuidString)",
+          entityType: .trackingNumber,
+          entityID: event.id.uuidString,
+          linkedEntityType: .trackingEvent,
+          title: event.trackingNumber,
+          subtitle: "Tracking event has no local order",
+          detail: "Carrier tracking event references an order ID that is not present locally.",
+          confidenceScore: 35,
+          severity: .critical,
+          status: .needsCorrection,
+          reviewState: event.reviewState,
+          suggestedActionText: "Create a task to repair the tracking link."
+        )
+      }
+
+      guard order.trackingNumber.normalizedValidationKey != event.trackingNumber.normalizedValidationKey else { return nil }
+      return validationIssue(
+        id: "validation-tracking-conflict-\(event.id.uuidString)",
+        entityType: .trackingNumber,
+        entityID: event.id.uuidString,
+        linkedEntityType: .trackingEvent,
+        title: event.trackingNumber,
+        subtitle: "Does not match order \(order.orderNumber)",
+        detail: "Tracking event number \(event.trackingNumber) differs from order tracking number \(order.trackingNumber).",
+        confidenceScore: 46,
+        severity: .critical,
+        status: .conflict,
+        reviewState: event.reviewState,
+        suggestedActionText: "Verify the carrier tracking number."
+      )
+    }
+  }
+
+  private func destinationValidationIssues() -> [ValidationIssue] {
+    orders.compactMap { order in
+      let normalizedDestination = order.destination.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard normalizedDestination.isPlaceholderValidationValue || normalizedDestination.count < 8 else { return nil }
+      return validationIssue(
+        id: "validation-destination-\(order.id.uuidString)",
+        entityType: .destinationAddress,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.destination,
+        subtitle: "\(order.orderNumber) destination needs validation",
+        detail: "Destination address is missing, placeholder-like, or too short for reliable local tracking.",
+        confidenceScore: 40,
+        severity: .high,
+        status: .needsCorrection,
+        reviewState: order.reviewState,
+        suggestedActionText: "Correct destination before shipment follow-up."
+      )
+    }
+  }
+
+  private func vendorProfileMatchValidationIssues() -> [ValidationIssue] {
+    let orderIssues = orders.compactMap { order -> ValidationIssue? in
+      let matches = suggestedVendorProfiles(for: order)
+      guard matches.isEmpty || order.reviewState != .accepted else { return nil }
+      return validationIssue(
+        id: "validation-profile-order-\(order.id.uuidString)",
+        entityType: .vendorProfileMatch,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.store,
+        subtitle: matches.isEmpty ? "No vendor profile match" : "\(matches.count) profile candidates need review",
+        detail: "Order vendor/profile match confidence is \(matches.isEmpty ? "low" : "not yet accepted").",
+        confidenceScore: matches.isEmpty ? 48 : 70,
+        severity: matches.isEmpty ? .warning : .info,
+        status: matches.isEmpty ? .lowConfidence : .staleReview,
+        reviewState: order.reviewState,
+        suggestedActionText: "Review or create a vendor profile link."
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ValidationIssue? in
+      let matches = suggestedVendorProfiles(for: email)
+      guard email.reviewState == .needsReview || matches.isEmpty else { return nil }
+      return validationIssue(
+        id: "validation-profile-intake-\(email.id.uuidString)",
+        entityType: .vendorProfileMatch,
+        entityID: email.id.uuidString,
+        linkedEntityType: .intakeEmail,
+        title: email.detectedMerchant,
+        subtitle: matches.isEmpty ? "No vendor profile match" : "\(matches.count) profile candidates",
+        detail: "Forwarded email merchant profile match needs user confirmation.",
+        confidenceScore: matches.isEmpty ? 45 : 68,
+        severity: matches.isEmpty ? .warning : .info,
+        status: matches.isEmpty ? .lowConfidence : .staleReview,
+        reviewState: email.reviewState.searchReviewState,
+        suggestedActionText: "Confirm merchant profile before accepting intake."
+      )
+    }
+
+    return orderIssues + intakeIssues
+  }
+
+  private func accountPlaceholderValidationIssues() -> [ValidationIssue] {
+    accountCredentialRecords.compactMap { account in
+      guard account.reviewState != .accepted || !account.isEnabled || account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending || account.mfaStatus == .needsReview || account.mfaStatus == .notConfigured else { return nil }
+      let status: ValidationStatus = account.credentialStorageStatus == .needsSetup || account.mfaStatus == .notConfigured ? .incomplete : account.reviewState == .needsReview ? .staleReview : .needsCorrection
+      return validationIssue(
+        id: "validation-account-\(account.id.uuidString)",
+        entityType: .accountPlaceholder,
+        entityID: account.id.uuidString,
+        linkedEntityType: .account,
+        title: account.accountName,
+        subtitle: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        detail: "Account placeholder has MFA \(account.mfaStatus.rawValue), enabled \(account.isEnabled ? "yes" : "no"), review \(account.reviewState.rawValue).",
+        confidenceScore: account.mfaStatus == .needsReview || account.credentialStorageStatus == .needsSetup ? 50 : 72,
+        severity: account.mfaStatus == .needsReview || account.credentialStorageStatus == .needsSetup ? .high : .warning,
+        status: status,
+        reviewState: account.reviewState,
+        suggestedActionText: "Review account placeholder readiness."
+      )
+    }
+  }
+
+  private func contactSuggestionValidationIssues() -> [ValidationIssue] {
+    let orderIssues = orders.compactMap { order -> ValidationIssue? in
+      let contacts = suggestedContacts(for: order)
+      guard contacts.isEmpty && order.reviewState != .accepted else { return nil }
+      return validationIssue(
+        id: "validation-contact-order-\(order.id.uuidString)",
+        entityType: .contactSuggestion,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.store,
+        subtitle: "No suggested contact for order",
+        detail: "Order has no local enabled contact suggestion for its store or carrier.",
+        confidenceScore: 52,
+        severity: .warning,
+        status: .lowConfidence,
+        reviewState: order.reviewState,
+        suggestedActionText: "Create or select a contact before follow-up."
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ValidationIssue? in
+      let contacts = suggestedContacts(for: email)
+      guard contacts.isEmpty && email.reviewState == .needsReview else { return nil }
+      return validationIssue(
+        id: "validation-contact-intake-\(email.id.uuidString)",
+        entityType: .contactSuggestion,
+        entityID: email.id.uuidString,
+        linkedEntityType: .intakeEmail,
+        title: email.detectedMerchant,
+        subtitle: "No suggested contact for intake",
+        detail: "Forwarded email has no local enabled contact suggestion from merchant or sender.",
+        confidenceScore: 50,
+        severity: .warning,
+        status: .lowConfidence,
+        reviewState: email.reviewState.searchReviewState,
+        suggestedActionText: "Create or select a contact before draft follow-up."
+      )
+    }
+
+    return orderIssues + intakeIssues
+  }
+
+  private func intakeConfidenceScore(for email: ForwardedEmailIntake, missingCount: Int) -> Int {
+    var score = 95 - missingCount * 14
+    if email.reviewState == .needsReview { score -= 10 }
+    if email.linkedOrderID == nil { score -= 8 }
+    if email.rawBodyPreview.count < 40 { score -= 8 }
+    if !email.sender.contains("@") { score -= 10 }
+    return max(10, min(100, score))
+  }
+
+  private func validationIssue(
+    id: String,
+    entityType: ValidationEntityType,
+    entityID: String,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    title: String,
+    subtitle: String,
+    detail: String,
+    confidenceScore: Int,
+    severity: ValidationSeverity,
+    status: ValidationStatus,
+    reviewState: ReviewState?,
+    suggestedActionText: String
+  ) -> ValidationIssue {
+    ValidationIssue(
+      id: id,
+      entityType: entityType,
+      entityID: entityID,
+      title: title,
+      subtitle: subtitle,
+      detail: detail,
+      confidenceScore: confidenceScore,
+      severity: severity,
+      status: status,
+      reviewState: reviewState,
+      linkedEntityType: linkedEntityType,
+      suggestedActionText: suggestedActionText
+    )
   }
 
   private func orderTimelineActivities() -> [TimelineActivity] {

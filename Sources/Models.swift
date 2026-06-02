@@ -17,6 +17,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case accounts
   case vendorProfiles
   case timeline
+  case validation
   case search
   case audit
   case settings
@@ -41,6 +42,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .timeline: "Timeline"
+    case .validation: "Validation"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -65,6 +67,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .timeline: "Timeline"
+    case .validation: "Validate"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -89,6 +92,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .timeline: "clock.badge.exclamationmark.fill"
+    case .validation: "checkmark.seal.fill"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -247,6 +251,28 @@ struct TimelineActivityGroup: Identifiable, Hashable {
   var activities: [TimelineActivity]
 
   var id: String { title }
+}
+
+struct ValidationIssue: Identifiable, Hashable {
+  var id: String
+  var entityType: ValidationEntityType
+  var entityID: String
+  var title: String
+  var subtitle: String
+  var detail: String
+  var confidenceScore: Int
+  var severity: ValidationSeverity
+  var status: ValidationStatus
+  var reviewState: ReviewState?
+  var linkedEntityType: ReviewTaskLinkedEntityType?
+  var suggestedActionText: String
+}
+
+struct ValidationIssueGroup: Identifiable, Hashable {
+  var severity: ValidationSeverity
+  var issues: [ValidationIssue]
+
+  var id: ValidationSeverity { severity }
 }
 
 struct SavedFilter: Identifiable, Hashable, Codable {
@@ -578,6 +604,39 @@ enum TimelineActivitySource: String, CaseIterable, Identifiable, Hashable {
   case automation = "Automation"
   case search = "Search"
   case audit = "Audit"
+
+  var id: String { rawValue }
+}
+
+enum ValidationEntityType: String, CaseIterable, Identifiable, Hashable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingNumber = "Tracking number"
+  case destinationAddress = "Destination address"
+  case vendorProfileMatch = "Vendor/profile match"
+  case accountPlaceholder = "Account placeholder"
+  case contactSuggestion = "Contact suggestion"
+
+  var id: String { rawValue }
+}
+
+enum ValidationSeverity: String, CaseIterable, Identifiable, Hashable {
+  case info = "Info"
+  case warning = "Warning"
+  case high = "High"
+  case critical = "Critical"
+
+  var id: String { rawValue }
+}
+
+enum ValidationStatus: String, CaseIterable, Identifiable, Hashable {
+  case valid = "Valid"
+  case incomplete = "Incomplete"
+  case conflict = "Conflict"
+  case lowConfidence = "Low confidence"
+  case duplicate = "Duplicate"
+  case staleReview = "Stale review"
+  case needsCorrection = "Needs correction"
 
   var id: String { rawValue }
 }

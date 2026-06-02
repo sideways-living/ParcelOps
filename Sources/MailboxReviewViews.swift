@@ -397,6 +397,16 @@ struct NeedsReviewView: View {
           }
         }
 
+        SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
+          ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
+            ValidationIssueRow(issue: issue) {
+              store.createReviewTask(from: issue)
+            } onCreateDraft: {
+              store.createDraftMessage(from: issue)
+            }
+          }
+        }
+
         SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
             ReviewOrderRow(order: order) { updatedOrder in

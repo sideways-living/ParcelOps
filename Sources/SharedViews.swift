@@ -1,5 +1,24 @@
 import SwiftUI
 
+extension String {
+  var normalizedValidationKey: String {
+    trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: " ", with: "")
+  }
+
+  var isPlaceholderValidationValue: Bool {
+    let normalized = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return normalized.isEmpty
+      || normalized == "pending"
+      || normalized == "unknown"
+      || normalized == "unassigned"
+      || normalized == "choose folder"
+      || normalized == "needs setup"
+      || normalized == "never"
+  }
+}
+
 extension OrderStatus {
   var color: Color {
     switch self {
@@ -158,6 +177,63 @@ extension TimelineActivitySource {
     case .automation: "arrow.triangle.branch"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
+    }
+  }
+}
+
+extension ValidationEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .trackingNumber: "number.circle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
+    case .vendorProfileMatch: "building.2.crop.circle.fill"
+    case .accountPlaceholder: "key.horizontal.fill"
+    case .contactSuggestion: "person.crop.circle.badge.questionmark"
+    }
+  }
+}
+
+extension ValidationSeverity {
+  var color: Color {
+    switch self {
+    case .info: .blue
+    case .warning: .orange
+    case .high: .red
+    case .critical: .red
+    }
+  }
+
+  var rank: Int {
+    switch self {
+    case .info: 0
+    case .warning: 1
+    case .high: 2
+    case .critical: 3
+    }
+  }
+
+  var taskPriority: TaskPriority {
+    switch self {
+    case .info: .low
+    case .warning: .normal
+    case .high: .high
+    case .critical: .urgent
+    }
+  }
+}
+
+extension ValidationStatus {
+  var color: Color {
+    switch self {
+    case .valid: .green
+    case .incomplete: .orange
+    case .conflict: .red
+    case .lowConfidence: .orange
+    case .duplicate: .purple
+    case .staleReview: .blue
+    case .needsCorrection: .red
     }
   }
 }
@@ -386,6 +462,16 @@ extension TimelineActivity {
 
   var supportsDraftMessage: Bool {
     reviewTaskLinkedEntityType != nil
+  }
+}
+
+extension ValidationIssue {
+  var supportsReviewTask: Bool {
+    linkedEntityType != nil
+  }
+
+  var supportsDraftMessage: Bool {
+    linkedEntityType != nil
   }
 }
 
