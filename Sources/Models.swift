@@ -8,6 +8,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case wishlist
   case integrations
   case automation
+  case tracking
   case evidence
   case audit
   case settings
@@ -23,6 +24,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -38,6 +40,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Sources"
     case .automation: "Flow"
+    case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -53,6 +56,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "star.square.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
+    case .tracking: "location.fill.viewfinder"
     case .evidence: "paperclip"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -146,6 +150,20 @@ struct EvidenceAttachment: Identifiable, Hashable, Codable {
   var summary: String
   var reviewState: ReviewState
   var localFilePath: String
+}
+
+struct CarrierTrackingEvent: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var orderID: UUID
+  var carrier: String
+  var trackingNumber: String
+  var eventTime: String
+  var location: String
+  var status: String
+  var detail: String
+  var severity: Severity
+  var source: TrackingEventSource
+  var reviewState: ReviewState
 }
 
 struct SourceConnection: Identifiable, Hashable, Codable {
@@ -272,6 +290,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case intakeEmail = "Intake email"
   case mailEvent = "Mailbox event"
   case evidence = "Evidence"
+  case trackingEvent = "Tracking event"
 
   var id: String { rawValue }
 }
@@ -289,6 +308,15 @@ enum EvidenceSource: String, CaseIterable, Identifiable, Hashable, Codable {
   case watchedFolder = "Watched folder"
   case screenshot = "Screenshot"
   case supplierPortal = "Supplier portal"
+
+  var id: String { rawValue }
+}
+
+enum TrackingEventSource: String, CaseIterable, Identifiable, Hashable, Codable {
+  case manual = "Manual"
+  case forwardedEmail = "Forwarded email"
+  case carrierMock = "Carrier mock"
+  case shopifyMock = "Shopify mock"
 
   var id: String { rawValue }
 }

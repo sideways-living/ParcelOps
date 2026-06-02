@@ -339,6 +339,16 @@ struct NeedsReviewView: View {
             }
           }
         }
+
+        SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
+          ForEach(store.reviewCarrierTrackingEvents) { event in
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }) {
+              store.markTrackingEventReviewed(event)
+            } onRemove: {
+              store.removeTrackingEvent(event)
+            }
+          }
+        }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }

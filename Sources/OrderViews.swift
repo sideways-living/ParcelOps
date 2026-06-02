@@ -136,6 +136,40 @@ struct OrderDetailView: View {
           .buttonStyle(.borderedProminent)
         }
 
+        Panel(title: "Tracking", symbol: "location.fill.viewfinder") {
+          let events = store.trackingEvents(for: order.id)
+
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("\(events.count) carrier events")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Add event", systemImage: "plus") {
+                store.addPlaceholderTrackingEvent(to: order)
+              }
+              .buttonStyle(.bordered)
+            }
+
+            if events.isEmpty {
+              Text("No tracking events linked.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+              ForEach(events) { event in
+                TrackingEventRow(event: event, order: order) {
+                  store.markTrackingEventReviewed(event)
+                } onRemove: {
+                  store.removeTrackingEvent(event)
+                }
+              }
+            }
+          }
+        }
+
         Panel(title: "Evidence", symbol: "paperclip") {
           let attachments = store.evidence(for: .order, linkedEntityID: order.id)
 

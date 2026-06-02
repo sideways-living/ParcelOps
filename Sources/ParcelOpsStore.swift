@@ -21,6 +21,7 @@ final class ParcelOpsStore {
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
   var evidenceAttachments: [EvidenceAttachment]
+  var carrierTrackingEvents: [CarrierTrackingEvent]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -30,6 +31,7 @@ final class ParcelOpsStore {
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
   private let evidenceRepository: EvidenceRepository
+  private let trackingRepository: TrackingRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -37,7 +39,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -56,6 +58,7 @@ final class ParcelOpsStore {
     self.settingsRepository = repository
     self.auditRepository = repository
     self.evidenceRepository = repository
+    self.trackingRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -74,6 +77,7 @@ final class ParcelOpsStore {
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
     self.evidenceAttachments = repository.loadEvidenceAttachments()
+    self.carrierTrackingEvents = repository.loadCarrierTrackingEvents()
   }
 
   var activeCount: Int {
@@ -97,11 +101,15 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
     evidenceAttachments.filter { $0.reviewState != .accepted }
+  }
+
+  var reviewCarrierTrackingEvents: [CarrierTrackingEvent] {
+    carrierTrackingEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -399,6 +407,66 @@ final class ParcelOpsStore {
     )
   }
 
+  func trackingEvents(for orderID: UUID) -> [CarrierTrackingEvent] {
+    carrierTrackingEvents.filter { $0.orderID == orderID }
+  }
+
+  func addPlaceholderTrackingEvent(to order: TrackedOrder) {
+    let event = CarrierTrackingEvent(
+      orderID: order.id,
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+      eventTime: Self.auditTimestamp(),
+      location: order.destination,
+      status: "Manual tracking note",
+      detail: "Placeholder carrier tracking event added for local review.",
+      severity: .watch,
+      source: .manual,
+      reviewState: .needsReview
+    )
+    carrierTrackingEvents.insert(event, at: 0)
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .created,
+      entityType: .trackingEvent,
+      entityID: event.id.uuidString,
+      entityLabel: event.trackingNumber,
+      summary: "Carrier tracking event added.",
+      afterDetail: event.auditDetail
+    )
+  }
+
+  func markTrackingEventReviewed(_ event: CarrierTrackingEvent) {
+    guard let index = carrierTrackingEvents.firstIndex(where: { $0.id == event.id }) else { return }
+    let beforeDetail = carrierTrackingEvents[index].auditDetail
+    carrierTrackingEvents[index].reviewState = .accepted
+    carrierTrackingEvents[index].severity = .info
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .reviewed,
+      entityType: .trackingEvent,
+      entityID: carrierTrackingEvents[index].id.uuidString,
+      entityLabel: carrierTrackingEvents[index].trackingNumber,
+      summary: "Carrier tracking event marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: carrierTrackingEvents[index].auditDetail
+    )
+  }
+
+  func removeTrackingEvent(_ event: CarrierTrackingEvent) {
+    guard let index = carrierTrackingEvents.firstIndex(where: { $0.id == event.id }) else { return }
+    let removed = carrierTrackingEvents.remove(at: index)
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .removed,
+      entityType: .trackingEvent,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.trackingNumber,
+      summary: "Carrier tracking event removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -532,6 +600,10 @@ final class ParcelOpsStore {
     evidenceRepository.saveEvidenceAttachments(evidenceAttachments)
   }
 
+  private func persistCarrierTrackingEvents() {
+    trackingRepository.saveCarrierTrackingEvents(carrierTrackingEvents)
+  }
+
   private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
     guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
     let beforeDetail = intakeEmails[index].auditDetail
@@ -608,5 +680,11 @@ private extension ForwardedEmailIntake {
 private extension EvidenceAttachment {
   var auditDetail: String {
     "File: \(fileName); type: \(fileType); source: \(source.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID.uuidString); review: \(reviewState.rawValue); path: \(localFilePath)."
+  }
+}
+
+private extension CarrierTrackingEvent {
+  var auditDetail: String {
+    "Carrier: \(carrier); tracking: \(trackingNumber); time: \(eventTime); location: \(location); status: \(status); severity: \(severity.rawValue); source: \(source.rawValue); review: \(reviewState.rawValue)."
   }
 }

@@ -64,6 +64,7 @@ extension AuditEntityType {
     case .intakeEmail: "envelope.open.fill"
     case .mailEvent: "envelope.badge.fill"
     case .evidence: "paperclip"
+    case .trackingEvent: "location.fill.viewfinder"
     }
   }
 }
@@ -85,6 +86,17 @@ extension EvidenceSource {
     case .watchedFolder: "folder.fill"
     case .screenshot: "photo.fill"
     case .supplierPortal: "person.crop.circle.badge.checkmark"
+    }
+  }
+}
+
+extension TrackingEventSource {
+  var symbol: String {
+    switch self {
+    case .manual: "square.and.pencil"
+    case .forwardedEmail: "envelope.open.fill"
+    case .carrierMock: "location.fill.viewfinder"
+    case .shopifyMock: "cart.fill"
     }
   }
 }

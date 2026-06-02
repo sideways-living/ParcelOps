@@ -48,7 +48,12 @@ protocol EvidenceRepository {
   func saveEvidenceAttachments(_ attachments: [EvidenceAttachment])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository {
+protocol TrackingRepository {
+  func loadCarrierTrackingEvents() -> [CarrierTrackingEvent]
+  func saveCarrierTrackingEvents(_ events: [CarrierTrackingEvent])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -162,6 +167,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(attachments, to: .evidenceAttachments)
   }
 
+  func loadCarrierTrackingEvents() -> [CarrierTrackingEvent] {
+    load([CarrierTrackingEvent].self, from: .carrierTrackingEvents, defaultValue: SampleData.carrierTrackingEvents)
+  }
+
+  func saveCarrierTrackingEvents(_ events: [CarrierTrackingEvent]) {
+    save(events, to: .carrierTrackingEvents)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -230,10 +243,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
     case evidenceAttachments = "evidence-attachments.json"
+    case carrierTrackingEvents = "carrier-tracking-events.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -246,6 +260,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
   private var evidenceAttachments = SampleData.evidenceAttachments
+  private var carrierTrackingEvents = SampleData.carrierTrackingEvents
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -282,4 +297,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadEvidenceAttachments() -> [EvidenceAttachment] { evidenceAttachments }
   func saveEvidenceAttachments(_ attachments: [EvidenceAttachment]) { evidenceAttachments = attachments }
+
+  func loadCarrierTrackingEvents() -> [CarrierTrackingEvent] { carrierTrackingEvents }
+  func saveCarrierTrackingEvents(_ events: [CarrierTrackingEvent]) { carrierTrackingEvents = events }
 }

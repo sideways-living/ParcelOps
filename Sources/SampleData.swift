@@ -220,6 +220,45 @@ enum SampleData {
     )
   ]
 
+  static var carrierTrackingEvents: [CarrierTrackingEvent] = [
+    CarrierTrackingEvent(
+      orderID: orders[0].id,
+      carrier: "Australia Post",
+      trackingNumber: "33AUL8841295",
+      eventTime: "Today 9:12 AM",
+      location: "Melbourne VIC",
+      status: "In transit",
+      detail: "Arrived at Melbourne sorting facility.",
+      severity: .info,
+      source: .carrierMock,
+      reviewState: .accepted
+    ),
+    CarrierTrackingEvent(
+      orderID: orders[1].id,
+      carrier: "DHL",
+      trackingNumber: "JD0146000098312",
+      eventTime: "Today 8:05 AM",
+      location: "Brisbane QLD",
+      status: "Address confirmation required",
+      detail: "Carrier needs suite or reception details before delivery can continue.",
+      severity: .critical,
+      source: .carrierMock,
+      reviewState: .needsReview
+    ),
+    CarrierTrackingEvent(
+      orderID: orders[2].id,
+      carrier: "Northwind Perth counter",
+      trackingNumber: "Pickup code NW7720",
+      eventTime: "Today 7:30 AM",
+      location: "Perth WA",
+      status: "Awaiting dispatch confirmation",
+      detail: "Portal shows order ready soon, but no collection confirmation has been received.",
+      severity: .watch,
+      source: .shopifyMock,
+      reviewState: .monitor
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",
