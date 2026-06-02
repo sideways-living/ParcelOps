@@ -122,6 +122,16 @@ struct DashboardView: View {
             CompactVendorProfileList(profiles: Array((store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles).prefix(4)))
           }
 
+          AnalyticsSection(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
+            MetricStrip(items: [
+              ("Total", "\(store.shipmentGroups.count)", .blue),
+              ("Review", "\(store.shipmentGroupsNeedingReview.count)", .orange),
+              ("High risk", "\(store.highRiskShipmentGroups.count)", .red),
+              ("Critical", "\(store.shipmentGroups.filter { $0.riskLevel == .critical }.count)", .red)
+            ])
+            CompactShipmentGroupList(groups: Array((store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups).prefix(4)))
+          }
+
           AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
             MetricStrip(items: [
               ("Recent", "\(store.recentTimelineActivities.count)", .blue),
@@ -401,6 +411,23 @@ struct CompactVendorProfileList: View {
           detail: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
           badge: profile.riskLevel.rawValue,
           color: profile.riskLevel.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactShipmentGroupList: View {
+  var groups: [ShipmentGroup]
+
+  var body: some View {
+    CompactList(title: "Shipment group watchlist", symbol: "shippingbox.and.arrow.backward.fill") {
+      ForEach(groups) { group in
+        CompactRow(
+          title: group.groupName,
+          detail: "\(group.carrierSummary) • \(group.statusSummary)",
+          badge: group.riskLevel.rawValue,
+          color: group.riskLevel.color
         )
       }
     }

@@ -56,7 +56,7 @@ struct TasksView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
+              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -138,6 +138,7 @@ struct TasksView: View {
 struct ReviewTaskRow: View {
   var task: ReviewTask
   var matchingPolicies: [SLAPolicy] = []
+  var shipmentGroups: [ShipmentGroup] = []
   var onSave: (ReviewTask) -> Void
   var onComplete: () -> Void
   var onReopen: () -> Void
@@ -191,6 +192,10 @@ struct ReviewTaskRow: View {
             Text("SLA: \(policy.responseTarget); \(policy.resolutionTarget)")
               .font(.caption)
               .foregroundStyle(policy.priority.color)
+          }
+
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
           }
         }
       }

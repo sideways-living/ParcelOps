@@ -31,6 +31,7 @@ final class ParcelOpsStore {
   var contactDirectoryEntries: [ContactDirectoryEntry]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
+  var shipmentGroups: [ShipmentGroup]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -49,6 +50,7 @@ final class ParcelOpsStore {
   private let contactDirectoryRepository: ContactDirectoryRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
+  private let shipmentGroupRepository: ShipmentGroupRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -56,7 +58,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -84,6 +86,7 @@ final class ParcelOpsStore {
     self.contactDirectoryRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
+    self.shipmentGroupRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -112,6 +115,7 @@ final class ParcelOpsStore {
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
+    self.shipmentGroups = repository.loadShipmentGroups()
   }
 
   var activeCount: Int {
@@ -139,7 +143,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -252,6 +256,14 @@ final class ParcelOpsStore {
     vendorProfiles.filter { $0.isEnabled && ($0.riskLevel == .high || $0.riskLevel == .critical) }
   }
 
+  var shipmentGroupsNeedingReview: [ShipmentGroup] {
+    shipmentGroups.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskShipmentGroups: [ShipmentGroup] {
+    shipmentGroups.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
   var enabledVendorProfileCount: Int {
     vendorProfiles.filter(\.isEnabled).count
   }
@@ -285,6 +297,7 @@ final class ParcelOpsStore {
       + contactTimelineActivities()
       + accountTimelineActivities()
       + vendorProfileTimelineActivities()
+      + shipmentGroupTimelineActivities()
       + automationTimelineActivities()
       + savedFilterTimelineActivities()
       + auditTimelineActivities()
@@ -396,6 +409,80 @@ final class ParcelOpsStore {
     }
   }
 
+  func filteredShipmentGroups(
+    riskLevel: ShipmentRiskLevel?,
+    status: String,
+    carrier: String,
+    reviewState: ReviewState?
+  ) -> [ShipmentGroup] {
+    let normalizedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedCarrier = carrier.trimmingCharacters(in: .whitespacesAndNewlines)
+    return shipmentGroups.filter { group in
+      let matchesRisk = riskLevel == nil || group.riskLevel == riskLevel
+      let matchesStatus = normalizedStatus.isEmpty || group.statusSummary.localizedCaseInsensitiveContains(normalizedStatus)
+      let matchesCarrier = normalizedCarrier.isEmpty || group.carrierSummary.localizedCaseInsensitiveContains(normalizedCarrier)
+      let matchesReview = reviewState == nil || group.reviewState == reviewState
+      return matchesRisk && matchesStatus && matchesCarrier && matchesReview
+    }
+  }
+
+  func suggestedShipmentGroups(for order: TrackedOrder) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.primaryOrderID == order.id
+        || group.relatedOrderIDs.contains(order.id)
+        || group.destinationSummary.localizedCaseInsensitiveContains(order.destination)
+        || order.destination.localizedCaseInsensitiveContains(group.destinationSummary)
+        || group.carrierSummary.localizedCaseInsensitiveContains(order.carrier)
+        || group.recipientCustomerSummary.localizedCaseInsensitiveContains(order.customer)
+    }
+  }
+
+  func suggestedShipmentGroups(for email: ForwardedEmailIntake) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedIntakeEmailIDs.contains(email.id)
+        || email.linkedOrderID.map { group.relatedOrderIDs.contains($0) || group.primaryOrderID == $0 } == true
+        || group.destinationSummary.localizedCaseInsensitiveContains(email.detectedDestinationAddress)
+        || email.detectedDestinationAddress.localizedCaseInsensitiveContains(group.destinationSummary)
+    }
+  }
+
+  func suggestedShipmentGroups(for event: CarrierTrackingEvent) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedTrackingEventIDs.contains(event.id)
+        || group.relatedOrderIDs.contains(event.orderID)
+        || group.primaryOrderID == event.orderID
+        || group.carrierSummary.localizedCaseInsensitiveContains(event.carrier)
+    }
+  }
+
+  func suggestedShipmentGroups(for attachment: EvidenceAttachment) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedEvidenceIDs.contains(attachment.id)
+        || (attachment.linkedEntityType == .order && group.relatedOrderIDs.contains(attachment.linkedEntityID))
+        || (attachment.linkedEntityType == .intakeEmail && group.relatedIntakeEmailIDs.contains(attachment.linkedEntityID))
+    }
+  }
+
+  func suggestedShipmentGroups(for task: ReviewTask) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.matches(linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+    }
+  }
+
+  func suggestedShipmentGroups(for activity: TimelineActivity) -> [ShipmentGroup] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return shipmentGroups.filter { group in
+      group.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID)
+    }
+  }
+
+  func suggestedShipmentGroups(for issue: ValidationIssue) -> [ShipmentGroup] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return shipmentGroups.filter { group in
+      group.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID)
+    }
+  }
+
   func createReviewTask(from issue: ValidationIssue) {
     guard let linkedEntityType = issue.linkedEntityType else { return }
     createReviewTask(
@@ -413,6 +500,102 @@ final class ParcelOpsStore {
       linkedEntityType: linkedEntityType,
       linkedEntityID: issue.entityID,
       label: issue.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  func addShipmentGroupPlaceholder() {
+    let primaryOrder = orders.first
+    let group = ShipmentGroup(
+      groupName: "New shipment group",
+      primaryOrderID: primaryOrder?.id,
+      relatedOrderIDs: primaryOrder.map { [$0.id] } ?? [],
+      relatedIntakeEmailIDs: [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: primaryOrder?.destination ?? "Pending destination",
+      recipientCustomerSummary: primaryOrder?.customer ?? "Unassigned",
+      carrierSummary: primaryOrder?.carrier ?? "Pending carrier",
+      statusSummary: "Manual grouping placeholder",
+      riskLevel: .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    logAudit(
+      action: .created,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group created locally.",
+      afterDetail: group.auditDetail
+    )
+  }
+
+  func updateShipmentGroup(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[index].auditDetail
+    shipmentGroups[index] = group
+    persistShipmentGroups()
+    logAudit(
+      action: .edited,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: group.auditDetail
+    )
+  }
+
+  func markShipmentGroupReviewed(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[index].auditDetail
+    shipmentGroups[index].reviewState = .accepted
+    shipmentGroups[index].lastReviewedDate = Self.auditTimestamp()
+    persistShipmentGroups()
+    logAudit(
+      action: .reviewed,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: shipmentGroups[index].auditDetail
+    )
+  }
+
+  func removeShipmentGroup(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let removed = shipmentGroups.remove(at: index)
+    persistShipmentGroups()
+    logAudit(
+      action: .removed,
+      entityType: .shipmentGroup,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.groupName,
+      summary: "Shipment group removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from group: ShipmentGroup) {
+    createReviewTask(
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: group.id.uuidString,
+      label: group.groupName,
+      summary: "Review shipment group: \(group.statusSummary). \(group.destinationSummary)",
+      priority: group.riskLevel == .critical ? .urgent : group.riskLevel == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from group: ShipmentGroup) {
+    createDraftMessage(
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: group.id.uuidString,
+      label: group.groupName,
       recipient: "operations@parcelops.example"
     )
   }
@@ -978,6 +1161,24 @@ final class ParcelOpsStore {
         reviewState: profile.reviewState,
         source: .vendorProfile,
         suggestedActionText: "Review vendor profile"
+      )
+    }
+  }
+
+  private func shipmentGroupTimelineActivities() -> [TimelineActivity] {
+    shipmentGroups.map { group in
+      TimelineActivity(
+        id: "timeline-shipment-group-\(group.id.uuidString)",
+        timestampText: group.lastReviewedDate,
+        entityType: .shipmentGroup,
+        entityID: group.id.uuidString,
+        title: group.groupName,
+        subtitle: "\(group.carrierSummary) • \(group.statusSummary)",
+        detail: "\(group.destinationSummary). \(group.recipientCustomerSummary)",
+        risk: group.riskLevel.timelineRisk,
+        reviewState: group.reviewState,
+        source: .shipmentGroup,
+        suggestedActionText: "Review shipment group context"
       )
     }
   }
@@ -2947,6 +3148,10 @@ final class ParcelOpsStore {
     vendorProfileRepository.saveVendorProfiles(vendorProfiles)
   }
 
+  private func persistShipmentGroups() {
+    shipmentGroupRepository.saveShipmentGroups(shipmentGroups)
+  }
+
   private func addReviewTask(_ task: ReviewTask, summary: String) {
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
@@ -3141,5 +3346,11 @@ private extension AccountCredentialRecord {
 private extension VendorProfile {
   var auditDetail: String {
     "Name: \(name); type: \(profileType.rawValue); organisation: \(primaryOrganisation); website: \(website); support: \(supportURL); default contact: \(defaultContactID?.uuidString ?? "none"); default account: \(defaultAccountID?.uuidString ?? "none"); channel: \(preferredChannel.rawValue); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); service notes: \(serviceLevelNotes)."
+  }
+}
+
+private extension ShipmentGroup {
+  var auditDetail: String {
+    "Name: \(groupName); primary order: \(primaryOrderID?.uuidString ?? "none"); orders: \(relatedOrderIDs.map(\.uuidString).joined(separator: ", ")); intake: \(relatedIntakeEmailIDs.map(\.uuidString).joined(separator: ", ")); tracking: \(relatedTrackingEventIDs.map(\.uuidString).joined(separator: ", ")); evidence: \(relatedEvidenceIDs.map(\.uuidString).joined(separator: ", ")); destination: \(destinationSummary); recipient/customer: \(recipientCustomerSummary); carrier: \(carrierSummary); status: \(statusSummary); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate)."
   }
 }

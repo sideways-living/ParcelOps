@@ -95,7 +95,12 @@ protocol VendorProfileRepository {
   func saveVendorProfiles(_ profiles: [VendorProfile])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository {
+protocol ShipmentGroupRepository {
+  func loadShipmentGroups() -> [ShipmentGroup]
+  func saveShipmentGroups(_ groups: [ShipmentGroup])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -289,6 +294,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(profiles, to: .vendorProfiles)
   }
 
+  func loadShipmentGroups() -> [ShipmentGroup] {
+    load([ShipmentGroup].self, from: .shipmentGroups, defaultValue: SampleData.shipmentGroups)
+  }
+
+  func saveShipmentGroups(_ groups: [ShipmentGroup]) {
+    save(groups, to: .shipmentGroups)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -367,10 +380,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case contactDirectoryEntries = "contact-directory.json"
     case accountCredentialRecords = "account-credential-records.json"
     case vendorProfiles = "vendor-profiles.json"
+    case shipmentGroups = "shipment-groups.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -393,6 +407,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var contactDirectoryEntries = SampleData.contactDirectoryEntries
   private var accountCredentialRecords = SampleData.accountCredentialRecords
   private var vendorProfiles = SampleData.vendorProfiles
+  private var shipmentGroups = SampleData.shipmentGroups
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -459,4 +474,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadVendorProfiles() -> [VendorProfile] { vendorProfiles }
   func saveVendorProfiles(_ profiles: [VendorProfile]) { vendorProfiles = profiles }
+
+  func loadShipmentGroups() -> [ShipmentGroup] { shipmentGroups }
+  func saveShipmentGroups(_ groups: [ShipmentGroup]) { shipmentGroups = groups }
 }

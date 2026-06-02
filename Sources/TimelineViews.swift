@@ -27,7 +27,7 @@ struct TimelineView: View {
         ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.activities) { activity in
-              TimelineActivityRow(activity: activity) {
+              TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity)) {
                 store.createReviewTask(from: activity)
               } onCreateDraft: {
                 store.createDraftMessage(from: activity)
@@ -95,6 +95,7 @@ struct TimelineView: View {
 
 struct TimelineActivityRow: View {
   var activity: TimelineActivity
+  var shipmentGroups: [ShipmentGroup] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
 
@@ -141,6 +142,10 @@ struct TimelineActivityRow: View {
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
           .disabled(!activity.supportsDraftMessage)
+      }
+
+      if !shipmentGroups.isEmpty {
+        ShipmentGroupContextStrip(groups: shipmentGroups)
       }
     }
     .padding(12)

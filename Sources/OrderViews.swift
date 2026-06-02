@@ -204,6 +204,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Shipment group context", symbol: "shippingbox.and.arrow.backward.fill") {
+          let groups = store.suggestedShipmentGroups(for: order)
+
+          if groups.isEmpty {
+            Text("No local shipment groups matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ShipmentGroupContextStrip(groups: groups)
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)
@@ -270,7 +281,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
@@ -318,7 +329,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(attachments) { attachment in
-                EvidenceAttachmentRow(attachment: attachment) {
+                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
                   store.removeEvidence(attachment)

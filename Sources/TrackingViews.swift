@@ -43,7 +43,7 @@ struct TrackingView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
+              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
@@ -113,6 +113,7 @@ struct TrackingEventRow: View {
   var order: TrackedOrder?
   var suggestedContacts: [ContactDirectoryEntry] = []
   var suggestedProfiles: [VendorProfile] = []
+  var shipmentGroups: [ShipmentGroup] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
@@ -161,6 +162,10 @@ struct TrackingEventRow: View {
             Label(event.source.rawValue, systemImage: event.source.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
+          }
+
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
           }
 
           ForEach(relatedTasks()) { task in

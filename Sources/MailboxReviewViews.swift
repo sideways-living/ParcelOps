@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -72,6 +72,7 @@ struct IntakeEmailRow: View {
   var suggestedContacts: [ContactDirectoryEntry] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedProfiles: [VendorProfile] = []
+  var shipmentGroups: [ShipmentGroup] = []
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
@@ -126,6 +127,9 @@ struct IntakeEmailRow: View {
             Text("Linked to \(linkedOrder.orderNumber) • \(linkedOrder.store)")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
+          }
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
           }
         }
       }
@@ -389,7 +393,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
-            TimelineActivityRow(activity: activity) {
+            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity)) {
               store.createReviewTask(from: activity)
             } onCreateDraft: {
               store.createDraftMessage(from: activity)
@@ -399,10 +403,28 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
+          ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
+            lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
+          }) { group in
+            ShipmentGroupRow(group: group) { updatedGroup in
+              store.updateShipmentGroup(updatedGroup)
+            } onReviewed: {
+              store.markShipmentGroupReviewed(group)
+            } onCreateTask: {
+              store.createReviewTask(from: group)
+            } onCreateDraft: {
+              store.createDraftMessage(from: group)
+            } onRemove: {
+              store.removeShipmentGroup(group)
             }
           }
         }
@@ -443,7 +465,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -483,7 +505,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Evidence", symbol: "paperclip") {
           ForEach(store.reviewEvidenceAttachments) { attachment in
-            EvidenceAttachmentRow(attachment: attachment) {
+            EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment)) {
               store.markEvidenceReviewed(attachment)
             } onRemove: {
               store.removeEvidence(attachment)
@@ -499,7 +521,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
@@ -523,7 +545,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Task escalations", symbol: "checklist") {
           ForEach(store.reviewTasksNeedingAttention) { task in
-            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
+            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task)) { updatedTask in
               store.updateReviewTask(updatedTask)
             } onComplete: {
               store.completeReviewTask(task)

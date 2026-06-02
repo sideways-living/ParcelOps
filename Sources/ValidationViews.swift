@@ -27,7 +27,7 @@ struct ValidationView: View {
         ForEach(store.groupedValidationIssues(filteredIssues)) { group in
           SettingsPanel(title: group.severity.rawValue, symbol: group.severity.symbol) {
             ForEach(group.issues) { issue in
-              ValidationIssueRow(issue: issue) {
+              ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue)) {
                 store.createReviewTask(from: issue)
               } onCreateDraft: {
                 store.createDraftMessage(from: issue)
@@ -98,6 +98,7 @@ struct ValidationView: View {
 
 struct ValidationIssueRow: View {
   var issue: ValidationIssue
+  var shipmentGroups: [ShipmentGroup] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
 
@@ -143,6 +144,10 @@ struct ValidationIssueRow: View {
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
           .disabled(!issue.supportsDraftMessage)
+      }
+
+      if !shipmentGroups.isEmpty {
+        ShipmentGroupContextStrip(groups: shipmentGroups)
       }
     }
     .padding(12)

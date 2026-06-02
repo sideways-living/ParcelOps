@@ -653,6 +653,57 @@ enum SampleData {
     )
   ]
 
+  static var shipmentGroups: [ShipmentGroup] = [
+    ShipmentGroup(
+      groupName: "Brisbane DHL address exception",
+      primaryOrderID: orders[1].id,
+      relatedOrderIDs: [orders[1].id],
+      relatedIntakeEmailIDs: [],
+      relatedTrackingEventIDs: [carrierTrackingEvents[1].id],
+      relatedEvidenceIDs: [],
+      destinationSummary: "77 Eagle Street, Brisbane QLD",
+      recipientCustomerSummary: "Brisbane Field Team",
+      carrierSummary: "DHL",
+      statusSummary: "Address confirmation required",
+      riskLevel: .critical,
+      createdDate: "Today 8:07 AM",
+      lastReviewedDate: "Today 8:20 AM",
+      reviewState: .needsReview
+    ),
+    ShipmentGroup(
+      groupName: "SafetyPro Melbourne shipment",
+      primaryOrderID: orders[0].id,
+      relatedOrderIDs: [orders[0].id],
+      relatedIntakeEmailIDs: [intakeEmails[0].id],
+      relatedTrackingEventIDs: [carrierTrackingEvents[0].id],
+      relatedEvidenceIDs: [evidenceAttachments[0].id],
+      destinationSummary: "18 Collins Street, Melbourne VIC",
+      recipientCustomerSummary: "Melbourne Operations",
+      carrierSummary: "Australia Post",
+      statusSummary: "In transit",
+      riskLevel: .low,
+      createdDate: "Yesterday 6:12 PM",
+      lastReviewedDate: "Today 9:12 AM",
+      reviewState: .accepted
+    ),
+    ShipmentGroup(
+      groupName: "Office Kit split-order intake",
+      primaryOrderID: nil,
+      relatedOrderIDs: [],
+      relatedIntakeEmailIDs: [intakeEmails[1].id],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [evidenceAttachments[1].id],
+      destinationSummary: "Dock 4, 9 Harbour Road, Sydney NSW",
+      recipientCustomerSummary: "Operations",
+      carrierSummary: "Pending carrier",
+      statusSummary: "Intake email needs order creation",
+      riskLevel: .high,
+      createdDate: "Today 11:45 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

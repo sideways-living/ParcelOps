@@ -116,6 +116,7 @@ extension AuditEntityType {
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     }
   }
 }
@@ -134,6 +135,7 @@ extension TimelineEntityType {
     case .contact: "person.crop.circle.badge.checkmark"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .auditEvent: "list.clipboard.fill"
@@ -174,6 +176,7 @@ extension TimelineActivitySource {
     case .directory: "person.crop.circle.badge.checkmark"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .automation: "arrow.triangle.branch"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
@@ -280,6 +283,35 @@ extension VendorRiskLevel {
   }
 }
 
+extension ShipmentRiskLevel {
+  var color: Color {
+    switch self {
+    case .low: .green
+    case .medium: .blue
+    case .high: .orange
+    case .critical: .red
+    }
+  }
+
+  var riskRank: Int {
+    switch self {
+    case .low: 0
+    case .medium: 1
+    case .high: 2
+    case .critical: 3
+    }
+  }
+
+  var timelineRisk: TimelineRiskLevel {
+    switch self {
+    case .low: .normal
+    case .medium: .watch
+    case .high: .high
+    case .critical: .critical
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -354,6 +386,7 @@ extension ReviewTaskLinkedEntityType {
     case .contact: "person.crop.circle.badge.checkmark"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     }
   }
 }
@@ -436,6 +469,27 @@ extension ReviewTask {
   }
 }
 
+extension ShipmentGroup {
+  func matches(linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> Bool {
+    switch linkedEntityType {
+    case .order:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return primaryOrderID == id || relatedOrderIDs.contains(id)
+    case .intakeEmail:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return relatedIntakeEmailIDs.contains(id)
+    case .trackingEvent:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return relatedTrackingEventIDs.contains(id)
+    case .evidence:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return relatedEvidenceIDs.contains(id)
+    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup:
+      return id.uuidString == linkedEntityID
+    }
+  }
+}
+
 extension TimelineActivity {
   var reviewTaskLinkedEntityType: ReviewTaskLinkedEntityType? {
     switch entityType {
@@ -450,6 +504,7 @@ extension TimelineActivity {
     case .contact: .contact
     case .account: .account
     case .vendorProfile: .vendorProfile
+    case .shipmentGroup: .shipmentGroup
     case .automationRule: .automationRule
     case .savedFilter: .savedFilter
     case .auditEvent: .auditEvent

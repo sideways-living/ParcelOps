@@ -16,6 +16,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case contacts
   case accounts
   case vendorProfiles
+  case shipmentGroups
   case timeline
   case validation
   case search
@@ -41,6 +42,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "Contacts"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
+    case .shipmentGroups: "Shipment Groups"
     case .timeline: "Timeline"
     case .validation: "Validation"
     case .search: "Search"
@@ -66,6 +68,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "Contacts"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
+    case .shipmentGroups: "Groups"
     case .timeline: "Timeline"
     case .validation: "Validate"
     case .search: "Search"
@@ -91,6 +94,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .contacts: "person.crop.circle.badge.checkmark"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
+    case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
     case .timeline: "clock.badge.exclamationmark.fill"
     case .validation: "checkmark.seal.fill"
     case .search: "magnifyingglass"
@@ -397,6 +401,24 @@ struct VendorProfile: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct ShipmentGroup: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var groupName: String
+  var primaryOrderID: UUID?
+  var relatedOrderIDs: [UUID]
+  var relatedIntakeEmailIDs: [UUID]
+  var relatedTrackingEventIDs: [UUID]
+  var relatedEvidenceIDs: [UUID]
+  var destinationSummary: String
+  var recipientCustomerSummary: String
+  var carrierSummary: String
+  var statusSummary: String
+  var riskLevel: ShipmentRiskLevel
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -538,6 +560,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case contactDirectoryEntry = "Contact"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
+  case shipmentGroup = "Shipment group"
 
   var id: String { rawValue }
 }
@@ -562,6 +585,15 @@ enum VendorRiskLevel: String, CaseIterable, Identifiable, Hashable, Codable {
   var id: String { rawValue }
 }
 
+enum ShipmentRiskLevel: String, CaseIterable, Identifiable, Hashable, Codable {
+  case low = "Low"
+  case medium = "Medium"
+  case high = "High"
+  case critical = "Critical"
+
+  var id: String { rawValue }
+}
+
 enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case order = "Order"
   case intakeEmail = "Intake email"
@@ -574,6 +606,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case contact = "Contact"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case shipmentGroup = "Shipment group"
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
   case auditEvent = "Audit event"
@@ -601,6 +634,7 @@ enum TimelineActivitySource: String, CaseIterable, Identifiable, Hashable {
   case directory = "Directory"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case shipmentGroup = "Shipment group"
   case automation = "Automation"
   case search = "Search"
   case audit = "Audit"
@@ -687,6 +721,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case contact = "Contact"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case shipmentGroup = "Shipment group"
 
   var id: String { rawValue }
 }

@@ -36,7 +36,7 @@ struct EvidenceView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAttachments) { attachment in
-              EvidenceAttachmentRow(attachment: attachment) {
+              EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment)) {
                 store.markEvidenceReviewed(attachment)
               } onRemove: {
                 store.removeEvidence(attachment)
@@ -86,6 +86,7 @@ struct EvidenceView: View {
 
 struct EvidenceAttachmentRow: View {
   var attachment: EvidenceAttachment
+  var shipmentGroups: [ShipmentGroup] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
@@ -125,6 +126,10 @@ struct EvidenceAttachmentRow: View {
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .truncationMode(.middle)
+          }
+
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
           }
         }
       }
