@@ -90,7 +90,12 @@ protocol AccountCredentialRepository {
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository {
+protocol VendorProfileRepository {
+  func loadVendorProfiles() -> [VendorProfile]
+  func saveVendorProfiles(_ profiles: [VendorProfile])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -276,6 +281,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(accounts, to: .accountCredentialRecords)
   }
 
+  func loadVendorProfiles() -> [VendorProfile] {
+    load([VendorProfile].self, from: .vendorProfiles, defaultValue: SampleData.vendorProfiles)
+  }
+
+  func saveVendorProfiles(_ profiles: [VendorProfile]) {
+    save(profiles, to: .vendorProfiles)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -353,10 +366,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case draftMessages = "draft-messages.json"
     case contactDirectoryEntries = "contact-directory.json"
     case accountCredentialRecords = "account-credential-records.json"
+    case vendorProfiles = "vendor-profiles.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -378,6 +392,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var draftMessages = SampleData.draftMessages
   private var contactDirectoryEntries = SampleData.contactDirectoryEntries
   private var accountCredentialRecords = SampleData.accountCredentialRecords
+  private var vendorProfiles = SampleData.vendorProfiles
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -441,4 +456,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] { accountCredentialRecords }
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) { accountCredentialRecords = accounts }
+
+  func loadVendorProfiles() -> [VendorProfile] { vendorProfiles }
+  func saveVendorProfiles(_ profiles: [VendorProfile]) { vendorProfiles = profiles }
 }

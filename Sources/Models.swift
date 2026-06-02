@@ -15,6 +15,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case communication
   case contacts
   case accounts
+  case vendorProfiles
   case search
   case audit
   case settings
@@ -37,6 +38,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "Communication"
     case .contacts: "Contacts"
     case .accounts: "Accounts"
+    case .vendorProfiles: "Vendor Profiles"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -59,6 +61,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "Comms"
     case .contacts: "Contacts"
     case .accounts: "Accounts"
+    case .vendorProfiles: "Profiles"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -81,6 +84,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "bubble.left.and.text.bubble.right.fill"
     case .contacts: "person.crop.circle.badge.checkmark"
     case .accounts: "key.horizontal.fill"
+    case .vendorProfiles: "building.2.crop.circle.fill"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -324,6 +328,24 @@ struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct VendorProfile: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var profileType: VendorProfileType
+  var primaryOrganisation: String
+  var website: String
+  var supportURL: String
+  var defaultContactID: UUID?
+  var defaultAccountID: UUID?
+  var preferredChannel: CommunicationChannel
+  var serviceLevelNotes: String
+  var riskLevel: VendorRiskLevel
+  var isEnabled: Bool
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -464,6 +486,27 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case draftMessage = "Draft message"
   case contactDirectoryEntry = "Contact"
   case accountCredentialRecord = "Account"
+  case vendorProfile = "Vendor profile"
+
+  var id: String { rawValue }
+}
+
+enum VendorProfileType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case store = "Store"
+  case supplier = "Supplier"
+  case carrier = "Carrier"
+  case shopifyStore = "Shopify store"
+  case internalTeam = "Internal team"
+  case marketplace = "Marketplace"
+
+  var id: String { rawValue }
+}
+
+enum VendorRiskLevel: String, CaseIterable, Identifiable, Hashable, Codable {
+  case low = "Low"
+  case medium = "Medium"
+  case high = "High"
+  case critical = "Critical"
 
   var id: String { rawValue }
 }
@@ -513,6 +556,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case draftMessage = "Draft message"
   case contact = "Contact"
   case account = "Account"
+  case vendorProfile = "Vendor profile"
 
   var id: String { rawValue }
 }

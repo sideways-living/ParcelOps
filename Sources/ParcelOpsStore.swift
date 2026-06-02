@@ -30,6 +30,7 @@ final class ParcelOpsStore {
   var draftMessages: [DraftMessage]
   var contactDirectoryEntries: [ContactDirectoryEntry]
   var accountCredentialRecords: [AccountCredentialRecord]
+  var vendorProfiles: [VendorProfile]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -47,6 +48,7 @@ final class ParcelOpsStore {
   private let communicationRepository: CommunicationRepository
   private let contactDirectoryRepository: ContactDirectoryRepository
   private let accountCredentialRepository: AccountCredentialRepository
+  private let vendorProfileRepository: VendorProfileRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -54,7 +56,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -81,6 +83,7 @@ final class ParcelOpsStore {
     self.communicationRepository = repository
     self.contactDirectoryRepository = repository
     self.accountCredentialRepository = repository
+    self.vendorProfileRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -108,6 +111,7 @@ final class ParcelOpsStore {
     self.draftMessages = repository.loadDraftMessages()
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
+    self.vendorProfiles = repository.loadVendorProfiles()
   }
 
   var activeCount: Int {
@@ -135,7 +139,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -238,6 +242,22 @@ final class ParcelOpsStore {
         || account.mfaStatus == .needsReview
         || account.mfaStatus == .notConfigured
     }
+  }
+
+  var vendorProfilesNeedingReview: [VendorProfile] {
+    vendorProfiles.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskEnabledVendorProfiles: [VendorProfile] {
+    vendorProfiles.filter { $0.isEnabled && ($0.riskLevel == .high || $0.riskLevel == .critical) }
+  }
+
+  var enabledVendorProfileCount: Int {
+    vendorProfiles.filter(\.isEnabled).count
+  }
+
+  var disabledVendorProfileCount: Int {
+    vendorProfiles.filter { !$0.isEnabled }.count
   }
 
   var recentAuditEvents: [AuditEvent] {
@@ -1761,6 +1781,216 @@ final class ParcelOpsStore {
     }
   }
 
+  func addVendorProfilePlaceholder() {
+    let profile = VendorProfile(
+      name: "New vendor profile \(vendorProfiles.count + 1)",
+      profileType: .supplier,
+      primaryOrganisation: "Unassigned organisation",
+      website: "https://example.com",
+      supportURL: "https://example.com/support",
+      defaultContactID: nil,
+      defaultAccountID: nil,
+      preferredChannel: .email,
+      serviceLevelNotes: "Define local service expectations and escalation notes.",
+      riskLevel: .medium,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    vendorProfiles.insert(profile, at: 0)
+    persistVendorProfiles()
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile placeholder added.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func addVendorProfile(profileType: VendorProfileType, organisation: String, label: String, defaultContactID: UUID? = nil, defaultAccountID: UUID? = nil) {
+    let profile = VendorProfile(
+      name: "\(label) profile",
+      profileType: profileType,
+      primaryOrganisation: organisation,
+      website: "https://example.com",
+      supportURL: "https://example.com/support",
+      defaultContactID: defaultContactID,
+      defaultAccountID: defaultAccountID,
+      preferredChannel: .email,
+      serviceLevelNotes: "Local profile created from workflow.",
+      riskLevel: .medium,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    vendorProfiles.insert(profile, at: 0)
+    persistVendorProfiles()
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile created from workflow.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func updateVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index] = profile
+    persistVendorProfiles()
+    logAudit(
+      action: .edited,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func toggleVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index].isEnabled.toggle()
+    persistVendorProfiles()
+    logAudit(
+      action: vendorProfiles[index].isEnabled ? .enabled : .disabled,
+      entityType: .vendorProfile,
+      entityID: vendorProfiles[index].id.uuidString,
+      entityLabel: vendorProfiles[index].name,
+      summary: vendorProfiles[index].isEnabled ? "Vendor profile enabled." : "Vendor profile disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: vendorProfiles[index].auditDetail
+    )
+  }
+
+  func markVendorProfileReviewed(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index].reviewState = .accepted
+    vendorProfiles[index].lastReviewedDate = Self.auditTimestamp()
+    persistVendorProfiles()
+    logAudit(
+      action: .reviewed,
+      entityType: .vendorProfile,
+      entityID: vendorProfiles[index].id.uuidString,
+      entityLabel: vendorProfiles[index].name,
+      summary: "Vendor profile marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: vendorProfiles[index].auditDetail
+    )
+  }
+
+  func removeVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let removed = vendorProfiles.remove(at: index)
+    persistVendorProfiles()
+    logAudit(
+      action: .removed,
+      entityType: .vendorProfile,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Vendor profile removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from profile: VendorProfile) {
+    createReviewTask(
+      linkedEntityType: .vendorProfile,
+      linkedEntityID: profile.id.uuidString,
+      label: profile.name,
+      summary: "Review vendor profile for \(profile.primaryOrganisation). Risk: \(profile.riskLevel.rawValue). \(profile.serviceLevelNotes)",
+      priority: profile.riskLevel == .critical ? .urgent : profile.riskLevel == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from profile: VendorProfile) {
+    let recipient = profile.defaultContactID.flatMap { contactID in
+      contactDirectoryEntries.first { $0.id == contactID }?.email
+    } ?? "operations@parcelops.example"
+    createDraftMessage(
+      linkedEntityType: .vendorProfile,
+      linkedEntityID: profile.id.uuidString,
+      label: profile.name,
+      recipient: recipient
+    )
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Draft message created from vendor profile.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func suggestedVendorProfiles(for order: TrackedOrder) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+          || profile.primaryOrganisation.localizedCaseInsensitiveContains(order.carrier)
+          || order.carrier.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for email: ForwardedEmailIntake) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || email.detectedMerchant.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+          || email.sender.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for event: CarrierTrackingEvent) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.profileType == .carrier
+          || profile.primaryOrganisation.localizedCaseInsensitiveContains(event.carrier)
+          || event.carrier.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for contact: ContactDirectoryEntry) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.defaultContactID == contact.id
+        || profile.primaryOrganisation.localizedCaseInsensitiveContains(contact.organisation)
+        || contact.organisation.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
+  }
+
+  func suggestedVendorProfiles(for account: AccountCredentialRecord) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.defaultAccountID == account.id
+        || profile.primaryOrganisation.localizedCaseInsensitiveContains(account.organisation)
+        || account.organisation.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
+  }
+
+  func suggestedVendorProfiles(for connection: ShopifyConnection) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.profileType == .shopifyStore
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(connection.storeName)
+          || connection.storeName.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for connection: SourceConnection) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.primaryOrganisation.localizedCaseInsensitiveContains(connection.name)
+        || connection.name.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -1928,6 +2158,10 @@ final class ParcelOpsStore {
 
   private func persistAccountCredentialRecords() {
     accountCredentialRepository.saveAccountCredentialRecords(accountCredentialRecords)
+  }
+
+  private func persistVendorProfiles() {
+    vendorProfileRepository.saveVendorProfiles(vendorProfiles)
   }
 
   private func addReviewTask(_ task: ReviewTask, summary: String) {
@@ -2118,5 +2352,11 @@ private extension ContactDirectoryEntry {
 private extension AccountCredentialRecord {
   var auditDetail: String {
     "Account: \(accountName); organisation: \(organisation); contact: \(linkedContactID?.uuidString ?? "none"); linked: \(linkedEntityType.rawValue) \(linkedEntityID); login URL: \(loginURL); username label: \(usernameLabel); credential status: \(credentialStorageStatus.rawValue); MFA: \(mfaStatus.rawValue); renewal review: \(renewalReviewDate); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last checked: \(lastCheckedDate); notes: \(notes)."
+  }
+}
+
+private extension VendorProfile {
+  var auditDetail: String {
+    "Name: \(name); type: \(profileType.rawValue); organisation: \(primaryOrganisation); website: \(website); support: \(supportURL); default contact: \(defaultContactID?.uuidString ?? "none"); default account: \(defaultAccountID?.uuidString ?? "none"); channel: \(preferredChannel.rawValue); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); service notes: \(serviceLevelNotes)."
   }
 }

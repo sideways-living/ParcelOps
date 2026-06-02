@@ -111,6 +111,16 @@ struct DashboardView: View {
             ])
             CompactAccountList(accounts: Array(store.accountRecordsNeedingReview.prefix(4)))
           }
+
+          AnalyticsSection(title: "Vendor profiles", symbol: "building.2.crop.circle.fill") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledVendorProfileCount)", .green),
+              ("Disabled", "\(store.disabledVendorProfileCount)", .gray),
+              ("Review", "\(store.vendorProfilesNeedingReview.count)", .orange),
+              ("High risk", "\(store.highRiskEnabledVendorProfiles.count)", .red)
+            ])
+            CompactVendorProfileList(profiles: Array((store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles).prefix(4)))
+          }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
@@ -354,6 +364,23 @@ struct CompactAccountList: View {
           detail: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
           badge: account.mfaStatus.rawValue,
           color: account.mfaStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactVendorProfileList: View {
+  var profiles: [VendorProfile]
+
+  var body: some View {
+    CompactList(title: "Profile watchlist", symbol: "building.2.crop.circle.fill") {
+      ForEach(profiles) { profile in
+        CompactRow(
+          title: profile.name,
+          detail: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
+          badge: profile.riskLevel.rawValue,
+          color: profile.riskLevel.color
         )
       }
     }

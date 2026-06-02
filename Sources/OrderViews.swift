@@ -179,6 +179,31 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Suggested vendor profiles", symbol: "building.2.crop.circle.fill") {
+          let profiles = store.suggestedVendorProfiles(for: order)
+
+          if profiles.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local vendor profiles matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create profile", systemImage: "building.2.crop.circle") {
+                store.addVendorProfile(profileType: order.fulfillment == .delivery ? .carrier : .store, organisation: order.store, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            VStack(spacing: 10) {
+              ForEach(profiles) { profile in
+                VendorProfileSuggestionRow(profile: profile) {
+                  store.createReviewTask(from: profile)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: profile)
+                }
+              }
+            }
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)
@@ -245,7 +270,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event)) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
@@ -255,6 +280,12 @@ struct OrderDetailView: View {
                   store.createDraftMessage(from: event)
                 } onDraftFromContact: { contact in
                   store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+                } onCreateProfile: {
+                  store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+                } onTaskFromProfile: { profile in
+                  store.createReviewTask(from: profile)
+                } onDraftFromProfile: { profile in
+                  store.createDraftMessage(from: profile)
                 } relatedTasks: {
                   store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }

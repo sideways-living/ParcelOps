@@ -43,7 +43,7 @@ struct TrackingView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event)) {
+              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
@@ -53,6 +53,12 @@ struct TrackingView: View {
                 store.createDraftMessage(from: event)
               } onDraftFromContact: { contact in
                 store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+              } onCreateProfile: {
+                store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+              } onTaskFromProfile: { profile in
+                store.createReviewTask(from: profile)
+              } onDraftFromProfile: { profile in
+                store.createDraftMessage(from: profile)
               } relatedTasks: {
                 store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
               }
@@ -106,11 +112,15 @@ struct TrackingEventRow: View {
   var event: CarrierTrackingEvent
   var order: TrackedOrder?
   var suggestedContacts: [ContactDirectoryEntry] = []
+  var suggestedProfiles: [VendorProfile] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
   var onDraftFromContact: (ContactDirectoryEntry) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var relatedTasks: () -> [ReviewTask] = { [] }
 
   var body: some View {
@@ -167,6 +177,14 @@ struct TrackingEventRow: View {
               onDraftFromContact(contact)
             }
           }
+
+          ForEach(suggestedProfiles) { profile in
+            VendorProfileSuggestionRow(profile: profile) {
+              onTaskFromProfile(profile)
+            } onCreateDraft: {
+              onDraftFromProfile(profile)
+            }
+          }
         }
       }
 
@@ -178,6 +196,8 @@ struct TrackingEventRow: View {
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
           .buttonStyle(.bordered)
       }
     }

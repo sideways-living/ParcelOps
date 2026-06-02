@@ -56,7 +56,7 @@ struct ContactsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact)) { updatedContact in
+              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -70,6 +70,12 @@ struct ContactsView: View {
                 store.createReviewTask(from: account)
               } onDraftFromAccount: { account in
                 store.createDraftMessage(from: account)
+              } onCreateProfile: {
+                store.addVendorProfile(profileType: contact.linkedEntityType.vendorProfileType, organisation: contact.organisation, label: contact.name, defaultContactID: contact.id)
+              } onTaskFromProfile: { profile in
+                store.createReviewTask(from: profile)
+              } onDraftFromProfile: { profile in
+                store.createDraftMessage(from: profile)
               } onRemove: {
                 store.removeContactDirectoryEntry(contact)
               }
@@ -139,6 +145,7 @@ struct ContactsView: View {
 struct ContactDirectoryRow: View {
   var contact: ContactDirectoryEntry
   var suggestedAccounts: [AccountCredentialRecord] = []
+  var suggestedProfiles: [VendorProfile] = []
   var onSave: (ContactDirectoryEntry) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -146,6 +153,9 @@ struct ContactDirectoryRow: View {
   var onCreateAccount: () -> Void = {}
   var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
   var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -199,6 +209,8 @@ struct ContactDirectoryRow: View {
           .buttonStyle(.bordered)
         Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
           .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
       }
@@ -213,6 +225,21 @@ struct ContactDirectoryRow: View {
               onTaskFromAccount(account)
             } onCreateDraft: {
               onDraftFromAccount(account)
+            }
+          }
+        }
+      }
+
+      if !suggestedProfiles.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Linked profiles", systemImage: "building.2.crop.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(suggestedProfiles) { profile in
+            VendorProfileSuggestionRow(profile: profile) {
+              onTaskFromProfile(profile)
+            } onCreateDraft: {
+              onDraftFromProfile(profile)
             }
           }
         }

@@ -88,6 +88,40 @@ extension AuditEntityType {
     case .draftMessage: "envelope.open.fill"
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
     case .accountCredentialRecord: "key.horizontal.fill"
+    case .vendorProfile: "building.2.crop.circle.fill"
+    }
+  }
+}
+
+extension VendorProfileType {
+  var symbol: String {
+    switch self {
+    case .store: "storefront.fill"
+    case .supplier: "building.2.fill"
+    case .carrier: "truck.box.fill"
+    case .shopifyStore: "cart.fill"
+    case .internalTeam: "person.2.fill"
+    case .marketplace: "bag.fill"
+    }
+  }
+}
+
+extension VendorRiskLevel {
+  var color: Color {
+    switch self {
+    case .low: .green
+    case .medium: .blue
+    case .high: .orange
+    case .critical: .red
+    }
+  }
+
+  var riskRank: Int {
+    switch self {
+    case .low: 0
+    case .medium: 1
+    case .high: 2
+    case .critical: 3
     }
   }
 }
@@ -109,6 +143,17 @@ extension ContactLinkedEntityType {
     case .draftMessage: "envelope.open.fill"
     }
   }
+
+  var vendorProfileType: VendorProfileType {
+    switch self {
+    case .store: .store
+    case .supplier: .supplier
+    case .carrier: .carrier
+    case .shopifyStore: .shopifyStore
+    case .internalTeam: .internalTeam
+    default: .supplier
+    }
+  }
 }
 
 extension AccountLinkedEntityType {
@@ -124,6 +169,17 @@ extension AccountLinkedEntityType {
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
     case .sourceConnection: "link.badge.plus"
+    }
+  }
+
+  var vendorProfileType: VendorProfileType {
+    switch self {
+    case .store: .store
+    case .supplier: .supplier
+    case .carrier: .carrier
+    case .shopifyStore: .shopifyStore
+    case .internalTeam: .internalTeam
+    default: .supplier
     }
   }
 }
@@ -143,6 +199,7 @@ extension ReviewTaskLinkedEntityType {
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .account: "key.horizontal.fill"
+    case .vendorProfile: "building.2.crop.circle.fill"
     }
   }
 }

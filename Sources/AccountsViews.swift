@@ -58,7 +58,7 @@ struct AccountsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAccounts) { account in
-              AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries) { updatedAccount in
+              AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account)) { updatedAccount in
                 store.updateAccountCredentialRecord(updatedAccount)
               } onToggle: {
                 store.toggleAccountCredentialRecord(account)
@@ -70,6 +70,12 @@ struct AccountsView: View {
                 store.createReviewTask(from: account)
               } onCreateDraft: {
                 store.createDraftMessage(from: account)
+              } onCreateProfile: {
+                store.addVendorProfile(profileType: account.linkedEntityType.vendorProfileType, organisation: account.organisation, label: account.accountName, defaultAccountID: account.id)
+              } onTaskFromProfile: { profile in
+                store.createReviewTask(from: profile)
+              } onDraftFromProfile: { profile in
+                store.createDraftMessage(from: profile)
               } onRemove: {
                 store.removeAccountCredentialRecord(account)
               }
@@ -148,12 +154,16 @@ struct AccountsView: View {
 struct AccountCredentialRow: View {
   var account: AccountCredentialRecord
   var contacts: [ContactDirectoryEntry] = []
+  var suggestedProfiles: [VendorProfile] = []
   var onSave: (AccountCredentialRecord) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
   var onChecked: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -218,8 +228,25 @@ struct AccountCredentialRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if !suggestedProfiles.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Linked profiles", systemImage: "building.2.crop.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(suggestedProfiles) { profile in
+            VendorProfileSuggestionRow(profile: profile) {
+              onTaskFromProfile(profile)
+            } onCreateDraft: {
+              onDraftFromProfile(profile)
+            }
+          }
+        }
       }
     }
     .padding(12)

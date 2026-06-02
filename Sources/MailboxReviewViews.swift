@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -44,6 +44,12 @@ struct MailboxView: View {
               store.createReviewTask(from: account)
             } onDraftFromAccount: { account in
               store.createDraftMessage(from: account)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
             }
           }
         }
@@ -65,6 +71,7 @@ struct IntakeEmailRow: View {
   var evidenceAttachments: [EvidenceAttachment]
   var suggestedContacts: [ContactDirectoryEntry] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
+  var suggestedProfiles: [VendorProfile] = []
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
@@ -79,6 +86,9 @@ struct IntakeEmailRow: View {
   var onCreateAccount: () -> Void = {}
   var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
   var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -209,6 +219,32 @@ struct IntakeEmailRow: View {
               onTaskFromAccount(account)
             } onCreateDraft: {
               onDraftFromAccount(account)
+            }
+          }
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Label("Suggested profiles", systemImage: "building.2.crop.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Add", systemImage: "building.2.crop.circle", action: onCreateProfile)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+
+        if suggestedProfiles.isEmpty {
+          Text("No local vendor profiles matched.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(suggestedProfiles) { profile in
+            VendorProfileSuggestionRow(profile: profile) {
+              onTaskFromProfile(profile)
+            } onCreateDraft: {
+              onDraftFromProfile(profile)
             }
           }
         }
@@ -387,7 +423,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -415,6 +451,12 @@ struct NeedsReviewView: View {
               store.createReviewTask(from: account)
             } onDraftFromAccount: { account in
               store.createDraftMessage(from: account)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
             }
           }
         }
@@ -437,7 +479,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event)) {
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event)) {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
@@ -447,6 +489,12 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: event)
             } onDraftFromContact: { contact in
               store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
             } relatedTasks: {
               store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
             }
@@ -543,6 +591,26 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: account)
             } onRemove: {
               store.removeAccountCredentialRecord(account)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Vendor profiles", symbol: "building.2.crop.circle.fill") {
+          ForEach(Array(Set(store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles)).sorted { lhs, rhs in
+            lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
+          }) { profile in
+            VendorProfileRow(profile: profile, contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords) { updatedProfile in
+              store.updateVendorProfile(updatedProfile)
+            } onToggle: {
+              store.toggleVendorProfile(profile)
+            } onReviewed: {
+              store.markVendorProfileReviewed(profile)
+            } onCreateTask: {
+              store.createReviewTask(from: profile)
+            } onCreateDraft: {
+              store.createDraftMessage(from: profile)
+            } onRemove: {
+              store.removeVendorProfile(profile)
             }
           }
         }

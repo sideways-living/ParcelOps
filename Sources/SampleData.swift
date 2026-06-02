@@ -586,6 +586,73 @@ enum SampleData {
     )
   ]
 
+  static var vendorProfiles: [VendorProfile] = [
+    VendorProfile(
+      name: "Office Kit Store",
+      profileType: .supplier,
+      primaryOrganisation: "Office Kit Store",
+      website: "https://officekit.example",
+      supportURL: "https://officekit.example/support",
+      defaultContactID: contactDirectoryEntries[1].id,
+      defaultAccountID: accountCredentialRecords[0].id,
+      preferredChannel: .email,
+      serviceLevelNotes: "Missing tracking numbers should be reviewed within one business day.",
+      riskLevel: .medium,
+      isEnabled: true,
+      createdDate: "Today 9:45 AM",
+      lastReviewedDate: "Today 9:50 AM",
+      reviewState: .accepted
+    ),
+    VendorProfile(
+      name: "Jade Delivery",
+      profileType: .carrier,
+      primaryOrganisation: "Jade Delivery",
+      website: "https://carrier.example.com",
+      supportURL: "https://carrier.example.com/support",
+      defaultContactID: contactDirectoryEntries[0].id,
+      defaultAccountID: accountCredentialRecords[2].id,
+      preferredChannel: .email,
+      serviceLevelNotes: "Address exceptions and missed delivery events need same-day manual escalation.",
+      riskLevel: .high,
+      isEnabled: true,
+      createdDate: "Yesterday 4:10 PM",
+      lastReviewedDate: "Today 8:30 AM",
+      reviewState: .monitor
+    ),
+    VendorProfile(
+      name: "Shopify demo store",
+      profileType: .shopifyStore,
+      primaryOrganisation: "Shopify demo store",
+      website: "https://shopify-demo.example",
+      supportURL: "https://shopify-demo.example/support",
+      defaultContactID: contactDirectoryEntries[3].id,
+      defaultAccountID: accountCredentialRecords[1].id,
+      preferredChannel: .supplierPortal,
+      serviceLevelNotes: "OAuth and admin access remain placeholders until real Shopify integration exists.",
+      riskLevel: .high,
+      isEnabled: false,
+      createdDate: "Today 9:40 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    ),
+    VendorProfile(
+      name: "ParcelOps Field Ops",
+      profileType: .internalTeam,
+      primaryOrganisation: "ParcelOps Field Ops",
+      website: "https://parcelops.example/internal",
+      supportURL: "https://parcelops.example/internal/support",
+      defaultContactID: contactDirectoryEntries[2].id,
+      defaultAccountID: nil,
+      preferredChannel: .internalNote,
+      serviceLevelNotes: "Use for collection, pickup, and field-team escalation tasks.",
+      riskLevel: .low,
+      isEnabled: true,
+      createdDate: "Yesterday 9:15 AM",
+      lastReviewedDate: "Today 8:20 AM",
+      reviewState: .accepted
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",
