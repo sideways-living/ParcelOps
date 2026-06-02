@@ -62,6 +62,8 @@ extension AuditAction {
     case .reviewed: .indigo
     case .ignored: .gray
     case .cleared: .orange
+    case .pinned: .purple
+    case .unpinned: .gray
     case .removed: .red
     }
   }
@@ -76,6 +78,31 @@ extension AuditEntityType {
     case .evidence: "paperclip"
     case .trackingEvent: "location.fill.viewfinder"
     case .automationRule: "arrow.triangle.branch"
+    case .savedFilter: "line.3.horizontal.decrease.circle.fill"
+    }
+  }
+}
+
+extension SearchEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .trackingEvent: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .auditEvent: "list.clipboard.fill"
+    case .automationRule: "arrow.triangle.branch"
+    }
+  }
+
+  var color: Color {
+    switch self {
+    case .order: .teal
+    case .intakeEmail: .orange
+    case .trackingEvent: .indigo
+    case .evidence: .purple
+    case .auditEvent: .blue
+    case .automationRule: .green
     }
   }
 }

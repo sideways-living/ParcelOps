@@ -10,6 +10,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case automation
   case tracking
   case evidence
+  case search
   case audit
   case settings
 
@@ -26,6 +27,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "Automation Flow"
     case .tracking: "Tracking"
     case .evidence: "Evidence"
+    case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
     }
@@ -42,6 +44,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "Flow"
     case .tracking: "Tracking"
     case .evidence: "Evidence"
+    case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
     }
@@ -58,6 +61,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .automation: "arrow.triangle.branch"
     case .tracking: "location.fill.viewfinder"
     case .evidence: "paperclip"
+    case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
     }
@@ -178,6 +182,34 @@ struct AutomationRule: Identifiable, Hashable, Codable {
   var runCount: Int
 }
 
+struct SearchResult: Identifiable, Hashable {
+  var id: String
+  var entityType: SearchEntityType
+  var title: String
+  var subtitle: String
+  var detail: String
+  var severity: Severity?
+  var reviewState: ReviewState?
+  var linkedEntityID: String
+}
+
+struct SearchResultGroup: Identifiable, Hashable {
+  var entityType: SearchEntityType
+  var results: [SearchResult]
+
+  var id: SearchEntityType { entityType }
+}
+
+struct SavedFilter: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var queryText: String
+  var entityTypeFilter: SearchEntityType?
+  var reviewStateFilter: ReviewState?
+  var createdDate: String
+  var isPinned: Bool
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -294,6 +326,8 @@ enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case reviewed = "Reviewed"
   case ignored = "Ignored"
   case cleared = "Cleared"
+  case pinned = "Pinned"
+  case unpinned = "Unpinned"
   case removed = "Removed"
 
   var id: String { rawValue }
@@ -305,6 +339,18 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case mailEvent = "Mailbox event"
   case evidence = "Evidence"
   case trackingEvent = "Tracking event"
+  case automationRule = "Automation rule"
+  case savedFilter = "Saved filter"
+
+  var id: String { rawValue }
+}
+
+enum SearchEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case auditEvent = "Audit event"
   case automationRule = "Automation rule"
 
   var id: String { rawValue }

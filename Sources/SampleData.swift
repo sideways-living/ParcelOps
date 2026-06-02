@@ -292,6 +292,33 @@ enum SampleData {
     )
   ]
 
+  static var savedFilters: [SavedFilter] = [
+    SavedFilter(
+      name: "Open review workload",
+      queryText: "",
+      entityTypeFilter: nil,
+      reviewStateFilter: .needsReview,
+      createdDate: "Today 11:45 AM",
+      isPinned: true
+    ),
+    SavedFilter(
+      name: "Tracking warnings",
+      queryText: "warning",
+      entityTypeFilter: .trackingEvent,
+      reviewStateFilter: nil,
+      createdDate: "Today 10:20 AM",
+      isPinned: true
+    ),
+    SavedFilter(
+      name: "Office Kit intake",
+      queryText: "Office Kit",
+      entityTypeFilter: .intakeEmail,
+      reviewStateFilter: .needsReview,
+      createdDate: "Yesterday 4:35 PM",
+      isPinned: false
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",
