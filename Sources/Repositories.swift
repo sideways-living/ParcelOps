@@ -38,7 +38,12 @@ protocol SettingsRepository {
   func saveSettings(_ settings: ParcelOpsSettings)
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
+protocol AuditRepository {
+  func loadAuditEvents() -> [AuditEvent]
+  func saveAuditEvents(_ events: [AuditEvent])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -136,6 +141,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(settings, to: .settings)
   }
 
+  func loadAuditEvents() -> [AuditEvent] {
+    load([AuditEvent].self, from: .auditEvents, defaultValue: SampleData.auditEvents)
+  }
+
+  func saveAuditEvents(_ events: [AuditEvent]) {
+    save(events, to: .auditEvents)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -202,10 +215,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case wishlistItems = "wishlist-items.json"
     case deletedWishlistItems = "deleted-wishlist-items.json"
     case settings = "settings.json"
+    case auditEvents = "audit-events.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -216,6 +230,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var wishlistItems = SampleData.wishlistItems
   private var deletedWishlistItems = SampleData.deletedWishlistItems
   private var settings = ParcelOpsSettings()
+  private var auditEvents = SampleData.auditEvents
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -246,4 +261,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadSettings() -> ParcelOpsSettings { settings }
   func saveSettings(_ settings: ParcelOpsSettings) { self.settings = settings }
+
+  func loadAuditEvents() -> [AuditEvent] { auditEvents }
+  func saveAuditEvents(_ events: [AuditEvent]) { auditEvents = events }
 }

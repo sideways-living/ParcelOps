@@ -19,6 +19,7 @@ final class ParcelOpsStore {
   var wishlistItems: [WishlistItem]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
+  var auditEvents: [AuditEvent]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -26,6 +27,7 @@ final class ParcelOpsStore {
   private let integrationRepository: IntegrationRepository
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
+  private let auditRepository: AuditRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -33,7 +35,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -50,6 +52,7 @@ final class ParcelOpsStore {
     self.integrationRepository = repository
     self.wishlistRepository = repository
     self.settingsRepository = repository
+    self.auditRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -66,6 +69,7 @@ final class ParcelOpsStore {
     self.wishlistItems = repository.loadWishlistItems()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
+    self.auditEvents = repository.loadAuditEvents()
   }
 
   var activeCount: Int {
@@ -132,16 +136,34 @@ final class ParcelOpsStore {
     )
     orders.insert(order, at: 0)
     persistOrders()
+    logAudit(
+      action: .created,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Manual draft order created.",
+      afterDetail: order.auditDetail
+    )
   }
 
   func clearIssue(for orderNumber: String) {
     for index in orders.indices where orders[index].orderNumber == orderNumber {
+      let beforeDetail = orders[index].auditDetail
       orders[index].reviewState = .accepted
       if orders[index].status == .exception {
         orders[index].status = .inTransit
       }
       orders[index].latestStatus = "Issue cleared by user review"
       orders[index].contactHistory.insert(ContactHistoryEvent(time: "Now", source: .manual, contactPoint: "Needs Review", summary: "User cleared the issue.", evidence: "Related review entries were resolved together.", reviewState: .accepted), at: 0)
+      logAudit(
+        action: .cleared,
+        entityType: .order,
+        entityID: orders[index].id.uuidString,
+        entityLabel: orders[index].orderNumber,
+        summary: "Order review issue cleared.",
+        beforeDetail: beforeDetail,
+        afterDetail: orders[index].auditDetail
+      )
     }
 
     for index in mailEvents.indices where mailEvents[index].matchedOrder == orderNumber {
@@ -168,6 +190,7 @@ final class ParcelOpsStore {
 
   func linkIntakeEmail(_ email: ForwardedEmailIntake, to order: TrackedOrder) {
     guard let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[emailIndex].auditDetail
     intakeEmails[emailIndex].linkedOrderID = order.id
     intakeEmails[emailIndex].reviewState = .reviewed
 
@@ -188,6 +211,15 @@ final class ParcelOpsStore {
 
     persistOrders()
     persistIntakeEmails()
+    logAudit(
+      action: .linked,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[emailIndex].id.uuidString,
+      entityLabel: intakeEmails[emailIndex].auditLabel,
+      summary: "Forwarded intake email linked to order \(order.orderNumber).",
+      beforeDetail: beforeDetail,
+      afterDetail: intakeEmails[emailIndex].auditDetail
+    )
   }
 
   func createOrder(from email: ForwardedEmailIntake) {
@@ -227,16 +259,44 @@ final class ParcelOpsStore {
 
     persistOrders()
     persistIntakeEmails()
+    logAudit(
+      action: .created,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Tracked order created from forwarded intake email.",
+      afterDetail: order.auditDetail
+    )
+    logAudit(
+      action: .reviewed,
+      entityType: .intakeEmail,
+      entityID: email.id.uuidString,
+      entityLabel: email.auditLabel,
+      summary: "Forwarded intake email marked reviewed after order creation.",
+      beforeDetail: email.auditDetail,
+      afterDetail: intakeEmails.first { $0.id == email.id }?.auditDetail
+    )
   }
 
   func updateIntakeEmail(_ email: ForwardedEmailIntake) {
     guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[index].auditDetail
     intakeEmails[index] = email
     persistIntakeEmails()
+    logAudit(
+      action: .edited,
+      entityType: .intakeEmail,
+      entityID: email.id.uuidString,
+      entityLabel: email.auditLabel,
+      summary: "Forwarded intake email details corrected.",
+      beforeDetail: beforeDetail,
+      afterDetail: email.auditDetail
+    )
   }
 
   func updateOrder(_ order: TrackedOrder) {
     guard let index = orders.firstIndex(where: { $0.id == order.id }) else { return }
+    let beforeDetail = orders[index].auditDetail
     var updatedOrder = order
     updatedOrder.latestStatus = "Order details updated by user review"
     updatedOrder.contactHistory.insert(
@@ -252,6 +312,15 @@ final class ParcelOpsStore {
     )
     orders[index] = updatedOrder
     persistOrders()
+    logAudit(
+      action: .edited,
+      entityType: .order,
+      entityID: updatedOrder.id.uuidString,
+      entityLabel: updatedOrder.orderNumber,
+      summary: "Tracked order details corrected.",
+      beforeDetail: beforeDetail,
+      afterDetail: updatedOrder.auditDetail
+    )
   }
 
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
@@ -393,8 +462,51 @@ final class ParcelOpsStore {
 
   private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
     guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[index].auditDetail
     intakeEmails[index].reviewState = reviewState
     persistIntakeEmails()
+    logAudit(
+      action: reviewState == .ignored ? .ignored : .reviewed,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[index].id.uuidString,
+      entityLabel: intakeEmails[index].auditLabel,
+      summary: reviewState == .ignored ? "Forwarded intake email ignored." : "Forwarded intake email marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: intakeEmails[index].auditDetail
+    )
+  }
+
+  private func logAudit(
+    action: AuditAction,
+    entityType: AuditEntityType,
+    entityID: String,
+    entityLabel: String,
+    summary: String,
+    beforeDetail: String? = nil,
+    afterDetail: String? = nil
+  ) {
+    auditEvents.insert(
+      AuditEvent(
+        timestamp: Self.auditTimestamp(),
+        actor: "Local user",
+        action: action,
+        entityType: entityType,
+        entityID: entityID,
+        entityLabel: entityLabel,
+        summary: summary,
+        beforeDetail: beforeDetail,
+        afterDetail: afterDetail
+      ),
+      at: 0
+    )
+    auditRepository.saveAuditEvents(auditEvents)
+  }
+
+  private static func auditTimestamp() -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter.string(from: Date())
   }
 }
 
@@ -402,5 +514,21 @@ private extension String {
   var isPlaceholder: Bool {
     let normalized = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     return normalized.isEmpty || normalized == "pending" || normalized == "not detected"
+  }
+}
+
+private extension TrackedOrder {
+  var auditDetail: String {
+    "Store: \(store); order: \(orderNumber); customer: \(customer); recipient: \(recipientEmail); fulfillment: \(fulfillment.rawValue); carrier: \(carrier); tracking: \(trackingNumber); destination: \(destination); status: \(status.rawValue); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension ForwardedEmailIntake {
+  var auditLabel: String {
+    detectedOrderNumber.isPlaceholder ? subject : detectedOrderNumber
+  }
+
+  var auditDetail: String {
+    "Sender: \(sender); subject: \(subject); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); review: \(reviewState.rawValue)."
   }
 }

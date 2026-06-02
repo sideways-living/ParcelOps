@@ -8,6 +8,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case wishlist
   case integrations
   case automation
+  case audit
   case settings
 
   var id: String { rawValue }
@@ -21,6 +22,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .audit: "Audit"
     case .settings: "Settings"
     }
   }
@@ -34,6 +36,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Sources"
     case .automation: "Flow"
+    case .audit: "Audit"
     case .settings: "Settings"
     }
   }
@@ -47,6 +50,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "star.square.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
+    case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
     }
   }
@@ -112,6 +116,19 @@ struct ForwardedEmailIntake: Identifiable, Hashable, Codable {
   var detectedDestinationAddress: String
   var linkedOrderID: UUID?
   var reviewState: IntakeEmailReviewState
+}
+
+struct AuditEvent: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var timestamp: String
+  var actor: String
+  var action: AuditAction
+  var entityType: AuditEntityType
+  var entityID: String
+  var entityLabel: String
+  var summary: String
+  var beforeDetail: String?
+  var afterDetail: String?
 }
 
 struct SourceConnection: Identifiable, Hashable, Codable {
@@ -219,6 +236,25 @@ enum IntakeEmailReviewState: String, Hashable, Codable {
   case needsReview = "Needs review"
   case reviewed = "Reviewed"
   case ignored = "Ignored"
+}
+
+enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
+  case created = "Created"
+  case edited = "Edited"
+  case linked = "Linked"
+  case reviewed = "Reviewed"
+  case ignored = "Ignored"
+  case cleared = "Cleared"
+
+  var id: String { rawValue }
+}
+
+enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case mailEvent = "Mailbox event"
+
+  var id: String { rawValue }
 }
 
 enum Severity: String, Hashable, Codable {

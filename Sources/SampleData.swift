@@ -183,4 +183,40 @@ enum SampleData {
     SourceConnection(name: "Northwind Wholesale", kind: .vaultLogin, account: "Password vault", status: "Needs 2FA soon", lastSync: "1 hr ago"),
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
   ]
+
+  static var auditEvents: [AuditEvent] = [
+    AuditEvent(
+      timestamp: "Today 11:42 AM",
+      actor: "Local user",
+      action: .created,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[1].id.uuidString,
+      entityLabel: "OK-58214",
+      summary: "Forwarded order email captured for review.",
+      beforeDetail: nil,
+      afterDetail: "Merchant Office Kit Store, order OK-58214, destination Dock 4, 9 Harbour Road, Sydney NSW."
+    ),
+    AuditEvent(
+      timestamp: "Yesterday 6:10 PM",
+      actor: "Local user",
+      action: .linked,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[0].id.uuidString,
+      entityLabel: "SP-10492",
+      summary: "Forwarded shipping email linked to tracked order SP-10492.",
+      beforeDetail: "Intake email was not linked.",
+      afterDetail: "Linked to SafetyPro Supplies order SP-10492."
+    ),
+    AuditEvent(
+      timestamp: "Today 8:05 AM",
+      actor: "Local user",
+      action: .cleared,
+      entityType: .mailEvent,
+      entityID: mailEvents[0].id.uuidString,
+      entityLabel: "DHL Support",
+      summary: "Carrier address issue routed into the review queue.",
+      beforeDetail: "Review state Needs review.",
+      afterDetail: "Awaiting user correction before acceptance."
+    )
+  ]
 }

@@ -43,6 +43,29 @@ extension IntakeEmailReviewState {
   }
 }
 
+extension AuditAction {
+  var color: Color {
+    switch self {
+    case .created: .green
+    case .edited: .blue
+    case .linked: .teal
+    case .reviewed: .indigo
+    case .ignored: .gray
+    case .cleared: .orange
+    }
+  }
+}
+
+extension AuditEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .mailEvent: "envelope.badge.fill"
+    }
+  }
+}
+
 struct Badge: View {
   var text: String
   var color: Color
