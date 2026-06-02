@@ -4,7 +4,11 @@ import SwiftUI
 final class ParcelOpsStore {
   var searchText = ""
   var selectedStatus: OrderStatus?
-  var settings: ParcelOpsSettings
+  var settings: ParcelOpsSettings {
+    didSet {
+      settingsRepository.saveSettings(settings)
+    }
+  }
 
   var orders: [TrackedOrder]
   var mailEvents: [MailEvent]
@@ -27,8 +31,10 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
+  typealias Repository = OrderRepository & MailEventRepository & IntegrationRepository & WishlistRepository & SettingsRepository
+
   init(
-    repository: InMemoryParcelOpsRepository = InMemoryParcelOpsRepository(),
+    repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),

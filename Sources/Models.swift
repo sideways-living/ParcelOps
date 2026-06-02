@@ -52,7 +52,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   }
 }
 
-struct TrackedOrder: Identifiable, Hashable {
+struct TrackedOrder: Identifiable, Hashable, Codable {
   var id = UUID()
   var orderNumber: String
   var store: String
@@ -72,7 +72,7 @@ struct TrackedOrder: Identifiable, Hashable {
   var contactHistory: [ContactHistoryEvent]
 }
 
-struct TimelineEvent: Identifiable, Hashable {
+struct TimelineEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var title: String
   var detail: String
@@ -80,7 +80,7 @@ struct TimelineEvent: Identifiable, Hashable {
   var symbol: String
 }
 
-struct ContactHistoryEvent: Identifiable, Hashable {
+struct ContactHistoryEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var time: String
   var source: ContactSource
@@ -90,7 +90,7 @@ struct ContactHistoryEvent: Identifiable, Hashable {
   var reviewState: ReviewState
 }
 
-struct MailEvent: Identifiable, Hashable {
+struct MailEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var sender: String
   var summary: String
@@ -100,7 +100,7 @@ struct MailEvent: Identifiable, Hashable {
   var reviewState: ReviewState
 }
 
-struct SourceConnection: Identifiable, Hashable {
+struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
   var kind: ConnectionKind
@@ -109,7 +109,7 @@ struct SourceConnection: Identifiable, Hashable {
   var lastSync: String
 }
 
-struct TrackedMailbox: Identifiable, Hashable {
+struct TrackedMailbox: Identifiable, Hashable, Codable {
   var id = UUID()
   var address: String
   var provider: MailboxProvider
@@ -119,7 +119,7 @@ struct TrackedMailbox: Identifiable, Hashable {
   var routingRule: String
 }
 
-struct ShopifyConnection: Identifiable, Hashable {
+struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String
   var storeDomain: String
@@ -130,7 +130,7 @@ struct ShopifyConnection: Identifiable, Hashable {
   var isEnabled: Bool
 }
 
-struct WatchedFolder: Identifiable, Hashable {
+struct WatchedFolder: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
   var location: String
@@ -141,7 +141,7 @@ struct WatchedFolder: Identifiable, Hashable {
   var lastScan: String
 }
 
-struct WishlistItem: Identifiable, Hashable {
+struct WishlistItem: Identifiable, Hashable, Codable {
   var id = UUID()
   var itemName: String
   var storefront: String
@@ -154,7 +154,7 @@ struct WishlistItem: Identifiable, Hashable {
   var capturedDetail: String
 }
 
-enum FulfillmentMethod: String, Hashable {
+enum FulfillmentMethod: String, Hashable, Codable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"
 
@@ -166,7 +166,7 @@ enum FulfillmentMethod: String, Hashable {
   }
 }
 
-enum IntakeSource: String, CaseIterable, Hashable {
+enum IntakeSource: String, CaseIterable, Hashable, Codable {
   case forwardedMailbox = "Forwarded mailbox"
   case shopify = "Shopify OAuth"
   case storeLogin = "Store login"
@@ -184,7 +184,7 @@ enum IntakeSource: String, CaseIterable, Hashable {
   }
 }
 
-enum OrderStatus: String, CaseIterable, Identifiable, Hashable {
+enum OrderStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case intake = "Intake"
   case ordered = "Ordered"
   case shipped = "Shipped"
@@ -195,19 +195,19 @@ enum OrderStatus: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
-enum ReviewState: String, Hashable {
+enum ReviewState: String, Hashable, Codable {
   case accepted = "Accepted"
   case needsReview = "Needs review"
   case monitor = "Monitor"
 }
 
-enum Severity: String, Hashable {
+enum Severity: String, Hashable, Codable {
   case info = "Info"
   case watch = "Watch"
   case critical = "Critical"
 }
 
-enum ContactSource: String, Hashable {
+enum ContactSource: String, Hashable, Codable {
   case mailbox = "Mailbox"
   case shopify = "Shopify"
   case watchedFolder = "Watched folder"
@@ -227,7 +227,7 @@ enum ContactSource: String, Hashable {
   }
 }
 
-enum ConnectionKind: String, Hashable {
+enum ConnectionKind: String, Hashable, Codable {
   case mailbox = "Forwarded mailbox"
   case shopify = "Shopify"
   case vaultLogin = "Password vault"
@@ -243,7 +243,7 @@ enum ConnectionKind: String, Hashable {
   }
 }
 
-enum MailboxProvider: String, Hashable {
+enum MailboxProvider: String, Hashable, Codable {
   case microsoft365 = "Microsoft 365"
   case gmail = "Gmail"
   case imap = "IMAP"
@@ -257,7 +257,7 @@ enum MailboxProvider: String, Hashable {
   }
 }
 
-enum WishlistSource: String, Hashable {
+enum WishlistSource: String, Hashable, Codable {
   case pdf = "PDF upload"
   case screenshot = "Screenshot"
   case shareSheet = "Share"
@@ -275,7 +275,7 @@ enum WishlistSource: String, Hashable {
   }
 }
 
-struct ParcelOpsSettings: Hashable {
+struct ParcelOpsSettings: Hashable, Codable {
   var mailboxMonitoringEnabled = true
   var autoCreateOrdersFromEmail = true
   var shopifySyncEnabled = true
