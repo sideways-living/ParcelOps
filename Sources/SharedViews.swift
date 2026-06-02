@@ -31,6 +31,14 @@ extension Severity {
     case .critical: .red
     }
   }
+
+  var riskRank: Int {
+    switch self {
+    case .info: 0
+    case .watch: 1
+    case .critical: 2
+    }
+  }
 }
 
 extension IntakeEmailReviewState {

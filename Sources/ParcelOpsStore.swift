@@ -88,6 +88,10 @@ final class ParcelOpsStore {
     orders.filter { $0.status != .delivered }.count
   }
 
+  var deliveredCount: Int {
+    orders.filter { $0.status == .delivered }.count
+  }
+
   var exceptionCount: Int {
     orders.filter { $0.status == .exception || $0.reviewState == .needsReview }.count
   }
@@ -114,6 +118,36 @@ final class ParcelOpsStore {
 
   var reviewCarrierTrackingEvents: [CarrierTrackingEvent] {
     carrierTrackingEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
+  }
+
+  var trackingWarningCount: Int {
+    carrierTrackingEvents.filter { $0.severity == .watch || $0.severity == .critical }.count
+  }
+
+  var criticalTrackingCount: Int {
+    carrierTrackingEvents.filter { $0.severity == .critical }.count
+  }
+
+  var enabledAutomationRuleCount: Int {
+    automationRules.filter(\.isEnabled).count
+  }
+
+  var disabledAutomationRuleCount: Int {
+    automationRules.filter { !$0.isEnabled }.count
+  }
+
+  var recentAuditEvents: [AuditEvent] {
+    Array(auditEvents.prefix(5))
+  }
+
+  var highestRiskTrackingEvents: [CarrierTrackingEvent] {
+    Array(carrierTrackingEvents.sorted { lhs, rhs in
+      lhs.severity.riskRank > rhs.severity.riskRank
+    }.prefix(5))
+  }
+
+  var newestIntakeEmails: [ForwardedEmailIntake] {
+    Array(intakeEmails.prefix(5))
   }
 
   var filteredOrders: [TrackedOrder] {
