@@ -33,6 +33,16 @@ extension Severity {
   }
 }
 
+extension IntakeEmailReviewState {
+  var color: Color {
+    switch self {
+    case .needsReview: .orange
+    case .reviewed: .green
+    case .ignored: .gray
+    }
+  }
+}
+
 struct Badge: View {
   var text: String
   var color: Color

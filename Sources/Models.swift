@@ -100,6 +100,20 @@ struct MailEvent: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct ForwardedEmailIntake: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var rawBodyPreview: String
+  var detectedMerchant: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var detectedDestinationAddress: String
+  var linkedOrderID: UUID?
+  var reviewState: IntakeEmailReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -199,6 +213,12 @@ enum ReviewState: String, Hashable, Codable {
   case accepted = "Accepted"
   case needsReview = "Needs review"
   case monitor = "Monitor"
+}
+
+enum IntakeEmailReviewState: String, Hashable, Codable {
+  case needsReview = "Needs review"
+  case reviewed = "Reviewed"
+  case ignored = "Ignored"
 }
 
 enum Severity: String, Hashable, Codable {

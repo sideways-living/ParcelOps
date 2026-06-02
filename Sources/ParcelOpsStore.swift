@@ -12,6 +12,7 @@ final class ParcelOpsStore {
 
   var orders: [TrackedOrder]
   var mailEvents: [MailEvent]
+  var intakeEmails: [ForwardedEmailIntake]
   var mailboxes: [TrackedMailbox]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
@@ -21,6 +22,7 @@ final class ParcelOpsStore {
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
+  private let intakeEmailRepository: IntakeEmailRepository
   private let integrationRepository: IntegrationRepository
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
@@ -31,7 +33,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntegrationRepository & WishlistRepository & SettingsRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -44,6 +46,7 @@ final class ParcelOpsStore {
   ) {
     self.orderRepository = repository
     self.mailEventRepository = repository
+    self.intakeEmailRepository = repository
     self.integrationRepository = repository
     self.wishlistRepository = repository
     self.settingsRepository = repository
@@ -55,6 +58,7 @@ final class ParcelOpsStore {
     self.workflowTemplateEngine = workflowTemplateEngine
     self.orders = repository.loadOrders()
     self.mailEvents = repository.loadMailEvents()
+    self.intakeEmails = repository.loadIntakeEmails()
     self.mailboxes = repository.loadMailboxes()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
@@ -80,8 +84,12 @@ final class ParcelOpsStore {
     mailEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
 
+  var reviewIntakeEmails: [ForwardedEmailIntake] {
+    intakeEmails.filter { $0.reviewState == .needsReview }
+  }
+
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -156,6 +164,77 @@ final class ParcelOpsStore {
     }
     persistOrders()
     persistMailEvents()
+  }
+
+  func linkIntakeEmail(_ email: ForwardedEmailIntake, to order: TrackedOrder) {
+    guard let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    intakeEmails[emailIndex].linkedOrderID = order.id
+    intakeEmails[emailIndex].reviewState = .reviewed
+
+    if let orderIndex = orders.firstIndex(where: { $0.id == order.id }) {
+      orders[orderIndex].contactHistory.insert(
+        ContactHistoryEvent(
+          time: "Now",
+          source: .mailbox,
+          contactPoint: "Forwarded email intake",
+          summary: "Forwarded email linked to this order.",
+          evidence: "\(email.subject) from \(email.sender)",
+          reviewState: .accepted
+        ),
+        at: 0
+      )
+      orders[orderIndex].latestStatus = "Forwarded email evidence linked"
+    }
+
+    persistOrders()
+    persistIntakeEmails()
+  }
+
+  func createOrder(from email: ForwardedEmailIntake) {
+    let orderNumber = email.detectedOrderNumber.isPlaceholder ? "EMAIL-\(3000 + orders.count + 1)" : email.detectedOrderNumber
+    let trackingNumber = email.detectedTrackingNumber.isPlaceholder ? "Pending" : email.detectedTrackingNumber
+    let destination = email.detectedDestinationAddress.isPlaceholder ? "Pending review" : email.detectedDestinationAddress
+
+    let order = TrackedOrder(
+      orderNumber: orderNumber,
+      store: email.detectedMerchant.isPlaceholder ? "Forwarded email supplier" : email.detectedMerchant,
+      recipientEmail: "captured-from-forward@parcelops.example",
+      checkedMailbox: "tracking-intake@parcelops.example",
+      customer: "Unassigned",
+      fulfillment: .delivery,
+      carrier: trackingNumber == "Pending" ? "Pending" : "Carrier pending",
+      trackingNumber: trackingNumber,
+      destination: destination,
+      eta: "Pending",
+      source: .forwardedMailbox,
+      status: trackingNumber == "Pending" ? .intake : .shipped,
+      reviewState: .needsReview,
+      latestStatus: "Created from forwarded email and awaiting review",
+      timeline: [
+        TimelineEvent(title: "Forwarded email captured", detail: email.subject, time: "Now", symbol: "envelope.open.fill")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: "Forwarded email intake", summary: "Order draft created from forwarded email.", evidence: email.rawBodyPreview, reviewState: .needsReview)
+      ]
+    )
+
+    orders.insert(order, at: 0)
+
+    if let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) {
+      intakeEmails[emailIndex].linkedOrderID = order.id
+      intakeEmails[emailIndex].reviewState = .reviewed
+    }
+
+    persistOrders()
+    persistIntakeEmails()
+  }
+
+  func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
+    updateIntakeEmail(email, reviewState: .reviewed)
+  }
+
+  func ignoreIntakeEmail(_ email: ForwardedEmailIntake) {
+    updateIntakeEmail(email, reviewState: .ignored)
   }
 
   func exportToParcel(order: TrackedOrder) {
@@ -271,6 +350,10 @@ final class ParcelOpsStore {
     mailEventRepository.saveMailEvents(mailEvents)
   }
 
+  private func persistIntakeEmails() {
+    intakeEmailRepository.saveIntakeEmails(intakeEmails)
+  }
+
   private func persistIntegrations() {
     integrationRepository.saveMailboxes(mailboxes)
     integrationRepository.saveShopifyConnections(shopifyConnections)
@@ -281,5 +364,18 @@ final class ParcelOpsStore {
   private func persistWishlist() {
     wishlistRepository.saveWishlistItems(wishlistItems)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
+  }
+
+  private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
+    guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    intakeEmails[index].reviewState = reviewState
+    persistIntakeEmails()
+  }
+}
+
+private extension String {
+  var isPlaceholder: Bool {
+    let normalized = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return normalized.isEmpty || normalized == "pending" || normalized == "not detected"
   }
 }

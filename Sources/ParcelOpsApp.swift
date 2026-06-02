@@ -86,7 +86,7 @@ struct ParcelOpsRootView: View {
     case .orders:
       OrdersView(store: store)
     case .mailbox:
-      MailboxView(events: store.mailEvents)
+      MailboxView(store: store)
     case .review:
       NeedsReviewView(store: store)
     case .wishlist:

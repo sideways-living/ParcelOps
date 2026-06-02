@@ -27,7 +27,7 @@ struct DashboardView: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 2 : 4), spacing: 12) {
           MetricCard(title: "Active orders", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
           MetricCard(title: "Exceptions", value: "\(store.exceptionCount)", symbol: "exclamationmark.triangle.fill", color: .red)
-          MetricCard(title: "Mailbox events", value: "\(store.mailEvents.count)", symbol: "envelope.fill", color: .blue)
+          MetricCard(title: "Intake emails", value: "\(store.intakeEmails.count)", symbol: "envelope.open.fill", color: .blue)
           MetricCard(title: "Wishlist", value: "\(store.wishlistItems.count)", symbol: "star.square.fill", color: .purple)
         }
 

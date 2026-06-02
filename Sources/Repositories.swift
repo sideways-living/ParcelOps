@@ -10,6 +10,11 @@ protocol MailEventRepository {
   func saveMailEvents(_ events: [MailEvent])
 }
 
+protocol IntakeEmailRepository {
+  func loadIntakeEmails() -> [ForwardedEmailIntake]
+  func saveIntakeEmails(_ emails: [ForwardedEmailIntake])
+}
+
 protocol IntegrationRepository {
   func loadMailboxes() -> [TrackedMailbox]
   func saveMailboxes(_ mailboxes: [TrackedMailbox])
@@ -33,7 +38,7 @@ protocol SettingsRepository {
   func saveSettings(_ settings: ParcelOpsSettings)
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -65,6 +70,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Integ
 
   func saveMailEvents(_ events: [MailEvent]) {
     save(events, to: .mailEvents)
+  }
+
+  func loadIntakeEmails() -> [ForwardedEmailIntake] {
+    load([ForwardedEmailIntake].self, from: .intakeEmails, defaultValue: SampleData.intakeEmails)
+  }
+
+  func saveIntakeEmails(_ emails: [ForwardedEmailIntake]) {
+    save(emails, to: .intakeEmails)
   }
 
   func loadMailboxes() -> [TrackedMailbox] {
@@ -181,6 +194,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Integ
   private enum StoreFile: String {
     case orders = "orders.json"
     case mailEvents = "mail-events.json"
+    case intakeEmails = "intake-emails.json"
     case mailboxes = "mailboxes.json"
     case shopifyConnections = "shopify-connections.json"
     case watchedFolders = "watched-folders.json"
@@ -191,9 +205,10 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Integ
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
+  private var intakeEmails = SampleData.intakeEmails
   private var mailboxes = SampleData.mailboxes
   private var shopifyConnections = SampleData.shopifyConnections
   private var watchedFolders = SampleData.watchedFolders
@@ -207,6 +222,9 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadMailEvents() -> [MailEvent] { mailEvents }
   func saveMailEvents(_ events: [MailEvent]) { mailEvents = events }
+
+  func loadIntakeEmails() -> [ForwardedEmailIntake] { intakeEmails }
+  func saveIntakeEmails(_ emails: [ForwardedEmailIntake]) { intakeEmails = emails }
 
   func loadMailboxes() -> [TrackedMailbox] { mailboxes }
   func saveMailboxes(_ mailboxes: [TrackedMailbox]) { self.mailboxes = mailboxes }

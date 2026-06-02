@@ -109,6 +109,45 @@ enum SampleData {
     MailEvent(sender: "Northwind Wholesale", summary: "Invoice matched, but no dispatch or carrier information yet.", receivedTime: "Yesterday 5:01 PM", matchedOrder: "NWS-7720", severity: .watch, reviewState: .monitor)
   ]
 
+  static var intakeEmails: [ForwardedEmailIntake] = [
+    ForwardedEmailIntake(
+      sender: "shipping@safetypro.example",
+      subject: "Your SafetyPro Supplies order SP-10492 has shipped",
+      receivedDate: "Yesterday 6:10 PM",
+      rawBodyPreview: "Thanks for your order. Your order SP-10492 has shipped with Australia Post. Tracking number 33AUL8841295. Delivery address: 18 Collins Street, Melbourne VIC.",
+      detectedMerchant: "SafetyPro Supplies",
+      detectedOrderNumber: "SP-10492",
+      detectedTrackingNumber: "33AUL8841295",
+      detectedDestinationAddress: "18 Collins Street, Melbourne VIC",
+      linkedOrderID: orders[0].id,
+      reviewState: .reviewed
+    ),
+    ForwardedEmailIntake(
+      sender: "orders@officekit.example",
+      subject: "Office Kit order OK-58214 confirmation",
+      receivedDate: "Today 11:42 AM",
+      rawBodyPreview: "Order OK-58214 is confirmed. We will ship thermal label rolls to Dock 4, 9 Harbour Road, Sydney NSW. Tracking will follow shortly.",
+      detectedMerchant: "Office Kit Store",
+      detectedOrderNumber: "OK-58214",
+      detectedTrackingNumber: "Pending",
+      detectedDestinationAddress: "Dock 4, 9 Harbour Road, Sydney NSW",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    ),
+    ForwardedEmailIntake(
+      sender: "newsletter@supplier.example",
+      subject: "June supplier specials",
+      receivedDate: "Today 9:18 AM",
+      rawBodyPreview: "Monthly promotion with no order number, tracking number, or delivery address detected.",
+      detectedMerchant: "Unknown supplier",
+      detectedOrderNumber: "Not detected",
+      detectedTrackingNumber: "Not detected",
+      detectedDestinationAddress: "Not detected",
+      linkedOrderID: nil,
+      reviewState: .ignored
+    )
+  ]
+
   static var mailboxes: [TrackedMailbox] = [
     TrackedMailbox(address: "tracking-intake@parcelops.example", provider: .microsoft365, monitoredFolders: "Inbox, Forwarded Orders", status: "Watching", lastChecked: "2 min ago", routingRule: "Default order intake and carrier alerts"),
     TrackedMailbox(address: "field-purchasing@parcelops.example", provider: .gmail, monitoredFolders: "Purchases, Shipping", status: "Watching", lastChecked: "5 min ago", routingRule: "Field team purchases"),
