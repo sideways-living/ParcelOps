@@ -133,6 +133,41 @@ struct OrderDetailView: View {
           DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
         }
 
+        Panel(title: "SLA context", symbol: "timer") {
+          let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+          let policies = store.policies(for: .order)
+
+          VStack(alignment: .leading, spacing: 10) {
+            if tasks.isEmpty && policies.isEmpty {
+              Text("No local SLA tasks or policies linked to this order.")
+                .foregroundStyle(.secondary)
+            } else {
+              ForEach(tasks) { task in
+                HStack {
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                      .font(.callout.weight(.semibold))
+                    Text("Due \(task.dueDate) • \(task.assignee)")
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                  }
+                  Spacer()
+                  Badge(task.isLocallyOverdue ? "Overdue" : task.priority.rawValue, color: task.isLocallyOverdue ? .red : task.priority.color)
+                }
+                .padding(10)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+              }
+
+              ForEach(policies) { policy in
+                Text("\(policy.name): \(policy.responseTarget); \(policy.resolutionTarget)")
+                  .font(.caption)
+                  .foregroundStyle(policy.priority.color)
+              }
+            }
+          }
+        }
+
         if order.fulfillment == .delivery {
           Button("Send to Parcel", systemImage: "square.and.arrow.up") {
             store.exportToParcel(order: order)
@@ -170,6 +205,8 @@ struct OrderDetailView: View {
                   store.removeTrackingEvent(event)
                 } onCreateTask: {
                   store.createReviewTask(from: event)
+                } relatedTasks: {
+                  store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }
               }
             }

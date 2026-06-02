@@ -25,6 +25,7 @@ final class ParcelOpsStore {
   var automationRules: [AutomationRule]
   var savedFilters: [SavedFilter]
   var reviewTasks: [ReviewTask]
+  var slaPolicies: [SLAPolicy]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -38,6 +39,7 @@ final class ParcelOpsStore {
   private let automationRuleRepository: AutomationRuleRepository
   private let savedFilterRepository: SavedFilterRepository
   private let reviewTaskRepository: ReviewTaskRepository
+  private let slaPolicyRepository: SLAPolicyRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -45,7 +47,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -68,6 +70,7 @@ final class ParcelOpsStore {
     self.automationRuleRepository = repository
     self.savedFilterRepository = repository
     self.reviewTaskRepository = repository
+    self.slaPolicyRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -90,6 +93,7 @@ final class ParcelOpsStore {
     self.automationRules = repository.loadAutomationRules()
     self.savedFilters = repository.loadSavedFilters()
     self.reviewTasks = repository.loadReviewTasks()
+    self.slaPolicies = repository.loadSLAPolicies()
   }
 
   var activeCount: Int {
@@ -117,7 +121,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -150,8 +154,34 @@ final class ParcelOpsStore {
 
   var reviewTasksNeedingAttention: [ReviewTask] {
     reviewTasks.filter { task in
-      task.status != .completed && (task.priority == .high || task.priority == .urgent || task.reviewState != .accepted)
+      task.status != .completed && (task.priority == .high || task.priority == .urgent || task.reviewState != .accepted || task.isLocallyOverdue)
     }
+  }
+
+  var overdueOpenReviewTasks: [ReviewTask] {
+    openReviewTasks.filter(\.isLocallyOverdue)
+  }
+
+  var urgentOpenReviewTasks: [ReviewTask] {
+    openReviewTasks.filter { $0.priority == .urgent }
+  }
+
+  var policiesNeedingReview: [SLAPolicy] {
+    slaPolicies.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledSLAPolicyCount: Int {
+    slaPolicies.filter(\.isEnabled).count
+  }
+
+  var disabledSLAPolicyCount: Int {
+    slaPolicies.filter { !$0.isEnabled }.count
+  }
+
+  var recentPolicyMatches: [SLAPolicy] {
+    Array(slaPolicies.filter { $0.matchCount > 0 }.sorted { lhs, rhs in
+      lhs.lastEvaluatedDate > rhs.lastEvaluatedDate
+    }.prefix(5))
   }
 
   var recentAuditEvents: [AuditEvent] {
@@ -973,6 +1003,119 @@ final class ParcelOpsStore {
     )
   }
 
+  func tasks(for linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> [ReviewTask] {
+    reviewTasks.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
+  }
+
+  func policies(for linkedEntityType: ReviewTaskLinkedEntityType) -> [SLAPolicy] {
+    slaPolicies.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
+  }
+
+  func addSLAPolicyPlaceholder() {
+    let policy = SLAPolicy(
+      name: "New SLA policy \(slaPolicies.count + 1)",
+      linkedEntityType: .order,
+      conditionSummary: "Define the local condition this policy should watch.",
+      responseTarget: "Respond today",
+      resolutionTarget: "Resolve within 1 business day",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastEvaluatedDate: "Never",
+      matchCount: 0,
+      reviewState: .needsReview
+    )
+    slaPolicies.insert(policy, at: 0)
+    persistSLAPolicies()
+    logAudit(
+      action: .created,
+      entityType: .slaPolicy,
+      entityID: policy.id.uuidString,
+      entityLabel: policy.name,
+      summary: "SLA policy placeholder added.",
+      afterDetail: policy.auditDetail
+    )
+  }
+
+  func updateSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index] = policy
+    persistSLAPolicies()
+    logAudit(
+      action: .edited,
+      entityType: .slaPolicy,
+      entityID: policy.id.uuidString,
+      entityLabel: policy.name,
+      summary: "SLA policy details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: policy.auditDetail
+    )
+  }
+
+  func toggleSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].isEnabled.toggle()
+    persistSLAPolicies()
+    logAudit(
+      action: slaPolicies[index].isEnabled ? .enabled : .disabled,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: slaPolicies[index].isEnabled ? "SLA policy enabled." : "SLA policy disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func markSLAPolicyReviewed(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].reviewState = .accepted
+    persistSLAPolicies()
+    logAudit(
+      action: .reviewed,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: "SLA policy marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func evaluateSLAPolicyPlaceholder(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].lastEvaluatedDate = Self.auditTimestamp()
+    slaPolicies[index].matchCount += 1
+    persistSLAPolicies()
+    logAudit(
+      action: .evaluated,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: "SLA policy manually evaluated locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func removeSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let removed = slaPolicies.remove(at: index)
+    persistSLAPolicies()
+    logAudit(
+      action: .removed,
+      entityType: .slaPolicy,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "SLA policy removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -1122,6 +1265,10 @@ final class ParcelOpsStore {
     reviewTaskRepository.saveReviewTasks(reviewTasks)
   }
 
+  private func persistSLAPolicies() {
+    slaPolicyRepository.saveSLAPolicies(slaPolicies)
+  }
+
   private func addReviewTask(_ task: ReviewTask, summary: String) {
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
@@ -1257,5 +1404,11 @@ private extension SavedFilter {
 private extension ReviewTask {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); due: \(dueDate); assignee: \(assignee); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate ?? "not completed"); summary: \(summary)."
+  }
+}
+
+private extension SLAPolicy {
+  var auditDetail: String {
+    "Name: \(name); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); response: \(responseTarget); resolution: \(resolutionTarget); review: \(reviewState.rawValue); created: \(createdDate); last evaluated: \(lastEvaluatedDate); matches: \(matchCount); condition: \(conditionSummary)."
   }
 }

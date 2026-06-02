@@ -49,6 +49,8 @@ struct TrackingView: View {
                 store.removeTrackingEvent(event)
               } onCreateTask: {
                 store.createReviewTask(from: event)
+              } relatedTasks: {
+                store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
               }
             }
           }
@@ -102,6 +104,7 @@ struct TrackingEventRow: View {
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  var relatedTasks: () -> [ReviewTask] = { [] }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -141,6 +144,15 @@ struct TrackingEventRow: View {
             Label(event.source.rawValue, systemImage: event.source.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
+          }
+
+          ForEach(relatedTasks()) { task in
+            HStack(spacing: 8) {
+              Badge(task.isLocallyOverdue ? "Overdue" : task.priority.rawValue, color: task.isLocallyOverdue ? .red : task.priority.color)
+              Text("Task due \(task.dueDate) with \(task.assignee)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
       }

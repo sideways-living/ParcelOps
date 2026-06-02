@@ -68,7 +68,12 @@ protocol ReviewTaskRepository {
   func saveReviewTasks(_ tasks: [ReviewTask])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository {
+protocol SLAPolicyRepository {
+  func loadSLAPolicies() -> [SLAPolicy]
+  func saveSLAPolicies(_ policies: [SLAPolicy])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -214,6 +219,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(tasks, to: .reviewTasks)
   }
 
+  func loadSLAPolicies() -> [SLAPolicy] {
+    load([SLAPolicy].self, from: .slaPolicies, defaultValue: SampleData.slaPolicies)
+  }
+
+  func saveSLAPolicies(_ policies: [SLAPolicy]) {
+    save(policies, to: .slaPolicies)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -286,10 +299,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case automationRules = "automation-rules.json"
     case savedFilters = "saved-filters.json"
     case reviewTasks = "review-tasks.json"
+    case slaPolicies = "sla-policies.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -306,6 +320,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var automationRules = SampleData.automationRules
   private var savedFilters = SampleData.savedFilters
   private var reviewTasks = SampleData.reviewTasks
+  private var slaPolicies = SampleData.slaPolicies
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -354,4 +369,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadReviewTasks() -> [ReviewTask] { reviewTasks }
   func saveReviewTasks(_ tasks: [ReviewTask]) { reviewTasks = tasks }
+
+  func loadSLAPolicies() -> [SLAPolicy] { slaPolicies }
+  func saveSLAPolicies(_ policies: [SLAPolicy]) { slaPolicies = policies }
 }

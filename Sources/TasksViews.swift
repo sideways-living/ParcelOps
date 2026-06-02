@@ -56,7 +56,7 @@ struct TasksView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task) { updatedTask in
+              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -133,6 +133,7 @@ struct TasksView: View {
 
 struct ReviewTaskRow: View {
   var task: ReviewTask
+  var matchingPolicies: [SLAPolicy] = []
   var onSave: (ReviewTask) -> Void
   var onComplete: () -> Void
   var onReopen: () -> Void
@@ -158,6 +159,9 @@ struct ReviewTaskRow: View {
             }
             Spacer()
             Badge(task.priority.rawValue, color: task.priority.color)
+            if task.isLocallyOverdue {
+              Badge("Overdue", color: .red)
+            }
           }
 
           Text(task.summary)
@@ -175,6 +179,12 @@ struct ReviewTaskRow: View {
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .truncationMode(.middle)
+          }
+
+          if let policy = matchingPolicies.first {
+            Text("SLA: \(policy.responseTarget); \(policy.resolutionTarget)")
+              .font(.caption)
+              .foregroundStyle(policy.priority.color)
           }
         }
       }

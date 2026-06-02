@@ -11,6 +11,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case tracking
   case evidence
   case tasks
+  case slaPolicies
   case search
   case audit
   case settings
@@ -29,6 +30,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .tasks: "Tasks"
+    case .slaPolicies: "SLA Policies"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -47,6 +49,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .tasks: "Tasks"
+    case .slaPolicies: "SLA"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -65,6 +68,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "location.fill.viewfinder"
     case .evidence: "paperclip"
     case .tasks: "checklist"
+    case .slaPolicies: "timer"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -229,6 +233,21 @@ struct ReviewTask: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct SLAPolicy: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var conditionSummary: String
+  var responseTarget: String
+  var resolutionTarget: String
+  var priority: TaskPriority
+  var isEnabled: Bool
+  var createdDate: String
+  var lastEvaluatedDate: String
+  var matchCount: Int
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -349,6 +368,7 @@ enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case unpinned = "Unpinned"
   case completed = "Completed"
   case reopened = "Reopened"
+  case evaluated = "Evaluated"
   case removed = "Removed"
 
   var id: String { rawValue }
@@ -363,6 +383,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
   case reviewTask = "Review task"
+  case slaPolicy = "SLA policy"
 
   var id: String { rawValue }
 }

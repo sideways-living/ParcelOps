@@ -71,6 +71,16 @@ struct DashboardView: View {
             ])
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)))
           }
+
+          AnalyticsSection(title: "SLA policies", symbol: "timer") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledSLAPolicyCount)", .green),
+              ("Disabled", "\(store.disabledSLAPolicyCount)", .gray),
+              ("Review", "\(store.policiesNeedingReview.count)", .orange),
+              ("Overdue", "\(store.overdueOpenReviewTasks.count)", .red)
+            ])
+            CompactSLAPolicyList(policies: store.recentPolicyMatches)
+          }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
@@ -246,6 +256,23 @@ struct CompactTaskList: View {
           detail: "\(task.assignee) • due \(task.dueDate)",
           badge: task.priority.rawValue,
           color: task.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactSLAPolicyList: View {
+  var policies: [SLAPolicy]
+
+  var body: some View {
+    CompactList(title: "Recent policy matches", symbol: "timer") {
+      ForEach(policies) { policy in
+        CompactRow(
+          title: policy.name,
+          detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
+          badge: "\(policy.matchCount)",
+          color: policy.priority.color
         )
       }
     }

@@ -367,13 +367,15 @@ struct NeedsReviewView: View {
               store.removeTrackingEvent(event)
             } onCreateTask: {
               store.createReviewTask(from: event)
+            } relatedTasks: {
+              store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
             }
           }
         }
 
         SettingsPanel(title: "Task escalations", symbol: "checklist") {
           ForEach(store.reviewTasksNeedingAttention) { task in
-            ReviewTaskRow(task: task) { updatedTask in
+            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
               store.updateReviewTask(updatedTask)
             } onComplete: {
               store.completeReviewTask(task)
@@ -383,6 +385,22 @@ struct NeedsReviewView: View {
               store.markReviewTaskReviewed(task)
             } onRemove: {
               store.removeReviewTask(task)
+            }
+          }
+        }
+
+        SettingsPanel(title: "SLA policies", symbol: "timer") {
+          ForEach(store.policiesNeedingReview) { policy in
+            SLAPolicyRow(policy: policy) { updatedPolicy in
+              store.updateSLAPolicy(updatedPolicy)
+            } onToggle: {
+              store.toggleSLAPolicy(policy)
+            } onReviewed: {
+              store.markSLAPolicyReviewed(policy)
+            } onEvaluate: {
+              store.evaluateSLAPolicyPlaceholder(policy)
+            } onRemove: {
+              store.removeSLAPolicy(policy)
             }
           }
         }

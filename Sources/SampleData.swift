@@ -361,6 +361,48 @@ enum SampleData {
     )
   ]
 
+  static var slaPolicies: [SLAPolicy] = [
+    SLAPolicy(
+      name: "Carrier critical events same-day response",
+      linkedEntityType: .trackingEvent,
+      conditionSummary: "Carrier tracking event severity is Critical or task priority is Urgent.",
+      responseTarget: "Respond within 2 business hours",
+      resolutionTarget: "Resolve or escalate same day",
+      priority: .urgent,
+      isEnabled: true,
+      createdDate: "Today 8:00 AM",
+      lastEvaluatedDate: "Today 8:07 AM",
+      matchCount: 1,
+      reviewState: .accepted
+    ),
+    SLAPolicy(
+      name: "Forwarded intake missing tracking",
+      linkedEntityType: .intakeEmail,
+      conditionSummary: "Forwarded email has order details but tracking is Pending or Not detected.",
+      responseTarget: "Review within 4 business hours",
+      resolutionTarget: "Create or link order within 1 business day",
+      priority: .high,
+      isEnabled: true,
+      createdDate: "Yesterday 3:20 PM",
+      lastEvaluatedDate: "Today 11:45 AM",
+      matchCount: 2,
+      reviewState: .monitor
+    ),
+    SLAPolicy(
+      name: "Evidence retention review",
+      linkedEntityType: .evidence,
+      conditionSummary: "New evidence is added from placeholder upload or watched folder.",
+      responseTarget: "Acknowledge by next business day",
+      resolutionTarget: "Mark reviewed within 2 business days",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: "Yesterday 1:10 PM",
+      lastEvaluatedDate: "Never",
+      matchCount: 0,
+      reviewState: .needsReview
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

@@ -66,6 +66,7 @@ extension AuditAction {
     case .unpinned: .gray
     case .completed: .green
     case .reopened: .orange
+    case .evaluated: .blue
     case .removed: .red
     }
   }
@@ -82,6 +83,7 @@ extension AuditEntityType {
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .reviewTask: "checklist"
+    case .slaPolicy: "timer"
     }
   }
 }
@@ -119,6 +121,16 @@ extension TaskStatus {
     case .blocked: .red
     case .completed: .green
     }
+  }
+}
+
+extension ReviewTask {
+  var isLocallyOverdue: Bool {
+    let normalizedDueDate = dueDate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard status != .completed else { return false }
+    return normalizedDueDate.contains("yesterday")
+      || normalizedDueDate.contains("overdue")
+      || normalizedDueDate.contains("past due")
   }
 }
 
