@@ -86,6 +86,26 @@ extension AuditEntityType {
     case .slaPolicy: "timer"
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
+    case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
+    }
+  }
+}
+
+extension ContactLinkedEntityType {
+  var symbol: String {
+    switch self {
+    case .store: "storefront.fill"
+    case .supplier: "building.2.fill"
+    case .carrier: "truck.box.fill"
+    case .shopifyStore: "cart.fill"
+    case .internalTeam: "person.2.fill"
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .trackingEvent: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .reviewTask: "checklist"
+    case .slaPolicy: "timer"
+    case .draftMessage: "envelope.open.fill"
     }
   }
 }
@@ -102,6 +122,8 @@ extension ReviewTaskLinkedEntityType {
     case .auditEvent: "list.clipboard.fill"
     case .reviewTask: "checklist"
     case .slaPolicy: "timer"
+    case .draftMessage: "envelope.open.fill"
+    case .contact: "person.crop.circle.badge.checkmark"
     }
   }
 }

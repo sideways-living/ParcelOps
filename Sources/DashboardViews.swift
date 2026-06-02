@@ -91,6 +91,16 @@ struct DashboardView: View {
             ])
             CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(4)))
           }
+
+          AnalyticsSection(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledContactCount)", .green),
+              ("Disabled", "\(store.disabledContactCount)", .gray),
+              ("Review", "\(store.contactsNeedingReview.count)", .orange),
+              ("Total", "\(store.contactDirectoryEntries.count)", .blue)
+            ])
+            CompactContactList(contacts: Array(store.contactsNeedingReview.prefix(4)))
+          }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
@@ -300,6 +310,23 @@ struct CompactDraftMessageList: View {
           detail: "\(draft.recipient) • \(draft.channel.rawValue)",
           badge: draft.status.rawValue,
           color: draft.status.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactContactList: View {
+  var contacts: [ContactDirectoryEntry]
+
+  var body: some View {
+    CompactList(title: "Contacts needing review", symbol: "person.crop.circle.badge.checkmark") {
+      ForEach(contacts) { contact in
+        CompactRow(
+          title: contact.name,
+          detail: "\(contact.organisation) • \(contact.channelPreference.rawValue)",
+          badge: contact.reviewState.rawValue,
+          color: contact.reviewState.color
         )
       }
     }

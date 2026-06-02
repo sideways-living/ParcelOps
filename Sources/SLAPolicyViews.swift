@@ -60,6 +60,8 @@ struct SLAPoliciesView: View {
                 store.evaluateSLAPolicyPlaceholder(policy)
               } onCreateDraft: {
                 store.createDraftMessage(from: policy)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
               } onRemove: {
                 store.removeSLAPolicy(policy)
               }
@@ -124,6 +126,7 @@ struct SLAPolicyRow: View {
   var onReviewed: () -> Void
   var onEvaluate: () -> Void
   var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -177,6 +180,8 @@ struct SLAPolicyRow: View {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

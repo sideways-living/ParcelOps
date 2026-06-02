@@ -66,6 +66,8 @@ struct TasksView: View {
                 store.markReviewTaskReviewed(task)
               } onCreateDraft: {
                 store.createDraftMessage(from: task)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
               } onRemove: {
                 store.removeReviewTask(task)
               }
@@ -141,6 +143,7 @@ struct ReviewTaskRow: View {
   var onReopen: () -> Void
   var onReviewed: () -> Void
   var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -205,6 +208,8 @@ struct ReviewTaskRow: View {
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

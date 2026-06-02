@@ -43,7 +43,7 @@ struct TrackingView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }) {
+              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
@@ -51,6 +51,8 @@ struct TrackingView: View {
                 store.createReviewTask(from: event)
               } onCreateDraft: {
                 store.createDraftMessage(from: event)
+              } onDraftFromContact: { contact in
+                store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
               } relatedTasks: {
                 store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
               }
@@ -103,10 +105,12 @@ struct TrackingView: View {
 struct TrackingEventRow: View {
   var event: CarrierTrackingEvent
   var order: TrackedOrder?
+  var suggestedContacts: [ContactDirectoryEntry] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  var onDraftFromContact: (ContactDirectoryEntry) -> Void = { _ in }
   var relatedTasks: () -> [ReviewTask] = { [] }
 
   var body: some View {
@@ -155,6 +159,12 @@ struct TrackingEventRow: View {
               Text("Task due \(task.dueDate) with \(task.assignee)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+          }
+
+          ForEach(suggestedContacts) { contact in
+            ContactSuggestionRow(contact: contact) {
+              onDraftFromContact(contact)
             }
           }
         }

@@ -13,6 +13,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case tasks
   case slaPolicies
   case communication
+  case contacts
   case search
   case audit
   case settings
@@ -33,6 +34,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tasks: "Tasks"
     case .slaPolicies: "SLA Policies"
     case .communication: "Communication"
+    case .contacts: "Contacts"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -53,6 +55,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tasks: "Tasks"
     case .slaPolicies: "SLA"
     case .communication: "Comms"
+    case .contacts: "Contacts"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -73,6 +76,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tasks: "checklist"
     case .slaPolicies: "timer"
     case .communication: "bubble.left.and.text.bubble.right.fill"
+    case .contacts: "person.crop.circle.badge.checkmark"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -280,6 +284,23 @@ struct DraftMessage: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct ContactDirectoryEntry: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var organisation: String
+  var role: String
+  var email: String
+  var phone: String
+  var channelPreference: CommunicationChannel
+  var linkedEntityType: ContactLinkedEntityType
+  var linkedEntityID: String
+  var notes: String
+  var isEnabled: Bool
+  var createdDate: String
+  var lastContactedDate: String
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -418,6 +439,24 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case slaPolicy = "SLA policy"
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
+  case contactDirectoryEntry = "Contact"
+
+  var id: String { rawValue }
+}
+
+enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case store = "Store"
+  case supplier = "Supplier"
+  case carrier = "Carrier"
+  case shopifyStore = "Shopify store"
+  case internalTeam = "Internal team"
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case reviewTask = "Review task"
+  case slaPolicy = "SLA policy"
+  case draftMessage = "Draft message"
 
   var id: String { rawValue }
 }
@@ -432,6 +471,8 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case auditEvent = "Audit event"
   case reviewTask = "Review task"
   case slaPolicy = "SLA policy"
+  case draftMessage = "Draft message"
+  case contact = "Contact"
 
   var id: String { rawValue }
 }

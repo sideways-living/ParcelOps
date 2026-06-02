@@ -469,6 +469,69 @@ enum SampleData {
     )
   ]
 
+  static var contactDirectoryEntries: [ContactDirectoryEntry] = [
+    ContactDirectoryEntry(
+      name: "Jade Carrier Support",
+      organisation: "Jade Delivery",
+      role: "Carrier exception desk",
+      email: "carrier-support@parcelops.example",
+      phone: "+61 2 5550 0142",
+      channelPreference: .email,
+      linkedEntityType: .carrier,
+      linkedEntityID: "Jade Delivery",
+      notes: "Use for address clarification and missed delivery exceptions.",
+      isEnabled: true,
+      createdDate: "Today 8:05 AM",
+      lastContactedDate: "Today 8:15 AM",
+      reviewState: .accepted
+    ),
+    ContactDirectoryEntry(
+      name: "Office Kit Orders",
+      organisation: "Office Kit Store",
+      role: "Supplier orders team",
+      email: "orders@officekit.example",
+      phone: "+61 3 5550 0188",
+      channelPreference: .email,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Office Kit Store",
+      notes: "Preferred contact for missing tracking numbers on forwarded invoices.",
+      isEnabled: true,
+      createdDate: "Yesterday 2:45 PM",
+      lastContactedDate: "Never",
+      reviewState: .monitor
+    ),
+    ContactDirectoryEntry(
+      name: "Brisbane Field Team",
+      organisation: "ParcelOps Field Ops",
+      role: "Internal team",
+      email: "brisbane-field@parcelops.example",
+      phone: "Internal extension 208",
+      channelPreference: .internalNote,
+      linkedEntityType: .internalTeam,
+      linkedEntityID: "Brisbane Field Team",
+      notes: "Local owner for pickup and collection-point follow-up tasks.",
+      isEnabled: true,
+      createdDate: "Yesterday 9:10 AM",
+      lastContactedDate: "Today 8:20 AM",
+      reviewState: .accepted
+    ),
+    ContactDirectoryEntry(
+      name: "Shopify Store Admin",
+      organisation: "Shopify demo store",
+      role: "Store admin",
+      email: "admin@shopify-demo.example",
+      phone: "Not recorded",
+      channelPreference: .supplierPortal,
+      linkedEntityType: .shopifyStore,
+      linkedEntityID: shopifyConnections[0].id.uuidString,
+      notes: "Placeholder contact until real Shopify user/contact sync is implemented.",
+      isEnabled: false,
+      createdDate: "Today 9:30 AM",
+      lastContactedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

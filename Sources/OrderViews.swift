@@ -137,6 +137,23 @@ struct OrderDetailView: View {
           DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
         }
 
+        Panel(title: "Suggested contacts", symbol: "person.crop.circle.badge.checkmark") {
+          let contacts = store.suggestedContacts(for: order)
+
+          if contacts.isEmpty {
+            Text("No local contacts matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            VStack(spacing: 10) {
+              ForEach(contacts) { contact in
+                ContactSuggestionRow(contact: contact) {
+                  store.createDraftMessage(from: contact, linkedEntityType: .order, linkedEntityID: order.id.uuidString, label: order.orderNumber)
+                }
+              }
+            }
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)
@@ -203,7 +220,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
@@ -211,6 +228,8 @@ struct OrderDetailView: View {
                   store.createReviewTask(from: event)
                 } onCreateDraft: {
                   store.createDraftMessage(from: event)
+                } onDraftFromContact: { contact in
+                  store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
                 } relatedTasks: {
                   store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }
@@ -251,6 +270,8 @@ struct OrderDetailView: View {
                   store.createReviewTask(from: attachment)
                 } onCreateDraft: {
                   store.createDraftMessage(from: attachment)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
                 }
               }
             }

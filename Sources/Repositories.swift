@@ -80,7 +80,12 @@ protocol CommunicationRepository {
   func saveDraftMessages(_ messages: [DraftMessage])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository {
+protocol ContactDirectoryRepository {
+  func loadContactDirectoryEntries() -> [ContactDirectoryEntry]
+  func saveContactDirectoryEntries(_ contacts: [ContactDirectoryEntry])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -250,6 +255,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(messages, to: .draftMessages)
   }
 
+  func loadContactDirectoryEntries() -> [ContactDirectoryEntry] {
+    load([ContactDirectoryEntry].self, from: .contactDirectoryEntries, defaultValue: SampleData.contactDirectoryEntries)
+  }
+
+  func saveContactDirectoryEntries(_ contacts: [ContactDirectoryEntry]) {
+    save(contacts, to: .contactDirectoryEntries)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -325,10 +338,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case slaPolicies = "sla-policies.json"
     case communicationTemplates = "communication-templates.json"
     case draftMessages = "draft-messages.json"
+    case contactDirectoryEntries = "contact-directory.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -348,6 +362,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var slaPolicies = SampleData.slaPolicies
   private var communicationTemplates = SampleData.communicationTemplates
   private var draftMessages = SampleData.draftMessages
+  private var contactDirectoryEntries = SampleData.contactDirectoryEntries
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -405,4 +420,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadDraftMessages() -> [DraftMessage] { draftMessages }
   func saveDraftMessages(_ messages: [DraftMessage]) { draftMessages = messages }
+
+  func loadContactDirectoryEntries() -> [ContactDirectoryEntry] { contactDirectoryEntries }
+  func saveContactDirectoryEntries(_ contacts: [ContactDirectoryEntry]) { contactDirectoryEntries = contacts }
 }

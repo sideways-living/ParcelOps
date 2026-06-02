@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -36,6 +36,8 @@ struct MailboxView: View {
               store.createReviewTask(from: email)
             } onCreateDraft: {
               store.createDraftMessage(from: email)
+            } onDraftFromContact: { contact in
+              store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
             }
           }
         }
@@ -55,6 +57,7 @@ struct IntakeEmailRow: View {
   var email: ForwardedEmailIntake
   var orders: [TrackedOrder]
   var evidenceAttachments: [EvidenceAttachment]
+  var suggestedContacts: [ContactDirectoryEntry] = []
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
@@ -65,6 +68,7 @@ struct IntakeEmailRow: View {
   var onRemoveEvidence: (EvidenceAttachment) -> Void
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  var onDraftFromContact: (ContactDirectoryEntry) -> Void = { _ in }
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -156,6 +160,19 @@ struct IntakeEmailRow: View {
               onRemoveEvidence(attachment)
             } onCreateDraft: {
               onCreateDraft()
+            }
+          }
+        }
+      }
+
+      if !suggestedContacts.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Suggested contacts", systemImage: "person.crop.circle.badge.checkmark")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(suggestedContacts) { contact in
+            ContactSuggestionRow(contact: contact) {
+              onDraftFromContact(contact)
             }
           }
         }
@@ -334,7 +351,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -354,6 +371,8 @@ struct NeedsReviewView: View {
               store.createReviewTask(from: email)
             } onCreateDraft: {
               store.createDraftMessage(from: email)
+            } onDraftFromContact: { contact in
+              store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
             }
           }
         }
@@ -368,13 +387,15 @@ struct NeedsReviewView: View {
               store.createReviewTask(from: attachment)
             } onCreateDraft: {
               store.createDraftMessage(from: attachment)
+            } onCreateContact: {
+              store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
             }
           }
         }
 
         SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }) {
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event)) {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
@@ -382,6 +403,8 @@ struct NeedsReviewView: View {
               store.createReviewTask(from: event)
             } onCreateDraft: {
               store.createDraftMessage(from: event)
+            } onDraftFromContact: { contact in
+              store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
             } relatedTasks: {
               store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
             }
@@ -400,6 +423,8 @@ struct NeedsReviewView: View {
               store.markReviewTaskReviewed(task)
             } onCreateDraft: {
               store.createDraftMessage(from: task)
+            } onCreateContact: {
+              store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
             } onRemove: {
               store.removeReviewTask(task)
             }
@@ -418,6 +443,8 @@ struct NeedsReviewView: View {
               store.evaluateSLAPolicyPlaceholder(policy)
             } onCreateDraft: {
               store.createDraftMessage(from: policy)
+            } onCreateContact: {
+              store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
             } onRemove: {
               store.removeSLAPolicy(policy)
             }
@@ -434,8 +461,26 @@ struct NeedsReviewView: View {
               store.markDraftMessageSentLocally(draft)
             } onReopen: {
               store.reopenDraftMessage(draft)
+            } onCreateContact: {
+              store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
             } onRemove: {
               store.removeDraftMessage(draft)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
+          ForEach(store.contactsNeedingReview) { contact in
+            ContactDirectoryRow(contact: contact) { updatedContact in
+              store.updateContactDirectoryEntry(updatedContact)
+            } onToggle: {
+              store.toggleContactDirectoryEntry(contact)
+            } onReviewed: {
+              store.markContactDirectoryEntryReviewed(contact)
+            } onCreateDraft: {
+              store.createDraftMessage(from: contact)
+            } onRemove: {
+              store.removeContactDirectoryEntry(contact)
             }
           }
         }

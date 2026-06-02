@@ -28,6 +28,7 @@ final class ParcelOpsStore {
   var slaPolicies: [SLAPolicy]
   var communicationTemplates: [CommunicationTemplate]
   var draftMessages: [DraftMessage]
+  var contactDirectoryEntries: [ContactDirectoryEntry]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -43,6 +44,7 @@ final class ParcelOpsStore {
   private let reviewTaskRepository: ReviewTaskRepository
   private let slaPolicyRepository: SLAPolicyRepository
   private let communicationRepository: CommunicationRepository
+  private let contactDirectoryRepository: ContactDirectoryRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -50,7 +52,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -75,6 +77,7 @@ final class ParcelOpsStore {
     self.reviewTaskRepository = repository
     self.slaPolicyRepository = repository
     self.communicationRepository = repository
+    self.contactDirectoryRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -100,6 +103,7 @@ final class ParcelOpsStore {
     self.slaPolicies = repository.loadSLAPolicies()
     self.communicationTemplates = repository.loadCommunicationTemplates()
     self.draftMessages = repository.loadDraftMessages()
+    self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
   }
 
   var activeCount: Int {
@@ -127,7 +131,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -200,6 +204,18 @@ final class ParcelOpsStore {
 
   var draftMessagesNeedingReview: [DraftMessage] {
     draftMessages.filter { $0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened }
+  }
+
+  var enabledContactCount: Int {
+    contactDirectoryEntries.filter(\.isEnabled).count
+  }
+
+  var disabledContactCount: Int {
+    contactDirectoryEntries.filter { !$0.isEnabled }.count
+  }
+
+  var contactsNeedingReview: [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { $0.reviewState != .accepted }
   }
 
   var recentAuditEvents: [AuditEvent] {
@@ -1339,6 +1355,179 @@ final class ParcelOpsStore {
     )
   }
 
+  func addContactDirectoryEntryPlaceholder() {
+    let contact = ContactDirectoryEntry(
+      name: "New contact \(contactDirectoryEntries.count + 1)",
+      organisation: "Unassigned organisation",
+      role: "Operations contact",
+      email: "contact@parcelops.example",
+      phone: "Not recorded",
+      channelPreference: .email,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Unlinked",
+      notes: "Local placeholder contact awaiting review.",
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastContactedDate: "Never",
+      reviewState: .needsReview
+    )
+    contactDirectoryEntries.insert(contact, at: 0)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .created,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry placeholder added.",
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func addContactDirectoryEntry(linkedEntityType: ContactLinkedEntityType, linkedEntityID: String, label: String) {
+    let contact = ContactDirectoryEntry(
+      name: "\(label) contact",
+      organisation: label,
+      role: "Follow-up contact",
+      email: "contact@parcelops.example",
+      phone: "Not recorded",
+      channelPreference: .email,
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      notes: "Local contact created from \(linkedEntityType.rawValue.lowercased()) workflow.",
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastContactedDate: "Never",
+      reviewState: .needsReview
+    )
+    contactDirectoryEntries.insert(contact, at: 0)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .created,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry created from workflow.",
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func updateContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index] = contact
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .edited,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func toggleContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index].isEnabled.toggle()
+    persistContactDirectoryEntries()
+    logAudit(
+      action: contactDirectoryEntries[index].isEnabled ? .enabled : .disabled,
+      entityType: .contactDirectoryEntry,
+      entityID: contactDirectoryEntries[index].id.uuidString,
+      entityLabel: contactDirectoryEntries[index].name,
+      summary: contactDirectoryEntries[index].isEnabled ? "Contact enabled." : "Contact disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: contactDirectoryEntries[index].auditDetail
+    )
+  }
+
+  func markContactDirectoryEntryReviewed(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index].reviewState = .accepted
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .reviewed,
+      entityType: .contactDirectoryEntry,
+      entityID: contactDirectoryEntries[index].id.uuidString,
+      entityLabel: contactDirectoryEntries[index].name,
+      summary: "Contact directory entry marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: contactDirectoryEntries[index].auditDetail
+    )
+  }
+
+  func removeContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let removed = contactDirectoryEntries.remove(at: index)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .removed,
+      entityType: .contactDirectoryEntry,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Contact directory entry removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createDraftMessage(from contact: ContactDirectoryEntry, linkedEntityType: ReviewTaskLinkedEntityType? = nil, linkedEntityID: String? = nil, label: String? = nil) {
+    createDraftMessage(
+      linkedEntityType: linkedEntityType ?? .draftMessage,
+      linkedEntityID: linkedEntityID ?? contact.id.uuidString,
+      label: label ?? contact.organisation,
+      recipient: contact.channelPreference == .phoneScript ? contact.phone : contact.email
+    )
+    if let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) {
+      let beforeDetail = contactDirectoryEntries[index].auditDetail
+      contactDirectoryEntries[index].lastContactedDate = Self.auditTimestamp()
+      persistContactDirectoryEntries()
+      logAudit(
+        action: .created,
+        entityType: .contactDirectoryEntry,
+        entityID: contactDirectoryEntries[index].id.uuidString,
+        entityLabel: contactDirectoryEntries[index].name,
+        summary: "Draft message created from contact.",
+        beforeDetail: beforeDetail,
+        afterDetail: contactDirectoryEntries[index].auditDetail
+      )
+    }
+  }
+
+  func suggestedContacts(for order: TrackedOrder) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == order.id.uuidString
+          || contact.organisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(contact.organisation)
+          || contact.organisation.localizedCaseInsensitiveContains(order.carrier)
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
+  func suggestedContacts(for email: ForwardedEmailIntake) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == email.id.uuidString
+          || contact.email.localizedCaseInsensitiveContains(email.sender)
+          || email.sender.localizedCaseInsensitiveContains(contact.email)
+          || contact.organisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
+  func suggestedContacts(for event: CarrierTrackingEvent) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == event.id.uuidString
+          || contact.organisation.localizedCaseInsensitiveContains(event.carrier)
+          || contact.linkedEntityType == .carrier
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -1498,6 +1687,10 @@ final class ParcelOpsStore {
 
   private func persistDraftMessages() {
     communicationRepository.saveDraftMessages(draftMessages)
+  }
+
+  private func persistContactDirectoryEntries() {
+    contactDirectoryRepository.saveContactDirectoryEntries(contactDirectoryEntries)
   }
 
   private func addReviewTask(_ task: ReviewTask, summary: String) {
@@ -1676,5 +1869,11 @@ private extension CommunicationTemplate {
 private extension DraftMessage {
   var auditDetail: String {
     "Subject: \(subject); recipient: \(recipient); channel: \(channel.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); template: \(templateID?.uuidString ?? "none"); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate)."
+  }
+}
+
+private extension ContactDirectoryEntry {
+  var auditDetail: String {
+    "Name: \(name); organisation: \(organisation); role: \(role); email: \(email); phone: \(phone); channel: \(channelPreference.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last contacted: \(lastContactedDate); notes: \(notes)."
   }
 }

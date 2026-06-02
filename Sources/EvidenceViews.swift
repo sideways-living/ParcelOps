@@ -44,6 +44,8 @@ struct EvidenceView: View {
                 store.createReviewTask(from: attachment)
               } onCreateDraft: {
                 store.createDraftMessage(from: attachment)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
               }
             }
           }
@@ -88,6 +90,7 @@ struct EvidenceAttachmentRow: View {
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -134,6 +137,8 @@ struct EvidenceAttachmentRow: View {
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
       }
     }

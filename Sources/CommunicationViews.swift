@@ -94,6 +94,8 @@ struct CommunicationView: View {
                 store.markDraftMessageSentLocally(draft)
               } onReopen: {
                 store.reopenDraftMessage(draft)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
               } onRemove: {
                 store.removeDraftMessage(draft)
               }
@@ -219,6 +221,7 @@ struct DraftMessageRow: View {
   var onReady: () -> Void
   var onSent: () -> Void
   var onReopen: () -> Void
+  var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -269,6 +272,8 @@ struct DraftMessageRow: View {
         Button("Sent locally", systemImage: "paperplane.fill", action: onSent)
           .buttonStyle(.borderedProminent)
         Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill", action: onReopen)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
