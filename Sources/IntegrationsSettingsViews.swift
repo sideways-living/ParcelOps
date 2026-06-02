@@ -27,7 +27,13 @@ struct IntegrationsView: View {
         }
         SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
           ForEach(store.shopifyConnections) { connection in
-            ShopifyConnectionRow(connection: connection)
+            ShopifyConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection)) {
+              store.addAccountCredentialRecord(linkedEntityType: .shopifyStore, linkedEntityID: connection.id.uuidString, organisation: connection.storeName, label: connection.storeName)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
+            }
           }
         }
         SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
@@ -36,7 +42,13 @@ struct IntegrationsView: View {
           }
         }
         ForEach(store.connections) { connection in
-          SourceConnectionRow(connection: connection)
+          SourceConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection)) {
+            store.addAccountCredentialRecord(linkedEntityType: .sourceConnection, linkedEntityID: connection.id.uuidString, organisation: connection.name, label: connection.name)
+          } onTaskFromAccount: { account in
+            store.createReviewTask(from: account)
+          } onDraftFromAccount: { account in
+            store.createDraftMessage(from: account)
+          }
         }
       }
       .padding(isCompact ? 14 : 24)
@@ -79,29 +91,48 @@ struct MailboxConnectionRow: View {
 
 struct ShopifyConnectionRow: View {
   var connection: ShopifyConnection
+  var suggestedAccounts: [AccountCredentialRecord] = []
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      Image(systemName: "cart.fill")
-        .foregroundStyle(.green)
-        .frame(width: 28)
-      VStack(alignment: .leading, spacing: 4) {
-        Text(connection.storeName)
-          .font(.headline)
-        Text(connection.storeDomain)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Text("\(connection.mappedTeam) • \(connection.mappedMailbox)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "cart.fill")
+          .foregroundStyle(.green)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.storeName)
+            .font(.headline)
+          Text(connection.storeDomain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("\(connection.mappedTeam) • \(connection.mappedMailbox)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Text(connection.isEnabled ? connection.status : "Disabled")
+            .font(.callout.weight(.semibold))
+          Text(connection.lastSync)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
-      Spacer()
-      VStack(alignment: .trailing, spacing: 4) {
-        Text(connection.isEnabled ? connection.status : "Disabled")
-          .font(.callout.weight(.semibold))
-        Text(connection.lastSync)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+
+      HStack {
+        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+          .buttonStyle(.bordered)
+      }
+
+      ForEach(suggestedAccounts) { account in
+        AccountSuggestionRow(account: account) {
+          onTaskFromAccount(account)
+        } onCreateDraft: {
+          onDraftFromAccount(account)
+        }
       }
     }
     .padding(10)
@@ -145,25 +176,44 @@ struct WatchedFolderRow: View {
 
 struct SourceConnectionRow: View {
   var connection: SourceConnection
+  var suggestedAccounts: [AccountCredentialRecord] = []
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 14) {
-      Image(systemName: connection.kind.symbol)
-        .foregroundStyle(.teal)
-        .frame(width: 34)
-      VStack(alignment: .leading, spacing: 4) {
-        Text(connection.name)
-          .font(.headline)
-        Text("\(connection.kind.rawValue) • \(connection.account)")
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 14) {
+        Image(systemName: connection.kind.symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 34)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.name)
+            .font(.headline)
+          Text("\(connection.kind.rawValue) • \(connection.account)")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Text(connection.status)
+            .font(.callout.weight(.semibold))
+          Text(connection.lastSync)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
-      Spacer()
-      VStack(alignment: .trailing, spacing: 4) {
-        Text(connection.status)
-          .font(.callout.weight(.semibold))
-        Text(connection.lastSync)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+
+      HStack {
+        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+          .buttonStyle(.bordered)
+      }
+
+      ForEach(suggestedAccounts) { account in
+        AccountSuggestionRow(account: account) {
+          onTaskFromAccount(account)
+        } onCreateDraft: {
+          onDraftFromAccount(account)
+        }
       }
     }
     .padding(14)

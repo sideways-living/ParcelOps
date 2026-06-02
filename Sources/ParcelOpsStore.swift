@@ -29,6 +29,7 @@ final class ParcelOpsStore {
   var communicationTemplates: [CommunicationTemplate]
   var draftMessages: [DraftMessage]
   var contactDirectoryEntries: [ContactDirectoryEntry]
+  var accountCredentialRecords: [AccountCredentialRecord]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -45,6 +46,7 @@ final class ParcelOpsStore {
   private let slaPolicyRepository: SLAPolicyRepository
   private let communicationRepository: CommunicationRepository
   private let contactDirectoryRepository: ContactDirectoryRepository
+  private let accountCredentialRepository: AccountCredentialRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -52,7 +54,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -78,6 +80,7 @@ final class ParcelOpsStore {
     self.slaPolicyRepository = repository
     self.communicationRepository = repository
     self.contactDirectoryRepository = repository
+    self.accountCredentialRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -104,6 +107,7 @@ final class ParcelOpsStore {
     self.communicationTemplates = repository.loadCommunicationTemplates()
     self.draftMessages = repository.loadDraftMessages()
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
+    self.accountCredentialRecords = repository.loadAccountCredentialRecords()
   }
 
   var activeCount: Int {
@@ -131,7 +135,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -216,6 +220,24 @@ final class ParcelOpsStore {
 
   var contactsNeedingReview: [ContactDirectoryEntry] {
     contactDirectoryEntries.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledAccountRecordCount: Int {
+    accountCredentialRecords.filter(\.isEnabled).count
+  }
+
+  var disabledAccountRecordCount: Int {
+    accountCredentialRecords.filter { !$0.isEnabled }.count
+  }
+
+  var accountRecordsNeedingReview: [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.reviewState != .accepted
+        || account.credentialStorageStatus == .needsSetup
+        || account.credentialStorageStatus == .accessPending
+        || account.mfaStatus == .needsReview
+        || account.mfaStatus == .notConfigured
+    }
   }
 
   var recentAuditEvents: [AuditEvent] {
@@ -1528,6 +1550,217 @@ final class ParcelOpsStore {
     }
   }
 
+  func addAccountCredentialRecordPlaceholder() {
+    let account = AccountCredentialRecord(
+      accountName: "New account \(accountCredentialRecords.count + 1)",
+      organisation: "Unassigned organisation",
+      linkedContactID: nil,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Unlinked",
+      loginURL: "https://example.com/login",
+      usernameLabel: "Username held outside ParcelOps",
+      credentialStorageStatus: .needsSetup,
+      mfaStatus: .unknown,
+      renewalReviewDate: "Next month",
+      isEnabled: false,
+      notes: "Local placeholder only. Do not store passwords, tokens, or API keys here.",
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: "Never",
+      reviewState: .needsReview
+    )
+    accountCredentialRecords.insert(account, at: 0)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder added.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func addAccountCredentialRecord(linkedEntityType: AccountLinkedEntityType, linkedEntityID: String, organisation: String, label: String, linkedContactID: UUID? = nil) {
+    let account = AccountCredentialRecord(
+      accountName: "\(label) account",
+      organisation: organisation,
+      linkedContactID: linkedContactID,
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      loginURL: "https://example.com/login",
+      usernameLabel: "External vault username reference",
+      credentialStorageStatus: .needsSetup,
+      mfaStatus: .unknown,
+      renewalReviewDate: "Next month",
+      isEnabled: false,
+      notes: "Local account record created from workflow. No secrets are stored in ParcelOps.",
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: "Never",
+      reviewState: .needsReview
+    )
+    accountCredentialRecords.insert(account, at: 0)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder created from workflow.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func updateAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index] = account
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .edited,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func toggleAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].isEnabled.toggle()
+    persistAccountCredentialRecords()
+    logAudit(
+      action: accountCredentialRecords[index].isEnabled ? .enabled : .disabled,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: accountCredentialRecords[index].isEnabled ? "Account placeholder enabled." : "Account placeholder disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func markAccountCredentialRecordReviewed(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].reviewState = .accepted
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .reviewed,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: "Account placeholder marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func markAccountCredentialRecordChecked(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].lastCheckedDate = Self.auditTimestamp()
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .evaluated,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: "Account placeholder checked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func removeAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let removed = accountCredentialRecords.remove(at: index)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .removed,
+      entityType: .accountCredentialRecord,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.accountName,
+      summary: "Account credential placeholder removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from account: AccountCredentialRecord) {
+    createReviewTask(
+      linkedEntityType: .account,
+      linkedEntityID: account.id.uuidString,
+      label: account.accountName,
+      summary: "Review local account placeholder for \(account.organisation). Credential status: \(account.credentialStorageStatus.rawValue). MFA: \(account.mfaStatus.rawValue).",
+      priority: account.reviewState == .needsReview || account.mfaStatus == .needsReview ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from account: AccountCredentialRecord) {
+    let recipient = account.linkedContactID.flatMap { contactID in
+      contactDirectoryEntries.first { $0.id == contactID }?.email
+    } ?? "operations@parcelops.example"
+    createDraftMessage(
+      linkedEntityType: .account,
+      linkedEntityID: account.id.uuidString,
+      label: account.accountName,
+      recipient: recipient
+    )
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Draft message created from account placeholder.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func suggestedAccounts(for order: TrackedOrder) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.isEnabled
+        && (account.linkedEntityID == order.id.uuidString
+          || account.organisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(account.organisation))
+    }
+  }
+
+  func suggestedAccounts(for email: ForwardedEmailIntake) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.isEnabled
+        && (account.linkedEntityID == email.id.uuidString
+          || account.organisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || email.detectedMerchant.localizedCaseInsensitiveContains(account.organisation))
+    }
+  }
+
+  func suggestedAccounts(for contact: ContactDirectoryEntry) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedContactID == contact.id
+        || account.linkedEntityID == contact.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(contact.organisation)
+        || contact.organisation.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
+  func suggestedAccounts(for connection: ShopifyConnection) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedEntityID == connection.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(connection.storeName)
+        || connection.storeName.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
+  func suggestedAccounts(for connection: SourceConnection) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedEntityID == connection.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(connection.name)
+        || connection.name.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -1691,6 +1924,10 @@ final class ParcelOpsStore {
 
   private func persistContactDirectoryEntries() {
     contactDirectoryRepository.saveContactDirectoryEntries(contactDirectoryEntries)
+  }
+
+  private func persistAccountCredentialRecords() {
+    accountCredentialRepository.saveAccountCredentialRecords(accountCredentialRecords)
   }
 
   private func addReviewTask(_ task: ReviewTask, summary: String) {
@@ -1875,5 +2112,11 @@ private extension DraftMessage {
 private extension ContactDirectoryEntry {
   var auditDetail: String {
     "Name: \(name); organisation: \(organisation); role: \(role); email: \(email); phone: \(phone); channel: \(channelPreference.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last contacted: \(lastContactedDate); notes: \(notes)."
+  }
+}
+
+private extension AccountCredentialRecord {
+  var auditDetail: String {
+    "Account: \(accountName); organisation: \(organisation); contact: \(linkedContactID?.uuidString ?? "none"); linked: \(linkedEntityType.rawValue) \(linkedEntityID); login URL: \(loginURL); username label: \(usernameLabel); credential status: \(credentialStorageStatus.rawValue); MFA: \(mfaStatus.rawValue); renewal review: \(renewalReviewDate); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last checked: \(lastCheckedDate); notes: \(notes)."
   }
 }

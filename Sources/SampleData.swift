@@ -532,6 +532,60 @@ enum SampleData {
     )
   ]
 
+  static var accountCredentialRecords: [AccountCredentialRecord] = [
+    AccountCredentialRecord(
+      accountName: "Office Kit supplier portal",
+      organisation: "Office Kit Store",
+      linkedContactID: contactDirectoryEntries[1].id,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Office Kit Store",
+      loginURL: "https://supplier.example.com/login",
+      usernameLabel: "External vault: Office Kit shared ordering username",
+      credentialStorageStatus: .externalVaultReference,
+      mfaStatus: .enabled,
+      renewalReviewDate: "Next month",
+      isEnabled: true,
+      notes: "Local placeholder points to an external vault reference only. No secret is stored in ParcelOps.",
+      createdDate: "Today 9:05 AM",
+      lastCheckedDate: "Today 9:10 AM",
+      reviewState: .accepted
+    ),
+    AccountCredentialRecord(
+      accountName: "Shopify demo admin",
+      organisation: "Shopify demo store",
+      linkedContactID: contactDirectoryEntries[3].id,
+      linkedEntityType: .shopifyStore,
+      linkedEntityID: shopifyConnections[0].id.uuidString,
+      loginURL: "https://admin.shopify.example",
+      usernameLabel: "Admin user label only",
+      credentialStorageStatus: .accessPending,
+      mfaStatus: .needsReview,
+      renewalReviewDate: "This week",
+      isEnabled: false,
+      notes: "Placeholder for future OAuth/account review. Do not store Shopify tokens here.",
+      createdDate: "Today 9:35 AM",
+      lastCheckedDate: "Never",
+      reviewState: .needsReview
+    ),
+    AccountCredentialRecord(
+      accountName: "Jade Delivery carrier portal",
+      organisation: "Jade Delivery",
+      linkedContactID: contactDirectoryEntries[0].id,
+      linkedEntityType: .carrier,
+      linkedEntityID: "Jade Delivery",
+      loginURL: "https://carrier.example.com/login",
+      usernameLabel: "External vault carrier support login",
+      credentialStorageStatus: .rotatedExternally,
+      mfaStatus: .enabled,
+      renewalReviewDate: "Quarterly",
+      isEnabled: true,
+      notes: "Use for manual carrier portal checks only; carrier API integration is not enabled.",
+      createdDate: "Yesterday 3:40 PM",
+      lastCheckedDate: "Today 8:25 AM",
+      reviewState: .monitor
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

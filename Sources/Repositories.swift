@@ -85,7 +85,12 @@ protocol ContactDirectoryRepository {
   func saveContactDirectoryEntries(_ contacts: [ContactDirectoryEntry])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository {
+protocol AccountCredentialRepository {
+  func loadAccountCredentialRecords() -> [AccountCredentialRecord]
+  func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -263,6 +268,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(contacts, to: .contactDirectoryEntries)
   }
 
+  func loadAccountCredentialRecords() -> [AccountCredentialRecord] {
+    load([AccountCredentialRecord].self, from: .accountCredentialRecords, defaultValue: SampleData.accountCredentialRecords)
+  }
+
+  func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) {
+    save(accounts, to: .accountCredentialRecords)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -339,10 +352,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case communicationTemplates = "communication-templates.json"
     case draftMessages = "draft-messages.json"
     case contactDirectoryEntries = "contact-directory.json"
+    case accountCredentialRecords = "account-credential-records.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -363,6 +377,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var communicationTemplates = SampleData.communicationTemplates
   private var draftMessages = SampleData.draftMessages
   private var contactDirectoryEntries = SampleData.contactDirectoryEntries
+  private var accountCredentialRecords = SampleData.accountCredentialRecords
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -423,4 +438,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadContactDirectoryEntries() -> [ContactDirectoryEntry] { contactDirectoryEntries }
   func saveContactDirectoryEntries(_ contacts: [ContactDirectoryEntry]) { contactDirectoryEntries = contacts }
+
+  func loadAccountCredentialRecords() -> [AccountCredentialRecord] { accountCredentialRecords }
+  func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) { accountCredentialRecords = accounts }
 }

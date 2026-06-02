@@ -101,6 +101,16 @@ struct DashboardView: View {
             ])
             CompactContactList(contacts: Array(store.contactsNeedingReview.prefix(4)))
           }
+
+          AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledAccountRecordCount)", .green),
+              ("Disabled", "\(store.disabledAccountRecordCount)", .gray),
+              ("Review", "\(store.accountRecordsNeedingReview.count)", .orange),
+              ("Total", "\(store.accountCredentialRecords.count)", .blue)
+            ])
+            CompactAccountList(accounts: Array(store.accountRecordsNeedingReview.prefix(4)))
+          }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
@@ -327,6 +337,23 @@ struct CompactContactList: View {
           detail: "\(contact.organisation) • \(contact.channelPreference.rawValue)",
           badge: contact.reviewState.rawValue,
           color: contact.reviewState.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactAccountList: View {
+  var accounts: [AccountCredentialRecord]
+
+  var body: some View {
+    CompactList(title: "Accounts needing review", symbol: "key.horizontal.fill") {
+      ForEach(accounts) { account in
+        CompactRow(
+          title: account.accountName,
+          detail: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+          badge: account.mfaStatus.rawValue,
+          color: account.mfaStatus.color
         )
       }
     }

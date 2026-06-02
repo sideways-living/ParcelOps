@@ -14,6 +14,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case slaPolicies
   case communication
   case contacts
+  case accounts
   case search
   case audit
   case settings
@@ -35,6 +36,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .slaPolicies: "SLA Policies"
     case .communication: "Communication"
     case .contacts: "Contacts"
+    case .accounts: "Accounts"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -56,6 +58,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .slaPolicies: "SLA"
     case .communication: "Comms"
     case .contacts: "Contacts"
+    case .accounts: "Accounts"
     case .search: "Search"
     case .audit: "Audit"
     case .settings: "Settings"
@@ -77,6 +80,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .slaPolicies: "timer"
     case .communication: "bubble.left.and.text.bubble.right.fill"
     case .contacts: "person.crop.circle.badge.checkmark"
+    case .accounts: "key.horizontal.fill"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
@@ -301,6 +305,25 @@ struct ContactDirectoryEntry: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct AccountCredentialRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var accountName: String
+  var organisation: String
+  var linkedContactID: UUID?
+  var linkedEntityType: AccountLinkedEntityType
+  var linkedEntityID: String
+  var loginURL: String
+  var usernameLabel: String
+  var credentialStorageStatus: CredentialStorageStatus
+  var mfaStatus: MFAStatus
+  var renewalReviewDate: String
+  var isEnabled: Bool
+  var notes: String
+  var createdDate: String
+  var lastCheckedDate: String
+  var reviewState: ReviewState
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -440,6 +463,22 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
   case contactDirectoryEntry = "Contact"
+  case accountCredentialRecord = "Account"
+
+  var id: String { rawValue }
+}
+
+enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case store = "Store"
+  case supplier = "Supplier"
+  case carrier = "Carrier"
+  case shopifyStore = "Shopify store"
+  case internalTeam = "Internal team"
+  case contact = "Contact"
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case integration = "Integration"
+  case sourceConnection = "Source connection"
 
   var id: String { rawValue }
 }
@@ -473,6 +512,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case slaPolicy = "SLA policy"
   case draftMessage = "Draft message"
   case contact = "Contact"
+  case account = "Account"
 
   var id: String { rawValue }
 }
@@ -509,6 +549,26 @@ enum DraftMessageStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case ready = "Ready"
   case sentLocally = "Sent locally"
   case reopened = "Reopened"
+
+  var id: String { rawValue }
+}
+
+enum CredentialStorageStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case notStored = "Not stored"
+  case externalVaultReference = "External vault reference"
+  case needsSetup = "Needs setup"
+  case accessPending = "Access pending"
+  case rotatedExternally = "Rotated externally"
+
+  var id: String { rawValue }
+}
+
+enum MFAStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case notConfigured = "Not configured"
+  case enabled = "Enabled"
+  case needsReview = "Needs review"
+  case sharedDevice = "Shared device"
+  case unknown = "Unknown"
 
   var id: String { rawValue }
 }

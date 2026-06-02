@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -38,6 +38,12 @@ struct MailboxView: View {
               store.createDraftMessage(from: email)
             } onDraftFromContact: { contact in
               store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
+            } onCreateAccount: {
+              store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
             }
           }
         }
@@ -58,6 +64,7 @@ struct IntakeEmailRow: View {
   var orders: [TrackedOrder]
   var evidenceAttachments: [EvidenceAttachment]
   var suggestedContacts: [ContactDirectoryEntry] = []
+  var suggestedAccounts: [AccountCredentialRecord] = []
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
@@ -69,6 +76,9 @@ struct IntakeEmailRow: View {
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
   var onDraftFromContact: (ContactDirectoryEntry) -> Void = { _ in }
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -173,6 +183,32 @@ struct IntakeEmailRow: View {
           ForEach(suggestedContacts) { contact in
             ContactSuggestionRow(contact: contact) {
               onDraftFromContact(contact)
+            }
+          }
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Label("Suggested accounts", systemImage: "key.horizontal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Add", systemImage: "key.badge.plus", action: onCreateAccount)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+
+        if suggestedAccounts.isEmpty {
+          Text("No local account placeholders matched.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(suggestedAccounts) { account in
+            AccountSuggestionRow(account: account) {
+              onTaskFromAccount(account)
+            } onCreateDraft: {
+              onDraftFromAccount(account)
             }
           }
         }
@@ -351,7 +387,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -373,6 +409,12 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: email)
             } onDraftFromContact: { contact in
               store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
+            } onCreateAccount: {
+              store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
             }
           }
         }
@@ -481,6 +523,26 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: contact)
             } onRemove: {
               store.removeContactDirectoryEntry(contact)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Accounts", symbol: "key.horizontal.fill") {
+          ForEach(store.accountRecordsNeedingReview) { account in
+            AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries) { updatedAccount in
+              store.updateAccountCredentialRecord(updatedAccount)
+            } onToggle: {
+              store.toggleAccountCredentialRecord(account)
+            } onReviewed: {
+              store.markAccountCredentialRecordReviewed(account)
+            } onChecked: {
+              store.markAccountCredentialRecordChecked(account)
+            } onCreateTask: {
+              store.createReviewTask(from: account)
+            } onCreateDraft: {
+              store.createDraftMessage(from: account)
+            } onRemove: {
+              store.removeAccountCredentialRecord(account)
             }
           }
         }

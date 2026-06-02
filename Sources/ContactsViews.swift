@@ -56,7 +56,7 @@ struct ContactsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact) { updatedContact in
+              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -64,6 +64,12 @@ struct ContactsView: View {
                 store.markContactDirectoryEntryReviewed(contact)
               } onCreateDraft: {
                 store.createDraftMessage(from: contact)
+              } onCreateAccount: {
+                store.addAccountCredentialRecord(linkedEntityType: .contact, linkedEntityID: contact.id.uuidString, organisation: contact.organisation, label: contact.name, linkedContactID: contact.id)
+              } onTaskFromAccount: { account in
+                store.createReviewTask(from: account)
+              } onDraftFromAccount: { account in
+                store.createDraftMessage(from: account)
               } onRemove: {
                 store.removeContactDirectoryEntry(contact)
               }
@@ -132,10 +138,14 @@ struct ContactsView: View {
 
 struct ContactDirectoryRow: View {
   var contact: ContactDirectoryEntry
+  var suggestedAccounts: [AccountCredentialRecord] = []
   var onSave: (ContactDirectoryEntry) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
   var onCreateDraft: () -> Void
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -187,8 +197,25 @@ struct ContactDirectoryRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if !suggestedAccounts.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Linked accounts", systemImage: "key.horizontal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(suggestedAccounts) { account in
+            AccountSuggestionRow(account: account) {
+              onTaskFromAccount(account)
+            } onCreateDraft: {
+              onDraftFromAccount(account)
+            }
+          }
+        }
       }
     }
     .padding(12)

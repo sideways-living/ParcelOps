@@ -154,6 +154,31 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
+          let accounts = store.suggestedAccounts(for: order)
+
+          if accounts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local account placeholders matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create account", systemImage: "key.badge.plus") {
+                store.addAccountCredentialRecord(linkedEntityType: .order, linkedEntityID: order.id.uuidString, organisation: order.store, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            VStack(spacing: 10) {
+              ForEach(accounts) { account in
+                AccountSuggestionRow(account: account) {
+                  store.createReviewTask(from: account)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: account)
+                }
+              }
+            }
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)

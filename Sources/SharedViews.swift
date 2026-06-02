@@ -87,6 +87,7 @@ extension AuditEntityType {
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
+    case .accountCredentialRecord: "key.horizontal.fill"
     }
   }
 }
@@ -110,6 +111,23 @@ extension ContactLinkedEntityType {
   }
 }
 
+extension AccountLinkedEntityType {
+  var symbol: String {
+    switch self {
+    case .store: "storefront.fill"
+    case .supplier: "building.2.fill"
+    case .carrier: "truck.box.fill"
+    case .shopifyStore: "cart.fill"
+    case .internalTeam: "person.2.fill"
+    case .contact: "person.crop.circle.badge.checkmark"
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .integration: "point.3.connected.trianglepath.dotted"
+    case .sourceConnection: "link.badge.plus"
+    }
+  }
+}
+
 extension ReviewTaskLinkedEntityType {
   var symbol: String {
     switch self {
@@ -124,6 +142,7 @@ extension ReviewTaskLinkedEntityType {
     case .slaPolicy: "timer"
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
+    case .account: "key.horizontal.fill"
     }
   }
 }
@@ -168,6 +187,30 @@ extension DraftMessageStatus {
     case .ready: .blue
     case .sentLocally: .green
     case .reopened: .purple
+    }
+  }
+}
+
+extension CredentialStorageStatus {
+  var color: Color {
+    switch self {
+    case .notStored: .gray
+    case .externalVaultReference: .green
+    case .needsSetup: .orange
+    case .accessPending: .blue
+    case .rotatedExternally: .purple
+    }
+  }
+}
+
+extension MFAStatus {
+  var color: Color {
+    switch self {
+    case .notConfigured: .orange
+    case .enabled: .green
+    case .needsReview: .red
+    case .sharedDevice: .blue
+    case .unknown: .gray
     }
   }
 }
