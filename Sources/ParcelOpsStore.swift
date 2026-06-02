@@ -229,6 +229,31 @@ final class ParcelOpsStore {
     persistIntakeEmails()
   }
 
+  func updateIntakeEmail(_ email: ForwardedEmailIntake) {
+    guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    intakeEmails[index] = email
+    persistIntakeEmails()
+  }
+
+  func updateOrder(_ order: TrackedOrder) {
+    guard let index = orders.firstIndex(where: { $0.id == order.id }) else { return }
+    var updatedOrder = order
+    updatedOrder.latestStatus = "Order details updated by user review"
+    updatedOrder.contactHistory.insert(
+      ContactHistoryEvent(
+        time: "Now",
+        source: .manual,
+        contactPoint: "Order editor",
+        summary: "User corrected order details.",
+        evidence: "Merchant, recipient, fulfillment, carrier, tracking, destination, status, or review state may have changed.",
+        reviewState: updatedOrder.reviewState
+      ),
+      at: 0
+    )
+    orders[index] = updatedOrder
+    persistOrders()
+  }
+
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
     updateIntakeEmail(email, reviewState: .reviewed)
   }

@@ -16,7 +16,9 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders) { order in
+            IntakeEmailRow(email: email, orders: store.orders) { updatedEmail in
+              store.updateIntakeEmail(updatedEmail)
+            } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
             } onCreateOrder: {
               store.createOrder(from: email)
@@ -42,10 +44,12 @@ struct MailboxView: View {
 struct IntakeEmailRow: View {
   var email: ForwardedEmailIntake
   var orders: [TrackedOrder]
+  var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
   var onReviewed: () -> Void
   var onIgnore: () -> Void
+  @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
     orders.first { $0.id == email.linkedOrderID }
@@ -87,6 +91,9 @@ struct IntakeEmailRow: View {
       }
 
       HStack {
+        Button("Edit", systemImage: "pencil", action: { isEditing = true })
+          .buttonStyle(.bordered)
+
         Menu {
           ForEach(orders) { order in
             Button("\(order.orderNumber) • \(order.store)") {
@@ -109,6 +116,66 @@ struct IntakeEmailRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      IntakeEmailEditView(email: email) { updatedEmail in
+        onSave(updatedEmail)
+      }
+    }
+  }
+}
+
+struct IntakeEmailEditView: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: ForwardedEmailIntake
+  var onSave: (ForwardedEmailIntake) -> Void
+
+  init(email: ForwardedEmailIntake, onSave: @escaping (ForwardedEmailIntake) -> Void) {
+    self._draft = State(initialValue: email)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Email") {
+          TextField("Sender", text: $draft.sender)
+          TextField("Subject", text: $draft.subject)
+          TextField("Received", text: $draft.receivedDate)
+          TextField("Body preview", text: $draft.rawBodyPreview, axis: .vertical)
+            .lineLimit(3...6)
+        }
+
+        Section("Detected order details") {
+          TextField("Merchant", text: $draft.detectedMerchant)
+          TextField("Order number", text: $draft.detectedOrderNumber)
+          TextField("Tracking number", text: $draft.detectedTrackingNumber)
+          TextField("Destination address", text: $draft.detectedDestinationAddress, axis: .vertical)
+            .lineLimit(2...4)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text(IntakeEmailReviewState.needsReview.rawValue).tag(IntakeEmailReviewState.needsReview)
+            Text(IntakeEmailReviewState.reviewed.rawValue).tag(IntakeEmailReviewState.reviewed)
+            Text(IntakeEmailReviewState.ignored.rawValue).tag(IntakeEmailReviewState.ignored)
+          }
+        }
+      }
+      .navigationTitle("Edit intake email")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+        }
+      }
+      #if os(macOS)
+      .frame(minWidth: 520, minHeight: 520)
+      #endif
+    }
   }
 }
 
@@ -185,7 +252,9 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
-            ReviewOrderRow(order: order) {
+            ReviewOrderRow(order: order) { updatedOrder in
+              store.updateOrder(updatedOrder)
+            } onClear: {
               store.clearIssue(for: order.orderNumber)
             } onDiscard: {
               store.discardSpam(for: order.orderNumber)
@@ -205,7 +274,9 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders) { order in
+            IntakeEmailRow(email: email, orders: store.orders) { updatedEmail in
+              store.updateIntakeEmail(updatedEmail)
+            } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
             } onCreateOrder: {
               store.createOrder(from: email)
@@ -224,8 +295,10 @@ struct NeedsReviewView: View {
 
 struct ReviewOrderRow: View {
   var order: TrackedOrder
+  var onSave: (TrackedOrder) -> Void
   var onClear: () -> Void
   var onDiscard: () -> Void
+  @State private var isEditing = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -243,6 +316,8 @@ struct ReviewOrderRow: View {
         Badge(order.reviewState.rawValue, color: order.reviewState.color)
       }
       HStack {
+        Button("Edit", systemImage: "pencil", action: { isEditing = true })
+          .buttonStyle(.bordered)
         Button("Add to orders", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
@@ -252,6 +327,11 @@ struct ReviewOrderRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      OrderEditView(order: order) { updatedOrder in
+        onSave(updatedOrder)
+      }
+    }
   }
 }
 
