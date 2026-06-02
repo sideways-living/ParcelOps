@@ -8,6 +8,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case wishlist
   case integrations
   case automation
+  case evidence
   case audit
   case settings
 
@@ -22,6 +23,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .evidence: "Evidence"
     case .audit: "Audit"
     case .settings: "Settings"
     }
@@ -36,6 +38,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Sources"
     case .automation: "Flow"
+    case .evidence: "Evidence"
     case .audit: "Audit"
     case .settings: "Settings"
     }
@@ -50,6 +53,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "star.square.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
+    case .evidence: "paperclip"
     case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
     }
@@ -129,6 +133,19 @@ struct AuditEvent: Identifiable, Hashable, Codable {
   var summary: String
   var beforeDetail: String?
   var afterDetail: String?
+}
+
+struct EvidenceAttachment: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var linkedEntityType: EvidenceLinkedEntityType
+  var linkedEntityID: UUID
+  var fileName: String
+  var fileType: String
+  var source: EvidenceSource
+  var addedDate: String
+  var summary: String
+  var reviewState: ReviewState
+  var localFilePath: String
 }
 
 struct SourceConnection: Identifiable, Hashable, Codable {
@@ -245,6 +262,7 @@ enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case reviewed = "Reviewed"
   case ignored = "Ignored"
   case cleared = "Cleared"
+  case removed = "Removed"
 
   var id: String { rawValue }
 }
@@ -253,6 +271,24 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case order = "Order"
   case intakeEmail = "Intake email"
   case mailEvent = "Mailbox event"
+  case evidence = "Evidence"
+
+  var id: String { rawValue }
+}
+
+enum EvidenceLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+
+  var id: String { rawValue }
+}
+
+enum EvidenceSource: String, CaseIterable, Identifiable, Hashable, Codable {
+  case forwardedEmail = "Forwarded email"
+  case manualUpload = "Manual upload"
+  case watchedFolder = "Watched folder"
+  case screenshot = "Screenshot"
+  case supplierPortal = "Supplier portal"
 
   var id: String { rawValue }
 }

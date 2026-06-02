@@ -95,6 +95,8 @@ struct ParcelOpsRootView: View {
       IntegrationsView(store: store)
     case .automation:
       AutomationView()
+    case .evidence:
+      EvidenceView(store: store)
     case .audit:
       AuditView(store: store)
     case .settings:
@@ -113,7 +115,7 @@ struct ExpandableBottomMenu: View {
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .integrations, .audit, .automation]
+    [.wishlist, .mailbox, .integrations, .evidence, .audit, .automation]
   }
 
   var body: some View {

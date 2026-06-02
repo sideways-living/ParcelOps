@@ -52,6 +52,7 @@ extension AuditAction {
     case .reviewed: .indigo
     case .ignored: .gray
     case .cleared: .orange
+    case .removed: .red
     }
   }
 }
@@ -62,6 +63,28 @@ extension AuditEntityType {
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .mailEvent: "envelope.badge.fill"
+    case .evidence: "paperclip"
+    }
+  }
+}
+
+extension EvidenceLinkedEntityType {
+  var symbol: String {
+    switch self {
+    case .order: "shippingbox.fill"
+    case .intakeEmail: "envelope.open.fill"
+    }
+  }
+}
+
+extension EvidenceSource {
+  var symbol: String {
+    switch self {
+    case .forwardedEmail: "envelope.open.fill"
+    case .manualUpload: "paperclip"
+    case .watchedFolder: "folder.fill"
+    case .screenshot: "photo.fill"
+    case .supplierPortal: "person.crop.circle.badge.checkmark"
     }
   }
 }

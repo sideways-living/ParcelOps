@@ -136,6 +136,40 @@ struct OrderDetailView: View {
           .buttonStyle(.borderedProminent)
         }
 
+        Panel(title: "Evidence", symbol: "paperclip") {
+          let attachments = store.evidence(for: .order, linkedEntityID: order.id)
+
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("\(attachments.count) linked attachments")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Add evidence", systemImage: "plus") {
+                store.addPlaceholderEvidence(to: .order, linkedEntityID: order.id, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+
+            if attachments.isEmpty {
+              Text("No evidence linked.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+              ForEach(attachments) { attachment in
+                EvidenceAttachmentRow(attachment: attachment) {
+                  store.markEvidenceReviewed(attachment)
+                } onRemove: {
+                  store.removeEvidence(attachment)
+                }
+              }
+            }
+          }
+        }
+
         Panel(title: "Timeline", symbol: "clock.fill") {
           VStack(spacing: 0) {
             ForEach(order.timeline) { event in

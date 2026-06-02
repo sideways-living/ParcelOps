@@ -184,6 +184,42 @@ enum SampleData {
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
   ]
 
+  static var evidenceAttachments: [EvidenceAttachment] = [
+    EvidenceAttachment(
+      linkedEntityType: .order,
+      linkedEntityID: orders[0].id,
+      fileName: "SafetyPro-SP-10492-shipping-confirmation.eml",
+      fileType: "Email export",
+      source: .forwardedEmail,
+      addedDate: "Yesterday 6:12 PM",
+      summary: "Shipping confirmation with Australia Post tracking number 33AUL8841295.",
+      reviewState: .accepted,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/SafetyPro-SP-10492-shipping-confirmation.eml"
+    ),
+    EvidenceAttachment(
+      linkedEntityType: .intakeEmail,
+      linkedEntityID: intakeEmails[1].id,
+      fileName: "OfficeKit-OK-58214-order-confirmation.pdf",
+      fileType: "PDF",
+      source: .manualUpload,
+      addedDate: "Today 11:44 AM",
+      summary: "Forwarded confirmation rendered to PDF for review before order creation.",
+      reviewState: .needsReview,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/OfficeKit-OK-58214-order-confirmation.pdf"
+    ),
+    EvidenceAttachment(
+      linkedEntityType: .order,
+      linkedEntityID: orders[3].id,
+      fileName: "Regional-Courier-MAN-2194-dock-details.png",
+      fileType: "Screenshot",
+      source: .screenshot,
+      addedDate: "Today 10:22 AM",
+      summary: "Screenshot of dock delivery details supplied by Facilities.",
+      reviewState: .monitor,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/Regional-Courier-MAN-2194-dock-details.png"
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

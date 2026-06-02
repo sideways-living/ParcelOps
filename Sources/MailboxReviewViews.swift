@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -26,6 +26,12 @@ struct MailboxView: View {
               store.markIntakeEmailReviewed(email)
             } onIgnore: {
               store.ignoreIntakeEmail(email)
+            } onAddEvidence: {
+              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+            } onReviewEvidence: { attachment in
+              store.markEvidenceReviewed(attachment)
+            } onRemoveEvidence: { attachment in
+              store.removeEvidence(attachment)
             }
           }
         }
@@ -44,11 +50,15 @@ struct MailboxView: View {
 struct IntakeEmailRow: View {
   var email: ForwardedEmailIntake
   var orders: [TrackedOrder]
+  var evidenceAttachments: [EvidenceAttachment]
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
   var onCreateOrder: () -> Void
   var onReviewed: () -> Void
   var onIgnore: () -> Void
+  var onAddEvidence: () -> Void
+  var onReviewEvidence: (EvidenceAttachment) -> Void
+  var onRemoveEvidence: (EvidenceAttachment) -> Void
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
@@ -111,6 +121,32 @@ struct IntakeEmailRow: View {
           .buttonStyle(.bordered)
         Button("Ignore", systemImage: "trash", action: onIgnore)
           .buttonStyle(.bordered)
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Label("Evidence", systemImage: "paperclip")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Add", systemImage: "plus", action: onAddEvidence)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+
+        if evidenceAttachments.isEmpty {
+          Text("No evidence linked.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(evidenceAttachments) { attachment in
+            EvidenceAttachmentRow(attachment: attachment) {
+              onReviewEvidence(attachment)
+            } onRemove: {
+              onRemoveEvidence(attachment)
+            }
+          }
+        }
       }
     }
     .padding(12)
@@ -274,7 +310,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -284,6 +320,22 @@ struct NeedsReviewView: View {
               store.markIntakeEmailReviewed(email)
             } onIgnore: {
               store.ignoreIntakeEmail(email)
+            } onAddEvidence: {
+              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+            } onReviewEvidence: { attachment in
+              store.markEvidenceReviewed(attachment)
+            } onRemoveEvidence: { attachment in
+              store.removeEvidence(attachment)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Evidence", symbol: "paperclip") {
+          ForEach(store.reviewEvidenceAttachments) { attachment in
+            EvidenceAttachmentRow(attachment: attachment) {
+              store.markEvidenceReviewed(attachment)
+            } onRemove: {
+              store.removeEvidence(attachment)
             }
           }
         }

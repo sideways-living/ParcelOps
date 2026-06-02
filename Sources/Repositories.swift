@@ -43,7 +43,12 @@ protocol AuditRepository {
   func saveAuditEvents(_ events: [AuditEvent])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository {
+protocol EvidenceRepository {
+  func loadEvidenceAttachments() -> [EvidenceAttachment]
+  func saveEvidenceAttachments(_ attachments: [EvidenceAttachment])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -149,6 +154,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(events, to: .auditEvents)
   }
 
+  func loadEvidenceAttachments() -> [EvidenceAttachment] {
+    load([EvidenceAttachment].self, from: .evidenceAttachments, defaultValue: SampleData.evidenceAttachments)
+  }
+
+  func saveEvidenceAttachments(_ attachments: [EvidenceAttachment]) {
+    save(attachments, to: .evidenceAttachments)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -216,10 +229,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case deletedWishlistItems = "deleted-wishlist-items.json"
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
+    case evidenceAttachments = "evidence-attachments.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -231,6 +245,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var deletedWishlistItems = SampleData.deletedWishlistItems
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
+  private var evidenceAttachments = SampleData.evidenceAttachments
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -264,4 +279,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadAuditEvents() -> [AuditEvent] { auditEvents }
   func saveAuditEvents(_ events: [AuditEvent]) { auditEvents = events }
+
+  func loadEvidenceAttachments() -> [EvidenceAttachment] { evidenceAttachments }
+  func saveEvidenceAttachments(_ attachments: [EvidenceAttachment]) { evidenceAttachments = attachments }
 }

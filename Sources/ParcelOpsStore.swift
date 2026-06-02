@@ -20,6 +20,7 @@ final class ParcelOpsStore {
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
+  var evidenceAttachments: [EvidenceAttachment]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -28,6 +29,7 @@ final class ParcelOpsStore {
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
+  private let evidenceRepository: EvidenceRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -35,7 +37,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -53,6 +55,7 @@ final class ParcelOpsStore {
     self.wishlistRepository = repository
     self.settingsRepository = repository
     self.auditRepository = repository
+    self.evidenceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -70,6 +73,7 @@ final class ParcelOpsStore {
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
+    self.evidenceAttachments = repository.loadEvidenceAttachments()
   }
 
   var activeCount: Int {
@@ -93,7 +97,11 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count
+  }
+
+  var reviewEvidenceAttachments: [EvidenceAttachment] {
+    evidenceAttachments.filter { $0.reviewState != .accepted }
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -331,6 +339,66 @@ final class ParcelOpsStore {
     updateIntakeEmail(email, reviewState: .ignored)
   }
 
+  func evidence(for linkedEntityType: EvidenceLinkedEntityType, linkedEntityID: UUID) -> [EvidenceAttachment] {
+    evidenceAttachments.filter {
+      $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID
+    }
+  }
+
+  func addPlaceholderEvidence(to linkedEntityType: EvidenceLinkedEntityType, linkedEntityID: UUID, label: String) {
+    let attachment = EvidenceAttachment(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      fileName: "\(label.replacingOccurrences(of: " ", with: "-"))-evidence.pdf",
+      fileType: "PDF",
+      source: .manualUpload,
+      addedDate: Self.auditTimestamp(),
+      summary: "Placeholder evidence attachment added for local review.",
+      reviewState: .needsReview,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/\(label.replacingOccurrences(of: " ", with: "-"))-evidence.pdf"
+    )
+    evidenceAttachments.insert(attachment, at: 0)
+    persistEvidenceAttachments()
+    logAudit(
+      action: .created,
+      entityType: .evidence,
+      entityID: attachment.id.uuidString,
+      entityLabel: attachment.fileName,
+      summary: "Evidence attachment added.",
+      afterDetail: attachment.auditDetail
+    )
+  }
+
+  func markEvidenceReviewed(_ attachment: EvidenceAttachment) {
+    guard let index = evidenceAttachments.firstIndex(where: { $0.id == attachment.id }) else { return }
+    let beforeDetail = evidenceAttachments[index].auditDetail
+    evidenceAttachments[index].reviewState = .accepted
+    persistEvidenceAttachments()
+    logAudit(
+      action: .reviewed,
+      entityType: .evidence,
+      entityID: evidenceAttachments[index].id.uuidString,
+      entityLabel: evidenceAttachments[index].fileName,
+      summary: "Evidence attachment marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: evidenceAttachments[index].auditDetail
+    )
+  }
+
+  func removeEvidence(_ attachment: EvidenceAttachment) {
+    guard let index = evidenceAttachments.firstIndex(where: { $0.id == attachment.id }) else { return }
+    let removed = evidenceAttachments.remove(at: index)
+    persistEvidenceAttachments()
+    logAudit(
+      action: .removed,
+      entityType: .evidence,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.fileName,
+      summary: "Evidence attachment removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -460,6 +528,10 @@ final class ParcelOpsStore {
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
+  private func persistEvidenceAttachments() {
+    evidenceRepository.saveEvidenceAttachments(evidenceAttachments)
+  }
+
   private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
     guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
     let beforeDetail = intakeEmails[index].auditDetail
@@ -530,5 +602,11 @@ private extension ForwardedEmailIntake {
 
   var auditDetail: String {
     "Sender: \(sender); subject: \(subject); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension EvidenceAttachment {
+  var auditDetail: String {
+    "File: \(fileName); type: \(fileType); source: \(source.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID.uuidString); review: \(reviewState.rawValue); path: \(localFilePath)."
   }
 }
