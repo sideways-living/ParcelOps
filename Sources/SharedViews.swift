@@ -48,6 +48,8 @@ extension AuditAction {
     switch self {
     case .created: .green
     case .edited: .blue
+    case .enabled: .green
+    case .disabled: .gray
     case .linked: .teal
     case .reviewed: .indigo
     case .ignored: .gray
@@ -65,6 +67,7 @@ extension AuditEntityType {
     case .mailEvent: "envelope.badge.fill"
     case .evidence: "paperclip"
     case .trackingEvent: "location.fill.viewfinder"
+    case .automationRule: "arrow.triangle.branch"
     }
   }
 }
@@ -97,6 +100,18 @@ extension TrackingEventSource {
     case .forwardedEmail: "envelope.open.fill"
     case .carrierMock: "location.fill.viewfinder"
     case .shopifyMock: "cart.fill"
+    }
+  }
+}
+
+extension AutomationTriggerType {
+  var symbol: String {
+    switch self {
+    case .forwardedEmailCaptured: "envelope.open.fill"
+    case .orderNeedsReview: "checkmark.shield.fill"
+    case .trackingWarning: "location.fill.viewfinder"
+    case .evidenceAdded: "paperclip"
+    case .manualReview: "square.and.pencil"
     }
   }
 }

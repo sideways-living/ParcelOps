@@ -166,6 +166,18 @@ struct CarrierTrackingEvent: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct AutomationRule: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var triggerType: AutomationTriggerType
+  var conditionSummary: String
+  var actionSummary: String
+  var isEnabled: Bool
+  var lastRunDate: String
+  var reviewState: ReviewState
+  var runCount: Int
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -276,6 +288,8 @@ enum IntakeEmailReviewState: String, Hashable, Codable {
 enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case created = "Created"
   case edited = "Edited"
+  case enabled = "Enabled"
+  case disabled = "Disabled"
   case linked = "Linked"
   case reviewed = "Reviewed"
   case ignored = "Ignored"
@@ -291,6 +305,17 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case mailEvent = "Mailbox event"
   case evidence = "Evidence"
   case trackingEvent = "Tracking event"
+  case automationRule = "Automation rule"
+
+  var id: String { rawValue }
+}
+
+enum AutomationTriggerType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case forwardedEmailCaptured = "Forwarded email captured"
+  case orderNeedsReview = "Order needs review"
+  case trackingWarning = "Tracking warning"
+  case evidenceAdded = "Evidence added"
+  case manualReview = "Manual review"
 
   var id: String { rawValue }
 }

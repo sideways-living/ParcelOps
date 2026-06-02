@@ -94,7 +94,7 @@ struct ParcelOpsRootView: View {
     case .integrations:
       IntegrationsView(store: store)
     case .automation:
-      AutomationView()
+      AutomationView(store: store)
     case .tracking:
       TrackingView(store: store)
     case .evidence:

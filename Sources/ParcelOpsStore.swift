@@ -22,6 +22,7 @@ final class ParcelOpsStore {
   var auditEvents: [AuditEvent]
   var evidenceAttachments: [EvidenceAttachment]
   var carrierTrackingEvents: [CarrierTrackingEvent]
+  var automationRules: [AutomationRule]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -32,6 +33,7 @@ final class ParcelOpsStore {
   private let auditRepository: AuditRepository
   private let evidenceRepository: EvidenceRepository
   private let trackingRepository: TrackingRepository
+  private let automationRuleRepository: AutomationRuleRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -39,7 +41,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -59,6 +61,7 @@ final class ParcelOpsStore {
     self.auditRepository = repository
     self.evidenceRepository = repository
     self.trackingRepository = repository
+    self.automationRuleRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -78,6 +81,7 @@ final class ParcelOpsStore {
     self.auditEvents = repository.loadAuditEvents()
     self.evidenceAttachments = repository.loadEvidenceAttachments()
     self.carrierTrackingEvents = repository.loadCarrierTrackingEvents()
+    self.automationRules = repository.loadAutomationRules()
   }
 
   var activeCount: Int {
@@ -467,6 +471,75 @@ final class ParcelOpsStore {
     )
   }
 
+  func addAutomationRulePlaceholder() {
+    let rule = AutomationRule(
+      name: "New local rule \(automationRules.count + 1)",
+      triggerType: .manualReview,
+      conditionSummary: "Define the local condition this rule should watch.",
+      actionSummary: "Define the local action this rule should suggest.",
+      isEnabled: false,
+      lastRunDate: "Never",
+      reviewState: .needsReview,
+      runCount: 0
+    )
+    automationRules.insert(rule, at: 0)
+    persistAutomationRules()
+    logAudit(
+      action: .created,
+      entityType: .automationRule,
+      entityID: rule.id.uuidString,
+      entityLabel: rule.name,
+      summary: "Automation rule placeholder added.",
+      afterDetail: rule.auditDetail
+    )
+  }
+
+  func toggleAutomationRule(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = automationRules[index].auditDetail
+    automationRules[index].isEnabled.toggle()
+    persistAutomationRules()
+    logAudit(
+      action: automationRules[index].isEnabled ? .enabled : .disabled,
+      entityType: .automationRule,
+      entityID: automationRules[index].id.uuidString,
+      entityLabel: automationRules[index].name,
+      summary: automationRules[index].isEnabled ? "Automation rule enabled." : "Automation rule disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: automationRules[index].auditDetail
+    )
+  }
+
+  func markAutomationRuleReviewed(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = automationRules[index].auditDetail
+    automationRules[index].reviewState = .accepted
+    persistAutomationRules()
+    logAudit(
+      action: .reviewed,
+      entityType: .automationRule,
+      entityID: automationRules[index].id.uuidString,
+      entityLabel: automationRules[index].name,
+      summary: "Automation rule marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: automationRules[index].auditDetail
+    )
+  }
+
+  func removeAutomationRule(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let removed = automationRules.remove(at: index)
+    persistAutomationRules()
+    logAudit(
+      action: .removed,
+      entityType: .automationRule,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Automation rule removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
   func exportToParcel(order: TrackedOrder) {
     Task { try? await parcelExportService.export(order: order) }
   }
@@ -604,6 +677,10 @@ final class ParcelOpsStore {
     trackingRepository.saveCarrierTrackingEvents(carrierTrackingEvents)
   }
 
+  private func persistAutomationRules() {
+    automationRuleRepository.saveAutomationRules(automationRules)
+  }
+
   private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
     guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
     let beforeDetail = intakeEmails[index].auditDetail
@@ -686,5 +763,11 @@ private extension EvidenceAttachment {
 private extension CarrierTrackingEvent {
   var auditDetail: String {
     "Carrier: \(carrier); tracking: \(trackingNumber); time: \(eventTime); location: \(location); status: \(status); severity: \(severity.rawValue); source: \(source.rawValue); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension AutomationRule {
+  var auditDetail: String {
+    "Name: \(name); trigger: \(triggerType.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); last run: \(lastRunDate); runs: \(runCount); condition: \(conditionSummary); action: \(actionSummary)."
   }
 }

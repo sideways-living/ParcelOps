@@ -259,6 +259,39 @@ enum SampleData {
     )
   ]
 
+  static var automationRules: [AutomationRule] = [
+    AutomationRule(
+      name: "Create review task for uncertain forwarded emails",
+      triggerType: .forwardedEmailCaptured,
+      conditionSummary: "Detected order number, tracking number, or destination is missing.",
+      actionSummary: "Leave intake email in Needs Review and avoid creating an order automatically.",
+      isEnabled: true,
+      lastRunDate: "Today 11:42 AM",
+      reviewState: .accepted,
+      runCount: 12
+    ),
+    AutomationRule(
+      name: "Route tracking warnings to review",
+      triggerType: .trackingWarning,
+      conditionSummary: "Carrier event severity is Watch or Critical.",
+      actionSummary: "Add event to Needs Review without contacting the carrier.",
+      isEnabled: true,
+      lastRunDate: "Today 8:05 AM",
+      reviewState: .monitor,
+      runCount: 4
+    ),
+    AutomationRule(
+      name: "Require evidence review before acceptance",
+      triggerType: .evidenceAdded,
+      conditionSummary: "New attachment is added from placeholder, screenshot, or watched folder.",
+      actionSummary: "Set evidence review state to Needs review.",
+      isEnabled: false,
+      lastRunDate: "Never",
+      reviewState: .needsReview,
+      runCount: 0
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",
