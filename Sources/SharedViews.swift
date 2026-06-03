@@ -91,6 +91,7 @@ extension AuditAction {
     case .cleared: .orange
     case .pinned: .purple
     case .unpinned: .gray
+    case .acknowledged: .blue
     case .completed: .green
     case .reopened: .orange
     case .evaluated: .blue
@@ -110,6 +111,7 @@ extension AuditEntityType {
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .reviewTask: "checklist"
+    case .handoffNote: "arrow.left.arrow.right.square.fill"
     case .slaPolicy: "timer"
     case .exceptionPlaybook: "book.closed.fill"
     case .communicationTemplate: "text.badge.checkmark"
@@ -133,6 +135,7 @@ extension TimelineEntityType {
     case .trackingEvent: "location.fill.viewfinder"
     case .evidence: "paperclip"
     case .reviewTask: "checklist"
+    case .handoffNote: "arrow.left.arrow.right.square.fill"
     case .slaPolicy: "timer"
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
@@ -503,6 +506,43 @@ struct ExceptionPlaybookStrip: View {
   }
 }
 
+struct HandoffNoteStrip: View {
+  var notes: [HandoffNote]
+
+  var body: some View {
+    if !notes.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Handoff notes", systemImage: "arrow.left.arrow.right.square.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(notes.prefix(3)) { note in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: note.linkedEntityType.symbol)
+              .foregroundStyle(note.priority.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(note.title)
+                .font(.caption.weight(.semibold))
+              Text("\(note.assignee) • due \(note.dueDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(note.summary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(note.status.rawValue, color: note.status.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -573,6 +613,7 @@ extension ReviewTaskLinkedEntityType {
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .auditEvent: "list.clipboard.fill"
     case .reviewTask: "checklist"
+    case .handoffNote: "arrow.left.arrow.right.square.fill"
     case .slaPolicy: "timer"
     case .exceptionPlaybook: "book.closed.fill"
     case .draftMessage: "envelope.open.fill"
@@ -665,6 +706,16 @@ extension ReviewTask {
   }
 }
 
+extension HandoffNote {
+  var isLocallyOverdue: Bool {
+    let normalizedDueDate = dueDate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard status != .completed else { return false }
+    return normalizedDueDate.contains("yesterday")
+      || normalizedDueDate.contains("overdue")
+      || normalizedDueDate.contains("past due")
+  }
+}
+
 extension ShipmentGroup {
   func matches(linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> Bool {
     switch linkedEntityType {
@@ -680,7 +731,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -740,6 +791,7 @@ extension TimelineActivity {
     case .trackingEvent: .trackingEvent
     case .evidence: .evidence
     case .reviewTask: .reviewTask
+    case .handoffNote: .handoffNote
     case .slaPolicy: .slaPolicy
     case .communicationTemplate: nil
     case .draftMessage: .draftMessage

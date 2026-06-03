@@ -37,6 +37,7 @@ struct AcceptanceReviewView: View {
                   linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
                   history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
                   playbooks: store.suggestedPlaybooks(for: candidate),
+                  handoffNotes: store.handoffNotes(for: candidate),
                   onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
                   onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
                   onCreateOrder: { store.createOrder(from: candidate) },
@@ -124,6 +125,7 @@ struct AcceptanceCandidateRow: View {
   var linkedShipmentGroupLabel: String?
   var history: [AcceptanceRecord]
   var playbooks: [ExceptionPlaybook] = []
+  var handoffNotes: [HandoffNote] = []
   var onLinkOrder: (TrackedOrder) -> Void
   var onLinkShipmentGroup: (ShipmentGroup) -> Void
   var onCreateOrder: () -> Void
@@ -180,6 +182,10 @@ struct AcceptanceCandidateRow: View {
 
       if !playbooks.isEmpty {
         ExceptionPlaybookStrip(playbooks: playbooks)
+      }
+
+      if !handoffNotes.isEmpty {
+        HandoffNoteStrip(notes: handoffNotes)
       }
 
       HStack {

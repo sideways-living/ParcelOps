@@ -72,6 +72,16 @@ struct DashboardView: View {
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)))
           }
 
+          AnalyticsSection(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+            MetricStrip(items: [
+              ("Open", "\(store.openHandoffNotes.count)", .blue),
+              ("Attention", "\(store.handoffNotesNeedingAttention.count)", .orange),
+              ("Overdue", "\(store.overdueHandoffNotes.count)", .red),
+              ("High", "\(store.highPriorityHandoffNotes.count)", .red)
+            ])
+            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(4)))
+          }
+
           AnalyticsSection(title: "SLA policies", symbol: "timer") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledSLAPolicyCount)", .green),
@@ -366,6 +376,23 @@ struct CompactTaskList: View {
           detail: "\(task.assignee) • due \(task.dueDate)",
           badge: task.priority.rawValue,
           color: task.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactHandoffNoteList: View {
+  var notes: [HandoffNote]
+
+  var body: some View {
+    CompactList(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+      ForEach(notes) { note in
+        CompactRow(
+          title: note.title,
+          detail: "\(note.assignee) • due \(note.dueDate)",
+          badge: note.status.rawValue,
+          color: note.status.color
         )
       }
     }

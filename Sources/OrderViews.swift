@@ -248,6 +248,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+          let notes = store.handoffNotes(for: order)
+
+          if notes.isEmpty {
+            Text("No local handoff notes matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            HandoffNoteStrip(notes: notes)
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)

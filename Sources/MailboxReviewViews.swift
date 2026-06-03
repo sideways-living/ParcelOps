@@ -403,7 +403,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue)) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -419,7 +419,8 @@ struct NeedsReviewView: View {
               importQueueItems: store.importQueueItems(for: issue),
               acceptanceRecords: store.acceptanceRecords(for: issue),
               validationIssues: store.relatedValidationIssues(for: issue),
-              playbooks: store.suggestedPlaybooks(for: issue)
+              playbooks: store.suggestedPlaybooks(for: issue),
+              handoffNotes: store.handoffNotes(for: issue)
             ) {
               store.markReconciliationIssueReviewed(issue)
             } onCreateTask: {
@@ -434,7 +435,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -460,6 +461,7 @@ struct NeedsReviewView: View {
               linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
               history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
               playbooks: store.suggestedPlaybooks(for: candidate),
+              handoffNotes: store.handoffNotes(for: candidate),
               onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
               onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
               onCreateOrder: { store.createOrder(from: candidate) },
@@ -480,6 +482,7 @@ struct NeedsReviewView: View {
               orders: store.orders,
               shipmentGroups: store.shipmentGroups,
               playbooks: store.suggestedPlaybooks(for: item),
+              handoffNotes: store.handoffNotes(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -611,7 +614,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Task escalations", symbol: "checklist") {
           ForEach(store.reviewTasksNeedingAttention) { task in
-            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task)) { updatedTask in
+            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task)) { updatedTask in
               store.updateReviewTask(updatedTask)
             } onComplete: {
               store.completeReviewTask(task)
@@ -625,6 +628,28 @@ struct NeedsReviewView: View {
               store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
             } onRemove: {
               store.removeReviewTask(task)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+          ForEach(store.handoffNotesNeedingAttention) { note in
+            HandoffNoteRow(note: note) { updatedNote in
+              store.updateHandoffNote(updatedNote)
+            } onAcknowledge: {
+              store.acknowledgeHandoffNote(note)
+            } onComplete: {
+              store.completeHandoffNote(note)
+            } onReopen: {
+              store.reopenHandoffNote(note)
+            } onReviewed: {
+              store.markHandoffNoteReviewed(note)
+            } onCreateTask: {
+              store.createReviewTask(from: note)
+            } onCreateDraft: {
+              store.createDraftMessage(from: note)
+            } onRemove: {
+              store.removeHandoffNote(note)
             }
           }
         }
@@ -653,7 +678,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
             lhs.priority.rawValue > rhs.priority.rawValue
           }) { playbook in
-            ExceptionPlaybookRow(playbook: playbook) { updatedPlaybook in
+            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook)) { updatedPlaybook in
               store.updateExceptionPlaybook(updatedPlaybook)
             } onToggle: {
               store.toggleExceptionPlaybook(playbook)

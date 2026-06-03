@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -95,6 +95,7 @@ struct ShipmentGroupRow: View {
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
   var playbooks: [ExceptionPlaybook] = []
+  var handoffNotes: [HandoffNote] = []
   var onSave: (ShipmentGroup) -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -108,6 +109,7 @@ struct ShipmentGroupRow: View {
     importQueueItems: [ImportQueueItem] = [],
     acceptanceRecords: [AcceptanceRecord] = [],
     playbooks: [ExceptionPlaybook] = [],
+    handoffNotes: [HandoffNote] = [],
     onSave: @escaping (ShipmentGroup) -> Void,
     onReviewed: @escaping () -> Void,
     onCreateTask: @escaping () -> Void,
@@ -118,6 +120,7 @@ struct ShipmentGroupRow: View {
     self.importQueueItems = importQueueItems
     self.acceptanceRecords = acceptanceRecords
     self.playbooks = playbooks
+    self.handoffNotes = handoffNotes
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onCreateTask = onCreateTask
@@ -170,6 +173,10 @@ struct ShipmentGroupRow: View {
 
       if !playbooks.isEmpty {
         ExceptionPlaybookStrip(playbooks: playbooks)
+      }
+
+      if !handoffNotes.isEmpty {
+        HandoffNoteStrip(notes: handoffNotes)
       }
 
       HStack {

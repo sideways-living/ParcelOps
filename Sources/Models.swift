@@ -11,6 +11,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case tracking
   case evidence
   case tasks
+  case handoffNotes
   case slaPolicies
   case exceptionPlaybooks
   case communication
@@ -41,6 +42,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .tasks: "Tasks"
+    case .handoffNotes: "Handoff Notes"
     case .slaPolicies: "SLA Policies"
     case .exceptionPlaybooks: "Exception Playbooks"
     case .communication: "Communication"
@@ -71,6 +73,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "Tracking"
     case .evidence: "Evidence"
     case .tasks: "Tasks"
+    case .handoffNotes: "Handoff"
     case .slaPolicies: "SLA"
     case .exceptionPlaybooks: "Playbooks"
     case .communication: "Comms"
@@ -101,6 +104,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .tracking: "location.fill.viewfinder"
     case .evidence: "paperclip"
     case .tasks: "checklist"
+    case .handoffNotes: "arrow.left.arrow.right.square.fill"
     case .slaPolicies: "timer"
     case .exceptionPlaybooks: "book.closed.fill"
     case .communication: "bubble.left.and.text.bubble.right.fill"
@@ -342,6 +346,21 @@ struct ReviewTask: Identifiable, Hashable, Codable {
   var createdDate: String
   var completedDate: String?
   var reviewState: ReviewState
+}
+
+struct HandoffNote: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var summary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var priority: TaskPriority
+  var assignee: String
+  var createdDate: String
+  var dueDate: String
+  var status: TaskStatus
+  var reviewState: ReviewState
+  var notes: String
 }
 
 struct SLAPolicy: Identifiable, Hashable, Codable {
@@ -645,6 +664,7 @@ enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
   case cleared = "Cleared"
   case pinned = "Pinned"
   case unpinned = "Unpinned"
+  case acknowledged = "Acknowledged"
   case completed = "Completed"
   case reopened = "Reopened"
   case evaluated = "Evaluated"
@@ -662,6 +682,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
   case reviewTask = "Review task"
+  case handoffNote = "Handoff note"
   case slaPolicy = "SLA policy"
   case exceptionPlaybook = "Exception playbook"
   case communicationTemplate = "Communication template"
@@ -770,6 +791,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case trackingEvent = "Tracking event"
   case evidence = "Evidence"
   case reviewTask = "Review task"
+  case handoffNote = "Handoff note"
   case slaPolicy = "SLA policy"
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
@@ -916,6 +938,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case savedFilter = "Saved filter"
   case auditEvent = "Audit event"
   case reviewTask = "Review task"
+  case handoffNote = "Handoff note"
   case slaPolicy = "SLA policy"
   case exceptionPlaybook = "Exception playbook"
   case draftMessage = "Draft message"

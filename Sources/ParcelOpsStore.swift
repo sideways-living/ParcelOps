@@ -25,6 +25,7 @@ final class ParcelOpsStore {
   var automationRules: [AutomationRule]
   var savedFilters: [SavedFilter]
   var reviewTasks: [ReviewTask]
+  var handoffNotes: [HandoffNote]
   var slaPolicies: [SLAPolicy]
   var exceptionPlaybooks: [ExceptionPlaybook]
   var communicationTemplates: [CommunicationTemplate]
@@ -48,6 +49,7 @@ final class ParcelOpsStore {
   private let automationRuleRepository: AutomationRuleRepository
   private let savedFilterRepository: SavedFilterRepository
   private let reviewTaskRepository: ReviewTaskRepository
+  private let handoffNoteRepository: HandoffNoteRepository
   private let slaPolicyRepository: SLAPolicyRepository
   private let exceptionPlaybookRepository: ExceptionPlaybookRepository
   private let communicationRepository: CommunicationRepository
@@ -64,7 +66,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -87,6 +89,7 @@ final class ParcelOpsStore {
     self.automationRuleRepository = repository
     self.savedFilterRepository = repository
     self.reviewTaskRepository = repository
+    self.handoffNoteRepository = repository
     self.slaPolicyRepository = repository
     self.exceptionPlaybookRepository = repository
     self.communicationRepository = repository
@@ -118,6 +121,7 @@ final class ParcelOpsStore {
     self.automationRules = repository.loadAutomationRules()
     self.savedFilters = repository.loadSavedFilters()
     self.reviewTasks = repository.loadReviewTasks()
+    self.handoffNotes = repository.loadHandoffNotes()
     self.slaPolicies = repository.loadSLAPolicies()
     self.exceptionPlaybooks = repository.loadExceptionPlaybooks()
     self.communicationTemplates = repository.loadCommunicationTemplates()
@@ -155,7 +159,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -198,6 +202,26 @@ final class ParcelOpsStore {
 
   var urgentOpenReviewTasks: [ReviewTask] {
     openReviewTasks.filter { $0.priority == .urgent }
+  }
+
+  var openHandoffNotes: [HandoffNote] {
+    handoffNotes.filter { $0.status != .completed }
+  }
+
+  var overdueHandoffNotes: [HandoffNote] {
+    openHandoffNotes.filter(\.isLocallyOverdue)
+  }
+
+  var highPriorityHandoffNotes: [HandoffNote] {
+    openHandoffNotes.filter { $0.priority == .high || $0.priority == .urgent }
+  }
+
+  var handoffNotesNeedingReview: [HandoffNote] {
+    handoffNotes.filter { $0.reviewState != .accepted }
+  }
+
+  var handoffNotesNeedingAttention: [HandoffNote] {
+    Array(Set(overdueHandoffNotes + highPriorityHandoffNotes + handoffNotesNeedingReview + openHandoffNotes.filter { $0.status == .open }))
   }
 
   var policiesNeedingReview: [SLAPolicy] {
@@ -567,6 +591,23 @@ final class ParcelOpsStore {
     }
   }
 
+  func filteredHandoffNotes(
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    priority: TaskPriority?,
+    assignee: String?,
+    status: TaskStatus?,
+    reviewState: ReviewState?
+  ) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      let matchesEntity = linkedEntityType == nil || note.linkedEntityType == linkedEntityType
+      let matchesPriority = priority == nil || note.priority == priority
+      let matchesAssignee = assignee == nil || note.assignee == assignee
+      let matchesStatus = status == nil || note.status == status
+      let matchesReview = reviewState == nil || note.reviewState == reviewState
+      return matchesEntity && matchesPriority && matchesAssignee && matchesStatus && matchesReview
+    }
+  }
+
   func filteredValidationIssues(
     entityType: ValidationEntityType?,
     severity: ValidationSeverity?,
@@ -738,6 +779,71 @@ final class ParcelOpsStore {
 
   func shipmentGroupLabel(for id: UUID) -> String? {
     shipmentGroups.first { $0.id == id }?.groupName
+  }
+
+  func handoffNotes(for linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> [HandoffNote] {
+    handoffNotes.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
+  }
+
+  func handoffNotes(for order: TrackedOrder) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .order && note.linkedEntityID == order.id.uuidString
+    }
+  }
+
+  func handoffNotes(for group: ShipmentGroup) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .shipmentGroup && note.linkedEntityID == group.id.uuidString
+        || (note.linkedEntityType == .order && group.relatedOrderIDs.map(\.uuidString).contains(note.linkedEntityID))
+        || (note.linkedEntityType == .intakeEmail && group.relatedIntakeEmailIDs.map(\.uuidString).contains(note.linkedEntityID))
+    }
+  }
+
+  func handoffNotes(for issue: ReconciliationIssue) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .reconciliationIssue && note.linkedEntityID == issue.id
+        || note.linkedEntityID == issue.sourceEntityID
+        || note.linkedEntityID == issue.targetEntityID
+        || issue.sourceEntityType.reviewTaskLinkedEntityType.map { note.linkedEntityType == $0 } == true
+        || issue.targetEntityType?.reviewTaskLinkedEntityType.map { note.linkedEntityType == $0 } == true
+    }
+  }
+
+  func handoffNotes(for issue: ValidationIssue) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityID == issue.entityID
+        || note.linkedEntityType == issue.linkedEntityType
+    }
+  }
+
+  func handoffNotes(for item: ImportQueueItem) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .importQueueItem && note.linkedEntityID == item.id.uuidString
+        || item.suggestedLinkedOrderID?.uuidString == note.linkedEntityID
+        || item.suggestedShipmentGroupID?.uuidString == note.linkedEntityID
+    }
+  }
+
+  func handoffNotes(for candidate: AcceptanceCandidate) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == candidate.reviewTaskLinkedEntityType && note.linkedEntityID == candidate.sourceID.uuidString
+        || candidate.suggestedLinkedOrderID?.uuidString == note.linkedEntityID
+        || candidate.suggestedShipmentGroupID?.uuidString == note.linkedEntityID
+    }
+  }
+
+  func handoffNotes(for playbook: ExceptionPlaybook) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .exceptionPlaybook && note.linkedEntityID == playbook.id.uuidString
+        || note.linkedEntityType == playbook.linkedEntityType
+    }
+  }
+
+  func handoffNotes(for task: ReviewTask) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .reviewTask && note.linkedEntityID == task.id.uuidString
+        || note.linkedEntityType == task.linkedEntityType && note.linkedEntityID == task.linkedEntityID
+    }
   }
 
   func suggestedShipmentGroups(for order: TrackedOrder) -> [ShipmentGroup] {
@@ -3063,6 +3169,77 @@ final class ParcelOpsStore {
     reviewTasks.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
   }
 
+  func addHandoffNotePlaceholder() {
+    let note = HandoffNote(
+      title: "New handoff note \(handoffNotes.count + 1)",
+      summary: "Describe what the next team or shift needs to know.",
+      linkedEntityType: .order,
+      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      priority: .normal,
+      assignee: "Operations",
+      createdDate: Self.auditTimestamp(),
+      dueDate: "Tomorrow",
+      status: .open,
+      reviewState: .needsReview,
+      notes: "Add local-only handoff details."
+    )
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(action: .created, entityType: .handoffNote, entityID: note.id.uuidString, entityLabel: note.title, summary: "Handoff note placeholder added.", afterDetail: note.auditDetail)
+  }
+
+  func updateHandoffNote(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index] = note
+    persistHandoffNotes()
+    logAudit(action: .edited, entityType: .handoffNote, entityID: note.id.uuidString, entityLabel: note.title, summary: "Handoff note details updated.", beforeDetail: beforeDetail, afterDetail: note.auditDetail)
+  }
+
+  func acknowledgeHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .inProgress, reviewState: .monitor, action: .acknowledged, summary: "Handoff note acknowledged.")
+  }
+
+  func completeHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .completed, reviewState: .accepted, action: .completed, summary: "Handoff note completed.")
+  }
+
+  func reopenHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .open, reviewState: .needsReview, action: .reopened, summary: "Handoff note reopened.")
+  }
+
+  func markHandoffNoteReviewed(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index].reviewState = .accepted
+    persistHandoffNotes()
+    logAudit(action: .reviewed, entityType: .handoffNote, entityID: handoffNotes[index].id.uuidString, entityLabel: handoffNotes[index].title, summary: "Handoff note marked reviewed.", beforeDetail: beforeDetail, afterDetail: handoffNotes[index].auditDetail)
+  }
+
+  func removeHandoffNote(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let removed = handoffNotes.remove(at: index)
+    persistHandoffNotes()
+    logAudit(action: .removed, entityType: .handoffNote, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Handoff note removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from note: HandoffNote) {
+    createReviewTask(linkedEntityType: .handoffNote, linkedEntityID: note.id.uuidString, label: note.title, summary: "Follow up handoff note: \(note.summary)", priority: note.priority)
+  }
+
+  func createDraftMessage(from note: HandoffNote) {
+    createDraftMessage(linkedEntityType: .handoffNote, linkedEntityID: note.id.uuidString, label: note.title, recipient: "operations@parcelops.example")
+  }
+
+  private func updateHandoffNoteState(_ note: HandoffNote, status: TaskStatus, reviewState: ReviewState, action: AuditAction, summary: String) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index].status = status
+    handoffNotes[index].reviewState = reviewState
+    persistHandoffNotes()
+    logAudit(action: action, entityType: .handoffNote, entityID: handoffNotes[index].id.uuidString, entityLabel: handoffNotes[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: handoffNotes[index].auditDetail)
+  }
+
   func policies(for linkedEntityType: ReviewTaskLinkedEntityType) -> [SLAPolicy] {
     slaPolicies.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
   }
@@ -4261,6 +4438,10 @@ final class ParcelOpsStore {
     reviewTaskRepository.saveReviewTasks(reviewTasks)
   }
 
+  private func persistHandoffNotes() {
+    handoffNoteRepository.saveHandoffNotes(handoffNotes)
+  }
+
   private func persistSLAPolicies() {
     slaPolicyRepository.saveSLAPolicies(slaPolicies)
   }
@@ -4492,6 +4673,12 @@ private extension SavedFilter {
 private extension ReviewTask {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); due: \(dueDate); assignee: \(assignee); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate ?? "not completed"); summary: \(summary)."
+  }
+}
+
+private extension HandoffNote {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); assignee: \(assignee); created: \(createdDate); due: \(dueDate); status: \(status.rawValue); review: \(reviewState.rawValue); summary: \(summary); notes: \(notes)."
   }
 }
 

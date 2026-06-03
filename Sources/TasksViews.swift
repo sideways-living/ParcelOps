@@ -56,7 +56,7 @@ struct TasksView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task)) { updatedTask in
+              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -139,6 +139,7 @@ struct ReviewTaskRow: View {
   var task: ReviewTask
   var matchingPolicies: [SLAPolicy] = []
   var shipmentGroups: [ShipmentGroup] = []
+  var handoffNotes: [HandoffNote] = []
   var onSave: (ReviewTask) -> Void
   var onComplete: () -> Void
   var onReopen: () -> Void
@@ -196,6 +197,10 @@ struct ReviewTaskRow: View {
 
           if !shipmentGroups.isEmpty {
             ShipmentGroupContextStrip(groups: shipmentGroups)
+          }
+
+          if !handoffNotes.isEmpty {
+            HandoffNoteStrip(notes: handoffNotes)
           }
         }
       }

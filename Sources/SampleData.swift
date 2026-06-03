@@ -361,6 +361,48 @@ enum SampleData {
     )
   ]
 
+  static var handoffNotes: [HandoffNote] = [
+    HandoffNote(
+      title: "Brisbane address exception handoff",
+      summary: "DHL is waiting on destination clarification before the next carrier update.",
+      linkedEntityType: .order,
+      linkedEntityID: orders[1].id.uuidString,
+      priority: .urgent,
+      assignee: "Evening operations",
+      createdDate: "Today 12:05 PM",
+      dueDate: "Today 3:00 PM",
+      status: .open,
+      reviewState: .needsReview,
+      notes: "Keep the order in exception until Brisbane Field Team confirms suite/reception details."
+    ),
+    HandoffNote(
+      title: "Office Kit intake to order handoff",
+      summary: "Forwarded email and PDF import need one accepted order before end of shift.",
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: shipmentGroups[2].id.uuidString,
+      priority: .high,
+      assignee: "Operations",
+      createdDate: "Today 11:55 AM",
+      dueDate: "Today 5:00 PM",
+      status: .inProgress,
+      reviewState: .needsReview,
+      notes: "Compare import queue and acceptance history before creating the tracked order."
+    ),
+    HandoffNote(
+      title: "Reconciliation watchlist handoff",
+      summary: "Review any accepted source without a linked order before marking the acceptance record final.",
+      linkedEntityType: .reconciliationIssue,
+      linkedEntityID: "recon-accepted-without-order-sample",
+      priority: .high,
+      assignee: "Order control",
+      createdDate: "Today 1:15 PM",
+      dueDate: "Tomorrow",
+      status: .open,
+      reviewState: .monitor,
+      notes: "Use this as the local placeholder for reconciliation shift notes."
+    )
+  ]
+
   static var slaPolicies: [SLAPolicy] = [
     SLAPolicy(
       name: "Carrier critical events same-day response",
