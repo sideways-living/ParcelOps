@@ -82,6 +82,16 @@ struct DashboardView: View {
             CompactSLAPolicyList(policies: store.recentPolicyMatches)
           }
 
+          AnalyticsSection(title: "Exception playbooks", symbol: "book.closed.fill") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledPlaybookCount)", .green),
+              ("Disabled", "\(store.disabledPlaybookCount)", .gray),
+              ("Review", "\(store.playbooksNeedingReview.count)", .orange),
+              ("High", "\(store.enabledHighPriorityPlaybooks.count)", .red)
+            ])
+            CompactExceptionPlaybookList(playbooks: Array((store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks).prefix(4)))
+          }
+
           AnalyticsSection(title: "Communication", symbol: "bubble.left.and.text.bubble.right.fill") {
             MetricStrip(items: [
               ("Templates", "\(store.enabledCommunicationTemplateCount)", .green),
@@ -373,6 +383,23 @@ struct CompactSLAPolicyList: View {
           detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
           badge: "\(policy.matchCount)",
           color: policy.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactExceptionPlaybookList: View {
+  var playbooks: [ExceptionPlaybook]
+
+  var body: some View {
+    CompactList(title: "Exception playbooks", symbol: "book.closed.fill") {
+      ForEach(playbooks) { playbook in
+        CompactRow(
+          title: playbook.name,
+          detail: "\(playbook.issueType.rawValue) • \(playbook.escalationContact)",
+          badge: playbook.priority.rawValue,
+          color: playbook.priority.color
         )
       }
     }

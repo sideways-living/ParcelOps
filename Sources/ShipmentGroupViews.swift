@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -94,6 +94,7 @@ struct ShipmentGroupRow: View {
   var group: ShipmentGroup
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
+  var playbooks: [ExceptionPlaybook] = []
   var onSave: (ShipmentGroup) -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -106,6 +107,7 @@ struct ShipmentGroupRow: View {
     group: ShipmentGroup,
     importQueueItems: [ImportQueueItem] = [],
     acceptanceRecords: [AcceptanceRecord] = [],
+    playbooks: [ExceptionPlaybook] = [],
     onSave: @escaping (ShipmentGroup) -> Void,
     onReviewed: @escaping () -> Void,
     onCreateTask: @escaping () -> Void,
@@ -115,6 +117,7 @@ struct ShipmentGroupRow: View {
     self.group = group
     self.importQueueItems = importQueueItems
     self.acceptanceRecords = acceptanceRecords
+    self.playbooks = playbooks
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onCreateTask = onCreateTask
@@ -163,6 +166,10 @@ struct ShipmentGroupRow: View {
 
       if !acceptanceRecords.isEmpty {
         AcceptanceHistoryStrip(records: acceptanceRecords)
+      }
+
+      if !playbooks.isEmpty {
+        ExceptionPlaybookStrip(playbooks: playbooks)
       }
 
       HStack {

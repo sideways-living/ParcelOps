@@ -26,6 +26,7 @@ final class ParcelOpsStore {
   var savedFilters: [SavedFilter]
   var reviewTasks: [ReviewTask]
   var slaPolicies: [SLAPolicy]
+  var exceptionPlaybooks: [ExceptionPlaybook]
   var communicationTemplates: [CommunicationTemplate]
   var draftMessages: [DraftMessage]
   var contactDirectoryEntries: [ContactDirectoryEntry]
@@ -48,6 +49,7 @@ final class ParcelOpsStore {
   private let savedFilterRepository: SavedFilterRepository
   private let reviewTaskRepository: ReviewTaskRepository
   private let slaPolicyRepository: SLAPolicyRepository
+  private let exceptionPlaybookRepository: ExceptionPlaybookRepository
   private let communicationRepository: CommunicationRepository
   private let contactDirectoryRepository: ContactDirectoryRepository
   private let accountCredentialRepository: AccountCredentialRepository
@@ -62,7 +64,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -86,6 +88,7 @@ final class ParcelOpsStore {
     self.savedFilterRepository = repository
     self.reviewTaskRepository = repository
     self.slaPolicyRepository = repository
+    self.exceptionPlaybookRepository = repository
     self.communicationRepository = repository
     self.contactDirectoryRepository = repository
     self.accountCredentialRepository = repository
@@ -116,6 +119,7 @@ final class ParcelOpsStore {
     self.savedFilters = repository.loadSavedFilters()
     self.reviewTasks = repository.loadReviewTasks()
     self.slaPolicies = repository.loadSLAPolicies()
+    self.exceptionPlaybooks = repository.loadExceptionPlaybooks()
     self.communicationTemplates = repository.loadCommunicationTemplates()
     self.draftMessages = repository.loadDraftMessages()
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
@@ -151,7 +155,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -212,6 +216,22 @@ final class ParcelOpsStore {
     Array(slaPolicies.filter { $0.matchCount > 0 }.sorted { lhs, rhs in
       lhs.lastEvaluatedDate > rhs.lastEvaluatedDate
     }.prefix(5))
+  }
+
+  var playbooksNeedingReview: [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledHighPriorityPlaybooks: [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.isEnabled && ($0.priority == .high || $0.priority == .urgent) }
+  }
+
+  var enabledPlaybookCount: Int {
+    exceptionPlaybooks.filter(\.isEnabled).count
+  }
+
+  var disabledPlaybookCount: Int {
+    exceptionPlaybooks.filter { !$0.isEnabled }.count
   }
 
   var enabledCommunicationTemplateCount: Int {
@@ -527,6 +547,23 @@ final class ParcelOpsStore {
       let groupedIssues = issues.filter { $0.issueType == issueType }
       guard !groupedIssues.isEmpty else { return nil }
       return ReconciliationIssueGroup(issueType: issueType, issues: groupedIssues)
+    }
+  }
+
+  func filteredExceptionPlaybooks(
+    issueType: ReconciliationIssueType?,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    priority: TaskPriority?,
+    enabledState: Bool?,
+    reviewState: ReviewState?
+  ) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      let matchesIssue = issueType == nil || playbook.issueType == issueType
+      let matchesEntity = linkedEntityType == nil || playbook.linkedEntityType == linkedEntityType
+      let matchesPriority = priority == nil || playbook.priority == priority
+      let matchesEnabled = enabledState == nil || playbook.isEnabled == enabledState
+      let matchesReview = reviewState == nil || playbook.reviewState == reviewState
+      return matchesIssue && matchesEntity && matchesPriority && matchesEnabled && matchesReview
     }
   }
 
@@ -3135,6 +3172,126 @@ final class ParcelOpsStore {
     )
   }
 
+  func playbooks(for linkedEntityType: ReviewTaskLinkedEntityType) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
+  }
+
+  func suggestedPlaybooks(for issue: ReconciliationIssue) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.issueType == issue.issueType
+          || issue.sourceEntityType.reviewTaskLinkedEntityType.map { playbook.linkedEntityType == $0 } == true
+          || issue.targetEntityType?.reviewTaskLinkedEntityType.map { playbook.linkedEntityType == $0 } == true)
+    }
+  }
+
+  func suggestedPlaybooks(for issue: ValidationIssue) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == issue.linkedEntityType
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(issue.status.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(issue.entityType.rawValue))
+    }
+  }
+
+  func suggestedPlaybooks(for item: ImportQueueItem) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .importQueueItem
+          || (item.importStatus == .blocked && playbook.priority == .high)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(item.importStatus.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(item.detectedTrackingNumber))
+    }
+  }
+
+  func suggestedPlaybooks(for candidate: AcceptanceCandidate) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == candidate.reviewTaskLinkedEntityType
+          || (candidate.decision == .accepted && candidate.suggestedLinkedOrderID == nil && playbook.issueType == .acceptedWithoutOrder)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(candidate.decision.rawValue))
+    }
+  }
+
+  func suggestedPlaybooks(for group: ShipmentGroup) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .shipmentGroup
+          || (group.primaryOrderID == nil && playbook.issueType == .shipmentGroupMissingPrimary)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(group.statusSummary))
+    }
+  }
+
+  func suggestedPlaybooks(for order: TrackedOrder) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .order
+          || (order.trackingNumber.isPlaceholderValidationValue && playbook.issueType == .missingLink)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(order.status.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(order.latestStatus))
+    }
+  }
+
+  func addExceptionPlaybookPlaceholder() {
+    let playbook = ExceptionPlaybook(
+      name: "New exception playbook \(exceptionPlaybooks.count + 1)",
+      issueType: .missingLink,
+      linkedEntityType: .order,
+      triggerSummary: "Define the local exception trigger.",
+      recommendedSteps: "Add the local review steps staff should follow before changing operational records.",
+      escalationContact: "Operations",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+    exceptionPlaybooks.insert(playbook, at: 0)
+    persistExceptionPlaybooks()
+    logAudit(action: .created, entityType: .exceptionPlaybook, entityID: playbook.id.uuidString, entityLabel: playbook.name, summary: "Exception playbook placeholder added.", afterDetail: playbook.auditDetail)
+  }
+
+  func updateExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index] = playbook
+    persistExceptionPlaybooks()
+    logAudit(action: .edited, entityType: .exceptionPlaybook, entityID: playbook.id.uuidString, entityLabel: playbook.name, summary: "Exception playbook details updated.", beforeDetail: beforeDetail, afterDetail: playbook.auditDetail)
+  }
+
+  func toggleExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index].isEnabled.toggle()
+    persistExceptionPlaybooks()
+    logAudit(action: exceptionPlaybooks[index].isEnabled ? .enabled : .disabled, entityType: .exceptionPlaybook, entityID: exceptionPlaybooks[index].id.uuidString, entityLabel: exceptionPlaybooks[index].name, summary: exceptionPlaybooks[index].isEnabled ? "Exception playbook enabled." : "Exception playbook disabled.", beforeDetail: beforeDetail, afterDetail: exceptionPlaybooks[index].auditDetail)
+  }
+
+  func markExceptionPlaybookReviewed(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index].reviewState = .accepted
+    exceptionPlaybooks[index].lastReviewedDate = Self.auditTimestamp()
+    persistExceptionPlaybooks()
+    logAudit(action: .reviewed, entityType: .exceptionPlaybook, entityID: exceptionPlaybooks[index].id.uuidString, entityLabel: exceptionPlaybooks[index].name, summary: "Exception playbook marked reviewed.", beforeDetail: beforeDetail, afterDetail: exceptionPlaybooks[index].auditDetail)
+  }
+
+  func removeExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let removed = exceptionPlaybooks.remove(at: index)
+    persistExceptionPlaybooks()
+    logAudit(action: .removed, entityType: .exceptionPlaybook, entityID: removed.id.uuidString, entityLabel: removed.name, summary: "Exception playbook removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from playbook: ExceptionPlaybook) {
+    createReviewTask(linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString, label: playbook.name, summary: "Review exception playbook: \(playbook.triggerSummary)", priority: playbook.priority)
+  }
+
+  func createDraftMessage(from playbook: ExceptionPlaybook) {
+    createDraftMessage(linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString, label: playbook.name, recipient: "operations@parcelops.example")
+  }
+
   func addCommunicationTemplatePlaceholder() {
     let template = CommunicationTemplate(
       name: "New communication template \(communicationTemplates.count + 1)",
@@ -4108,6 +4265,10 @@ final class ParcelOpsStore {
     slaPolicyRepository.saveSLAPolicies(slaPolicies)
   }
 
+  private func persistExceptionPlaybooks() {
+    exceptionPlaybookRepository.saveExceptionPlaybooks(exceptionPlaybooks)
+  }
+
   private func persistCommunicationTemplates() {
     communicationRepository.saveCommunicationTemplates(communicationTemplates)
   }
@@ -4337,6 +4498,12 @@ private extension ReviewTask {
 private extension SLAPolicy {
   var auditDetail: String {
     "Name: \(name); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); response: \(responseTarget); resolution: \(resolutionTarget); review: \(reviewState.rawValue); created: \(createdDate); last evaluated: \(lastEvaluatedDate); matches: \(matchCount); condition: \(conditionSummary)."
+  }
+}
+
+private extension ExceptionPlaybook {
+  var auditDetail: String {
+    "Name: \(name); issue: \(issueType.rawValue); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); escalation: \(escalationContact); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); usage: \(usageCount); trigger: \(triggerSummary); steps: \(recommendedSteps)."
   }
 }
 

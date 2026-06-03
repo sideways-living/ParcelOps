@@ -34,7 +34,8 @@ struct ReconciliationView: View {
                 shipmentGroups: store.suggestedShipmentGroups(for: issue),
                 importQueueItems: store.importQueueItems(for: issue),
                 acceptanceRecords: store.acceptanceRecords(for: issue),
-                validationIssues: store.relatedValidationIssues(for: issue)
+                validationIssues: store.relatedValidationIssues(for: issue),
+                playbooks: store.suggestedPlaybooks(for: issue)
               ) {
                 store.markReconciliationIssueReviewed(issue)
               } onCreateTask: {
@@ -122,6 +123,7 @@ struct ReconciliationIssueRow: View {
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
   var validationIssues: [ValidationIssue] = []
+  var playbooks: [ExceptionPlaybook] = []
   var onReviewed: () -> Void = {}
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
@@ -167,6 +169,9 @@ struct ReconciliationIssueRow: View {
       }
       if !validationIssues.isEmpty {
         CompactValidationIssueList(issues: Array(validationIssues.prefix(3)))
+      }
+      if !playbooks.isEmpty {
+        ExceptionPlaybookStrip(playbooks: playbooks)
       }
 
       HStack {

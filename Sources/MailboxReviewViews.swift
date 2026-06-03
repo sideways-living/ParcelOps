@@ -403,7 +403,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue)) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -418,7 +418,8 @@ struct NeedsReviewView: View {
               shipmentGroups: store.suggestedShipmentGroups(for: issue),
               importQueueItems: store.importQueueItems(for: issue),
               acceptanceRecords: store.acceptanceRecords(for: issue),
-              validationIssues: store.relatedValidationIssues(for: issue)
+              validationIssues: store.relatedValidationIssues(for: issue),
+              playbooks: store.suggestedPlaybooks(for: issue)
             ) {
               store.markReconciliationIssueReviewed(issue)
             } onCreateTask: {
@@ -433,7 +434,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -458,6 +459,7 @@ struct NeedsReviewView: View {
               linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
               linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
               history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
+              playbooks: store.suggestedPlaybooks(for: candidate),
               onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
               onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
               onCreateOrder: { store.createOrder(from: candidate) },
@@ -477,6 +479,7 @@ struct NeedsReviewView: View {
               item: item,
               orders: store.orders,
               shipmentGroups: store.shipmentGroups,
+              playbooks: store.suggestedPlaybooks(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -642,6 +645,26 @@ struct NeedsReviewView: View {
               store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
             } onRemove: {
               store.removeSLAPolicy(policy)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Exception playbooks", symbol: "book.closed.fill") {
+          ForEach(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
+            lhs.priority.rawValue > rhs.priority.rawValue
+          }) { playbook in
+            ExceptionPlaybookRow(playbook: playbook) { updatedPlaybook in
+              store.updateExceptionPlaybook(updatedPlaybook)
+            } onToggle: {
+              store.toggleExceptionPlaybook(playbook)
+            } onReviewed: {
+              store.markExceptionPlaybookReviewed(playbook)
+            } onCreateTask: {
+              store.createReviewTask(from: playbook)
+            } onCreateDraft: {
+              store.createDraftMessage(from: playbook)
+            } onRemove: {
+              store.removeExceptionPlaybook(playbook)
             }
           }
         }

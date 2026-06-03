@@ -36,6 +36,7 @@ struct AcceptanceReviewView: View {
                   linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
                   linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
                   history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
+                  playbooks: store.suggestedPlaybooks(for: candidate),
                   onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
                   onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
                   onCreateOrder: { store.createOrder(from: candidate) },
@@ -122,6 +123,7 @@ struct AcceptanceCandidateRow: View {
   var linkedOrderLabel: String?
   var linkedShipmentGroupLabel: String?
   var history: [AcceptanceRecord]
+  var playbooks: [ExceptionPlaybook] = []
   var onLinkOrder: (TrackedOrder) -> Void
   var onLinkShipmentGroup: (ShipmentGroup) -> Void
   var onCreateOrder: () -> Void
@@ -175,6 +177,10 @@ struct AcceptanceCandidateRow: View {
       }
 
       AcceptanceHistoryStrip(records: history)
+
+      if !playbooks.isEmpty {
+        ExceptionPlaybookStrip(playbooks: playbooks)
+      }
 
       HStack {
         Menu("Link order", systemImage: "shippingbox.fill") {

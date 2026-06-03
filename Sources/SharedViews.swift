@@ -111,6 +111,7 @@ extension AuditEntityType {
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .reviewTask: "checklist"
     case .slaPolicy: "timer"
+    case .exceptionPlaybook: "book.closed.fill"
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
@@ -465,6 +466,43 @@ struct AcceptanceHistoryStrip: View {
   }
 }
 
+struct ExceptionPlaybookStrip: View {
+  var playbooks: [ExceptionPlaybook]
+
+  var body: some View {
+    if !playbooks.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Suggested playbooks", systemImage: "book.closed.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(playbooks.prefix(3)) { playbook in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: playbook.issueType.symbol)
+              .foregroundStyle(playbook.priority.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(playbook.name)
+                .font(.caption.weight(.semibold))
+              Text("\(playbook.issueType.rawValue) • \(playbook.escalationContact)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(playbook.recommendedSteps)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(playbook.priority.rawValue, color: playbook.priority.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -479,6 +517,7 @@ extension ContactLinkedEntityType {
     case .evidence: "paperclip"
     case .reviewTask: "checklist"
     case .slaPolicy: "timer"
+    case .exceptionPlaybook: "book.closed.fill"
     case .draftMessage: "envelope.open.fill"
     }
   }
@@ -535,6 +574,7 @@ extension ReviewTaskLinkedEntityType {
     case .auditEvent: "list.clipboard.fill"
     case .reviewTask: "checklist"
     case .slaPolicy: "timer"
+    case .exceptionPlaybook: "book.closed.fill"
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .account: "key.horizontal.fill"
@@ -640,7 +680,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }

@@ -12,6 +12,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case evidence
   case tasks
   case slaPolicies
+  case exceptionPlaybooks
   case communication
   case contacts
   case accounts
@@ -41,6 +42,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "Evidence"
     case .tasks: "Tasks"
     case .slaPolicies: "SLA Policies"
+    case .exceptionPlaybooks: "Exception Playbooks"
     case .communication: "Communication"
     case .contacts: "Contacts"
     case .accounts: "Accounts"
@@ -70,6 +72,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "Evidence"
     case .tasks: "Tasks"
     case .slaPolicies: "SLA"
+    case .exceptionPlaybooks: "Playbooks"
     case .communication: "Comms"
     case .contacts: "Contacts"
     case .accounts: "Accounts"
@@ -99,6 +102,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .evidence: "paperclip"
     case .tasks: "checklist"
     case .slaPolicies: "timer"
+    case .exceptionPlaybooks: "book.closed.fill"
     case .communication: "bubble.left.and.text.bubble.right.fill"
     case .contacts: "person.crop.circle.badge.checkmark"
     case .accounts: "key.horizontal.fill"
@@ -352,6 +356,22 @@ struct SLAPolicy: Identifiable, Hashable, Codable {
   var createdDate: String
   var lastEvaluatedDate: String
   var matchCount: Int
+  var reviewState: ReviewState
+}
+
+struct ExceptionPlaybook: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var issueType: ReconciliationIssueType
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var triggerSummary: String
+  var recommendedSteps: String
+  var escalationContact: String
+  var priority: TaskPriority
+  var isEnabled: Bool
+  var createdDate: String
+  var lastReviewedDate: String
+  var usageCount: Int
   var reviewState: ReviewState
 }
 
@@ -643,6 +663,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case savedFilter = "Saved filter"
   case reviewTask = "Review task"
   case slaPolicy = "SLA policy"
+  case exceptionPlaybook = "Exception playbook"
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
   case contactDirectoryEntry = "Contact"
@@ -828,7 +849,7 @@ enum ValidationStatus: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
-enum ReconciliationIssueType: String, CaseIterable, Identifiable, Hashable {
+enum ReconciliationIssueType: String, CaseIterable, Identifiable, Hashable, Codable {
   case missingLink = "Missing link"
   case orderNumberConflict = "Order number conflict"
   case trackingNumberConflict = "Tracking number conflict"
@@ -880,6 +901,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case evidence = "Evidence"
   case reviewTask = "Review task"
   case slaPolicy = "SLA policy"
+  case exceptionPlaybook = "Exception playbook"
   case draftMessage = "Draft message"
 
   var id: String { rawValue }
@@ -895,6 +917,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case auditEvent = "Audit event"
   case reviewTask = "Review task"
   case slaPolicy = "SLA policy"
+  case exceptionPlaybook = "Exception playbook"
   case draftMessage = "Draft message"
   case contact = "Contact"
   case account = "Account"

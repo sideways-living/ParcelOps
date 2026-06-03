@@ -73,6 +73,11 @@ protocol SLAPolicyRepository {
   func saveSLAPolicies(_ policies: [SLAPolicy])
 }
 
+protocol ExceptionPlaybookRepository {
+  func loadExceptionPlaybooks() -> [ExceptionPlaybook]
+  func saveExceptionPlaybooks(_ playbooks: [ExceptionPlaybook])
+}
+
 protocol CommunicationRepository {
   func loadCommunicationTemplates() -> [CommunicationTemplate]
   func saveCommunicationTemplates(_ templates: [CommunicationTemplate])
@@ -110,7 +115,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -264,6 +269,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(policies, to: .slaPolicies)
   }
 
+  func loadExceptionPlaybooks() -> [ExceptionPlaybook] {
+    load([ExceptionPlaybook].self, from: .exceptionPlaybooks, defaultValue: SampleData.exceptionPlaybooks)
+  }
+
+  func saveExceptionPlaybooks(_ playbooks: [ExceptionPlaybook]) {
+    save(playbooks, to: .exceptionPlaybooks)
+  }
+
   func loadCommunicationTemplates() -> [CommunicationTemplate] {
     load([CommunicationTemplate].self, from: .communicationTemplates, defaultValue: SampleData.communicationTemplates)
   }
@@ -401,6 +414,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case savedFilters = "saved-filters.json"
     case reviewTasks = "review-tasks.json"
     case slaPolicies = "sla-policies.json"
+    case exceptionPlaybooks = "exception-playbooks.json"
     case communicationTemplates = "communication-templates.json"
     case draftMessages = "draft-messages.json"
     case contactDirectoryEntries = "contact-directory.json"
@@ -412,7 +426,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -430,6 +444,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var savedFilters = SampleData.savedFilters
   private var reviewTasks = SampleData.reviewTasks
   private var slaPolicies = SampleData.slaPolicies
+  private var exceptionPlaybooks = SampleData.exceptionPlaybooks
   private var communicationTemplates = SampleData.communicationTemplates
   private var draftMessages = SampleData.draftMessages
   private var contactDirectoryEntries = SampleData.contactDirectoryEntries
@@ -489,6 +504,9 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadSLAPolicies() -> [SLAPolicy] { slaPolicies }
   func saveSLAPolicies(_ policies: [SLAPolicy]) { slaPolicies = policies }
+
+  func loadExceptionPlaybooks() -> [ExceptionPlaybook] { exceptionPlaybooks }
+  func saveExceptionPlaybooks(_ playbooks: [ExceptionPlaybook]) { exceptionPlaybooks = playbooks }
 
   func loadCommunicationTemplates() -> [CommunicationTemplate] { communicationTemplates }
   func saveCommunicationTemplates(_ templates: [CommunicationTemplate]) { communicationTemplates = templates }

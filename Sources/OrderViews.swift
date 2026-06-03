@@ -237,6 +237,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Exception playbooks", symbol: "book.closed.fill") {
+          let playbooks = store.suggestedPlaybooks(for: order)
+
+          if playbooks.isEmpty {
+            Text("No local exception playbooks matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ExceptionPlaybookStrip(playbooks: playbooks)
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)

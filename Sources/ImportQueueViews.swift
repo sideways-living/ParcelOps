@@ -30,6 +30,7 @@ struct ImportQueueView: View {
               item: item,
               orders: store.orders,
               shipmentGroups: store.shipmentGroups,
+              playbooks: store.suggestedPlaybooks(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -106,6 +107,7 @@ struct ImportQueueItemRow: View {
   var item: ImportQueueItem
   var orders: [TrackedOrder] = []
   var shipmentGroups: [ShipmentGroup] = []
+  var playbooks: [ExceptionPlaybook] = []
   var onSave: (ImportQueueItem) -> Void = { _ in }
   var onLinkOrder: (TrackedOrder) -> Void = { _ in }
   var onLinkShipmentGroup: (ShipmentGroup) -> Void = { _ in }
@@ -124,6 +126,7 @@ struct ImportQueueItemRow: View {
     item: ImportQueueItem,
     orders: [TrackedOrder] = [],
     shipmentGroups: [ShipmentGroup] = [],
+    playbooks: [ExceptionPlaybook] = [],
     onSave: @escaping (ImportQueueItem) -> Void = { _ in },
     onLinkOrder: @escaping (TrackedOrder) -> Void = { _ in },
     onLinkShipmentGroup: @escaping (ShipmentGroup) -> Void = { _ in },
@@ -139,6 +142,7 @@ struct ImportQueueItemRow: View {
     self.item = item
     self.orders = orders
     self.shipmentGroups = shipmentGroups
+    self.playbooks = playbooks
     self.onSave = onSave
     self.onLinkOrder = onLinkOrder
     self.onLinkShipmentGroup = onLinkShipmentGroup
@@ -192,6 +196,10 @@ struct ImportQueueItemRow: View {
 
       if isEditing {
         ImportQueueEditForm(item: $draft)
+      }
+
+      if !playbooks.isEmpty {
+        ExceptionPlaybookStrip(playbooks: playbooks)
       }
 
       HStack {

@@ -403,6 +403,79 @@ enum SampleData {
     )
   ]
 
+  static var exceptionPlaybooks: [ExceptionPlaybook] = [
+    ExceptionPlaybook(
+      name: "Address conflict review",
+      issueType: .destinationConflict,
+      linkedEntityType: .order,
+      triggerSummary: "Detected destination differs from the tracked order or shipment group.",
+      recommendedSteps: "Compare forwarded email, import record, order destination, and shipment group summary. Keep original evidence, then update only the operational record confirmed by staff.",
+      escalationContact: "Address desk",
+      priority: .high,
+      isEnabled: true,
+      createdDate: "Today 8:30 AM",
+      lastReviewedDate: "Today 9:10 AM",
+      usageCount: 2,
+      reviewState: .accepted
+    ),
+    ExceptionPlaybook(
+      name: "Missing tracking number",
+      issueType: .missingLink,
+      linkedEntityType: .intakeEmail,
+      triggerSummary: "Forwarded email or import has order details but tracking is Pending or Not detected.",
+      recommendedSteps: "Check the source email/import summary, create a review task for the supplier team, and keep the order in Intake until a tracking number is confirmed.",
+      escalationContact: "Supplier follow-up",
+      priority: .high,
+      isEnabled: true,
+      createdDate: "Yesterday 3:35 PM",
+      lastReviewedDate: "Today 11:45 AM",
+      usageCount: 1,
+      reviewState: .monitor
+    ),
+    ExceptionPlaybook(
+      name: "Duplicate staged record triage",
+      issueType: .duplicateStagedRecord,
+      linkedEntityType: .importQueueItem,
+      triggerSummary: "Two staged local records appear to share an order number or tracking number.",
+      recommendedSteps: "Compare source labels, detected order numbers, tracking numbers, and destinations. Preserve both source records as evidence, but accept only the correct operational link.",
+      escalationContact: "Operations review",
+      priority: .normal,
+      isEnabled: true,
+      createdDate: "Today 10:05 AM",
+      lastReviewedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    ),
+    ExceptionPlaybook(
+      name: "Accepted source missing order",
+      issueType: .acceptedWithoutOrder,
+      linkedEntityType: .acceptanceRecord,
+      triggerSummary: "Acceptance history is marked accepted but no tracked order is linked.",
+      recommendedSteps: "Reopen the acceptance candidate, link it to an existing tracked order or create a new order, then mark the acceptance record reviewed again.",
+      escalationContact: "Order control",
+      priority: .urgent,
+      isEnabled: true,
+      createdDate: "Today 11:00 AM",
+      lastReviewedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    ),
+    ExceptionPlaybook(
+      name: "Shipment group missing primary order",
+      issueType: .shipmentGroupMissingPrimary,
+      linkedEntityType: .shipmentGroup,
+      triggerSummary: "Shipment group has related records but no valid primary tracked order.",
+      recommendedSteps: "Review related intake/import records, choose the primary order if present, or create an order from the most reliable accepted source.",
+      escalationContact: "Fulfilment desk",
+      priority: .high,
+      isEnabled: true,
+      createdDate: "Today 11:50 AM",
+      lastReviewedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+  ]
+
   static var communicationTemplates: [CommunicationTemplate] = [
     CommunicationTemplate(
       name: "Carrier address clarification",
