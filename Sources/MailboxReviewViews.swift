@@ -391,6 +391,18 @@ struct NeedsReviewView: View {
           Badge("\(store.reviewQueueCount)", color: .orange)
         }
 
+        SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
+          ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
+            WorkbenchItemRow(item: item) {
+              store.createReviewTask(from: item)
+            } onCreateDraft: {
+              store.createDraftMessage(from: item)
+            } onReviewed: {
+              store.markWorkbenchItemReviewed(item)
+            }
+          }
+        }
+
         SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
             TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {

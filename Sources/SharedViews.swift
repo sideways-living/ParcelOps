@@ -110,6 +110,7 @@ extension AuditEntityType {
     case .trackingEvent: "location.fill.viewfinder"
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
+    case .auditEvent: "list.clipboard.fill"
     case .reviewTask: "checklist"
     case .handoffNote: "arrow.left.arrow.right.square.fill"
     case .slaPolicy: "timer"
@@ -191,6 +192,78 @@ extension TimelineActivitySource {
     case .automation: "arrow.triangle.branch"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
+    }
+  }
+}
+
+extension WorkbenchSource {
+  var symbol: String {
+    switch self {
+    case .reviewTask: "checklist"
+    case .handoffNote: "arrow.left.arrow.right.square.fill"
+    case .intakeEmail: "envelope.open.fill"
+    case .importQueue: "tray.and.arrow.down.fill"
+    case .acceptanceReview: "checkmark.rectangle.stack.fill"
+    case .reconciliation: "arrow.triangle.2.circlepath.circle.fill"
+    case .validation: "checkmark.seal.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .tracking: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .slaPolicy: "timer"
+    case .exceptionPlaybook: "book.closed.fill"
+    case .draftMessage: "envelope.open.fill"
+    case .contact: "person.crop.circle.badge.checkmark"
+    case .account: "key.horizontal.fill"
+    case .vendorProfile: "building.2.crop.circle.fill"
+    }
+  }
+}
+
+extension WorkbenchItem {
+  var color: Color {
+    let value = prioritySeverity.lowercased()
+    if value.contains("critical") || value.contains("urgent") { return .red }
+    if value.contains("high") || value.contains("blocked") { return .orange }
+    if reviewState == .needsReview { return .orange }
+    if status.localizedCaseInsensitiveContains("complete") || status.localizedCaseInsensitiveContains("sent") { return .green }
+    return .blue
+  }
+
+  var rank: Int {
+    let value = prioritySeverity.lowercased()
+    if value.contains("critical") || value.contains("urgent") { return 4 }
+    if value.contains("high") { return 3 }
+    if value.contains("medium") || value.contains("normal") { return 2 }
+    return 1
+  }
+
+  var isBlocked: Bool {
+    status.localizedCaseInsensitiveContains("blocked")
+  }
+
+  var isAwaitingAcceptance: Bool {
+    source == .acceptanceReview || source == .importQueue || status.localizedCaseInsensitiveContains("ready")
+  }
+
+  var isDueOrOverdue: Bool {
+    let due = dueDateText.lowercased()
+    return due.contains("today") || due.contains("overdue")
+  }
+
+  var isException: Bool {
+    source == .reconciliation
+      || source == .validation
+      || source == .exceptionPlaybook
+      || source == .tracking
+      || prioritySeverity.localizedCaseInsensitiveContains("critical")
+  }
+
+  var supportsReviewAction: Bool {
+    switch source {
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile:
+      true
+    case .importQueue, .acceptanceReview, .validation:
+      false
     }
   }
 }

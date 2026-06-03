@@ -455,6 +455,90 @@ final class ParcelOpsStore {
     Array(timelineActivities.prefix(6))
   }
 
+  var workbenchItems: [WorkbenchItem] {
+    (reviewTaskWorkbenchItems()
+      + handoffNoteWorkbenchItems()
+      + intakeWorkbenchItems()
+      + importQueueWorkbenchItems()
+      + acceptanceWorkbenchItems()
+      + reconciliationWorkbenchItems()
+      + validationWorkbenchItems()
+      + shipmentGroupWorkbenchItems()
+      + trackingWorkbenchItems()
+      + evidenceWorkbenchItems()
+      + slaWorkbenchItems()
+      + exceptionPlaybookWorkbenchItems()
+      + draftMessageWorkbenchItems()
+      + contactWorkbenchItems()
+      + accountWorkbenchItems()
+      + vendorProfileWorkbenchItems())
+      .sorted { lhs, rhs in
+        if lhs.rank == rhs.rank {
+          return lhs.reviewState == .needsReview && rhs.reviewState != .needsReview
+        }
+        return lhs.rank > rhs.rank
+      }
+  }
+
+  var openWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter { !$0.status.localizedCaseInsensitiveContains("complete") && !$0.status.localizedCaseInsensitiveContains("sent locally") }
+  }
+
+  var overdueWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter(\.isDueOrOverdue)
+  }
+
+  var blockedWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter(\.isBlocked)
+  }
+
+  var highPriorityWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter { $0.rank >= 3 }
+  }
+
+  var workbenchItemsNeedingReview: [WorkbenchItem] {
+    workbenchItems.filter { $0.reviewState == .needsReview }
+  }
+
+  func filteredWorkbenchItems(
+    assignee: String?,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    prioritySeverity: String?,
+    status: String?,
+    reviewState: ReviewState?,
+    source: WorkbenchSource?
+  ) -> [WorkbenchItem] {
+    workbenchItems.filter { item in
+      let matchesAssignee = assignee == nil || item.assignee == assignee
+      let matchesEntity = linkedEntityType == nil || item.linkedEntityType == linkedEntityType
+      let matchesPriority = prioritySeverity == nil || item.prioritySeverity == prioritySeverity
+      let matchesStatus = status == nil || item.status == status
+      let matchesReview = reviewState == nil || item.reviewState == reviewState
+      let matchesSource = source == nil || item.source == source
+      return matchesAssignee && matchesEntity && matchesPriority && matchesStatus && matchesReview && matchesSource
+    }
+  }
+
+  func groupedWorkbenchItems(_ items: [WorkbenchItem]) -> [WorkbenchItemGroup] {
+    let due = items.filter(\.isDueOrOverdue)
+    let high = items.filter { $0.rank >= 3 && !due.contains($0) }
+    let review = items.filter { $0.reviewState == .needsReview && !due.contains($0) && !high.contains($0) }
+    let blocked = items.filter { $0.isBlocked && !due.contains($0) && !high.contains($0) && !review.contains($0) }
+    let awaiting = items.filter { $0.isAwaitingAcceptance && !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) }
+    let exceptions = items.filter { $0.isException && !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) && !awaiting.contains($0) }
+    let recent = items.filter { !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) && !awaiting.contains($0) && !exceptions.contains($0) }
+
+    return [
+      WorkbenchItemGroup(title: "Due or overdue", symbol: "calendar.badge.exclamationmark", items: due),
+      WorkbenchItemGroup(title: "High priority", symbol: "flame.fill", items: high),
+      WorkbenchItemGroup(title: "Needs review", symbol: "checkmark.shield.fill", items: review),
+      WorkbenchItemGroup(title: "Blocked", symbol: "hand.raised.fill", items: blocked),
+      WorkbenchItemGroup(title: "Awaiting acceptance", symbol: "checkmark.rectangle.stack.fill", items: awaiting),
+      WorkbenchItemGroup(title: "Exceptions", symbol: "exclamationmark.triangle.fill", items: exceptions),
+      WorkbenchItemGroup(title: "Recently updated", symbol: "clock.fill", items: recent)
+    ].filter { !$0.items.isEmpty }
+  }
+
   func filteredTimelineActivities(
     entityType: TimelineEntityType?,
     risk: TimelineRiskLevel?,
@@ -1773,6 +1857,310 @@ final class ParcelOpsStore {
     }
 
     return issues
+  }
+
+  private func reviewTaskWorkbenchItems() -> [WorkbenchItem] {
+    reviewTasks.filter { $0.status != .completed || $0.reviewState != .accepted }.map { task in
+      WorkbenchItem(
+        id: "task-\(task.id.uuidString)",
+        title: task.title,
+        summary: task.summary,
+        linkedEntityType: .reviewTask,
+        linkedEntityID: task.id.uuidString,
+        prioritySeverity: task.priority.rawValue,
+        status: task.status.rawValue,
+        assignee: task.assignee,
+        dueDateText: task.isLocallyOverdue ? "Overdue: \(task.dueDate)" : task.dueDate,
+        reviewState: task.reviewState,
+        source: .reviewTask,
+        suggestedNextAction: task.status == .completed ? "Mark reviewed" : "Complete or create draft"
+      )
+    }
+  }
+
+  private func handoffNoteWorkbenchItems() -> [WorkbenchItem] {
+    handoffNotes.filter { $0.status != .completed || $0.reviewState != .accepted }.map { note in
+      WorkbenchItem(
+        id: "handoff-\(note.id.uuidString)",
+        title: note.title,
+        summary: note.summary,
+        linkedEntityType: .handoffNote,
+        linkedEntityID: note.id.uuidString,
+        prioritySeverity: note.priority.rawValue,
+        status: note.status.rawValue,
+        assignee: note.assignee,
+        dueDateText: note.isLocallyOverdue ? "Overdue: \(note.dueDate)" : note.dueDate,
+        reviewState: note.reviewState,
+        source: .handoffNote,
+        suggestedNextAction: note.status == .open ? "Acknowledge handoff" : "Complete handoff"
+      )
+    }
+  }
+
+  private func intakeWorkbenchItems() -> [WorkbenchItem] {
+    reviewIntakeEmails.map { email in
+      WorkbenchItem(
+        id: "intake-\(email.id.uuidString)",
+        title: email.detectedOrderNumber,
+        summary: "\(email.detectedMerchant): \(email.subject)",
+        linkedEntityType: .intakeEmail,
+        linkedEntityID: email.id.uuidString,
+        prioritySeverity: "High",
+        status: email.reviewState.rawValue,
+        assignee: "Mailbox team",
+        dueDateText: email.receivedDate,
+        reviewState: .needsReview,
+        source: .intakeEmail,
+        suggestedNextAction: "Link or create order"
+      )
+    }
+  }
+
+  private func importQueueWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(blockedImportQueueItems + lowConfidenceImportQueueItems + importQueueItemsNeedingReview)).map { item in
+      WorkbenchItem(
+        id: "import-\(item.id.uuidString)",
+        title: item.sourceLabel,
+        summary: item.rawSummary,
+        linkedEntityType: .importQueueItem,
+        linkedEntityID: item.id.uuidString,
+        prioritySeverity: item.importStatus == .blocked ? "High" : item.confidenceScore < 55 ? "Medium" : "Normal",
+        status: item.importStatus.rawValue,
+        assignee: "Import team",
+        dueDateText: item.capturedDate,
+        reviewState: item.reviewState,
+        source: .importQueue,
+        suggestedNextAction: "Accept, link, or ignore import"
+      )
+    }
+  }
+
+  private func acceptanceWorkbenchItems() -> [WorkbenchItem] {
+    acceptanceCandidates.filter { $0.reviewState == .needsReview || $0.decision == .blocked || $0.decision == .ready || $0.decision == .reopened }.map { candidate in
+      WorkbenchItem(
+        id: "acceptance-\(candidate.id)",
+        title: candidate.sourceLabel,
+        summary: candidate.rawSummary,
+        linkedEntityType: candidate.reviewTaskLinkedEntityType,
+        linkedEntityID: candidate.sourceID.uuidString,
+        prioritySeverity: candidate.decision == .blocked ? "High" : "Normal",
+        status: candidate.decision.rawValue,
+        assignee: "Operations",
+        dueDateText: candidate.capturedDate,
+        reviewState: candidate.reviewState,
+        source: .acceptanceReview,
+        suggestedNextAction: "Confirm operational acceptance"
+      )
+    }
+  }
+
+  private func reconciliationWorkbenchItems() -> [WorkbenchItem] {
+    unresolvedReconciliationIssues.map { issue in
+      WorkbenchItem(
+        id: "reconciliation-\(issue.id)",
+        title: issue.title,
+        summary: issue.summary,
+        linkedEntityType: .reconciliationIssue,
+        linkedEntityID: issue.id,
+        prioritySeverity: issue.severity.rawValue,
+        status: issue.issueType.rawValue,
+        assignee: "Ops lead",
+        dueDateText: issue.createdDate,
+        reviewState: issue.reviewState,
+        source: .reconciliation,
+        suggestedNextAction: issue.suggestedResolution
+      )
+    }
+  }
+
+  private func validationWorkbenchItems() -> [WorkbenchItem] {
+    validationIssues.filter { $0.severity == .critical || $0.severity == .high || $0.status == .needsCorrection || $0.status == .conflict || $0.reviewState == .needsReview }.map { issue in
+      WorkbenchItem(
+        id: "validation-\(issue.id)",
+        title: issue.title,
+        summary: issue.detail,
+        linkedEntityType: issue.linkedEntityType ?? .auditEvent,
+        linkedEntityID: issue.entityID,
+        prioritySeverity: issue.severity.rawValue,
+        status: issue.status.rawValue,
+        assignee: "Quality team",
+        dueDateText: "\(issue.confidenceScore)% confidence",
+        reviewState: issue.reviewState,
+        source: .validation,
+        suggestedNextAction: issue.suggestedActionText
+      )
+    }
+  }
+
+  private func shipmentGroupWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(shipmentGroupsNeedingReview + highRiskShipmentGroups)).map { group in
+      WorkbenchItem(
+        id: "shipment-group-\(group.id.uuidString)",
+        title: group.groupName,
+        summary: "\(group.statusSummary) • \(group.destinationSummary)",
+        linkedEntityType: .shipmentGroup,
+        linkedEntityID: group.id.uuidString,
+        prioritySeverity: group.riskLevel.rawValue,
+        status: group.statusSummary,
+        assignee: group.recipientCustomerSummary,
+        dueDateText: group.lastReviewedDate,
+        reviewState: group.reviewState,
+        source: .shipmentGroup,
+        suggestedNextAction: "Review grouped shipment context"
+      )
+    }
+  }
+
+  private func trackingWorkbenchItems() -> [WorkbenchItem] {
+    reviewCarrierTrackingEvents.map { event in
+      WorkbenchItem(
+        id: "tracking-\(event.id.uuidString)",
+        title: event.trackingNumber,
+        summary: "\(event.carrier): \(event.detail)",
+        linkedEntityType: .trackingEvent,
+        linkedEntityID: event.id.uuidString,
+        prioritySeverity: event.severity.rawValue,
+        status: event.status,
+        assignee: "Carrier follow-up",
+        dueDateText: event.eventTime,
+        reviewState: event.reviewState,
+        source: .tracking,
+        suggestedNextAction: event.severity == .critical ? "Escalate carrier exception" : "Review tracking update"
+      )
+    }
+  }
+
+  private func evidenceWorkbenchItems() -> [WorkbenchItem] {
+    reviewEvidenceAttachments.map { attachment in
+      WorkbenchItem(
+        id: "evidence-\(attachment.id.uuidString)",
+        title: attachment.fileName,
+        summary: attachment.summary,
+        linkedEntityType: .evidence,
+        linkedEntityID: attachment.id.uuidString,
+        prioritySeverity: "Normal",
+        status: attachment.reviewState.rawValue,
+        assignee: "Evidence review",
+        dueDateText: attachment.addedDate,
+        reviewState: attachment.reviewState,
+        source: .evidence,
+        suggestedNextAction: "Review attachment evidence"
+      )
+    }
+  }
+
+  private func slaWorkbenchItems() -> [WorkbenchItem] {
+    policiesNeedingReview.map { policy in
+      WorkbenchItem(
+        id: "sla-\(policy.id.uuidString)",
+        title: policy.name,
+        summary: "\(policy.conditionSummary) • \(policy.resolutionTarget)",
+        linkedEntityType: .slaPolicy,
+        linkedEntityID: policy.id.uuidString,
+        prioritySeverity: policy.priority.rawValue,
+        status: policy.isEnabled ? "Enabled" : "Disabled",
+        assignee: "Ops lead",
+        dueDateText: policy.lastEvaluatedDate,
+        reviewState: policy.reviewState,
+        source: .slaPolicy,
+        suggestedNextAction: "Review policy target and matches"
+      )
+    }
+  }
+
+  private func exceptionPlaybookWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(playbooksNeedingReview + enabledHighPriorityPlaybooks)).map { playbook in
+      WorkbenchItem(
+        id: "playbook-\(playbook.id.uuidString)",
+        title: playbook.name,
+        summary: playbook.triggerSummary,
+        linkedEntityType: .exceptionPlaybook,
+        linkedEntityID: playbook.id.uuidString,
+        prioritySeverity: playbook.priority.rawValue,
+        status: playbook.isEnabled ? "Enabled" : "Disabled",
+        assignee: playbook.escalationContact,
+        dueDateText: playbook.lastReviewedDate,
+        reviewState: playbook.reviewState,
+        source: .exceptionPlaybook,
+        suggestedNextAction: "Use or review playbook"
+      )
+    }
+  }
+
+  private func draftMessageWorkbenchItems() -> [WorkbenchItem] {
+    draftMessages.filter { $0.reviewState == .needsReview || $0.status == .draft || $0.status == .reopened }.map { draft in
+      WorkbenchItem(
+        id: "draft-\(draft.id.uuidString)",
+        title: draft.subject,
+        summary: "To \(draft.recipient) via \(draft.channel.rawValue)",
+        linkedEntityType: .draftMessage,
+        linkedEntityID: draft.id.uuidString,
+        prioritySeverity: "Normal",
+        status: draft.status.rawValue,
+        assignee: draft.recipient,
+        dueDateText: draft.createdDate,
+        reviewState: draft.reviewState,
+        source: .draftMessage,
+        suggestedNextAction: "Ready or send locally"
+      )
+    }
+  }
+
+  private func contactWorkbenchItems() -> [WorkbenchItem] {
+    contactsNeedingReview.map { contact in
+      WorkbenchItem(
+        id: "contact-\(contact.id.uuidString)",
+        title: contact.name,
+        summary: "\(contact.organisation) • \(contact.role)",
+        linkedEntityType: .contact,
+        linkedEntityID: contact.id.uuidString,
+        prioritySeverity: "Normal",
+        status: contact.isEnabled ? "Enabled" : "Disabled",
+        assignee: contact.organisation,
+        dueDateText: contact.lastContactedDate,
+        reviewState: contact.reviewState,
+        source: .contact,
+        suggestedNextAction: "Review contact details"
+      )
+    }
+  }
+
+  private func accountWorkbenchItems() -> [WorkbenchItem] {
+    accountRecordsNeedingReview.map { account in
+      WorkbenchItem(
+        id: "account-\(account.id.uuidString)",
+        title: account.accountName,
+        summary: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        linkedEntityType: .account,
+        linkedEntityID: account.id.uuidString,
+        prioritySeverity: account.mfaStatus == .needsReview ? "High" : "Normal",
+        status: account.isEnabled ? account.mfaStatus.rawValue : "Disabled",
+        assignee: account.organisation,
+        dueDateText: account.renewalReviewDate,
+        reviewState: account.reviewState,
+        source: .account,
+        suggestedNextAction: "Review account placeholder"
+      )
+    }
+  }
+
+  private func vendorProfileWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(vendorProfilesNeedingReview + highRiskEnabledVendorProfiles)).map { profile in
+      WorkbenchItem(
+        id: "vendor-profile-\(profile.id.uuidString)",
+        title: profile.name,
+        summary: "\(profile.profileType.rawValue) • \(profile.serviceLevelNotes)",
+        linkedEntityType: .vendorProfile,
+        linkedEntityID: profile.id.uuidString,
+        prioritySeverity: profile.riskLevel.rawValue,
+        status: profile.isEnabled ? "Enabled" : "Disabled",
+        assignee: profile.primaryOrganisation,
+        dueDateText: profile.lastReviewedDate,
+        reviewState: profile.reviewState,
+        source: .vendorProfile,
+        suggestedNextAction: "Review vendor risk and contacts"
+      )
+    }
   }
 
   private func intakeValidationIssues() -> [ValidationIssue] {
@@ -4228,6 +4616,94 @@ final class ParcelOpsStore {
       label: activity.title,
       recipient: "operations@parcelops.example"
     )
+  }
+
+  func createReviewTask(from item: WorkbenchItem) {
+    createReviewTask(
+      linkedEntityType: item.linkedEntityType,
+      linkedEntityID: item.linkedEntityID,
+      label: item.title,
+      summary: "Follow up workbench item from \(item.source.rawValue): \(item.summary) Next action: \(item.suggestedNextAction)",
+      priority: item.rank >= 4 ? .urgent : item.rank >= 3 ? .high : .normal,
+      assignee: item.assignee.isEmpty ? "Operations" : item.assignee
+    )
+  }
+
+  func createDraftMessage(from item: WorkbenchItem) {
+    createDraftMessage(
+      linkedEntityType: item.linkedEntityType,
+      linkedEntityID: item.linkedEntityID,
+      label: item.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  func markWorkbenchItemReviewed(_ item: WorkbenchItem) {
+    switch item.source {
+    case .reviewTask:
+      if let task = reviewTasks.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markReviewTaskReviewed(task)
+      }
+    case .handoffNote:
+      if let note = handoffNotes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markHandoffNoteReviewed(note)
+      }
+    case .intakeEmail:
+      if let email = intakeEmails.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markIntakeEmailReviewed(email)
+      }
+    case .reconciliation:
+      if let issue = reconciliationIssues.first(where: { $0.id == item.linkedEntityID }) {
+        markReconciliationIssueReviewed(issue)
+      }
+    case .shipmentGroup:
+      if let group = shipmentGroups.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markShipmentGroupReviewed(group)
+      }
+    case .tracking:
+      if let event = carrierTrackingEvents.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markTrackingEventReviewed(event)
+      }
+    case .evidence:
+      if let attachment = evidenceAttachments.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markEvidenceReviewed(attachment)
+      }
+    case .slaPolicy:
+      if let policy = slaPolicies.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markSLAPolicyReviewed(policy)
+      }
+    case .exceptionPlaybook:
+      if let playbook = exceptionPlaybooks.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markExceptionPlaybookReviewed(playbook)
+      }
+    case .draftMessage:
+      if let draft = draftMessages.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        var updatedDraft = draft
+        updatedDraft.reviewState = .accepted
+        updateDraftMessage(updatedDraft)
+      }
+    case .contact:
+      if let contact = contactDirectoryEntries.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markContactDirectoryEntryReviewed(contact)
+      }
+    case .account:
+      if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markAccountCredentialRecordReviewed(account)
+      }
+    case .vendorProfile:
+      if let profile = vendorProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markVendorProfileReviewed(profile)
+      }
+    case .importQueue, .acceptanceReview, .validation:
+      logAudit(
+        action: .reviewed,
+        entityType: .auditEvent,
+        entityID: item.id,
+        entityLabel: item.title,
+        summary: "Workbench item marked reviewed locally.",
+        afterDetail: "\(item.source.rawValue): \(item.summary)"
+      )
+    }
   }
 
   func suggestedVendorProfiles(for order: TrackedOrder) -> [VendorProfile] {

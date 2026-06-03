@@ -83,6 +83,8 @@ struct ParcelOpsRootView: View {
     switch section {
     case .dashboard:
       DashboardView(store: store)
+    case .workbench:
+      OperationsWorkbenchView(store: store)
     case .orders:
       OrdersView(store: store)
     case .mailbox:
@@ -143,11 +145,11 @@ struct ExpandableBottomMenu: View {
   var onSelect: (ParcelSection) -> Void
 
   private var primaryItems: [ParcelSection] {
-    [.dashboard, .orders, .tasks, .review]
+    [.dashboard, .workbench, .orders, .review]
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
+    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
   }
 
   var body: some View {

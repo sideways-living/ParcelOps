@@ -2,6 +2,7 @@ import Foundation
 
 enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
+  case workbench
   case orders
   case mailbox
   case review
@@ -33,6 +34,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .dashboard: "Dashboard"
+    case .workbench: "Operations Workbench"
     case .orders: "Orders"
     case .mailbox: "Mailbox Monitor"
     case .review: "Needs Review"
@@ -64,6 +66,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var shortTitle: String {
     switch self {
     case .dashboard: "Dashboard"
+    case .workbench: "Workbench"
     case .orders: "Orders"
     case .mailbox: "Mailbox"
     case .review: "Review"
@@ -95,6 +98,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var symbol: String {
     switch self {
     case .dashboard: "rectangle.grid.2x2.fill"
+    case .workbench: "rectangle.stack.badge.person.crop.fill"
     case .orders: "shippingbox.fill"
     case .mailbox: "envelope.badge.fill"
     case .review: "checkmark.shield.fill"
@@ -297,6 +301,29 @@ struct ValidationIssueGroup: Identifiable, Hashable {
   var issues: [ValidationIssue]
 
   var id: ValidationSeverity { severity }
+}
+
+struct WorkbenchItem: Identifiable, Hashable {
+  var id: String
+  var title: String
+  var summary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var prioritySeverity: String
+  var status: String
+  var assignee: String
+  var dueDateText: String
+  var reviewState: ReviewState?
+  var source: WorkbenchSource
+  var suggestedNextAction: String
+}
+
+struct WorkbenchItemGroup: Identifiable, Hashable {
+  var title: String
+  var symbol: String
+  var items: [WorkbenchItem]
+
+  var id: String { title }
 }
 
 struct ReconciliationIssue: Identifiable, Hashable {
@@ -681,6 +708,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case trackingEvent = "Tracking event"
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
+  case auditEvent = "Audit event"
   case reviewTask = "Review task"
   case handoffNote = "Handoff note"
   case slaPolicy = "SLA policy"
@@ -834,6 +862,27 @@ enum TimelineActivitySource: String, CaseIterable, Identifiable, Hashable {
   case automation = "Automation"
   case search = "Search"
   case audit = "Audit"
+
+  var id: String { rawValue }
+}
+
+enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
+  case reviewTask = "Review task"
+  case handoffNote = "Handoff note"
+  case intakeEmail = "Forwarded email"
+  case importQueue = "Import queue"
+  case acceptanceReview = "Acceptance review"
+  case reconciliation = "Reconciliation"
+  case validation = "Validation"
+  case shipmentGroup = "Shipment group"
+  case tracking = "Tracking"
+  case evidence = "Evidence"
+  case slaPolicy = "SLA policy"
+  case exceptionPlaybook = "Exception playbook"
+  case draftMessage = "Draft message"
+  case contact = "Contact"
+  case account = "Account"
+  case vendorProfile = "Vendor profile"
 
   var id: String { rawValue }
 }

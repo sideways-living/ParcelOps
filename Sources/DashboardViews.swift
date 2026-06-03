@@ -27,6 +27,16 @@ struct DashboardView: View {
         }
 
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
+          AnalyticsSection(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
+            MetricStrip(items: [
+              ("Open", "\(store.openWorkbenchItems.count)", .blue),
+              ("Overdue", "\(store.overdueWorkbenchItems.count)", .red),
+              ("Blocked", "\(store.blockedWorkbenchItems.count)", .red),
+              ("Review", "\(store.workbenchItemsNeedingReview.count)", .orange)
+            ])
+            CompactWorkbenchList(items: Array(store.highPriorityWorkbenchItems.prefix(4)))
+          }
+
           AnalyticsSection(title: "Review workload", symbol: "exclamationmark.triangle.fill") {
             MetricStrip(items: [
               ("Queue", "\(store.reviewQueueCount)", .orange),
@@ -306,6 +316,23 @@ struct CompactIntakeList: View {
           detail: "\(email.detectedMerchant) • \(email.subject)",
           badge: email.reviewState.rawValue,
           color: email.reviewState.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactWorkbenchList: View {
+  var items: [WorkbenchItem]
+
+  var body: some View {
+    CompactList(title: "Highest priority work", symbol: "rectangle.stack.badge.person.crop.fill") {
+      ForEach(items) { item in
+        CompactRow(
+          title: item.title,
+          detail: "\(item.source.rawValue) • \(item.suggestedNextAction)",
+          badge: item.prioritySeverity,
+          color: item.color
         )
       }
     }
