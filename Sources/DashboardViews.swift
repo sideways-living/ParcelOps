@@ -152,6 +152,16 @@ struct DashboardView: View {
             CompactAcceptanceList(records: Array((store.blockedAcceptanceRecords + store.reopenedAcceptanceRecords + store.ignoredAcceptanceRecords + store.acceptanceRecordsNeedingReview).prefix(4)))
           }
 
+          AnalyticsSection(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+            MetricStrip(items: [
+              ("Unresolved", "\(store.unresolvedReconciliationIssues.count)", .orange),
+              ("High", "\(store.highSeverityReconciliationIssues.count)", .red),
+              ("Conflicts", "\(store.reconciliationIssues.filter { $0.issueType == .orderNumberConflict || $0.issueType == .trackingNumberConflict || $0.issueType == .destinationConflict }.count)", .purple),
+              ("Total", "\(store.reconciliationIssues.count)", .blue)
+            ])
+            CompactReconciliationIssueList(issues: Array(store.unresolvedReconciliationIssues.prefix(4)))
+          }
+
           AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
             MetricStrip(items: [
               ("Recent", "\(store.recentTimelineActivities.count)", .blue),
@@ -531,6 +541,23 @@ struct CompactValidationIssueList: View {
         CompactRow(
           title: issue.title,
           detail: "\(issue.entityType.rawValue) • \(issue.status.rawValue) • confidence \(issue.confidenceScore)%",
+          badge: issue.severity.rawValue,
+          color: issue.severity.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactReconciliationIssueList: View {
+  var issues: [ReconciliationIssue]
+
+  var body: some View {
+    CompactList(title: "Reconciliation issues", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+      ForEach(issues) { issue in
+        CompactRow(
+          title: issue.title,
+          detail: "\(issue.issueType.rawValue) • \(issue.sourceEntityType.rawValue) → \(issue.targetEntityType?.rawValue ?? "None")",
           badge: issue.severity.rawValue,
           color: issue.severity.color
         )

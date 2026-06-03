@@ -119,6 +119,7 @@ extension AuditEntityType {
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
+    case .reconciliationIssue: "arrow.triangle.2.circlepath.circle.fill"
     }
   }
 }
@@ -243,6 +244,48 @@ extension ValidationStatus {
     case .duplicate: .purple
     case .staleReview: .blue
     case .needsCorrection: .red
+    }
+  }
+}
+
+extension ReconciliationIssueType {
+  var symbol: String {
+    switch self {
+    case .missingLink: "link.badge.plus"
+    case .orderNumberConflict: "number.circle.fill"
+    case .trackingNumberConflict: "location.fill.viewfinder"
+    case .destinationConflict: "mappin.and.ellipse"
+    case .duplicateStagedRecord: "doc.on.doc.fill"
+    case .acceptedWithoutOrder: "checkmark.rectangle.stack.fill"
+    case .shipmentGroupMissingPrimary: "shippingbox.and.arrow.backward.fill"
+    }
+  }
+}
+
+extension ReconciliationEntityType {
+  var symbol: String {
+    switch self {
+    case .intakeEmail: "envelope.open.fill"
+    case .importQueueItem: "tray.and.arrow.down.fill"
+    case .acceptanceRecord: "checkmark.rectangle.stack.fill"
+    case .order: "shippingbox.fill"
+    case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .trackingEvent: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .validationIssue: "checkmark.seal.fill"
+    }
+  }
+
+  var reviewTaskLinkedEntityType: ReviewTaskLinkedEntityType? {
+    switch self {
+    case .intakeEmail: .intakeEmail
+    case .importQueueItem: .importQueueItem
+    case .acceptanceRecord: .acceptanceRecord
+    case .order: .order
+    case .shipmentGroup: .shipmentGroup
+    case .trackingEvent: .trackingEvent
+    case .evidence: .evidence
+    case .validationIssue: nil
     }
   }
 }
@@ -499,6 +542,7 @@ extension ReviewTaskLinkedEntityType {
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
+    case .reconciliationIssue: "arrow.triangle.2.circlepath.circle.fill"
     }
   }
 }
@@ -596,7 +640,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord:
+    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -614,6 +658,8 @@ extension ImportQueueItem {
     case .importQueueItem:
       return id.uuidString == linkedEntityID
     case .acceptanceRecord:
+      return false
+    case .reconciliationIssue:
       return false
     default:
       return false
@@ -638,6 +684,8 @@ extension AcceptanceRecord {
       return sourceID.uuidString == linkedEntityID
     case .acceptanceRecord:
       return id.uuidString == linkedEntityID
+    case .reconciliationIssue:
+      return false
     default:
       return false
     }
@@ -683,6 +731,13 @@ extension ValidationIssue {
 
   var supportsDraftMessage: Bool {
     linkedEntityType != nil
+  }
+}
+
+extension ReconciliationIssue {
+  func matches(entityType: ReconciliationEntityType, entityID: String) -> Bool {
+    (sourceEntityType == entityType && sourceEntityID == entityID)
+      || (targetEntityType == entityType && targetEntityID == entityID)
   }
 }
 

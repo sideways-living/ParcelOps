@@ -19,6 +19,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case shipmentGroups
   case importQueue
   case acceptanceReview
+  case reconciliation
   case timeline
   case validation
   case search
@@ -47,6 +48,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .shipmentGroups: "Shipment Groups"
     case .importQueue: "Import Queue"
     case .acceptanceReview: "Acceptance Review"
+    case .reconciliation: "Reconciliation"
     case .timeline: "Timeline"
     case .validation: "Validation"
     case .search: "Search"
@@ -75,6 +77,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .shipmentGroups: "Groups"
     case .importQueue: "Import"
     case .acceptanceReview: "Accept"
+    case .reconciliation: "Recon"
     case .timeline: "Timeline"
     case .validation: "Validate"
     case .search: "Search"
@@ -103,6 +106,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
     case .importQueue: "tray.and.arrow.down.fill"
     case .acceptanceReview: "checkmark.rectangle.stack.fill"
+    case .reconciliation: "arrow.triangle.2.circlepath.circle.fill"
     case .timeline: "clock.badge.exclamationmark.fill"
     case .validation: "checkmark.seal.fill"
     case .search: "magnifyingglass"
@@ -285,6 +289,30 @@ struct ValidationIssueGroup: Identifiable, Hashable {
   var issues: [ValidationIssue]
 
   var id: ValidationSeverity { severity }
+}
+
+struct ReconciliationIssue: Identifiable, Hashable {
+  var id: String
+  var issueType: ReconciliationIssueType
+  var severity: ValidationSeverity
+  var sourceEntityType: ReconciliationEntityType
+  var sourceEntityID: String
+  var targetEntityType: ReconciliationEntityType?
+  var targetEntityID: String?
+  var title: String
+  var summary: String
+  var detectedValue: String
+  var currentOperationalValue: String
+  var suggestedResolution: String
+  var reviewState: ReviewState
+  var createdDate: String
+}
+
+struct ReconciliationIssueGroup: Identifiable, Hashable {
+  var issueType: ReconciliationIssueType
+  var issues: [ReconciliationIssue]
+
+  var id: ReconciliationIssueType { issueType }
 }
 
 struct SavedFilter: Identifiable, Hashable, Codable {
@@ -623,6 +651,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
+  case reconciliationIssue = "Reconciliation issue"
 
   var id: String { rawValue }
 }
@@ -799,6 +828,31 @@ enum ValidationStatus: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
+enum ReconciliationIssueType: String, CaseIterable, Identifiable, Hashable {
+  case missingLink = "Missing link"
+  case orderNumberConflict = "Order number conflict"
+  case trackingNumberConflict = "Tracking number conflict"
+  case destinationConflict = "Destination conflict"
+  case duplicateStagedRecord = "Duplicate staged record"
+  case acceptedWithoutOrder = "Accepted without order"
+  case shipmentGroupMissingPrimary = "Shipment group missing primary"
+
+  var id: String { rawValue }
+}
+
+enum ReconciliationEntityType: String, CaseIterable, Identifiable, Hashable {
+  case intakeEmail = "Intake email"
+  case importQueueItem = "Import queue item"
+  case acceptanceRecord = "Acceptance record"
+  case order = "Order"
+  case shipmentGroup = "Shipment group"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case validationIssue = "Validation issue"
+
+  var id: String { rawValue }
+}
+
 enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case store = "Store"
   case supplier = "Supplier"
@@ -848,6 +902,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
+  case reconciliationIssue = "Reconciliation issue"
 
   var id: String { rawValue }
 }

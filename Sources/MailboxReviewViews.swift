@@ -411,6 +411,24 @@ struct NeedsReviewView: View {
           }
         }
 
+        SettingsPanel(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+          ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
+            ReconciliationIssueRow(
+              issue: issue,
+              shipmentGroups: store.suggestedShipmentGroups(for: issue),
+              importQueueItems: store.importQueueItems(for: issue),
+              acceptanceRecords: store.acceptanceRecords(for: issue),
+              validationIssues: store.relatedValidationIssues(for: issue)
+            ) {
+              store.markReconciliationIssueReviewed(issue)
+            } onCreateTask: {
+              store.createReviewTask(from: issue)
+            } onCreateDraft: {
+              store.createDraftMessage(from: issue)
+            }
+          }
+        }
+
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank

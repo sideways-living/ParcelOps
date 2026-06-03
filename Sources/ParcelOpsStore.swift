@@ -151,7 +151,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -481,6 +481,55 @@ final class ParcelOpsStore {
     return max(0, averageConfidence - severityPenalty)
   }
 
+  var reconciliationIssues: [ReconciliationIssue] {
+    (missingLinkReconciliationIssues()
+      + orderNumberConflictReconciliationIssues()
+      + trackingNumberConflictReconciliationIssues()
+      + destinationConflictReconciliationIssues()
+      + duplicateStagedRecordReconciliationIssues()
+      + acceptedWithoutOrderReconciliationIssues()
+      + shipmentGroupMissingPrimaryReconciliationIssues())
+      .sorted { lhs, rhs in
+        if lhs.severity.rank == rhs.severity.rank {
+          return lhs.createdDate > rhs.createdDate
+        }
+        return lhs.severity.rank > rhs.severity.rank
+      }
+  }
+
+  var unresolvedReconciliationIssues: [ReconciliationIssue] {
+    reconciliationIssues.filter { $0.reviewState != .accepted }
+  }
+
+  var highSeverityReconciliationIssues: [ReconciliationIssue] {
+    reconciliationIssues.filter { $0.severity == .high || $0.severity == .critical }
+  }
+
+  func filteredReconciliationIssues(
+    issueType: ReconciliationIssueType?,
+    severity: ValidationSeverity?,
+    sourceEntityType: ReconciliationEntityType?,
+    targetEntityType: ReconciliationEntityType?,
+    reviewState: ReviewState?
+  ) -> [ReconciliationIssue] {
+    reconciliationIssues.filter { issue in
+      let matchesIssue = issueType == nil || issue.issueType == issueType
+      let matchesSeverity = severity == nil || issue.severity == severity
+      let matchesSource = sourceEntityType == nil || issue.sourceEntityType == sourceEntityType
+      let matchesTarget = targetEntityType == nil || issue.targetEntityType == targetEntityType
+      let matchesReview = reviewState == nil || issue.reviewState == reviewState
+      return matchesIssue && matchesSeverity && matchesSource && matchesTarget && matchesReview
+    }
+  }
+
+  func groupedReconciliationIssues(_ issues: [ReconciliationIssue]) -> [ReconciliationIssueGroup] {
+    ReconciliationIssueType.allCases.compactMap { issueType in
+      let groupedIssues = issues.filter { $0.issueType == issueType }
+      guard !groupedIssues.isEmpty else { return nil }
+      return ReconciliationIssueGroup(issueType: issueType, issues: groupedIssues)
+    }
+  }
+
   func filteredValidationIssues(
     entityType: ValidationEntityType?,
     severity: ValidationSeverity?,
@@ -604,6 +653,14 @@ final class ParcelOpsStore {
     }
   }
 
+  func importQueueItems(for issue: ReconciliationIssue) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      issue.matches(entityType: .importQueueItem, entityID: item.id.uuidString)
+        || item.suggestedLinkedOrderID?.uuidString == issue.sourceEntityID
+        || item.suggestedLinkedOrderID?.uuidString == issue.targetEntityID
+    }
+  }
+
   func acceptanceRecords(for order: TrackedOrder) -> [AcceptanceRecord] {
     acceptanceRecords.filter { $0.linkedOrderID == order.id }
   }
@@ -620,6 +677,18 @@ final class ParcelOpsStore {
   func acceptanceRecords(for issue: ValidationIssue) -> [AcceptanceRecord] {
     guard let linkedEntityType = issue.linkedEntityType else { return [] }
     return acceptanceRecords.filter { $0.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID) }
+  }
+
+  func acceptanceRecords(for issue: ReconciliationIssue) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { record in
+      issue.matches(entityType: .acceptanceRecord, entityID: record.id.uuidString)
+        || record.sourceID.uuidString == issue.sourceEntityID
+        || record.sourceID.uuidString == issue.targetEntityID
+        || record.linkedOrderID?.uuidString == issue.sourceEntityID
+        || record.linkedOrderID?.uuidString == issue.targetEntityID
+        || record.linkedShipmentGroupID?.uuidString == issue.sourceEntityID
+        || record.linkedShipmentGroupID?.uuidString == issue.targetEntityID
+    }
   }
 
   func acceptanceHistory(sourceType: AcceptanceSourceType, sourceID: UUID) -> [AcceptanceRecord] {
@@ -691,6 +760,26 @@ final class ParcelOpsStore {
     }
   }
 
+  func suggestedShipmentGroups(for issue: ReconciliationIssue) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      issue.matches(entityType: .shipmentGroup, entityID: group.id.uuidString)
+        || group.primaryOrderID?.uuidString == issue.sourceEntityID
+        || group.primaryOrderID?.uuidString == issue.targetEntityID
+        || group.relatedOrderIDs.map(\.uuidString).contains(issue.sourceEntityID)
+        || group.relatedOrderIDs.map(\.uuidString).contains(issue.targetEntityID ?? "")
+        || group.relatedIntakeEmailIDs.map(\.uuidString).contains(issue.sourceEntityID)
+        || group.relatedIntakeEmailIDs.map(\.uuidString).contains(issue.targetEntityID ?? "")
+    }
+  }
+
+  func relatedValidationIssues(for issue: ReconciliationIssue) -> [ValidationIssue] {
+    validationIssues.filter { validationIssue in
+      validationIssue.entityID == issue.sourceEntityID
+        || validationIssue.entityID == issue.targetEntityID
+        || validationIssue.linkedEntityType?.rawValue == issue.sourceEntityType.rawValue
+    }
+  }
+
   func createReviewTask(from issue: ValidationIssue) {
     guard let linkedEntityType = issue.linkedEntityType else { return }
     createReviewTask(
@@ -710,6 +799,338 @@ final class ParcelOpsStore {
       label: issue.title,
       recipient: "operations@parcelops.example"
     )
+  }
+
+  func markReconciliationIssueReviewed(_ issue: ReconciliationIssue) {
+    logAudit(
+      action: .reviewed,
+      entityType: .reconciliationIssue,
+      entityID: issue.id,
+      entityLabel: issue.title,
+      summary: "Reconciliation issue marked reviewed.",
+      afterDetail: issue.auditDetail
+    )
+  }
+
+  func createReviewTask(from issue: ReconciliationIssue) {
+    createReviewTask(
+      linkedEntityType: .reconciliationIssue,
+      linkedEntityID: issue.id,
+      label: issue.title,
+      summary: "Follow up reconciliation issue: \(issue.summary) Suggested resolution: \(issue.suggestedResolution)",
+      priority: issue.severity.taskPriority
+    )
+  }
+
+  func createDraftMessage(from issue: ReconciliationIssue) {
+    createDraftMessage(
+      linkedEntityType: .reconciliationIssue,
+      linkedEntityID: issue.id,
+      label: issue.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  private func missingLinkReconciliationIssues() -> [ReconciliationIssue] {
+    let intakeIssues = intakeEmails.compactMap { email -> ReconciliationIssue? in
+      let hasShipmentGroup = shipmentGroups.contains { $0.relatedIntakeEmailIDs.contains(email.id) }
+      guard email.linkedOrderID == nil || !hasShipmentGroup else { return nil }
+      return reconciliationIssue(
+        id: "recon-missing-intake-\(email.id.uuidString)",
+        issueType: .missingLink,
+        severity: email.linkedOrderID == nil ? .high : .warning,
+        sourceEntityType: .intakeEmail,
+        sourceEntityID: email.id.uuidString,
+        targetEntityType: email.linkedOrderID == nil ? .order : .shipmentGroup,
+        targetEntityID: email.linkedOrderID?.uuidString,
+        title: email.auditLabel,
+        summary: "Forwarded intake email is missing an order or shipment group link.",
+        detectedValue: "\(email.detectedMerchant) \(email.detectedOrderNumber)",
+        currentOperationalValue: "Order: \(email.linkedOrderID?.uuidString ?? "none"); shipment group: \(hasShipmentGroup ? "linked" : "none")",
+        suggestedResolution: "Link the intake email through Acceptance Review or create the missing local operational record.",
+        createdDate: email.receivedDate
+      )
+    }
+
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard item.suggestedLinkedOrderID == nil || item.suggestedShipmentGroupID == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-missing-import-\(item.id.uuidString)",
+        issueType: .missingLink,
+        severity: item.importStatus == .blocked ? .high : .warning,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: item.suggestedLinkedOrderID == nil ? .order : .shipmentGroup,
+        targetEntityID: item.suggestedLinkedOrderID?.uuidString ?? item.suggestedShipmentGroupID?.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue item is missing an order or shipment group decision.",
+        detectedValue: "\(item.detectedMerchant) \(item.detectedOrderNumber)",
+        currentOperationalValue: "Order: \(item.suggestedLinkedOrderID?.uuidString ?? "none"); shipment group: \(item.suggestedShipmentGroupID?.uuidString ?? "none")",
+        suggestedResolution: "Use Acceptance Review to link or create the missing order and shipment group context.",
+        createdDate: item.capturedDate
+      )
+    }
+
+    return intakeIssues + importIssues
+  }
+
+  private func orderNumberConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedOrderNumber.isPlaceholderValidationValue, item.detectedOrderNumber.normalizedValidationKey != order.orderNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-order-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .orderNumberConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue order number differs from the linked tracked order.",
+        detectedValue: item.detectedOrderNumber,
+        currentOperationalValue: order.orderNumber,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ReconciliationIssue? in
+      guard let orderID = email.linkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !email.detectedOrderNumber.isPlaceholderValidationValue, email.detectedOrderNumber.normalizedValidationKey != order.orderNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-order-intake-\(email.id.uuidString)-\(order.id.uuidString)",
+        issueType: .orderNumberConflict,
+        sourceEntityType: .intakeEmail,
+        sourceEntityID: email.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: email.auditLabel,
+        summary: "Forwarded intake order number differs from the linked tracked order.",
+        detectedValue: email.detectedOrderNumber,
+        currentOperationalValue: order.orderNumber,
+        createdDate: email.receivedDate
+      )
+    }
+
+    return importIssues + intakeIssues
+  }
+
+  private func trackingNumberConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedTrackingNumber.isPlaceholderValidationValue, item.detectedTrackingNumber.normalizedValidationKey != order.trackingNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-tracking-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .trackingNumberConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue tracking number differs from the linked tracked order.",
+        detectedValue: item.detectedTrackingNumber,
+        currentOperationalValue: order.trackingNumber,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let eventIssues = carrierTrackingEvents.compactMap { event -> ReconciliationIssue? in
+      guard let order = orders.first(where: { $0.id == event.orderID }) else { return nil }
+      guard event.trackingNumber.normalizedValidationKey != order.trackingNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-tracking-event-\(event.id.uuidString)-\(order.id.uuidString)",
+        issueType: .trackingNumberConflict,
+        sourceEntityType: .trackingEvent,
+        sourceEntityID: event.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: event.trackingNumber,
+        summary: "Carrier tracking event number differs from the linked tracked order.",
+        detectedValue: event.trackingNumber,
+        currentOperationalValue: order.trackingNumber,
+        createdDate: event.eventTime
+      )
+    }
+
+    return importIssues + eventIssues
+  }
+
+  private func destinationConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedDestinationAddress.isPlaceholderValidationValue, item.detectedDestinationAddress.normalizedValidationKey != order.destination.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-destination-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .destinationConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue destination differs from the linked tracked order.",
+        detectedValue: item.detectedDestinationAddress,
+        currentOperationalValue: order.destination,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let groupIssues = shipmentGroups.flatMap { group in
+      group.relatedOrderIDs.compactMap { orderID -> ReconciliationIssue? in
+        guard let order = orders.first(where: { $0.id == orderID }) else { return nil }
+        guard !group.destinationSummary.isPlaceholderValidationValue, group.destinationSummary.normalizedValidationKey != order.destination.normalizedValidationKey else { return nil }
+        return reconciliationConflictIssue(
+          id: "recon-destination-group-\(group.id.uuidString)-\(order.id.uuidString)",
+          issueType: .destinationConflict,
+          sourceEntityType: .shipmentGroup,
+          sourceEntityID: group.id.uuidString,
+          targetEntityType: .order,
+          targetEntityID: order.id.uuidString,
+          title: group.groupName,
+          summary: "Shipment group destination summary differs from a related tracked order.",
+          detectedValue: group.destinationSummary,
+          currentOperationalValue: order.destination,
+          createdDate: group.createdDate
+        )
+      }
+    }
+
+    return importIssues + groupIssues
+  }
+
+  private func duplicateStagedRecordReconciliationIssues() -> [ReconciliationIssue] {
+    importQueueItems.enumerated().flatMap { offset, item in
+      importQueueItems.dropFirst(offset + 1).compactMap { other -> ReconciliationIssue? in
+        let sameOrder = !item.detectedOrderNumber.isPlaceholderValidationValue && item.detectedOrderNumber.normalizedValidationKey == other.detectedOrderNumber.normalizedValidationKey
+        let sameTracking = !item.detectedTrackingNumber.isPlaceholderValidationValue && item.detectedTrackingNumber.normalizedValidationKey == other.detectedTrackingNumber.normalizedValidationKey
+        guard sameOrder || sameTracking else { return nil }
+        guard item.importStatus == .staged || other.importStatus == .staged || item.reviewState == .needsReview || other.reviewState == .needsReview else { return nil }
+        return reconciliationIssue(
+          id: "recon-duplicate-import-\(item.id.uuidString)-\(other.id.uuidString)",
+          issueType: .duplicateStagedRecord,
+          severity: .warning,
+          sourceEntityType: .importQueueItem,
+          sourceEntityID: item.id.uuidString,
+          targetEntityType: .importQueueItem,
+          targetEntityID: other.id.uuidString,
+          title: item.sourceLabel,
+          summary: "Two staged import records appear to describe the same order or tracking number.",
+          detectedValue: sameOrder ? item.detectedOrderNumber : item.detectedTrackingNumber,
+          currentOperationalValue: sameOrder ? other.detectedOrderNumber : other.detectedTrackingNumber,
+          suggestedResolution: "Compare the staged records and keep both as evidence, but accept only the correct operational link.",
+          createdDate: item.capturedDate
+        )
+      }
+    }
+  }
+
+  private func acceptedWithoutOrderReconciliationIssues() -> [ReconciliationIssue] {
+    acceptanceRecords.compactMap { record in
+      guard record.decision == .accepted, record.linkedOrderID == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-accepted-without-order-\(record.id.uuidString)",
+        issueType: .acceptedWithoutOrder,
+        severity: .high,
+        sourceEntityType: .acceptanceRecord,
+        sourceEntityID: record.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: nil,
+        title: record.sourceLabel,
+        summary: "Acceptance history says the record was accepted, but no tracked order is linked.",
+        detectedValue: record.decision.rawValue,
+        currentOperationalValue: "No linked order",
+        suggestedResolution: "Link the accepted source to an existing tracked order or create a new order from Acceptance Review.",
+        createdDate: record.decidedDate
+      )
+    }
+  }
+
+  private func shipmentGroupMissingPrimaryReconciliationIssues() -> [ReconciliationIssue] {
+    shipmentGroups.compactMap { group in
+      guard group.primaryOrderID == nil || group.primaryOrderID.flatMap({ id in orders.first { $0.id == id } }) == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-group-primary-\(group.id.uuidString)",
+        issueType: .shipmentGroupMissingPrimary,
+        severity: group.riskLevel == .critical || group.riskLevel == .high ? .high : .warning,
+        sourceEntityType: .shipmentGroup,
+        sourceEntityID: group.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: group.primaryOrderID?.uuidString,
+        title: group.groupName,
+        summary: "Shipment group has no valid primary tracked order.",
+        detectedValue: group.statusSummary,
+        currentOperationalValue: group.primaryOrderID?.uuidString ?? "No primary order",
+        suggestedResolution: "Select a primary order or create one from related intake/import context.",
+        createdDate: group.createdDate
+      )
+    }
+  }
+
+  private func reconciliationConflictIssue(
+    id: String,
+    issueType: ReconciliationIssueType,
+    sourceEntityType: ReconciliationEntityType,
+    sourceEntityID: String,
+    targetEntityType: ReconciliationEntityType,
+    targetEntityID: String,
+    title: String,
+    summary: String,
+    detectedValue: String,
+    currentOperationalValue: String,
+    createdDate: String
+  ) -> ReconciliationIssue {
+    reconciliationIssue(
+      id: id,
+      issueType: issueType,
+      severity: .high,
+      sourceEntityType: sourceEntityType,
+      sourceEntityID: sourceEntityID,
+      targetEntityType: targetEntityType,
+      targetEntityID: targetEntityID,
+      title: title,
+      summary: summary,
+      detectedValue: detectedValue,
+      currentOperationalValue: currentOperationalValue,
+      suggestedResolution: "Review the detected value against the operational value before changing order or shipment records.",
+      createdDate: createdDate
+    )
+  }
+
+  private func reconciliationIssue(
+    id: String,
+    issueType: ReconciliationIssueType,
+    severity: ValidationSeverity,
+    sourceEntityType: ReconciliationEntityType,
+    sourceEntityID: String,
+    targetEntityType: ReconciliationEntityType?,
+    targetEntityID: String?,
+    title: String,
+    summary: String,
+    detectedValue: String,
+    currentOperationalValue: String,
+    suggestedResolution: String,
+    createdDate: String
+  ) -> ReconciliationIssue {
+    ReconciliationIssue(
+      id: id,
+      issueType: issueType,
+      severity: severity,
+      sourceEntityType: sourceEntityType,
+      sourceEntityID: sourceEntityID,
+      targetEntityType: targetEntityType,
+      targetEntityID: targetEntityID,
+      title: title,
+      summary: summary,
+      detectedValue: detectedValue,
+      currentOperationalValue: currentOperationalValue,
+      suggestedResolution: suggestedResolution,
+      reviewState: isReconciliationIssueReviewed(id) ? .accepted : .needsReview,
+      createdDate: createdDate
+    )
+  }
+
+  private func isReconciliationIssueReviewed(_ issueID: String) -> Bool {
+    auditEvents.contains { event in
+      event.entityType == .reconciliationIssue && event.entityID == issueID && event.action == .reviewed
+    }
   }
 
   func addImportQueueItemPlaceholder() {
@@ -3964,5 +4385,11 @@ private extension ImportQueueItem {
 private extension AcceptanceRecord {
   var auditDetail: String {
     "Source: \(sourceType.rawValue) \(sourceLabel) \(sourceID.uuidString); decided: \(decidedDate); confidence: \(confidenceScore); linked order: \(linkedOrderID?.uuidString ?? "none"); shipment group: \(linkedShipmentGroupID?.uuidString ?? "none"); decision: \(decision.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(summary)."
+  }
+}
+
+private extension ReconciliationIssue {
+  var auditDetail: String {
+    "Type: \(issueType.rawValue); severity: \(severity.rawValue); source: \(sourceEntityType.rawValue) \(sourceEntityID); target: \(targetEntityType?.rawValue ?? "none") \(targetEntityID ?? "none"); detected: \(detectedValue); operational: \(currentOperationalValue); review: \(reviewState.rawValue); created: \(createdDate); summary: \(summary); suggested: \(suggestedResolution)."
   }
 }
