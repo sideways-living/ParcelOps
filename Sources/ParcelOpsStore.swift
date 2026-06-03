@@ -32,6 +32,7 @@ final class ParcelOpsStore {
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
+  var importQueueItems: [ImportQueueItem]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -51,6 +52,7 @@ final class ParcelOpsStore {
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
+  private let importQueueRepository: ImportQueueRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -58,7 +60,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -87,6 +89,7 @@ final class ParcelOpsStore {
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
+    self.importQueueRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -116,6 +119,7 @@ final class ParcelOpsStore {
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
+    self.importQueueItems = repository.loadImportQueueItems()
   }
 
   var activeCount: Int {
@@ -143,7 +147,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -264,6 +268,18 @@ final class ParcelOpsStore {
     shipmentGroups.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
   }
 
+  var importQueueItemsNeedingReview: [ImportQueueItem] {
+    importQueueItems.filter { $0.reviewState != .accepted || $0.importStatus == .staged || $0.importStatus == .reopened }
+  }
+
+  var lowConfidenceImportQueueItems: [ImportQueueItem] {
+    importQueueItems.filter { $0.confidenceScore < 70 }
+  }
+
+  var blockedImportQueueItems: [ImportQueueItem] {
+    importQueueItems.filter { $0.importStatus == .blocked }
+  }
+
   var enabledVendorProfileCount: Int {
     vendorProfiles.filter(\.isEnabled).count
   }
@@ -298,6 +314,7 @@ final class ParcelOpsStore {
       + accountTimelineActivities()
       + vendorProfileTimelineActivities()
       + shipmentGroupTimelineActivities()
+      + importQueueTimelineActivities()
       + automationTimelineActivities()
       + savedFilterTimelineActivities()
       + auditTimelineActivities()
@@ -426,6 +443,53 @@ final class ParcelOpsStore {
     }
   }
 
+  func filteredImportQueueItems(
+    sourceType: ImportSourceType?,
+    status: ImportStatus?,
+    confidenceRange: ImportConfidenceRange,
+    reviewState: ReviewState?
+  ) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      let matchesSource = sourceType == nil || item.sourceType == sourceType
+      let matchesStatus = status == nil || item.importStatus == status
+      let matchesConfidence = confidenceRange.contains(item.confidenceScore)
+      let matchesReview = reviewState == nil || item.reviewState == reviewState
+      return matchesSource && matchesStatus && matchesConfidence && matchesReview
+    }
+  }
+
+  func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      item.suggestedLinkedOrderID == order.id
+        || item.detectedOrderNumber.localizedCaseInsensitiveContains(order.orderNumber)
+        || order.orderNumber.localizedCaseInsensitiveContains(item.detectedOrderNumber)
+        || item.detectedTrackingNumber.normalizedValidationKey == order.trackingNumber.normalizedValidationKey
+    }
+  }
+
+  func importQueueItems(for group: ShipmentGroup) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      item.suggestedShipmentGroupID == group.id
+        || item.suggestedLinkedOrderID.map { group.relatedOrderIDs.contains($0) || group.primaryOrderID == $0 } == true
+        || group.destinationSummary.localizedCaseInsensitiveContains(item.detectedDestinationAddress)
+        || item.detectedDestinationAddress.localizedCaseInsensitiveContains(group.destinationSummary)
+    }
+  }
+
+  func importQueueItems(for activity: TimelineActivity) -> [ImportQueueItem] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return importQueueItems.filter { item in
+      item.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID)
+    }
+  }
+
+  func importQueueItems(for issue: ValidationIssue) -> [ImportQueueItem] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return importQueueItems.filter { item in
+      item.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID)
+    }
+  }
+
   func suggestedShipmentGroups(for order: TrackedOrder) -> [ShipmentGroup] {
     shipmentGroups.filter { group in
       group.primaryOrderID == order.id
@@ -502,6 +566,140 @@ final class ParcelOpsStore {
       label: issue.title,
       recipient: "operations@parcelops.example"
     )
+  }
+
+  func addImportQueueItemPlaceholder() {
+    let item = ImportQueueItem(
+      sourceType: .manualEntry,
+      sourceLabel: "Manual import \(importQueueItems.count + 1)",
+      capturedDate: Self.auditTimestamp(),
+      rawSummary: "Manual placeholder import staged locally for review.",
+      detectedMerchant: "Pending merchant",
+      detectedOrderNumber: "Pending",
+      detectedTrackingNumber: "Pending",
+      detectedDestinationAddress: "Pending",
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 45,
+      importStatus: .staged,
+      reviewState: .needsReview,
+      notes: "Edit detected fields before accepting."
+    )
+    importQueueItems.insert(item, at: 0)
+    persistImportQueueItems()
+    logAudit(action: .created, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import queue item created.", afterDetail: item.auditDetail)
+  }
+
+  func updateImportQueueItem(_ item: ImportQueueItem) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index] = item
+    persistImportQueueItems()
+    logAudit(action: .edited, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import queue item updated.", beforeDetail: beforeDetail, afterDetail: item.auditDetail)
+  }
+
+  func linkImportQueueItem(_ item: ImportQueueItem, to order: TrackedOrder) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].suggestedLinkedOrderID = order.id
+    importQueueItems[index].importStatus = .linked
+    importQueueItems[index].reviewState = .monitor
+    persistImportQueueItems()
+    logAudit(action: .linked, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import item linked to tracked order \(order.orderNumber).", beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
+  }
+
+  func linkImportQueueItem(_ item: ImportQueueItem, to group: ShipmentGroup) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].suggestedShipmentGroupID = group.id
+    importQueueItems[index].importStatus = .linked
+    importQueueItems[index].reviewState = .monitor
+    persistImportQueueItems()
+    logAudit(action: .linked, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import item linked to shipment group \(group.groupName).", beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
+  }
+
+  func createOrder(from item: ImportQueueItem) {
+    let order = TrackedOrder(
+      orderNumber: item.detectedOrderNumber.isPlaceholderValidationValue ? "IMP-\(1000 + orders.count + 1)" : item.detectedOrderNumber,
+      store: item.detectedMerchant.isPlaceholderValidationValue ? "Imported merchant" : item.detectedMerchant,
+      recipientEmail: "import-queue@parcelops.example",
+      checkedMailbox: "manual-import",
+      customer: "Operations",
+      fulfillment: .delivery,
+      carrier: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : "Imported carrier",
+      trackingNumber: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : item.detectedTrackingNumber,
+      destination: item.detectedDestinationAddress.isPlaceholderValidationValue ? "Pending" : item.detectedDestinationAddress,
+      eta: "Pending",
+      source: .manual,
+      status: .intake,
+      reviewState: .needsReview,
+      latestStatus: "Created from manual import queue item.",
+      timeline: [TimelineEvent(title: "Import accepted", detail: item.sourceLabel, time: "Now", symbol: "tray.and.arrow.down.fill")],
+      contactHistory: [ContactHistoryEvent(time: "Now", source: .manual, contactPoint: item.sourceLabel, summary: "Order created from import queue.", evidence: item.rawSummary, reviewState: .needsReview)]
+    )
+    orders.insert(order, at: 0)
+    persistOrders()
+    linkImportQueueItem(item, to: order)
+    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from import queue item.", afterDetail: order.auditDetail)
+  }
+
+  func createShipmentGroup(from item: ImportQueueItem) {
+    let group = ShipmentGroup(
+      groupName: item.detectedOrderNumber.isPlaceholderValidationValue ? "Imported shipment group" : "Import \(item.detectedOrderNumber)",
+      primaryOrderID: item.suggestedLinkedOrderID,
+      relatedOrderIDs: item.suggestedLinkedOrderID.map { [$0] } ?? [],
+      relatedIntakeEmailIDs: [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: item.detectedDestinationAddress,
+      recipientCustomerSummary: "Operations",
+      carrierSummary: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending carrier" : "Imported tracking \(item.detectedTrackingNumber)",
+      statusSummary: "Created from import queue",
+      riskLevel: item.confidenceScore < 50 ? .high : .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    linkImportQueueItem(item, to: group)
+    logAudit(action: .created, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Shipment group created from import queue item.", afterDetail: group.auditDetail)
+  }
+
+  func markImportQueueItemAccepted(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .accepted, reviewState: .accepted, action: .reviewed, summary: "Import queue item accepted.")
+  }
+
+  func ignoreImportQueueItem(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .ignored, reviewState: .monitor, action: .ignored, summary: "Import queue item ignored.")
+  }
+
+  func reopenImportQueueItem(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .reopened, reviewState: .needsReview, action: .reopened, summary: "Import queue item reopened.")
+  }
+
+  func removeImportQueueItem(_ item: ImportQueueItem) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let removed = importQueueItems.remove(at: index)
+    persistImportQueueItems()
+    logAudit(action: .removed, entityType: .importQueueItem, entityID: removed.id.uuidString, entityLabel: removed.sourceLabel, summary: "Import queue item removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from item: ImportQueueItem) {
+    createReviewTask(linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString, label: item.sourceLabel, summary: "Review import queue item: \(item.rawSummary)", priority: item.importStatus == .blocked || item.confidenceScore < 50 ? .high : .normal)
+  }
+
+  func createDraftMessage(from item: ImportQueueItem) {
+    createDraftMessage(linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString, label: item.sourceLabel, recipient: "operations@parcelops.example")
+  }
+
+  private func setImportQueueItem(_ item: ImportQueueItem, status: ImportStatus, reviewState: ReviewState, action: AuditAction, summary: String) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].importStatus = status
+    importQueueItems[index].reviewState = reviewState
+    persistImportQueueItems()
+    logAudit(action: action, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: summary, beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
   }
 
   func addShipmentGroupPlaceholder() {
@@ -1179,6 +1377,24 @@ final class ParcelOpsStore {
         reviewState: group.reviewState,
         source: .shipmentGroup,
         suggestedActionText: "Review shipment group context"
+      )
+    }
+  }
+
+  private func importQueueTimelineActivities() -> [TimelineActivity] {
+    importQueueItems.map { item in
+      TimelineActivity(
+        id: "timeline-import-\(item.id.uuidString)",
+        timestampText: item.capturedDate,
+        entityType: .importQueueItem,
+        entityID: item.id.uuidString,
+        title: item.sourceLabel,
+        subtitle: "\(item.sourceType.rawValue) • \(item.importStatus.rawValue)",
+        detail: item.rawSummary,
+        risk: item.importStatus == .blocked ? .high : item.confidenceScore < 50 ? .high : item.reviewState == .needsReview ? .watch : .normal,
+        reviewState: item.reviewState,
+        source: .importQueue,
+        suggestedActionText: "Review staged import"
       )
     }
   }
@@ -3152,6 +3368,10 @@ final class ParcelOpsStore {
     shipmentGroupRepository.saveShipmentGroups(shipmentGroups)
   }
 
+  private func persistImportQueueItems() {
+    importQueueRepository.saveImportQueueItems(importQueueItems)
+  }
+
   private func addReviewTask(_ task: ReviewTask, summary: String) {
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
@@ -3352,5 +3572,11 @@ private extension VendorProfile {
 private extension ShipmentGroup {
   var auditDetail: String {
     "Name: \(groupName); primary order: \(primaryOrderID?.uuidString ?? "none"); orders: \(relatedOrderIDs.map(\.uuidString).joined(separator: ", ")); intake: \(relatedIntakeEmailIDs.map(\.uuidString).joined(separator: ", ")); tracking: \(relatedTrackingEventIDs.map(\.uuidString).joined(separator: ", ")); evidence: \(relatedEvidenceIDs.map(\.uuidString).joined(separator: ", ")); destination: \(destinationSummary); recipient/customer: \(recipientCustomerSummary); carrier: \(carrierSummary); status: \(statusSummary); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate)."
+  }
+}
+
+private extension ImportQueueItem {
+  var auditDetail: String {
+    "Source: \(sourceType.rawValue) \(sourceLabel); captured: \(capturedDate); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); linked order: \(suggestedLinkedOrderID?.uuidString ?? "none"); shipment group: \(suggestedShipmentGroupID?.uuidString ?? "none"); confidence: \(confidenceScore); status: \(importStatus.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(rawSummary)."
   }
 }

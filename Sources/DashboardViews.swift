@@ -132,6 +132,16 @@ struct DashboardView: View {
             CompactShipmentGroupList(groups: Array((store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups).prefix(4)))
           }
 
+          AnalyticsSection(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
+            MetricStrip(items: [
+              ("Total", "\(store.importQueueItems.count)", .blue),
+              ("Review", "\(store.importQueueItemsNeedingReview.count)", .orange),
+              ("Low conf", "\(store.lowConfidenceImportQueueItems.count)", .orange),
+              ("Blocked", "\(store.blockedImportQueueItems.count)", .red)
+            ])
+            CompactImportQueueList(items: Array((store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview).prefix(4)))
+          }
+
           AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
             MetricStrip(items: [
               ("Recent", "\(store.recentTimelineActivities.count)", .blue),
@@ -428,6 +438,23 @@ struct CompactShipmentGroupList: View {
           detail: "\(group.carrierSummary) • \(group.statusSummary)",
           badge: group.riskLevel.rawValue,
           color: group.riskLevel.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactImportQueueList: View {
+  var items: [ImportQueueItem]
+
+  var body: some View {
+    CompactList(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
+      ForEach(items) { item in
+        CompactRow(
+          title: item.sourceLabel,
+          detail: "\(item.detectedMerchant) • \(item.detectedOrderNumber) • \(item.confidenceScore)%",
+          badge: item.importStatus.rawValue,
+          color: item.importStatus.color
         )
       }
     }

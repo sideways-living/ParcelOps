@@ -704,6 +704,57 @@ enum SampleData {
     )
   ]
 
+  static var importQueueItems: [ImportQueueItem] = [
+    ImportQueueItem(
+      sourceType: .pdf,
+      sourceLabel: "OfficeKit-OK-58214-order-confirmation.pdf",
+      capturedDate: "Today 11:44 AM",
+      rawSummary: "PDF confirmation staged from the local evidence placeholder before order creation.",
+      detectedMerchant: "Office Kit Store",
+      detectedOrderNumber: "OK-58214",
+      detectedTrackingNumber: "Pending",
+      detectedDestinationAddress: "Dock 4, 9 Harbour Road, Sydney NSW",
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: shipmentGroups[2].id,
+      confidenceScore: 68,
+      importStatus: .staged,
+      reviewState: .needsReview,
+      notes: "Tracking number missing; review before accepting into orders."
+    ),
+    ImportQueueItem(
+      sourceType: .forwardedEmail,
+      sourceLabel: "SafetyPro shipping email",
+      capturedDate: "Yesterday 6:10 PM",
+      rawSummary: "Forwarded email already linked to SafetyPro order and shipment group.",
+      detectedMerchant: "SafetyPro Supplies",
+      detectedOrderNumber: "SP-10492",
+      detectedTrackingNumber: "33AUL8841295",
+      detectedDestinationAddress: "18 Collins Street, Melbourne VIC",
+      suggestedLinkedOrderID: orders[0].id,
+      suggestedShipmentGroupID: shipmentGroups[1].id,
+      confidenceScore: 94,
+      importStatus: .accepted,
+      reviewState: .accepted,
+      notes: "Kept as sample accepted import history."
+    ),
+    ImportQueueItem(
+      sourceType: .screenshot,
+      sourceLabel: "Dock delivery screenshot",
+      capturedDate: "Today 10:22 AM",
+      rawSummary: "Screenshot captured dock details and manual TNT tracking context.",
+      detectedMerchant: "Regional Courier Desk",
+      detectedOrderNumber: "MAN-2194",
+      detectedTrackingNumber: "TNT55928103",
+      detectedDestinationAddress: "Dock 4, 9 Harbour Road, Sydney NSW",
+      suggestedLinkedOrderID: orders[3].id,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 52,
+      importStatus: .blocked,
+      reviewState: .monitor,
+      notes: "Needs a shipment group decision before acceptance."
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

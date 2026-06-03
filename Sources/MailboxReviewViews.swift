@@ -393,7 +393,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
-            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity)) {
+            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity)) {
               store.createReviewTask(from: activity)
             } onCreateDraft: {
               store.createDraftMessage(from: activity)
@@ -403,7 +403,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue)) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -415,7 +415,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
-            ShipmentGroupRow(group: group) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -426,6 +426,27 @@ struct NeedsReviewView: View {
             } onRemove: {
               store.removeShipmentGroup(group)
             }
+          }
+        }
+
+        SettingsPanel(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
+          ForEach(Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)) { item in
+            ImportQueueItemRow(
+              item: item,
+              orders: store.orders,
+              shipmentGroups: store.shipmentGroups,
+              onSave: store.updateImportQueueItem,
+              onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
+              onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
+              onCreateOrder: { store.createOrder(from: item) },
+              onCreateShipmentGroup: { store.createShipmentGroup(from: item) },
+              onAccepted: { store.markImportQueueItemAccepted(item) },
+              onIgnored: { store.ignoreImportQueueItem(item) },
+              onReopen: { store.reopenImportQueueItem(item) },
+              onRemove: { store.removeImportQueueItem(item) },
+              onCreateTask: { store.createReviewTask(from: item) },
+              onCreateDraft: { store.createDraftMessage(from: item) }
+            )
           }
         }
 

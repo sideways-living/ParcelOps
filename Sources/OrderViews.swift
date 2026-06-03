@@ -215,6 +215,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Import queue context", symbol: "tray.and.arrow.down.fill") {
+          let items = store.importQueueItems(for: order)
+
+          if items.isEmpty {
+            Text("No local import queue items matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ImportQueueContextStrip(items: items)
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)

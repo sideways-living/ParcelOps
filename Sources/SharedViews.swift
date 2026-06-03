@@ -117,6 +117,7 @@ extension AuditEntityType {
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .importQueueItem: "tray.and.arrow.down.fill"
     }
   }
 }
@@ -136,6 +137,7 @@ extension TimelineEntityType {
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .importQueueItem: "tray.and.arrow.down.fill"
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .auditEvent: "list.clipboard.fill"
@@ -177,6 +179,7 @@ extension TimelineActivitySource {
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .importQueue: "tray.and.arrow.down.fill"
     case .automation: "arrow.triangle.branch"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
@@ -312,6 +315,44 @@ extension ShipmentRiskLevel {
   }
 }
 
+extension ImportSourceType {
+  var symbol: String {
+    switch self {
+    case .forwardedEmail: "envelope.open.fill"
+    case .manualEntry: "square.and.pencil"
+    case .pdf: "doc.richtext.fill"
+    case .screenshot: "photo.fill"
+    case .watchedFolder: "folder.fill"
+    case .supplierPortal: "person.crop.circle.badge.checkmark"
+    case .shopify: "cart.fill"
+    }
+  }
+}
+
+extension ImportStatus {
+  var color: Color {
+    switch self {
+    case .staged: .orange
+    case .linked: .blue
+    case .accepted: .green
+    case .ignored: .gray
+    case .blocked: .red
+    case .reopened: .purple
+    }
+  }
+}
+
+extension ImportConfidenceRange {
+  func contains(_ score: Int) -> Bool {
+    switch self {
+    case .all: true
+    case .low: score < 50
+    case .medium: score >= 50 && score < 75
+    case .high: score >= 75
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -387,6 +428,7 @@ extension ReviewTaskLinkedEntityType {
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
+    case .importQueueItem: "tray.and.arrow.down.fill"
     }
   }
 }
@@ -484,8 +526,25 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup:
+    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem:
       return id.uuidString == linkedEntityID
+    }
+  }
+}
+
+extension ImportQueueItem {
+  func matches(linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> Bool {
+    switch linkedEntityType {
+    case .order:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return suggestedLinkedOrderID == id
+    case .shipmentGroup:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return suggestedShipmentGroupID == id
+    case .importQueueItem:
+      return id.uuidString == linkedEntityID
+    default:
+      return false
     }
   }
 }
@@ -505,6 +564,7 @@ extension TimelineActivity {
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup
+    case .importQueueItem: .importQueueItem
     case .automationRule: .automationRule
     case .savedFilter: .savedFilter
     case .auditEvent: .auditEvent
