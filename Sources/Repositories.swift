@@ -105,7 +105,12 @@ protocol ImportQueueRepository {
   func saveImportQueueItems(_ items: [ImportQueueItem])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository {
+protocol AcceptanceRepository {
+  func loadAcceptanceRecords() -> [AcceptanceRecord]
+  func saveAcceptanceRecords(_ records: [AcceptanceRecord])
+}
+
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -315,6 +320,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(items, to: .importQueueItems)
   }
 
+  func loadAcceptanceRecords() -> [AcceptanceRecord] {
+    load([AcceptanceRecord].self, from: .acceptanceRecords, defaultValue: SampleData.acceptanceRecords)
+  }
+
+  func saveAcceptanceRecords(_ records: [AcceptanceRecord]) {
+    save(records, to: .acceptanceRecords)
+  }
+
   private static func defaultStoreDirectory(fileManager: FileManager) -> URL {
     #if os(macOS)
     let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -395,10 +408,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case vendorProfiles = "vendor-profiles.json"
     case shipmentGroups = "shipment-groups.json"
     case importQueueItems = "import-queue-items.json"
+    case acceptanceRecords = "acceptance-records.json"
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, SLAPolicyRepository, CommunicationRepository, ContactDirectoryRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -423,6 +437,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var vendorProfiles = SampleData.vendorProfiles
   private var shipmentGroups = SampleData.shipmentGroups
   private var importQueueItems = SampleData.importQueueItems
+  private var acceptanceRecords = SampleData.acceptanceRecords
 
   func loadOrders() -> [TrackedOrder] { orders }
   func saveOrders(_ orders: [TrackedOrder]) { self.orders = orders }
@@ -495,4 +510,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadImportQueueItems() -> [ImportQueueItem] { importQueueItems }
   func saveImportQueueItems(_ items: [ImportQueueItem]) { importQueueItems = items }
+
+  func loadAcceptanceRecords() -> [AcceptanceRecord] { acceptanceRecords }
+  func saveAcceptanceRecords(_ records: [AcceptanceRecord]) { acceptanceRecords = records }
 }

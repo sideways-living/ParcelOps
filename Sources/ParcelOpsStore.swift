@@ -33,6 +33,7 @@ final class ParcelOpsStore {
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
   var importQueueItems: [ImportQueueItem]
+  var acceptanceRecords: [AcceptanceRecord]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -53,6 +54,7 @@ final class ParcelOpsStore {
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
   private let importQueueRepository: ImportQueueRepository
+  private let acceptanceRepository: AcceptanceRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -60,7 +62,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -90,6 +92,7 @@ final class ParcelOpsStore {
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
     self.importQueueRepository = repository
+    self.acceptanceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -120,6 +123,7 @@ final class ParcelOpsStore {
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
     self.importQueueItems = repository.loadImportQueueItems()
+    self.acceptanceRecords = repository.loadAcceptanceRecords()
   }
 
   var activeCount: Int {
@@ -147,7 +151,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -280,6 +284,79 @@ final class ParcelOpsStore {
     importQueueItems.filter { $0.importStatus == .blocked }
   }
 
+  var acceptanceCandidates: [AcceptanceCandidate] {
+    let importCandidates = importQueueItems.map { item in
+      let record = acceptanceRecord(sourceType: .importQueueItem, sourceID: item.id)
+      return AcceptanceCandidate(
+        id: "import-\(item.id.uuidString)",
+        sourceType: .importQueueItem,
+        sourceID: item.id,
+        sourceLabel: item.sourceLabel,
+        capturedDate: item.capturedDate,
+        rawSummary: item.rawSummary,
+        detectedMerchant: item.detectedMerchant,
+        detectedOrderNumber: item.detectedOrderNumber,
+        detectedTrackingNumber: item.detectedTrackingNumber,
+        detectedDestinationAddress: item.detectedDestinationAddress,
+        suggestedLinkedOrderID: item.suggestedLinkedOrderID,
+        suggestedShipmentGroupID: item.suggestedShipmentGroupID,
+        confidenceScore: item.confidenceScore,
+        decision: record?.decision ?? item.importStatus.acceptanceDecision,
+        reviewState: record?.reviewState ?? item.reviewState,
+        notes: record?.notes ?? item.notes
+      )
+    }
+
+    let intakeCandidates = intakeEmails.map { email in
+      let record = acceptanceRecord(sourceType: .intakeEmail, sourceID: email.id)
+      let linkedGroup = shipmentGroups.first { $0.relatedIntakeEmailIDs.contains(email.id) }
+      return AcceptanceCandidate(
+        id: "intake-\(email.id.uuidString)",
+        sourceType: .intakeEmail,
+        sourceID: email.id,
+        sourceLabel: email.subject,
+        capturedDate: email.receivedDate,
+        rawSummary: email.rawBodyPreview,
+        detectedMerchant: email.detectedMerchant,
+        detectedOrderNumber: email.detectedOrderNumber,
+        detectedTrackingNumber: email.detectedTrackingNumber,
+        detectedDestinationAddress: email.detectedDestinationAddress,
+        suggestedLinkedOrderID: email.linkedOrderID,
+        suggestedShipmentGroupID: linkedGroup?.id,
+        confidenceScore: email.localAcceptanceConfidence,
+        decision: record?.decision ?? email.reviewState.acceptanceDecision,
+        reviewState: record?.reviewState ?? email.reviewState.searchReviewState,
+        notes: record?.notes ?? "Forwarded intake email awaiting local acceptance review."
+      )
+    }
+
+    return (importCandidates + intakeCandidates).sorted { lhs, rhs in
+      lhs.capturedDate > rhs.capturedDate
+    }
+  }
+
+  var acceptanceRecordsNeedingReview: [AcceptanceRecord] {
+    acceptanceRecords.filter { record in
+      record.reviewState != .accepted || record.decision == .ready || record.decision == .blocked || record.decision == .reopened
+    }
+  }
+
+  var acceptedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .accepted }
+  }
+
+  var blockedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .blocked }
+  }
+
+  var ignoredAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .ignored }
+  }
+
+  var reopenedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .reopened }
+  }
+
   var enabledVendorProfileCount: Int {
     vendorProfiles.filter(\.isEnabled).count
   }
@@ -315,6 +392,7 @@ final class ParcelOpsStore {
       + vendorProfileTimelineActivities()
       + shipmentGroupTimelineActivities()
       + importQueueTimelineActivities()
+      + acceptanceTimelineActivities()
       + automationTimelineActivities()
       + savedFilterTimelineActivities()
       + auditTimelineActivities()
@@ -458,6 +536,42 @@ final class ParcelOpsStore {
     }
   }
 
+  func filteredAcceptanceCandidates(
+    sourceType: AcceptanceSourceType?,
+    decision: AcceptanceDecision?,
+    confidenceRange: ImportConfidenceRange,
+    reviewState: ReviewState?
+  ) -> [AcceptanceCandidate] {
+    acceptanceCandidates.filter { candidate in
+      let matchesSource = sourceType == nil || candidate.sourceType == sourceType
+      let matchesDecision = decision == nil || candidate.decision == decision
+      let matchesConfidence = confidenceRange.contains(candidate.confidenceScore)
+      let matchesReview = reviewState == nil || candidate.reviewState == reviewState
+      return matchesSource && matchesDecision && matchesConfidence && matchesReview
+    }
+  }
+
+  func groupedAcceptanceCandidates(_ candidates: [AcceptanceCandidate], by grouping: AcceptanceGrouping) -> [(title: String, candidates: [AcceptanceCandidate])] {
+    let grouped = Dictionary(grouping: candidates) { candidate in
+      switch grouping {
+      case .confidence:
+        if candidate.confidenceScore < 50 { return "Low confidence" }
+        if candidate.confidenceScore < 75 { return "Medium confidence" }
+        return "High confidence"
+      case .linkedOrder:
+        return candidate.suggestedLinkedOrderID.flatMap { orderLabel(for: $0) } ?? "No linked order"
+      case .shipmentGroup:
+        return candidate.suggestedShipmentGroupID.flatMap { shipmentGroupLabel(for: $0) } ?? "No shipment group"
+      case .reviewState:
+        return candidate.reviewState.rawValue
+      }
+    }
+
+    return grouped.keys.sorted().map { key in
+      (title: key, candidates: grouped[key] ?? [])
+    }
+  }
+
   func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {
     importQueueItems.filter { item in
       item.suggestedLinkedOrderID == order.id
@@ -488,6 +602,36 @@ final class ParcelOpsStore {
     return importQueueItems.filter { item in
       item.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID)
     }
+  }
+
+  func acceptanceRecords(for order: TrackedOrder) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.linkedOrderID == order.id }
+  }
+
+  func acceptanceRecords(for group: ShipmentGroup) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.linkedShipmentGroupID == group.id }
+  }
+
+  func acceptanceRecords(for activity: TimelineActivity) -> [AcceptanceRecord] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return acceptanceRecords.filter { $0.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID) }
+  }
+
+  func acceptanceRecords(for issue: ValidationIssue) -> [AcceptanceRecord] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return acceptanceRecords.filter { $0.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID) }
+  }
+
+  func acceptanceHistory(sourceType: AcceptanceSourceType, sourceID: UUID) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.sourceType == sourceType && $0.sourceID == sourceID }
+  }
+
+  func orderLabel(for id: UUID) -> String? {
+    orders.first { $0.id == id }.map { "\($0.store) \($0.orderNumber)" }
+  }
+
+  func shipmentGroupLabel(for id: UUID) -> String? {
+    shipmentGroups.first { $0.id == id }?.groupName
   }
 
   func suggestedShipmentGroups(for order: TrackedOrder) -> [ShipmentGroup] {
@@ -691,6 +835,187 @@ final class ParcelOpsStore {
 
   func createDraftMessage(from item: ImportQueueItem) {
     createDraftMessage(linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString, label: item.sourceLabel, recipient: "operations@parcelops.example")
+  }
+
+  func linkAcceptanceCandidate(_ candidate: AcceptanceCandidate, to order: TrackedOrder) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkImportQueueItem(item, to: order)
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkIntakeEmail(email, to: order)
+    }
+    upsertAcceptanceRecord(from: candidate, decision: .ready, reviewState: .monitor, linkedOrderID: order.id, linkedShipmentGroupID: candidate.suggestedShipmentGroupID, summary: "Acceptance candidate linked to tracked order \(order.orderNumber).", action: .linked)
+  }
+
+  func linkAcceptanceCandidate(_ candidate: AcceptanceCandidate, to group: ShipmentGroup) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkImportQueueItem(item, to: group)
+    case .intakeEmail:
+      linkIntakeEmail(candidate.sourceID, to: group)
+    }
+    upsertAcceptanceRecord(from: candidate, decision: .ready, reviewState: .monitor, linkedOrderID: candidate.suggestedLinkedOrderID, linkedShipmentGroupID: group.id, summary: "Acceptance candidate linked to shipment group \(group.groupName).", action: .linked)
+  }
+
+  func createOrder(from candidate: AcceptanceCandidate) {
+    let order = TrackedOrder(
+      orderNumber: candidate.detectedOrderNumber.isPlaceholderValidationValue ? "ACC-\(4000 + orders.count + 1)" : candidate.detectedOrderNumber,
+      store: candidate.detectedMerchant.isPlaceholderValidationValue ? "Accepted merchant" : candidate.detectedMerchant,
+      recipientEmail: candidate.sourceType == .intakeEmail ? "captured-from-forward@parcelops.example" : "import-queue@parcelops.example",
+      checkedMailbox: candidate.sourceType == .intakeEmail ? "tracking-intake@parcelops.example" : "manual-import",
+      customer: "Operations",
+      fulfillment: .delivery,
+      carrier: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : "Carrier pending",
+      trackingNumber: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : candidate.detectedTrackingNumber,
+      destination: candidate.detectedDestinationAddress.isPlaceholderValidationValue ? "Pending" : candidate.detectedDestinationAddress,
+      eta: "Pending",
+      source: candidate.sourceType == .intakeEmail ? .forwardedMailbox : .manual,
+      status: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? .intake : .shipped,
+      reviewState: .needsReview,
+      latestStatus: "Created from local acceptance review.",
+      timeline: [TimelineEvent(title: "Acceptance review", detail: candidate.sourceLabel, time: "Now", symbol: "checkmark.rectangle.stack.fill")],
+      contactHistory: [ContactHistoryEvent(time: "Now", source: candidate.sourceType == .intakeEmail ? .mailbox : .manual, contactPoint: "Acceptance Review", summary: "Order created from acceptance workflow.", evidence: candidate.rawSummary, reviewState: .needsReview)]
+    )
+    orders.insert(order, at: 0)
+    persistOrders()
+    linkAcceptanceCandidate(candidate, to: order)
+    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from acceptance review.", afterDetail: order.auditDetail)
+  }
+
+  func createShipmentGroup(from candidate: AcceptanceCandidate) {
+    let group = ShipmentGroup(
+      groupName: candidate.detectedOrderNumber.isPlaceholderValidationValue ? "Accepted shipment group" : "Acceptance \(candidate.detectedOrderNumber)",
+      primaryOrderID: candidate.suggestedLinkedOrderID,
+      relatedOrderIDs: candidate.suggestedLinkedOrderID.map { [$0] } ?? [],
+      relatedIntakeEmailIDs: candidate.sourceType == .intakeEmail ? [candidate.sourceID] : [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: candidate.detectedDestinationAddress,
+      recipientCustomerSummary: "Operations",
+      carrierSummary: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending carrier" : "Accepted tracking \(candidate.detectedTrackingNumber)",
+      statusSummary: "Created from acceptance review",
+      riskLevel: candidate.confidenceScore < 50 ? .high : .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    linkAcceptanceCandidate(candidate, to: group)
+    logAudit(action: .created, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Shipment group created from acceptance review.", afterDetail: group.auditDetail)
+  }
+
+  func acceptCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .accepted)
+    upsertAcceptanceRecord(from: candidate, decision: .accepted, reviewState: .accepted, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate accepted into operations.", action: .reviewed)
+  }
+
+  func ignoreCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .ignored)
+    upsertAcceptanceRecord(from: candidate, decision: .ignored, reviewState: .monitor, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate ignored locally.", action: .ignored)
+  }
+
+  func reopenCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .reopened)
+    upsertAcceptanceRecord(from: candidate, decision: .reopened, reviewState: .needsReview, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate reopened for review.", action: .reopened)
+  }
+
+  func createReviewTask(from candidate: AcceptanceCandidate) {
+    createReviewTask(linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString, label: candidate.sourceLabel, summary: "Review acceptance candidate: \(candidate.rawSummary)", priority: candidate.decision == .blocked || candidate.confidenceScore < 50 ? .high : .normal)
+  }
+
+  func createDraftMessage(from candidate: AcceptanceCandidate) {
+    createDraftMessage(linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString, label: candidate.sourceLabel, recipient: "operations@parcelops.example")
+  }
+
+  private func linkIntakeEmail(_ emailID: UUID, to group: ShipmentGroup) {
+    guard let groupIndex = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[groupIndex].auditDetail
+    if !shipmentGroups[groupIndex].relatedIntakeEmailIDs.contains(emailID) {
+      shipmentGroups[groupIndex].relatedIntakeEmailIDs.append(emailID)
+    }
+    shipmentGroups[groupIndex].reviewState = .monitor
+    persistShipmentGroups()
+    logAudit(action: .linked, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Forwarded intake email linked to shipment group.", beforeDetail: beforeDetail, afterDetail: shipmentGroups[groupIndex].auditDetail)
+  }
+
+  private func setCandidateSourceState(_ candidate: AcceptanceCandidate, decision: AcceptanceDecision) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      switch decision {
+      case .accepted:
+        markImportQueueItemAccepted(item)
+      case .ignored:
+        ignoreImportQueueItem(item)
+      case .reopened:
+        reopenImportQueueItem(item)
+      case .blocked:
+        setImportQueueItem(item, status: .blocked, reviewState: .monitor, action: .edited, summary: "Import queue item blocked in acceptance review.")
+      case .ready:
+        break
+      }
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else { return }
+      switch decision {
+      case .accepted:
+        markIntakeEmailReviewed(email)
+      case .ignored:
+        ignoreIntakeEmail(email)
+      case .reopened:
+        updateIntakeEmail(email, reviewState: .needsReview)
+      case .blocked, .ready:
+        break
+      }
+    }
+  }
+
+  private func refreshedCandidate(for candidate: AcceptanceCandidate) -> AcceptanceCandidate {
+    acceptanceCandidates.first { $0.sourceType == candidate.sourceType && $0.sourceID == candidate.sourceID } ?? candidate
+  }
+
+  private func acceptanceRecord(sourceType: AcceptanceSourceType, sourceID: UUID) -> AcceptanceRecord? {
+    acceptanceRecords.first { $0.sourceType == sourceType && $0.sourceID == sourceID }
+  }
+
+  private func upsertAcceptanceRecord(
+    from candidate: AcceptanceCandidate,
+    decision: AcceptanceDecision,
+    reviewState: ReviewState,
+    linkedOrderID: UUID?,
+    linkedShipmentGroupID: UUID?,
+    summary: String,
+    action: AuditAction
+  ) {
+    let updatedCandidate = refreshedCandidate(for: candidate)
+    let record = AcceptanceRecord(
+      id: acceptanceRecord(sourceType: candidate.sourceType, sourceID: candidate.sourceID)?.id ?? UUID(),
+      sourceType: candidate.sourceType,
+      sourceID: candidate.sourceID,
+      sourceLabel: updatedCandidate.sourceLabel,
+      decidedDate: Self.auditTimestamp(),
+      confidenceScore: updatedCandidate.confidenceScore,
+      linkedOrderID: linkedOrderID ?? updatedCandidate.suggestedLinkedOrderID,
+      linkedShipmentGroupID: linkedShipmentGroupID ?? updatedCandidate.suggestedShipmentGroupID,
+      decision: decision,
+      reviewState: reviewState,
+      summary: summary,
+      notes: updatedCandidate.notes
+    )
+
+    if let index = acceptanceRecords.firstIndex(where: { $0.sourceType == candidate.sourceType && $0.sourceID == candidate.sourceID }) {
+      let beforeDetail = acceptanceRecords[index].auditDetail
+      acceptanceRecords[index] = record
+      persistAcceptanceRecords()
+      logAudit(action: action, entityType: .acceptanceRecord, entityID: record.id.uuidString, entityLabel: record.sourceLabel, summary: summary, beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+    } else {
+      acceptanceRecords.insert(record, at: 0)
+      persistAcceptanceRecords()
+      logAudit(action: action, entityType: .acceptanceRecord, entityID: record.id.uuidString, entityLabel: record.sourceLabel, summary: summary, afterDetail: record.auditDetail)
+    }
   }
 
   private func setImportQueueItem(_ item: ImportQueueItem, status: ImportStatus, reviewState: ReviewState, action: AuditAction, summary: String) {
@@ -1395,6 +1720,24 @@ final class ParcelOpsStore {
         reviewState: item.reviewState,
         source: .importQueue,
         suggestedActionText: "Review staged import"
+      )
+    }
+  }
+
+  private func acceptanceTimelineActivities() -> [TimelineActivity] {
+    acceptanceRecords.map { record in
+      TimelineActivity(
+        id: "timeline-acceptance-\(record.id.uuidString)",
+        timestampText: record.decidedDate,
+        entityType: .acceptanceRecord,
+        entityID: record.id.uuidString,
+        title: record.sourceLabel,
+        subtitle: "\(record.sourceType.rawValue) • \(record.decision.rawValue)",
+        detail: record.summary,
+        risk: record.decision == .blocked ? .high : record.decision == .reopened || record.reviewState == .needsReview ? .watch : .normal,
+        reviewState: record.reviewState,
+        source: .acceptance,
+        suggestedActionText: "Review acceptance history"
       )
     }
   }
@@ -3372,6 +3715,10 @@ final class ParcelOpsStore {
     importQueueRepository.saveImportQueueItems(importQueueItems)
   }
 
+  private func persistAcceptanceRecords() {
+    acceptanceRepository.saveAcceptanceRecords(acceptanceRecords)
+  }
+
   private func addReviewTask(_ task: ReviewTask, summary: String) {
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
@@ -3479,6 +3826,39 @@ private extension IntakeEmailReviewState {
     case .ignored: .monitor
     }
   }
+
+  var acceptanceDecision: AcceptanceDecision {
+    switch self {
+    case .needsReview: .ready
+    case .reviewed: .accepted
+    case .ignored: .ignored
+    }
+  }
+}
+
+private extension ImportStatus {
+  var acceptanceDecision: AcceptanceDecision {
+    switch self {
+    case .staged, .linked: .ready
+    case .accepted: .accepted
+    case .ignored: .ignored
+    case .blocked: .blocked
+    case .reopened: .reopened
+    }
+  }
+}
+
+private extension ForwardedEmailIntake {
+  var localAcceptanceConfidence: Int {
+    var score = 90
+    if detectedMerchant.isPlaceholder { score -= 18 }
+    if detectedOrderNumber.isPlaceholder { score -= 18 }
+    if detectedTrackingNumber.isPlaceholder { score -= 12 }
+    if detectedDestinationAddress.isPlaceholder { score -= 16 }
+    if linkedOrderID == nil { score -= 8 }
+    if reviewState == .needsReview { score -= 6 }
+    return max(10, min(100, score))
+  }
 }
 
 private extension SearchResult {
@@ -3578,5 +3958,11 @@ private extension ShipmentGroup {
 private extension ImportQueueItem {
   var auditDetail: String {
     "Source: \(sourceType.rawValue) \(sourceLabel); captured: \(capturedDate); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); linked order: \(suggestedLinkedOrderID?.uuidString ?? "none"); shipment group: \(suggestedShipmentGroupID?.uuidString ?? "none"); confidence: \(confidenceScore); status: \(importStatus.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(rawSummary)."
+  }
+}
+
+private extension AcceptanceRecord {
+  var auditDetail: String {
+    "Source: \(sourceType.rawValue) \(sourceLabel) \(sourceID.uuidString); decided: \(decidedDate); confidence: \(confidenceScore); linked order: \(linkedOrderID?.uuidString ?? "none"); shipment group: \(linkedShipmentGroupID?.uuidString ?? "none"); decision: \(decision.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(summary)."
   }
 }

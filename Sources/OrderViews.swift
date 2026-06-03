@@ -226,6 +226,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
+          let records = store.acceptanceRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local acceptance records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            AcceptanceHistoryStrip(records: records)
+          }
+        }
+
         Panel(title: "SLA context", symbol: "timer") {
           let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
           let policies = store.policies(for: .order)

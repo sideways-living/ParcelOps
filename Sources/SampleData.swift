@@ -755,6 +755,48 @@ enum SampleData {
     )
   ]
 
+  static var acceptanceRecords: [AcceptanceRecord] = [
+    AcceptanceRecord(
+      sourceType: .importQueueItem,
+      sourceID: importQueueItems[1].id,
+      sourceLabel: importQueueItems[1].sourceLabel,
+      decidedDate: "Yesterday 6:18 PM",
+      confidenceScore: 94,
+      linkedOrderID: orders[0].id,
+      linkedShipmentGroupID: shipmentGroups[1].id,
+      decision: .accepted,
+      reviewState: .accepted,
+      summary: "SafetyPro forwarded import accepted into the existing tracked order and shipment group.",
+      notes: "Preserved as local acceptance history."
+    ),
+    AcceptanceRecord(
+      sourceType: .importQueueItem,
+      sourceID: importQueueItems[2].id,
+      sourceLabel: importQueueItems[2].sourceLabel,
+      decidedDate: "Today 10:28 AM",
+      confidenceScore: 52,
+      linkedOrderID: orders[3].id,
+      linkedShipmentGroupID: nil,
+      decision: .blocked,
+      reviewState: .monitor,
+      summary: "Dock screenshot is blocked until a shipment group decision is made.",
+      notes: "Local placeholder only; no OCR or file access."
+    ),
+    AcceptanceRecord(
+      sourceType: .intakeEmail,
+      sourceID: intakeEmails[1].id,
+      sourceLabel: intakeEmails[1].subject,
+      decidedDate: "Today 11:45 AM",
+      confidenceScore: 72,
+      linkedOrderID: nil,
+      linkedShipmentGroupID: shipmentGroups[2].id,
+      decision: .ready,
+      reviewState: .needsReview,
+      summary: "Office Kit forwarded email is ready for acceptance review.",
+      notes: "Compare with PDF import before creating the tracked order."
+    )
+  ]
+
   static var auditEvents: [AuditEvent] = [
     AuditEvent(
       timestamp: "Today 11:42 AM",

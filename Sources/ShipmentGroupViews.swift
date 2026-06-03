@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -93,6 +93,7 @@ struct ShipmentGroupsView: View {
 struct ShipmentGroupRow: View {
   var group: ShipmentGroup
   var importQueueItems: [ImportQueueItem] = []
+  var acceptanceRecords: [AcceptanceRecord] = []
   var onSave: (ShipmentGroup) -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -104,6 +105,7 @@ struct ShipmentGroupRow: View {
   init(
     group: ShipmentGroup,
     importQueueItems: [ImportQueueItem] = [],
+    acceptanceRecords: [AcceptanceRecord] = [],
     onSave: @escaping (ShipmentGroup) -> Void,
     onReviewed: @escaping () -> Void,
     onCreateTask: @escaping () -> Void,
@@ -112,6 +114,7 @@ struct ShipmentGroupRow: View {
   ) {
     self.group = group
     self.importQueueItems = importQueueItems
+    self.acceptanceRecords = acceptanceRecords
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onCreateTask = onCreateTask
@@ -156,6 +159,10 @@ struct ShipmentGroupRow: View {
 
       if !importQueueItems.isEmpty {
         ImportQueueContextStrip(items: importQueueItems)
+      }
+
+      if !acceptanceRecords.isEmpty {
+        AcceptanceHistoryStrip(records: acceptanceRecords)
       }
 
       HStack {

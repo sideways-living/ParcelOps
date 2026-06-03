@@ -393,7 +393,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
-            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity)) {
+            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
               store.createReviewTask(from: activity)
             } onCreateDraft: {
               store.createDraftMessage(from: activity)
@@ -403,7 +403,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue)) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -415,7 +415,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -426,6 +426,30 @@ struct NeedsReviewView: View {
             } onRemove: {
               store.removeShipmentGroup(group)
             }
+          }
+        }
+
+        SettingsPanel(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
+          ForEach(Array(store.acceptanceCandidates.filter { candidate in
+            candidate.reviewState == .needsReview || candidate.decision == .blocked || candidate.decision == .reopened
+          }.prefix(8))) { candidate in
+            AcceptanceCandidateRow(
+              candidate: candidate,
+              orders: store.orders,
+              shipmentGroups: store.shipmentGroups,
+              linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
+              linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
+              history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
+              onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
+              onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
+              onCreateOrder: { store.createOrder(from: candidate) },
+              onCreateShipmentGroup: { store.createShipmentGroup(from: candidate) },
+              onAccept: { store.acceptCandidate(candidate) },
+              onIgnore: { store.ignoreCandidate(candidate) },
+              onReopen: { store.reopenCandidate(candidate) },
+              onTask: { store.createReviewTask(from: candidate) },
+              onDraft: { store.createDraftMessage(from: candidate) }
+            )
           }
         }
 

@@ -118,6 +118,7 @@ extension AuditEntityType {
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
+    case .acceptanceRecord: "checkmark.rectangle.stack.fill"
     }
   }
 }
@@ -138,6 +139,7 @@ extension TimelineEntityType {
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
+    case .acceptanceRecord: "checkmark.rectangle.stack.fill"
     case .automationRule: "arrow.triangle.branch"
     case .savedFilter: "line.3.horizontal.decrease.circle.fill"
     case .auditEvent: "list.clipboard.fill"
@@ -180,6 +182,7 @@ extension TimelineActivitySource {
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueue: "tray.and.arrow.down.fill"
+    case .acceptance: "checkmark.rectangle.stack.fill"
     case .automation: "arrow.triangle.branch"
     case .search: "magnifyingglass"
     case .audit: "list.clipboard.fill"
@@ -353,6 +356,72 @@ extension ImportConfidenceRange {
   }
 }
 
+extension AcceptanceSourceType {
+  var symbol: String {
+    switch self {
+    case .importQueueItem: "tray.and.arrow.down.fill"
+    case .intakeEmail: "envelope.open.fill"
+    }
+  }
+}
+
+extension AcceptanceDecision {
+  var color: Color {
+    switch self {
+    case .ready: .blue
+    case .accepted: .green
+    case .ignored: .gray
+    case .reopened: .purple
+    case .blocked: .red
+    }
+  }
+}
+
+extension AcceptanceCandidate {
+  var reviewTaskLinkedEntityType: ReviewTaskLinkedEntityType {
+    switch sourceType {
+    case .importQueueItem: .importQueueItem
+    case .intakeEmail: .intakeEmail
+    }
+  }
+}
+
+struct AcceptanceHistoryStrip: View {
+  var records: [AcceptanceRecord]
+
+  var body: some View {
+    if !records.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Acceptance history", systemImage: "checkmark.rectangle.stack.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(records.prefix(3)) { record in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: record.sourceType.symbol)
+              .foregroundStyle(record.decision.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(record.sourceLabel)
+                .font(.caption.weight(.semibold))
+              Text("\(record.decision.rawValue) • \(record.decidedDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(record.summary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("\(record.confidenceScore)%", color: record.confidenceScore < 50 ? .red : record.confidenceScore < 75 ? .orange : .green)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -429,6 +498,7 @@ extension ReviewTaskLinkedEntityType {
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
+    case .acceptanceRecord: "checkmark.rectangle.stack.fill"
     }
   }
 }
@@ -526,7 +596,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem:
+    case .reviewTask, .slaPolicy, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord:
       return id.uuidString == linkedEntityID
     }
   }
@@ -542,6 +612,31 @@ extension ImportQueueItem {
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return suggestedShipmentGroupID == id
     case .importQueueItem:
+      return id.uuidString == linkedEntityID
+    case .acceptanceRecord:
+      return false
+    default:
+      return false
+    }
+  }
+}
+
+extension AcceptanceRecord {
+  func matches(linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> Bool {
+    switch linkedEntityType {
+    case .order:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return linkedOrderID == id
+    case .shipmentGroup:
+      guard let id = UUID(uuidString: linkedEntityID) else { return false }
+      return linkedShipmentGroupID == id
+    case .importQueueItem:
+      guard sourceType == .importQueueItem else { return false }
+      return sourceID.uuidString == linkedEntityID
+    case .intakeEmail:
+      guard sourceType == .intakeEmail else { return false }
+      return sourceID.uuidString == linkedEntityID
+    case .acceptanceRecord:
       return id.uuidString == linkedEntityID
     default:
       return false
@@ -565,6 +660,7 @@ extension TimelineActivity {
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup
     case .importQueueItem: .importQueueItem
+    case .acceptanceRecord: .acceptanceRecord
     case .automationRule: .automationRule
     case .savedFilter: .savedFilter
     case .auditEvent: .auditEvent

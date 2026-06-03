@@ -142,6 +142,16 @@ struct DashboardView: View {
             CompactImportQueueList(items: Array((store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview).prefix(4)))
           }
 
+          AnalyticsSection(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
+            MetricStrip(items: [
+              ("Ready", "\(store.acceptanceCandidates.filter { $0.decision == .ready }.count)", .blue),
+              ("Accepted", "\(store.acceptedAcceptanceRecords.count)", .green),
+              ("Blocked", "\(store.blockedAcceptanceRecords.count)", .red),
+              ("Reopened", "\(store.reopenedAcceptanceRecords.count)", .orange)
+            ])
+            CompactAcceptanceList(records: Array((store.blockedAcceptanceRecords + store.reopenedAcceptanceRecords + store.ignoredAcceptanceRecords + store.acceptanceRecordsNeedingReview).prefix(4)))
+          }
+
           AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
             MetricStrip(items: [
               ("Recent", "\(store.recentTimelineActivities.count)", .blue),
@@ -455,6 +465,23 @@ struct CompactImportQueueList: View {
           detail: "\(item.detectedMerchant) • \(item.detectedOrderNumber) • \(item.confidenceScore)%",
           badge: item.importStatus.rawValue,
           color: item.importStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactAcceptanceList: View {
+  var records: [AcceptanceRecord]
+
+  var body: some View {
+    CompactList(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
+      ForEach(records) { record in
+        CompactRow(
+          title: record.sourceLabel,
+          detail: "\(record.sourceType.rawValue) • \(record.confidenceScore)% • \(record.decidedDate)",
+          badge: record.decision.rawValue,
+          color: record.decision.color
         )
       }
     }

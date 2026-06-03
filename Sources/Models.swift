@@ -18,6 +18,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case vendorProfiles
   case shipmentGroups
   case importQueue
+  case acceptanceReview
   case timeline
   case validation
   case search
@@ -45,6 +46,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
     case .importQueue: "Import Queue"
+    case .acceptanceReview: "Acceptance Review"
     case .timeline: "Timeline"
     case .validation: "Validation"
     case .search: "Search"
@@ -72,6 +74,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
     case .importQueue: "Import"
+    case .acceptanceReview: "Accept"
     case .timeline: "Timeline"
     case .validation: "Validate"
     case .search: "Search"
@@ -99,6 +102,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
     case .importQueue: "tray.and.arrow.down.fill"
+    case .acceptanceReview: "checkmark.rectangle.stack.fill"
     case .timeline: "clock.badge.exclamationmark.fill"
     case .validation: "checkmark.seal.fill"
     case .search: "magnifyingglass"
@@ -441,6 +445,40 @@ struct ImportQueueItem: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct AcceptanceRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sourceType: AcceptanceSourceType
+  var sourceID: UUID
+  var sourceLabel: String
+  var decidedDate: String
+  var confidenceScore: Int
+  var linkedOrderID: UUID?
+  var linkedShipmentGroupID: UUID?
+  var decision: AcceptanceDecision
+  var reviewState: ReviewState
+  var summary: String
+  var notes: String
+}
+
+struct AcceptanceCandidate: Identifiable, Hashable {
+  var id: String
+  var sourceType: AcceptanceSourceType
+  var sourceID: UUID
+  var sourceLabel: String
+  var capturedDate: String
+  var rawSummary: String
+  var detectedMerchant: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var detectedDestinationAddress: String
+  var suggestedLinkedOrderID: UUID?
+  var suggestedShipmentGroupID: UUID?
+  var confidenceScore: Int
+  var decision: AcceptanceDecision
+  var reviewState: ReviewState
+  var notes: String
+}
+
 struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
@@ -584,6 +622,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
+  case acceptanceRecord = "Acceptance record"
 
   var id: String { rawValue }
 }
@@ -649,6 +688,32 @@ enum ImportConfidenceRange: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
+enum AcceptanceSourceType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case importQueueItem = "Import queue item"
+  case intakeEmail = "Forwarded intake email"
+
+  var id: String { rawValue }
+}
+
+enum AcceptanceDecision: String, CaseIterable, Identifiable, Hashable, Codable {
+  case ready = "Ready"
+  case accepted = "Accepted"
+  case ignored = "Ignored"
+  case reopened = "Reopened"
+  case blocked = "Blocked"
+
+  var id: String { rawValue }
+}
+
+enum AcceptanceGrouping: String, CaseIterable, Identifiable, Hashable {
+  case confidence = "Confidence"
+  case linkedOrder = "Linked order"
+  case shipmentGroup = "Shipment group"
+  case reviewState = "Review state"
+
+  var id: String { rawValue }
+}
+
 enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case order = "Order"
   case intakeEmail = "Intake email"
@@ -663,6 +728,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
+  case acceptanceRecord = "Acceptance record"
   case automationRule = "Automation rule"
   case savedFilter = "Saved filter"
   case auditEvent = "Audit event"
@@ -692,6 +758,7 @@ enum TimelineActivitySource: String, CaseIterable, Identifiable, Hashable {
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
   case importQueue = "Import queue"
+  case acceptance = "Acceptance"
   case automation = "Automation"
   case search = "Search"
   case audit = "Audit"
@@ -780,6 +847,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
+  case acceptanceRecord = "Acceptance record"
 
   var id: String { rawValue }
 }

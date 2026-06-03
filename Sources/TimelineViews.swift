@@ -27,7 +27,7 @@ struct TimelineView: View {
         ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.activities) { activity in
-              TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity)) {
+              TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
                 store.createReviewTask(from: activity)
               } onCreateDraft: {
                 store.createDraftMessage(from: activity)
@@ -97,6 +97,7 @@ struct TimelineActivityRow: View {
   var activity: TimelineActivity
   var shipmentGroups: [ShipmentGroup] = []
   var importQueueItems: [ImportQueueItem] = []
+  var acceptanceRecords: [AcceptanceRecord] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
 
@@ -150,6 +151,9 @@ struct TimelineActivityRow: View {
       }
       if !importQueueItems.isEmpty {
         ImportQueueContextStrip(items: importQueueItems)
+      }
+      if !acceptanceRecords.isEmpty {
+        AcceptanceHistoryStrip(records: acceptanceRecords)
       }
     }
     .padding(12)
