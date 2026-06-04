@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -871,7 +871,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
           ForEach(Array(Set(store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence))) { claim in
-            ReturnClaimRow(claim: claim, custodyRecords: store.suggestedCustodyRecords(for: claim)) { updatedClaim in
+            ReturnClaimRow(claim: claim, custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim)) { updatedClaim in
               store.updateReturnClaim(updatedClaim)
             } onSubmitted: {
               store.markReturnClaimSubmitted(claim)
@@ -895,7 +895,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Procurement", symbol: "cart.badge.plus") {
           ForEach(Array(Set(store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests))) { request in
-            ProcurementRequestRow(request: request, custodyRecords: store.suggestedCustodyRecords(for: request)) { updatedRequest in
+            ProcurementRequestRow(request: request, custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request)) { updatedRequest in
               store.updateProcurementRequest(updatedRequest)
             } onApproved: {
               store.markProcurementRequestApproved(request)
@@ -1009,7 +1009,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Label references", symbol: "barcode.viewfinder") {
           ForEach(Array(Set(store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords))) { record in
-            LabelReferenceRow(record: record) { updatedRecord in
+            LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record)) { updatedRecord in
               store.updateLabelReferenceRecord(updatedRecord)
             } onPrinted: {
               store.markLabelReferencePrinted(record)
@@ -1025,6 +1025,30 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: record)
             } onRemove: {
               store.removeLabelReferenceRecord(record)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Scan sessions", symbol: "qrcode.viewfinder") {
+          ForEach(Array(Set(store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences))) { record in
+            ScanSessionRow(record: record) { updatedRecord in
+              store.updateScanSessionRecord(updatedRecord)
+            } onMatched: {
+              store.markScanSessionMatched(record)
+            } onMismatch: {
+              store.markScanSessionMismatch(record)
+            } onCompleted: {
+              store.markScanSessionCompleted(record)
+            } onReopen: {
+              store.reopenScanSession(record)
+            } onReviewed: {
+              store.markScanSessionReviewed(record)
+            } onCreateTask: {
+              store.createReviewTask(from: record)
+            } onCreateDraft: {
+              store.createDraftMessage(from: record)
+            } onRemove: {
+              store.removeScanSessionRecord(record)
             }
           }
         }

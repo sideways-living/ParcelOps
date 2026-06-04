@@ -43,6 +43,7 @@ final class ParcelOpsStore {
   var storageLocations: [StorageLocationRecord]
   var custodyRecords: [CustodyRecord]
   var labelReferenceRecords: [LabelReferenceRecord]
+  var scanSessionRecords: [ScanSessionRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -78,6 +79,7 @@ final class ParcelOpsStore {
   private let storageLocationRepository: StorageLocationRepository
   private let custodyRepository: CustodyRepository
   private let labelReferenceRepository: LabelReferenceRepository
+  private let scanSessionRepository: ScanSessionRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -90,7 +92,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -130,6 +132,7 @@ final class ParcelOpsStore {
     self.storageLocationRepository = repository
     self.custodyRepository = repository
     self.labelReferenceRepository = repository
+    self.scanSessionRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -175,6 +178,7 @@ final class ParcelOpsStore {
     self.storageLocations = repository.loadStorageLocations()
     self.custodyRecords = repository.loadCustodyRecords()
     self.labelReferenceRecords = repository.loadLabelReferenceRecords()
+    self.scanSessionRecords = repository.loadScanSessionRecords()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -207,7 +211,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -628,6 +632,30 @@ final class ParcelOpsStore {
     }
   }
 
+  var scanSessionsNeedingReview: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var mismatchScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.scanStatus == .mismatchNeedsReview }
+  }
+
+  var incompleteScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.scanStatus == .planned || $0.scanStatus == .reopened || $0.scanStatus == .blocked }
+  }
+
+  var highRiskScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var scanSessionsMissingCapturedValues: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.capturedValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  var scanSessionsMissingLabelReferences: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.linkedLabelReferenceID == nil }
+  }
+
   var enabledAccountRecordCount: Int {
     accountCredentialRecords.filter(\.isEnabled).count
   }
@@ -828,6 +856,7 @@ final class ParcelOpsStore {
       + storageLocationWorkbenchItems()
       + custodyRecordWorkbenchItems()
       + labelReferenceWorkbenchItems()
+      + scanSessionWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2707,6 +2736,25 @@ final class ParcelOpsStore {
         reviewState: record.reviewState,
         source: .labelReference,
         suggestedNextAction: record.labelStatus == .scannedVerified ? "Review verified label reference" : "Verify, correct, or invalidate local label"
+      )
+    }
+  }
+
+  private func scanSessionWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(scanSessionsNeedingReview + mismatchScanSessions + incompleteScanSessions + highRiskScanSessions + scanSessionsMissingCapturedValues + scanSessionsMissingLabelReferences)).map { record in
+      WorkbenchItem(
+        id: "scan-session-\(record.id.uuidString)",
+        title: record.title,
+        summary: "\(record.scanPurpose.rawValue) • \(record.expectedLabelReferenceValue) • captured \(record.capturedValuePlaceholder.isEmpty ? "missing" : record.capturedValuePlaceholder)",
+        linkedEntityType: .scanSession,
+        linkedEntityID: record.id.uuidString,
+        prioritySeverity: record.scanStatus == .mismatchNeedsReview || record.riskLevel == .critical ? "High" : record.riskLevel.rawValue,
+        status: record.scanStatus.rawValue,
+        assignee: record.assignedOperatorTeam,
+        dueDateText: record.completedDate,
+        reviewState: record.reviewState,
+        source: .scanSession,
+        suggestedNextAction: record.scanStatus == .completed ? "Review completed scan" : "Match, resolve mismatch, or complete scan"
       )
     }
   }
@@ -6280,6 +6328,132 @@ final class ParcelOpsStore {
     suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: item).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, storageLocationID: suggestedStorageLocations(for: item).first?.id, receivingInspectionID: suggestedReceivingInspections(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, evidenceID: nil, custodianTeam: item.assignee, ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredScanSessionRecords(scanPurpose: ScanPurpose?, scanMethod: ScanMethodPlaceholder?, scanStatus: ScanSessionStatus?, operatorTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ScanSessionRecord] {
+    scanSessionRecords.filter { record in
+      let matchesPurpose = scanPurpose == nil || record.scanPurpose == scanPurpose
+      let matchesMethod = scanMethod == nil || record.scanMethodPlaceholder == scanMethod
+      let matchesStatus = scanStatus == nil || record.scanStatus == scanStatus
+      let matchesOperator = operatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.assignedOperatorTeam.localizedCaseInsensitiveContains(operatorTeam)
+      let matchesRisk = riskLevel == nil || record.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || record.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || record.reviewState == reviewState
+      return matchesPurpose && matchesMethod && matchesStatus && matchesOperator && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addScanSessionPlaceholder() {
+    let label = labelReferenceRecords.first
+    let record = ScanSessionRecord(title: "New scan session \(scanSessionRecords.count + 1)", linkedEntityType: .labelReference, linkedEntityID: label?.id.uuidString ?? "Unlinked", scanPurpose: .labelVerification, scanMethodPlaceholder: .manualEntry, expectedLabelReferenceValue: label?.labelValuePlaceholder ?? "To assign", capturedValuePlaceholder: "", linkedLabelReferenceID: label?.id, scanStatus: .planned, mismatchSummary: "No mismatch checked yet.", assignedOperatorTeam: label?.assignedOwnerTeam ?? "ParcelOps Operations", scanLocationStorageLocationID: label?.storageLocationID ?? storageLocations.first?.id, custodyRecordID: label?.custodyRecordID ?? custodyRecords.first?.id, inventoryReceiptID: label?.inventoryReceiptID ?? inventoryReceipts.first?.id, orderID: label?.orderID ?? orders.first?.id, shipmentGroupID: label?.shipmentGroupID ?? shipmentGroups.first?.id, packageContentID: label?.packageContentID ?? packageContents.first?.id, evidenceAttachmentIDs: label?.evidenceAttachmentIDs ?? [], createdDate: Self.auditTimestamp(), completedDate: "Not completed", notes: "Local placeholder only. No scanner hardware, camera access, or barcode scanning is performed.", riskLevel: .medium, reviewState: .needsReview)
+    scanSessionRecords.insert(record, at: 0)
+    persistScanSessionRecords()
+    logAudit(action: .created, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Scan session placeholder added.", afterDetail: record.auditDetail)
+  }
+
+  func updateScanSessionRecord(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index] = record
+    persistScanSessionRecords()
+    logAudit(action: .edited, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Scan session details updated.", beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+  }
+
+  func markScanSessionMatched(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .matched, reviewState: .monitor, summary: "Scan session marked matched locally.", action: .edited)
+  }
+
+  func markScanSessionMismatch(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .mismatchNeedsReview, reviewState: .needsReview, summary: "Scan session marked mismatch and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markScanSessionCompleted(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .completed, reviewState: .accepted, summary: "Scan session completed locally.", action: .completed, completedDate: Self.auditTimestamp())
+  }
+
+  func reopenScanSession(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .reopened, reviewState: .needsReview, summary: "Scan session reopened.", action: .reopened)
+  }
+
+  func markScanSessionReviewed(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index].reviewState = .accepted
+    persistScanSessionRecords()
+    logAudit(action: .reviewed, entityType: .scanSession, entityID: scanSessionRecords[index].id.uuidString, entityLabel: scanSessionRecords[index].title, summary: "Scan session marked reviewed.", beforeDetail: beforeDetail, afterDetail: scanSessionRecords[index].auditDetail)
+  }
+
+  func removeScanSessionRecord(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = scanSessionRecords.remove(at: index)
+    persistScanSessionRecords()
+    logAudit(action: .removed, entityType: .scanSession, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Scan session removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from record: ScanSessionRecord) {
+    createReviewTask(linkedEntityType: .scanSession, linkedEntityID: record.id.uuidString, label: record.title, summary: "Review scan session: expected \(record.expectedLabelReferenceValue), captured \(record.capturedValuePlaceholder.isEmpty ? "missing" : record.capturedValuePlaceholder).", priority: record.riskLevel == .critical ? .urgent : record.riskLevel == .high ? .high : .normal, assignee: record.assignedOperatorTeam)
+  }
+
+  func createDraftMessage(from record: ScanSessionRecord) {
+    createDraftMessage(linkedEntityType: .scanSession, linkedEntityID: record.id.uuidString, label: record.title, recipient: record.assignedOperatorTeam)
+    logAudit(action: .created, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Draft message created from scan session.", afterDetail: record.auditDetail)
+  }
+
+  private func updateScanSessionStatus(_ record: ScanSessionRecord, status: ScanSessionStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false, completedDate: String? = nil) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index].scanStatus = status
+    scanSessionRecords[index].reviewState = reviewState
+    if let completedDate { scanSessionRecords[index].completedDate = completedDate }
+    if forceHighRisk {
+      scanSessionRecords[index].riskLevel = scanSessionRecords[index].riskLevel == .critical ? .critical : .high
+    }
+    persistScanSessionRecords()
+    logAudit(action: action, entityType: .scanSession, entityID: scanSessionRecords[index].id.uuidString, entityLabel: scanSessionRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: scanSessionRecords[index].auditDetail)
+  }
+
+  private func suggestedScanSessionRecords(labelReferenceID: UUID?, storageLocationID: UUID?, custodyRecordID: UUID?, inventoryReceiptID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, operatorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.matches(labelReferenceID: labelReferenceID, storageLocationID: storageLocationID, custodyRecordID: custodyRecordID, inventoryReceiptID: inventoryReceiptID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, evidenceID: evidenceID, labelValue: labelValue, operatorTeam: operatorTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedScanSessionRecords(for label: LabelReferenceRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: label.id, storageLocationID: label.storageLocationID, custodyRecordID: label.custodyRecordID, inventoryReceiptID: label.inventoryReceiptID, orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, packageContentID: label.packageContentID, evidenceID: label.evidenceAttachmentIDs.first, labelValue: label.labelValuePlaceholder, operatorTeam: label.assignedOwnerTeam, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for location: StorageLocationRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, storageLocationID: location.id, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, inventoryReceiptID: location.inventoryReceiptIDs.first, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, packageContentID: location.packageContentIDs.first, evidenceID: nil, labelValue: location.locationCode, operatorTeam: location.assignedOwnerTeam, context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for custody: CustodyRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: custody).first?.id, storageLocationID: custody.storageLocationID ?? custody.destinationLocationID ?? custody.sourceLocationID, custodyRecordID: custody.id, inventoryReceiptID: custody.inventoryReceiptID, orderID: custody.orderID, shipmentGroupID: custody.shipmentGroupID, packageContentID: custody.packageContentID, evidenceID: custody.evidenceAttachmentIDs.first, labelValue: "", operatorTeam: custody.assignedOwnerTeam, context: "\(custody.title) \(custody.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: custody.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for receipt: InventoryReceiptRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: receipt).first?.id, storageLocationID: suggestedStorageLocations(for: receipt).first?.id, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, inventoryReceiptID: receipt.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, packageContentID: receipt.packageContentID, evidenceID: receipt.evidenceAttachmentIDs.first, labelValue: receipt.storageLocationSummary, operatorTeam: receipt.assignedOwnerTeam, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for inspection: ReceivingInspectionRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: inspection).first?.id, storageLocationID: suggestedStorageLocations(for: inspection).first?.id, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, evidenceID: inspection.evidenceAttachmentIDs.first, labelValue: "", operatorTeam: inspection.assignedInspectorTeam, context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for order: TrackedOrder) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: order).first?.id, storageLocationID: suggestedStorageLocations(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, evidenceID: nil, labelValue: "\(order.trackingNumber) \(order.orderNumber)", operatorTeam: order.customer, context: "\(order.store) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for content: PackageContentRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: content).first?.id, storageLocationID: suggestedStorageLocations(for: content).first?.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, evidenceID: content.evidenceAttachmentIDs.first, labelValue: content.itemSummary, operatorTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for request: ProcurementRequest) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: request).first?.id, storageLocationID: suggestedStorageLocations(for: request).first?.id, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, evidenceID: request.evidenceAttachmentIDs.first, labelValue: request.requestedItemsSummary, operatorTeam: request.assignedBuyerTeam, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for claim: ReturnClaimRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: claim).first?.id, storageLocationID: suggestedStorageLocations(for: claim).first?.id, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, evidenceID: claim.evidenceAttachmentIDs.first, labelValue: claim.reasonSummary, operatorTeam: claim.assignedOwnerTeam, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for item: WorkbenchItem) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, storageLocationID: suggestedStorageLocations(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, evidenceID: nil, labelValue: item.summary, operatorTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func filteredLabelReferenceRecords(labelType: LabelReferenceType?, labelStatus: LabelReferenceStatus?, labelSource: LabelReferenceSource?, carrier: String, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [LabelReferenceRecord] {
     labelReferenceRecords.filter { record in
       let matchesType = labelType == nil || record.labelType == labelType
@@ -6900,6 +7074,10 @@ final class ParcelOpsStore {
       if let record = labelReferenceRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markLabelReferenceReviewed(record)
       }
+    case .scanSession:
+      if let record = scanSessionRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markScanSessionReviewed(record)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -7198,6 +7376,10 @@ final class ParcelOpsStore {
 
   private func persistLabelReferenceRecords() {
     labelReferenceRepository.saveLabelReferenceRecords(labelReferenceRecords)
+  }
+
+  private func persistScanSessionRecords() {
+    scanSessionRepository.saveScanSessionRecords(scanSessionRecords)
   }
 
   private func persistAccountCredentialRecords() {
@@ -7799,6 +7981,43 @@ private extension LabelReferenceRecord {
         || contextText.localizedCaseInsensitiveContains(labelType.rawValue)
     )
     return storageMatch || receiptMatch || custodyMatch || orderMatch || groupMatch || contentMatch || evidenceMatch || linkedMatch || valueMatch || carrierMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ScanSessionRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); purpose: \(scanPurpose.rawValue); method: \(scanMethodPlaceholder.rawValue); expected: \(expectedLabelReferenceValue); captured: \(capturedValuePlaceholder); label reference: \(linkedLabelReferenceID?.uuidString ?? "none"); status: \(scanStatus.rawValue); mismatch: \(mismatchSummary); operator: \(assignedOperatorTeam); scan location: \(scanLocationStorageLocationID?.uuidString ?? "none"); custody: \(custodyRecordID?.uuidString ?? "none"); inventory receipt: \(inventoryReceiptID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate); notes: \(notes)."
+  }
+
+  func matches(labelReferenceID: UUID?, storageLocationID: UUID?, custodyRecordID: UUID?, inventoryReceiptID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, operatorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let labelMatch = labelReferenceID != nil && linkedLabelReferenceID == labelReferenceID
+    let storageMatch = storageLocationID != nil && scanLocationStorageLocationID == storageLocationID
+    let custodyMatch = custodyRecordID != nil && self.custodyRecordID == custodyRecordID
+    let receiptMatch = inventoryReceiptID != nil && self.inventoryReceiptID == inventoryReceiptID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let value = labelValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    let valueMatch = !value.isEmpty && (
+      expectedLabelReferenceValue.localizedCaseInsensitiveContains(value)
+        || capturedValuePlaceholder.localizedCaseInsensitiveContains(value)
+        || value.localizedCaseInsensitiveContains(expectedLabelReferenceValue)
+        || value.localizedCaseInsensitiveContains(capturedValuePlaceholder)
+    )
+    let operatorText = operatorTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let operatorMatch = !operatorText.isEmpty && (assignedOperatorTeam.localizedCaseInsensitiveContains(operatorText) || operatorText.localizedCaseInsensitiveContains(assignedOperatorTeam))
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || notes.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(notes)
+        || mismatchSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(mismatchSummary)
+    )
+    return labelMatch || storageMatch || custodyMatch || receiptMatch || orderMatch || groupMatch || contentMatch || evidenceMatch || linkedMatch || valueMatch || operatorMatch || contextMatch
   }
 }
 

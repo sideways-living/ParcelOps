@@ -49,7 +49,7 @@ struct ReceivingInspectionsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredInspections) { inspection in
-              ReceivingInspectionRow(inspection: inspection, inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection)) { updatedInspection in
+              ReceivingInspectionRow(inspection: inspection, inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection)) { updatedInspection in
                 store.updateReceivingInspection(updatedInspection)
               } onInspected: {
                 store.markReceivingInspectionInspected(inspection)
@@ -168,6 +168,7 @@ struct ReceivingInspectionRow: View {
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
+  var scanSessions: [ScanSessionRecord] = []
   var onSave: (ReceivingInspectionRecord) -> Void
   var onInspected: () -> Void
   var onDiscrepancy: () -> Void
@@ -224,6 +225,7 @@ struct ReceivingInspectionRow: View {
       StorageLocationStrip(locations: storageLocations)
       CustodyRecordStrip(records: custodyRecords)
       LabelReferenceStrip(records: labelReferences)
+      ScanSessionStrip(records: scanSessions)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

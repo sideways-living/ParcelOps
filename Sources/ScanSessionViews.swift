@@ -1,20 +1,19 @@
 import SwiftUI
 
-struct LabelReferencesView: View {
+struct ScanSessionsView: View {
   var store: ParcelOpsStore
-  @State private var selectedType: LabelReferenceType?
-  @State private var selectedStatus: LabelReferenceStatus?
-  @State private var selectedSource: LabelReferenceSource?
-  @State private var carrier = ""
-  @State private var ownerTeam = ""
+  @State private var selectedPurpose: ScanPurpose?
+  @State private var selectedMethod: ScanMethodPlaceholder?
+  @State private var selectedStatus: ScanSessionStatus?
+  @State private var operatorTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [LabelReferenceRecord] {
-    store.filteredLabelReferenceRecords(labelType: selectedType, labelStatus: selectedStatus, labelSource: selectedSource, carrier: carrier, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  private var filteredRecords: [ScanSessionRecord] {
+    store.filteredScanSessionRecords(scanPurpose: selectedPurpose, scanMethod: selectedMethod, scanStatus: selectedStatus, operatorTeam: operatorTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
   }
 
   var body: some View {
@@ -23,18 +22,18 @@ struct LabelReferencesView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Label reference records", symbol: "barcode.viewfinder") {
+        SettingsPanel(title: "Scan session records", symbol: "qrcode.viewfinder") {
           HStack {
-            Text("\(filteredRecords.count) visible label references")
+            Text("\(filteredRecords.count) visible scan sessions")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add label", systemImage: "plus", action: store.addLabelReferencePlaceholder)
+            Button("Add scan", systemImage: "plus", action: store.addScanSessionPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No label references match the selected filters.")
+            Text("No scan sessions match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
@@ -42,22 +41,24 @@ struct LabelReferencesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record)) { updatedRecord in
-                store.updateLabelReferenceRecord(updatedRecord)
-              } onPrinted: {
-                store.markLabelReferencePrinted(record)
-              } onVerified: {
-                store.markLabelReferenceVerified(record)
-              } onInvalid: {
-                store.markLabelReferenceInvalid(record)
+              ScanSessionRow(record: record) { updatedRecord in
+                store.updateScanSessionRecord(updatedRecord)
+              } onMatched: {
+                store.markScanSessionMatched(record)
+              } onMismatch: {
+                store.markScanSessionMismatch(record)
+              } onCompleted: {
+                store.markScanSessionCompleted(record)
+              } onReopen: {
+                store.reopenScanSession(record)
               } onReviewed: {
-                store.markLabelReferenceReviewed(record)
+                store.markScanSessionReviewed(record)
               } onCreateTask: {
                 store.createReviewTask(from: record)
               } onCreateDraft: {
                 store.createDraftMessage(from: record)
               } onRemove: {
-                store.removeLabelReferenceRecord(record)
+                store.removeScanSessionRecord(record)
               }
             }
           }
@@ -70,45 +71,42 @@ struct LabelReferencesView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Label References")
+        Text("Scan Sessions")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local barcode, QR, tracking, storage, custody, receiving, return, and evidence label placeholders.")
+        Text("Local manual verification sessions for barcode, QR, label, order, custody, receiving, and inventory checks.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.invalidLabelReferences.count) invalid", color: .red)
-        Badge("\(store.labelReferencesMissingValues.count) missing values", color: .orange)
+        Badge("\(store.mismatchScanSessions.count) mismatch", color: .red)
+        Badge("\(store.incompleteScanSessions.count) incomplete", color: .orange)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Type", selection: $selectedType) {
-        Text("All types").tag(nil as LabelReferenceType?)
-        ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type as LabelReferenceType?) }
+      Picker("Purpose", selection: $selectedPurpose) {
+        Text("All purposes").tag(nil as ScanPurpose?)
+        ForEach(ScanPurpose.allCases) { purpose in Text(purpose.rawValue).tag(purpose as ScanPurpose?) }
+      }
+      .pickerStyle(.menu)
+
+      Picker("Method", selection: $selectedMethod) {
+        Text("All methods").tag(nil as ScanMethodPlaceholder?)
+        ForEach(ScanMethodPlaceholder.allCases) { method in Text(method.rawValue).tag(method as ScanMethodPlaceholder?) }
       }
       .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as LabelReferenceStatus?)
-        ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status as LabelReferenceStatus?) }
+        Text("All status").tag(nil as ScanSessionStatus?)
+        ForEach(ScanSessionStatus.allCases) { status in Text(status.rawValue).tag(status as ScanSessionStatus?) }
       }
       .pickerStyle(.menu)
 
-      Picker("Source", selection: $selectedSource) {
-        Text("All sources").tag(nil as LabelReferenceSource?)
-        ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source as LabelReferenceSource?) }
-      }
-      .pickerStyle(.menu)
-
-      TextField("Carrier", text: $carrier)
+      TextField("Operator/team", text: $operatorTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 120)
-      TextField("Owner/team", text: $ownerTeam)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
+        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -130,11 +128,10 @@ struct LabelReferencesView: View {
 
       Spacer()
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedType = nil
+        selectedPurpose = nil
+        selectedMethod = nil
         selectedStatus = nil
-        selectedSource = nil
-        carrier = ""
-        ownerTeam = ""
+        operatorTeam = ""
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -144,13 +141,13 @@ struct LabelReferencesView: View {
   }
 }
 
-struct LabelReferenceRow: View {
-  var record: LabelReferenceRecord
-  var scanSessions: [ScanSessionRecord] = []
-  var onSave: (LabelReferenceRecord) -> Void
-  var onPrinted: () -> Void
-  var onVerified: () -> Void
-  var onInvalid: () -> Void
+struct ScanSessionRow: View {
+  var record: ScanSessionRecord
+  var onSave: (ScanSessionRecord) -> Void
+  var onMatched: () -> Void
+  var onMismatch: () -> Void
+  var onCompleted: () -> Void
+  var onReopen: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -160,7 +157,7 @@ struct LabelReferenceRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: record.labelType.symbol)
+        Image(systemName: record.scanPurpose.symbol)
           .foregroundStyle(record.riskLevel.color)
           .frame(width: 28, height: 28)
         VStack(alignment: .leading, spacing: 6) {
@@ -168,43 +165,42 @@ struct LabelReferenceRow: View {
             VStack(alignment: .leading, spacing: 2) {
               Text(record.title)
                 .font(.headline)
-              Text("\(record.labelType.rawValue) • \(record.labelValuePlaceholder)")
+              Text("\(record.scanPurpose.rawValue) • \(record.scanMethodPlaceholder.rawValue)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(record.labelStatus.rawValue, color: record.labelStatus.color)
+            Badge(record.scanStatus.rawValue, color: record.scanStatus.color)
           }
-          Text(record.notes)
+          Text("Expected \(record.expectedLabelReferenceValue) • captured \(record.capturedValuePlaceholder.isEmpty ? "missing" : record.capturedValuePlaceholder)")
             .foregroundStyle(.secondary)
-          Text("\(record.labelSource.rawValue) • \(record.associatedCarrier) • Owner \(record.assignedOwnerTeam)")
+          Text("\(record.mismatchSummary) • Operator \(record.assignedOperatorTeam)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
-
           HStack(spacing: 8) {
             Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
             Badge(record.reviewState.rawValue, color: record.reviewState.color)
             Label(record.linkedEntityType.rawValue, systemImage: record.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label("\(record.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
+            Label(record.completedDate, systemImage: "calendar")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      ScanSessionStrip(records: scanSessions)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Printed", systemImage: "printer.fill", action: onPrinted)
+        Button("Matched", systemImage: "checkmark.circle.fill", action: onMatched)
           .buttonStyle(.bordered)
-        Button("Verified", systemImage: "barcode.viewfinder", action: onVerified)
+        Button("Mismatch", systemImage: "exclamationmark.triangle.fill", action: onMismatch)
           .buttonStyle(.bordered)
-        Button("Invalid", systemImage: "exclamationmark.triangle.fill", action: onInvalid)
+        Button("Complete", systemImage: "checkmark.seal.fill", action: onCompleted)
+          .buttonStyle(.bordered)
+        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -220,19 +216,19 @@ struct LabelReferenceRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      LabelReferenceEditView(record: record) { updatedRecord in
+      ScanSessionEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
     }
   }
 }
 
-struct LabelReferenceEditView: View {
+struct ScanSessionEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: LabelReferenceRecord
-  var onSave: (LabelReferenceRecord) -> Void
+  @State private var draft: ScanSessionRecord
+  var onSave: (ScanSessionRecord) -> Void
 
-  init(record: LabelReferenceRecord, onSave: @escaping (LabelReferenceRecord) -> Void) {
+  init(record: ScanSessionRecord, onSave: @escaping (ScanSessionRecord) -> Void) {
     self._draft = State(initialValue: record)
     self.onSave = onSave
   }
@@ -240,25 +236,26 @@ struct LabelReferenceEditView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Label") {
+        Section("Scan") {
           TextField("Title", text: $draft.title)
-          Picker("Type", selection: $draft.labelType) {
-            ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type) }
+          Picker("Purpose", selection: $draft.scanPurpose) {
+            ForEach(ScanPurpose.allCases) { purpose in Text(purpose.rawValue).tag(purpose) }
           }
-          TextField("Value placeholder", text: $draft.labelValuePlaceholder)
-          Picker("Source", selection: $draft.labelSource) {
-            ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source) }
+          Picker("Method", selection: $draft.scanMethodPlaceholder) {
+            ForEach(ScanMethodPlaceholder.allCases) { method in Text(method.rawValue).tag(method) }
           }
-          Picker("Status", selection: $draft.labelStatus) {
-            ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status) }
+          Picker("Status", selection: $draft.scanStatus) {
+            ForEach(ScanSessionStatus.allCases) { status in Text(status.rawValue).tag(status) }
           }
-          TextField("Associated carrier", text: $draft.associatedCarrier)
+          TextField("Expected value", text: $draft.expectedLabelReferenceValue)
+          TextField("Captured value", text: $draft.capturedValuePlaceholder)
+          TextField("Mismatch summary", text: $draft.mismatchSummary, axis: .vertical)
         }
 
         Section("Ownership") {
-          TextField("Owner/team", text: $draft.assignedOwnerTeam)
+          TextField("Operator/team", text: $draft.assignedOperatorTeam)
           TextField("Created date", text: $draft.createdDate)
-          TextField("Last reviewed", text: $draft.lastReviewedDate)
+          TextField("Completed date", text: $draft.completedDate)
           TextField("Notes", text: $draft.notes, axis: .vertical)
         }
 
@@ -278,7 +275,7 @@ struct LabelReferenceEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Label")
+      .navigationTitle("Edit Scan")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -291,6 +288,6 @@ struct LabelReferenceEditView: View {
         }
       }
     }
-    .frame(minWidth: 620, minHeight: 660)
+    .frame(minWidth: 640, minHeight: 680)
   }
 }

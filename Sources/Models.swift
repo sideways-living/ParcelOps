@@ -29,6 +29,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case storageLocations
   case custodyChain
   case labelReferences
+  case scanSessions
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -73,6 +74,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .storageLocations: "Storage Locations"
     case .custodyChain: "Custody Chain"
     case .labelReferences: "Label References"
+    case .scanSessions: "Scan Sessions"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -117,6 +119,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .storageLocations: "Storage"
     case .custodyChain: "Custody"
     case .labelReferences: "Labels"
+    case .scanSessions: "Scans"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -161,6 +164,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .storageLocations: "cabinet.fill"
     case .custodyChain: "person.badge.shield.checkmark.fill"
     case .labelReferences: "barcode.viewfinder"
+    case .scanSessions: "qrcode.viewfinder"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -818,6 +822,33 @@ struct LabelReferenceRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct ScanSessionRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var scanPurpose: ScanPurpose
+  var scanMethodPlaceholder: ScanMethodPlaceholder
+  var expectedLabelReferenceValue: String
+  var capturedValuePlaceholder: String
+  var linkedLabelReferenceID: UUID?
+  var scanStatus: ScanSessionStatus
+  var mismatchSummary: String
+  var assignedOperatorTeam: String
+  var scanLocationStorageLocationID: UUID?
+  var custodyRecordID: UUID?
+  var inventoryReceiptID: UUID?
+  var orderID: UUID?
+  var shipmentGroupID: UUID?
+  var packageContentID: UUID?
+  var evidenceAttachmentIDs: [UUID]
+  var createdDate: String
+  var completedDate: String
+  var notes: String
+  var riskLevel: ShipmentRiskLevel
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -1080,6 +1111,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1383,6 +1415,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1452,6 +1485,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -1535,6 +1569,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -1561,6 +1596,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -1599,6 +1635,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case storageLocation = "Storage location"
   case custodyRecord = "Custody record"
   case labelReference = "Label reference"
+  case scanSession = "Scan session"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1735,6 +1772,39 @@ enum LabelReferenceStatus: String, CaseIterable, Identifiable, Hashable, Codable
   case invalidNeedsReview = "Invalid/needs review"
   case missingValue = "Missing value"
   case archived = "Archived"
+
+  var id: String { rawValue }
+}
+
+enum ScanPurpose: String, CaseIterable, Identifiable, Hashable, Codable {
+  case labelVerification = "Label verification"
+  case orderCheck = "Order check"
+  case receivingCheck = "Receiving check"
+  case inventoryHandoff = "Inventory handoff"
+  case custodyTransfer = "Custody transfer"
+  case returnClaimCheck = "Return/claim check"
+  case evidenceCheck = "Evidence check"
+
+  var id: String { rawValue }
+}
+
+enum ScanMethodPlaceholder: String, CaseIterable, Identifiable, Hashable, Codable {
+  case manualEntry = "Manual entry"
+  case handheldScannerPlaceholder = "Scanner placeholder"
+  case cameraPlaceholder = "Camera placeholder"
+  case labelReview = "Label review"
+  case operatorAttestation = "Operator attestation"
+
+  var id: String { rawValue }
+}
+
+enum ScanSessionStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case planned = "Planned"
+  case matched = "Matched"
+  case mismatchNeedsReview = "Mismatch/needs review"
+  case completed = "Completed"
+  case reopened = "Reopened"
+  case blocked = "Blocked"
 
   var id: String { rawValue }
 }

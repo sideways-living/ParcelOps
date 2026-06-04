@@ -49,7 +49,7 @@ struct CustodyChainView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record)) { updatedRecord in
+              CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record), scanSessions: store.suggestedScanSessionRecords(for: record)) { updatedRecord in
                 store.updateCustodyRecord(updatedRecord)
               } onTransferred: {
                 store.markCustodyRecordTransferred(record)
@@ -161,6 +161,7 @@ struct CustodyChainView: View {
 struct CustodyRecordRow: View {
   var record: CustodyRecord
   var labelReferences: [LabelReferenceRecord] = []
+  var scanSessions: [ScanSessionRecord] = []
   var onSave: (CustodyRecord) -> Void
   var onTransferred: () -> Void
   var onReceived: () -> Void
@@ -213,6 +214,7 @@ struct CustodyRecordRow: View {
       }
 
       LabelReferenceStrip(records: labelReferences)
+      ScanSessionStrip(records: scanSessions)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

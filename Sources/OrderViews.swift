@@ -298,6 +298,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Scan sessions", symbol: "qrcode.viewfinder") {
+          let records = store.suggestedScanSessionRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local scan sessions matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ScanSessionStrip(records: records)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

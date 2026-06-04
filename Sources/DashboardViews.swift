@@ -252,6 +252,16 @@ struct DashboardView: View {
             CompactLabelReferenceList(records: Array((store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords).prefix(4)))
           }
 
+          AnalyticsSection(title: "Scan sessions", symbol: "qrcode.viewfinder") {
+            MetricStrip(items: [
+              ("Review", "\(store.scanSessionsNeedingReview.count)", .orange),
+              ("Mismatch", "\(store.mismatchScanSessions.count)", .red),
+              ("Incomplete", "\(store.incompleteScanSessions.count)", .blue),
+              ("Missing", "\(store.scanSessionsMissingCapturedValues.count + store.scanSessionsMissingLabelReferences.count)", .red)
+            ])
+            CompactScanSessionList(records: Array((store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -812,6 +822,23 @@ struct CompactLabelReferenceList: View {
           detail: "\(record.labelType.rawValue) • \(record.labelValuePlaceholder)",
           badge: record.labelStatus.rawValue,
           color: record.labelStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactScanSessionList: View {
+  var records: [ScanSessionRecord]
+
+  var body: some View {
+    CompactList(title: "Scan sessions", symbol: "qrcode.viewfinder") {
+      ForEach(records) { record in
+        CompactRow(
+          title: record.title,
+          detail: "\(record.scanPurpose.rawValue) • \(record.capturedValuePlaceholder.isEmpty ? "Missing captured value" : record.capturedValuePlaceholder)",
+          badge: record.scanStatus.rawValue,
+          color: record.scanStatus.color
         )
       }
     }
