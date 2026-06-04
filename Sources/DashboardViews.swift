@@ -212,6 +212,16 @@ struct DashboardView: View {
             CompactReceivingInspectionList(inspections: Array((store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections).prefix(4)))
           }
 
+          AnalyticsSection(title: "Inventory receipts", symbol: "archivebox.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.inventoryReceiptsNeedingReview.count)", .orange),
+              ("Rejected", "\(store.rejectedInventoryReceipts.count)", .red),
+              ("Partial", "\(store.partiallyAcceptedInventoryReceipts.count)", .orange),
+              ("Missing storage", "\(store.inventoryReceiptsMissingStorage.count)", .red)
+            ])
+            CompactInventoryReceiptList(receipts: Array((store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -704,6 +714,23 @@ struct CompactReceivingInspectionList: View {
           detail: "\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received",
           badge: inspection.inspectionStatus.rawValue,
           color: inspection.inspectionStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactInventoryReceiptList: View {
+  var receipts: [InventoryReceiptRecord]
+
+  var body: some View {
+    CompactList(title: "Inventory receipts", symbol: "archivebox.fill") {
+      ForEach(receipts) { receipt in
+        CompactRow(
+          title: receipt.title,
+          detail: "\(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
+          badge: receipt.stockHandoffStatus.rawValue,
+          color: receipt.stockHandoffStatus.color
         )
       }
     }

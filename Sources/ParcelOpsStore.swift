@@ -39,6 +39,7 @@ final class ParcelOpsStore {
   var returnClaims: [ReturnClaimRecord]
   var procurementRequests: [ProcurementRequest]
   var receivingInspections: [ReceivingInspectionRecord]
+  var inventoryReceipts: [InventoryReceiptRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -70,6 +71,7 @@ final class ParcelOpsStore {
   private let returnClaimRepository: ReturnClaimRepository
   private let procurementRequestRepository: ProcurementRequestRepository
   private let receivingInspectionRepository: ReceivingInspectionRepository
+  private let inventoryReceiptRepository: InventoryReceiptRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -82,7 +84,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -118,6 +120,7 @@ final class ParcelOpsStore {
     self.returnClaimRepository = repository
     self.procurementRequestRepository = repository
     self.receivingInspectionRepository = repository
+    self.inventoryReceiptRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -159,6 +162,7 @@ final class ParcelOpsStore {
     self.returnClaims = repository.loadReturnClaims()
     self.procurementRequests = repository.loadProcurementRequests()
     self.receivingInspections = repository.loadReceivingInspections()
+    self.inventoryReceipts = repository.loadInventoryReceipts()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -191,7 +195,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -488,6 +492,33 @@ final class ParcelOpsStore {
     receivingInspections.filter { $0.quantityExpected != $0.quantityReceived || $0.discrepancyType == .quantityMismatch }
   }
 
+  var inventoryReceiptsNeedingReview: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.reviewState != .accepted }
+  }
+
+  var rejectedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.stockHandoffStatus == .rejected || $0.stockHandoffStatus == .needsReview }
+  }
+
+  var partiallyAcceptedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.stockHandoffStatus == .partiallyAccepted || $0.quantityRejected > 0 }
+  }
+
+  var highRiskInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var unassignedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || $0.assignedOwnerTeam.localizedCaseInsensitiveContains("unassigned") }
+  }
+
+  var inventoryReceiptsMissingStorage: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { receipt in
+      let location = receipt.storageLocationSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+      return location.isEmpty || location.localizedCaseInsensitiveContains("unassigned") || location.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
   var enabledAccountRecordCount: Int {
     accountCredentialRecords.filter(\.isEnabled).count
   }
@@ -684,6 +715,7 @@ final class ParcelOpsStore {
       + returnClaimWorkbenchItems()
       + procurementRequestWorkbenchItems()
       + receivingInspectionWorkbenchItems()
+      + inventoryReceiptWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2487,6 +2519,25 @@ final class ParcelOpsStore {
         reviewState: inspection.reviewState,
         source: .receivingInspection,
         suggestedNextAction: inspection.inspectionStatus == .resolved ? "Review resolved inspection" : "Inspect, resolve, or block discrepancy"
+      )
+    }
+  }
+
+  private func inventoryReceiptWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(inventoryReceiptsNeedingReview + rejectedInventoryReceipts + partiallyAcceptedInventoryReceipts + highRiskInventoryReceipts + unassignedInventoryReceipts + inventoryReceiptsMissingStorage)).map { receipt in
+      WorkbenchItem(
+        id: "inventory-receipt-\(receipt.id.uuidString)",
+        title: receipt.title,
+        summary: "\(receipt.receiptType.rawValue) • \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
+        linkedEntityType: .inventoryReceipt,
+        linkedEntityID: receipt.id.uuidString,
+        prioritySeverity: receipt.stockHandoffStatus == .rejected || receipt.riskLevel == .critical ? "High" : receipt.riskLevel.rawValue,
+        status: receipt.stockHandoffStatus.rawValue,
+        assignee: receipt.assignedOwnerTeam,
+        dueDateText: receipt.handoffDate,
+        reviewState: receipt.reviewState,
+        source: .inventoryReceipt,
+        suggestedNextAction: receipt.stockHandoffStatus == .stocked || receipt.stockHandoffStatus == .handedOff ? "Review completed stock handoff" : "Stock, hand off, or reject receipt"
       )
     }
   }
@@ -5729,6 +5780,120 @@ final class ParcelOpsStore {
     suggestedReceivingInspections(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, procurementRequestID: suggestedProcurementRequests(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, destinationAddressID: nil, customerProfileID: nil, evidenceID: nil, trackingEventID: nil, inspectorTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredInventoryReceipts(receiptType: InventoryReceiptType?, stockHandoffStatus: InventoryStockHandoffStatus?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [InventoryReceiptRecord] {
+    inventoryReceipts.filter { receipt in
+      let matchesType = receiptType == nil || receipt.receiptType == receiptType
+      let matchesStatus = stockHandoffStatus == nil || receipt.stockHandoffStatus == stockHandoffStatus
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || receipt.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || receipt.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || receipt.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addInventoryReceiptPlaceholder() {
+    let inspection = receivingInspections.first
+    let content = packageContents.first
+    let receipt = InventoryReceiptRecord(title: "New inventory receipt \(inventoryReceipts.count + 1)", linkedEntityType: .receivingInspection, linkedEntityID: inspection?.id.uuidString ?? "Unlinked", receivingInspectionID: inspection?.id, orderID: inspection?.orderID ?? content?.orderID, shipmentGroupID: inspection?.shipmentGroupID ?? content?.shipmentGroupID, packageContentID: inspection?.packageContentID ?? content?.id, procurementRequestID: inspection?.procurementRequestID, returnClaimID: inspection?.returnClaimID, destinationAddressID: inspection?.destinationAddressID ?? content?.destinationAddressID, customerProfileID: inspection?.customerProfileID ?? content?.customerProfileID, evidenceAttachmentIDs: inspection?.evidenceAttachmentIDs ?? [], receiptType: .stockReceipt, stockHandoffStatus: .pending, itemSummary: inspection?.receivedItemSummary ?? content?.itemSummary ?? "Items to stock or hand off locally.", quantityReceived: inspection?.quantityReceived ?? 0, quantityAccepted: 0, quantityRejected: 0, storageLocationSummary: "To assign", assignedOwnerTeam: inspection?.assignedInspectorTeam ?? "Receiving Desk", receivedDate: "Not received", handoffDate: "To schedule", discrepancySummary: "No inventory receipt discrepancy recorded yet.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    inventoryReceipts.insert(receipt, at: 0)
+    persistInventoryReceipts()
+    logAudit(action: .created, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Inventory receipt placeholder added.", afterDetail: receipt.auditDetail)
+  }
+
+  func updateInventoryReceipt(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index] = receipt
+    persistInventoryReceipts()
+    logAudit(action: .edited, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Inventory receipt details updated.", beforeDetail: beforeDetail, afterDetail: receipt.auditDetail)
+  }
+
+  func markInventoryReceiptStocked(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .stocked, reviewState: .accepted, summary: "Inventory receipt marked stocked locally.", action: .completed)
+  }
+
+  func markInventoryReceiptHandedOff(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .handedOff, reviewState: .accepted, summary: "Inventory receipt marked handed off locally.", action: .completed)
+  }
+
+  func markInventoryReceiptPartiallyAccepted(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .partiallyAccepted, reviewState: .needsReview, summary: "Inventory receipt marked partially accepted.", action: .edited, forceHighRisk: true)
+  }
+
+  func markInventoryReceiptRejected(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .rejected, reviewState: .needsReview, summary: "Inventory receipt rejected and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markInventoryReceiptReviewed(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index].reviewState = .accepted
+    inventoryReceipts[index].lastReviewedDate = Self.auditTimestamp()
+    persistInventoryReceipts()
+    logAudit(action: .reviewed, entityType: .inventoryReceipt, entityID: inventoryReceipts[index].id.uuidString, entityLabel: inventoryReceipts[index].title, summary: "Inventory receipt marked reviewed.", beforeDetail: beforeDetail, afterDetail: inventoryReceipts[index].auditDetail)
+  }
+
+  func removeInventoryReceipt(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let removed = inventoryReceipts.remove(at: index)
+    persistInventoryReceipts()
+    logAudit(action: .removed, entityType: .inventoryReceipt, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Inventory receipt removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from receipt: InventoryReceiptRecord) {
+    createReviewTask(linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString, label: receipt.title, summary: "Review inventory receipt: \(receipt.itemSummary). \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted.", priority: receipt.riskLevel == .critical ? .urgent : receipt.riskLevel == .high ? .high : .normal, assignee: receipt.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from receipt: InventoryReceiptRecord) {
+    createDraftMessage(linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString, label: receipt.title, recipient: receipt.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Draft message created from inventory receipt.", afterDetail: receipt.auditDetail)
+  }
+
+  private func updateInventoryReceiptStatus(_ receipt: InventoryReceiptRecord, status: InventoryStockHandoffStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index].stockHandoffStatus = status
+    inventoryReceipts[index].reviewState = reviewState
+    inventoryReceipts[index].lastReviewedDate = Self.auditTimestamp()
+    if status == .stocked || status == .handedOff {
+      inventoryReceipts[index].quantityAccepted = max(inventoryReceipts[index].quantityAccepted, inventoryReceipts[index].quantityReceived - inventoryReceipts[index].quantityRejected)
+    }
+    if forceHighRisk {
+      inventoryReceipts[index].riskLevel = inventoryReceipts[index].riskLevel == .critical ? .critical : .high
+    }
+    persistInventoryReceipts()
+    logAudit(action: action, entityType: .inventoryReceipt, entityID: inventoryReceipts[index].id.uuidString, entityLabel: inventoryReceipts[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: inventoryReceipts[index].auditDetail)
+  }
+
+  private func suggestedInventoryReceipts(receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.matches(receivingInspectionID: receivingInspectionID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, procurementRequestID: procurementRequestID, returnClaimID: returnClaimID, destinationAddressID: destinationAddressID, customerProfileID: customerProfileID, evidenceID: evidenceID, ownerTeam: ownerTeam, locationText: locationText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedInventoryReceipts(for inspection: ReceivingInspectionRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: inspection.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, procurementRequestID: inspection.procurementRequestID, returnClaimID: inspection.returnClaimID, destinationAddressID: inspection.destinationAddressID, customerProfileID: inspection.customerProfileID, evidenceID: inspection.evidenceAttachmentIDs.first, ownerTeam: inspection.assignedInspectorTeam, locationText: "", context: "\(inspection.title) \(inspection.receivedItemSummary) \(inspection.discrepancySummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for order: TrackedOrder) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, procurementRequestID: suggestedProcurementRequests(for: order).first?.id, returnClaimID: suggestedReturnClaims(for: order).first?.id, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, evidenceID: nil, ownerTeam: order.customer, locationText: order.destination, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for content: PackageContentRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, procurementRequestID: suggestedProcurementRequests(for: content).first?.id, returnClaimID: suggestedReturnClaims(for: content).first?.id, destinationAddressID: content.destinationAddressID, customerProfileID: content.customerProfileID, evidenceID: content.evidenceAttachmentIDs.first, ownerTeam: "", locationText: "", context: "\(content.title) \(content.itemSummary) \(content.discrepancySummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for request: ProcurementRequest) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, procurementRequestID: request.id, returnClaimID: request.returnClaimID, destinationAddressID: request.destinationAddressID, customerProfileID: request.customerProfileID, evidenceID: request.evidenceAttachmentIDs.first, ownerTeam: request.assignedBuyerTeam, locationText: "", context: "\(request.title) \(request.requestedItemsSummary) \(request.notes)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for claim: ReturnClaimRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, procurementRequestID: suggestedProcurementRequests(for: claim).first?.id, returnClaimID: claim.id, destinationAddressID: nil, customerProfileID: claim.customerProfileID, evidenceID: claim.evidenceAttachmentIDs.first, ownerTeam: claim.assignedOwnerTeam, locationText: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for item: WorkbenchItem) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, procurementRequestID: suggestedProcurementRequests(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, destinationAddressID: nil, customerProfileID: nil, evidenceID: nil, ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -6212,6 +6377,10 @@ final class ParcelOpsStore {
       if let inspection = receivingInspections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markReceivingInspectionReviewed(inspection)
       }
+    case .inventoryReceipt:
+      if let receipt = inventoryReceipts.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markInventoryReceiptReviewed(receipt)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -6494,6 +6663,10 @@ final class ParcelOpsStore {
 
   private func persistReceivingInspections() {
     receivingInspectionRepository.saveReceivingInspections(receivingInspections)
+  }
+
+  private func persistInventoryReceipts() {
+    inventoryReceiptRepository.saveInventoryReceipts(inventoryReceipts)
   }
 
   private func persistAccountCredentialRecords() {
@@ -6949,6 +7122,40 @@ private extension ReceivingInspectionRecord {
       || context.localizedCaseInsensitiveContains(discrepancySummary)
     )
     return orderMatch || groupMatch || contentMatch || procurementMatch || claimMatch || destinationMatch || customerMatch || evidenceMatch || trackingMatch || linkedMatch || inspectorMatch || contextMatch
+  }
+}
+
+private extension InventoryReceiptRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); inspection: \(receivingInspectionID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); procurement: \(procurementRequestID?.uuidString ?? "none"); return claim: \(returnClaimID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); type: \(receiptType.rawValue); status: \(stockHandoffStatus.rawValue); quantity: received \(quantityReceived), accepted \(quantityAccepted), rejected \(quantityRejected); location: \(storageLocationSummary); owner: \(assignedOwnerTeam); received: \(receivedDate); handoff: \(handoffDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(itemSummary); discrepancy: \(discrepancySummary)."
+  }
+
+  func matches(receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let inspectionMatch = receivingInspectionID != nil && self.receivingInspectionID == receivingInspectionID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let procurementMatch = procurementRequestID != nil && self.procurementRequestID == procurementRequestID
+    let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let location = locationText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let locationMatch = !location.isEmpty && (storageLocationSummary.localizedCaseInsensitiveContains(location) || location.localizedCaseInsensitiveContains(storageLocationSummary))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || itemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(itemSummary)
+      || discrepancySummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(discrepancySummary)
+      || storageLocationSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(storageLocationSummary)
+    )
+    return inspectionMatch || orderMatch || groupMatch || contentMatch || procurementMatch || claimMatch || destinationMatch || customerMatch || evidenceMatch || linkedMatch || ownerMatch || locationMatch || contextMatch
   }
 }
 

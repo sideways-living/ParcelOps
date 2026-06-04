@@ -254,6 +254,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Inventory receipts", symbol: "archivebox.fill") {
+          let receipts = store.suggestedInventoryReceipts(for: order)
+
+          if receipts.isEmpty {
+            Text("No local inventory receipts matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            InventoryReceiptStrip(receipts: receipts)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

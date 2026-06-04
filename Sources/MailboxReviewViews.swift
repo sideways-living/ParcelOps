@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -937,6 +937,30 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: inspection)
             } onRemove: {
               store.removeReceivingInspection(inspection)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Inventory receipts", symbol: "archivebox.fill") {
+          ForEach(Array(Set(store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage))) { receipt in
+            InventoryReceiptRow(receipt: receipt) { updatedReceipt in
+              store.updateInventoryReceipt(updatedReceipt)
+            } onStocked: {
+              store.markInventoryReceiptStocked(receipt)
+            } onHandedOff: {
+              store.markInventoryReceiptHandedOff(receipt)
+            } onPartiallyAccepted: {
+              store.markInventoryReceiptPartiallyAccepted(receipt)
+            } onRejected: {
+              store.markInventoryReceiptRejected(receipt)
+            } onReviewed: {
+              store.markInventoryReceiptReviewed(receipt)
+            } onCreateTask: {
+              store.createReviewTask(from: receipt)
+            } onCreateDraft: {
+              store.createDraftMessage(from: receipt)
+            } onRemove: {
+              store.removeInventoryReceipt(receipt)
             }
           }
         }
