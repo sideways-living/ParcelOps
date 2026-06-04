@@ -232,6 +232,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Procurement", symbol: "cart.badge.plus") {
+          let requests = store.suggestedProcurementRequests(for: order)
+
+          if requests.isEmpty {
+            Text("No local procurement requests matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ProcurementRequestStrip(requests: requests)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

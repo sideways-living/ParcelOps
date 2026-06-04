@@ -37,6 +37,7 @@ final class ParcelOpsStore {
   var packageContents: [PackageContentRecord]
   var costRecords: [CostRecord]
   var returnClaims: [ReturnClaimRecord]
+  var procurementRequests: [ProcurementRequest]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -66,6 +67,7 @@ final class ParcelOpsStore {
   private let packageContentRepository: PackageContentRepository
   private let costRecordRepository: CostRecordRepository
   private let returnClaimRepository: ReturnClaimRepository
+  private let procurementRequestRepository: ProcurementRequestRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -78,7 +80,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -112,6 +114,7 @@ final class ParcelOpsStore {
     self.packageContentRepository = repository
     self.costRecordRepository = repository
     self.returnClaimRepository = repository
+    self.procurementRequestRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -151,6 +154,7 @@ final class ParcelOpsStore {
     self.packageContents = repository.loadPackageContents()
     self.costRecords = repository.loadCostRecords()
     self.returnClaims = repository.loadReturnClaims()
+    self.procurementRequests = repository.loadProcurementRequests()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -183,7 +187,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -425,6 +429,37 @@ final class ParcelOpsStore {
     returnClaims.filter { $0.evidenceAttachmentIDs.isEmpty }
   }
 
+  var procurementRequestsNeedingReview: [ProcurementRequest] {
+    procurementRequests.filter { $0.reviewState != .accepted }
+  }
+
+  var unapprovedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.approvalStatus != .approved }
+  }
+
+  var rejectedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.approvalStatus == .rejected || $0.procurementStatus == .blocked }
+  }
+
+  var notYetOrderedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.procurementStatus == .requested || $0.procurementStatus == .approvedToOrder || $0.procurementStatus == .blocked }
+  }
+
+  var overdueProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.neededByDate.localizedCaseInsensitiveContains("overdue") || $0.neededByDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var highRiskProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var missingBudgetCodeProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { request in
+      let budget = request.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+      return budget.isEmpty || budget.localizedCaseInsensitiveContains("missing") || budget.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
   var enabledAccountRecordCount: Int {
     accountCredentialRecords.filter(\.isEnabled).count
   }
@@ -619,6 +654,7 @@ final class ParcelOpsStore {
       + packageContentWorkbenchItems()
       + costRecordWorkbenchItems()
       + returnClaimWorkbenchItems()
+      + procurementRequestWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2384,6 +2420,25 @@ final class ParcelOpsStore {
         reviewState: claim.reviewState,
         source: .returnClaim,
         suggestedNextAction: claim.claimStatus == .resolved ? "Review resolved claim" : "Submit, resolve, or dispute claim"
+      )
+    }
+  }
+
+  private func procurementRequestWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(procurementRequestsNeedingReview + unapprovedProcurementRequests + rejectedProcurementRequests + notYetOrderedProcurementRequests + overdueProcurementRequests + highRiskProcurementRequests + missingBudgetCodeProcurementRequests)).map { request in
+      WorkbenchItem(
+        id: "procurement-\(request.id.uuidString)",
+        title: request.title,
+        summary: "\(request.requestedItemsSummary) • \(request.estimatedCostText) \(request.currency)",
+        linkedEntityType: .procurementRequest,
+        linkedEntityID: request.id.uuidString,
+        prioritySeverity: request.approvalStatus == .rejected || request.procurementStatus == .blocked ? "High" : request.riskLevel.rawValue,
+        status: "\(request.approvalStatus.rawValue) / \(request.procurementStatus.rawValue)",
+        assignee: request.assignedBuyerTeam,
+        dueDateText: request.neededByDate,
+        reviewState: request.reviewState,
+        source: .procurementRequest,
+        suggestedNextAction: request.procurementStatus == .received ? "Review received procurement" : "Approve, order, or unblock procurement"
       )
     }
   }
@@ -5405,6 +5460,117 @@ final class ParcelOpsStore {
     suggestedReturnClaims(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: attachment).first?.id, costRecordID: suggestedCostRecords(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: attachment.id, trackingEventID: nil, ownerTeam: "", context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
   }
 
+  func filteredProcurementRequests(approvalStatus: ProcurementApprovalStatus?, procurementStatus: ProcurementStatus?, requesterTeam: String, assignedBuyerTeam: String, budgetCode: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ProcurementRequest] {
+    procurementRequests.filter { request in
+      let matchesApproval = approvalStatus == nil || request.approvalStatus == approvalStatus
+      let matchesStatus = procurementStatus == nil || request.procurementStatus == procurementStatus
+      let matchesRequester = requesterTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.requesterTeam.localizedCaseInsensitiveContains(requesterTeam)
+      let matchesBuyer = assignedBuyerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.assignedBuyerTeam.localizedCaseInsensitiveContains(assignedBuyerTeam)
+      let matchesBudget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.budgetCode.localizedCaseInsensitiveContains(budgetCode)
+      let matchesRisk = riskLevel == nil || request.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || request.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || request.reviewState == reviewState
+      return matchesApproval && matchesStatus && matchesRequester && matchesBuyer && matchesBudget && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addProcurementRequestPlaceholder() {
+    let content = packageContents.first
+    let cost = costRecords.first
+    let claim = returnClaims.first
+    let request = ProcurementRequest(title: "New procurement request \(procurementRequests.count + 1)", linkedEntityType: .packageContent, linkedEntityID: content?.id.uuidString ?? "Unlinked", requesterTeam: "Operations", requestedDate: Self.auditTimestamp(), neededByDate: "To schedule", vendorProfileID: vendorProfiles.first?.id, accountID: accountCredentialRecords.first?.id, customerProfileID: customerRecipientProfiles.first?.id, destinationAddressID: destinationAddresses.first?.id, packageContentID: content?.id, costRecordID: cost?.id, returnClaimID: claim?.id, requestedItemsSummary: "Items to procure locally.", estimatedCostText: "0.00", currency: "AUD", budgetCode: "To confirm", approvalStatus: .draft, procurementStatus: .requested, assignedBuyerTeam: "Procurement Desk", evidenceAttachmentIDs: [], notes: "Local procurement placeholder. No purchasing or supplier system actions are performed.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    procurementRequests.insert(request, at: 0)
+    persistProcurementRequests()
+    logAudit(action: .created, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Procurement request placeholder added.", afterDetail: request.auditDetail)
+  }
+
+  func updateProcurementRequest(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index] = request
+    persistProcurementRequests()
+    logAudit(action: .edited, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Procurement request details updated.", beforeDetail: beforeDetail, afterDetail: request.auditDetail)
+  }
+
+  func markProcurementRequestApproved(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .approvedToOrder, reviewState: .accepted, summary: "Procurement request approved locally.", action: .completed)
+  }
+
+  func markProcurementRequestOrdered(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .ordered, reviewState: .monitor, summary: "Procurement request marked ordered locally.", action: .created)
+  }
+
+  func markProcurementRequestReceived(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .received, reviewState: .accepted, summary: "Procurement request marked received locally.", action: .completed)
+  }
+
+  func markProcurementRequestRejected(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .rejected, procurementStatus: .blocked, reviewState: .needsReview, summary: "Procurement request rejected and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markProcurementRequestReviewed(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index].reviewState = .accepted
+    procurementRequests[index].lastReviewedDate = Self.auditTimestamp()
+    persistProcurementRequests()
+    logAudit(action: .reviewed, entityType: .procurementRequest, entityID: procurementRequests[index].id.uuidString, entityLabel: procurementRequests[index].title, summary: "Procurement request marked reviewed.", beforeDetail: beforeDetail, afterDetail: procurementRequests[index].auditDetail)
+  }
+
+  func removeProcurementRequest(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let removed = procurementRequests.remove(at: index)
+    persistProcurementRequests()
+    logAudit(action: .removed, entityType: .procurementRequest, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Procurement request removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from request: ProcurementRequest) {
+    createReviewTask(linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString, label: request.title, summary: "Review procurement: \(request.requestedItemsSummary). Budget \(request.budgetCode).", priority: request.riskLevel == .critical ? .urgent : request.riskLevel == .high ? .high : .normal, assignee: request.assignedBuyerTeam)
+  }
+
+  func createDraftMessage(from request: ProcurementRequest) {
+    createDraftMessage(linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString, label: request.title, recipient: request.assignedBuyerTeam)
+    logAudit(action: .created, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Draft message created from procurement request.", afterDetail: request.auditDetail)
+  }
+
+  private func updateProcurementRequestState(_ request: ProcurementRequest, approvalStatus: ProcurementApprovalStatus, procurementStatus: ProcurementStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index].approvalStatus = approvalStatus
+    procurementRequests[index].procurementStatus = procurementStatus
+    procurementRequests[index].reviewState = reviewState
+    procurementRequests[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      procurementRequests[index].riskLevel = procurementRequests[index].riskLevel == .critical ? .critical : .high
+    }
+    persistProcurementRequests()
+    logAudit(action: action, entityType: .procurementRequest, entityID: procurementRequests[index].id.uuidString, entityLabel: procurementRequests[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: procurementRequests[index].auditDetail)
+  }
+
+  private func suggestedProcurementRequests(vendorProfileID: UUID?, accountID: UUID?, customerProfileID: UUID?, destinationAddressID: UUID?, packageContentID: UUID?, costRecordID: UUID?, returnClaimID: UUID?, evidenceID: UUID?, budgetCode: String, requesterTeam: String, buyerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ProcurementRequest] {
+    procurementRequests.filter { $0.matches(vendorProfileID: vendorProfileID, accountID: accountID, customerProfileID: customerProfileID, destinationAddressID: destinationAddressID, packageContentID: packageContentID, costRecordID: costRecordID, returnClaimID: returnClaimID, evidenceID: evidenceID, budgetCode: budgetCode, requesterTeam: requesterTeam, buyerTeam: buyerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedProcurementRequests(for order: TrackedOrder) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: suggestedVendorProfiles(for: order).first?.id, accountID: nil, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, costRecordID: suggestedCostRecords(for: order).first?.id, returnClaimID: suggestedReturnClaims(for: order).first?.id, evidenceID: nil, budgetCode: "", requesterTeam: order.customer, buyerTeam: "", context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for content: PackageContentRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: nil, accountID: nil, customerProfileID: content.customerProfileID, destinationAddressID: content.destinationAddressID, packageContentID: content.id, costRecordID: suggestedCostRecords(for: content).first?.id, returnClaimID: suggestedReturnClaims(for: content).first?.id, evidenceID: content.evidenceAttachmentIDs.first, budgetCode: "", requesterTeam: "", buyerTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for cost: CostRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: cost.vendorProfileID, accountID: cost.accountID, customerProfileID: cost.customerProfileID, destinationAddressID: nil, packageContentID: cost.packageContentID, costRecordID: cost.id, returnClaimID: suggestedReturnClaims(for: cost).first?.id, evidenceID: cost.evidenceAttachmentIDs.first, budgetCode: cost.budgetCode, requesterTeam: cost.costOwnerTeam, buyerTeam: "", context: "\(cost.title) \(cost.notes)", linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for claim: ReturnClaimRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: claim.vendorProfileID, accountID: claim.accountID, customerProfileID: claim.customerProfileID, destinationAddressID: nil, packageContentID: claim.packageContentID, costRecordID: claim.costRecordID, returnClaimID: claim.id, evidenceID: claim.evidenceAttachmentIDs.first, budgetCode: "", requesterTeam: claim.assignedOwnerTeam, buyerTeam: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for item: WorkbenchItem) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: nil, accountID: nil, customerProfileID: nil, destinationAddressID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, costRecordID: suggestedCostRecords(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, evidenceID: nil, budgetCode: "", requesterTeam: item.assignee, buyerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -5880,6 +6046,10 @@ final class ParcelOpsStore {
       if let claim = returnClaims.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markReturnClaimReviewed(claim)
       }
+    case .procurementRequest:
+      if let request = procurementRequests.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markProcurementRequestReviewed(request)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -6154,6 +6324,10 @@ final class ParcelOpsStore {
 
   private func persistReturnClaims() {
     returnClaimRepository.saveReturnClaims(returnClaims)
+  }
+
+  private func persistProcurementRequests() {
+    procurementRequestRepository.saveProcurementRequests(procurementRequests)
   }
 
   private func persistAccountCredentialRecords() {
@@ -6544,6 +6718,39 @@ private extension ReturnClaimRecord {
       || context.localizedCaseInsensitiveContains(requestedOutcome.rawValue)
     )
     return orderMatch || groupMatch || contentMatch || costMatch || customerMatch || vendorMatch || accountMatch || evidenceMatch || trackingMatch || linkedMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ProcurementRequest {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); requester: \(requesterTeam); requested: \(requestedDate); needed by: \(neededByDate); vendor profile: \(vendorProfileID?.uuidString ?? "none"); account: \(accountID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); cost: \(costRecordID?.uuidString ?? "none"); return claim: \(returnClaimID?.uuidString ?? "none"); estimated cost: \(estimatedCostText) \(currency); budget: \(budgetCode); approval: \(approvalStatus.rawValue); procurement: \(procurementStatus.rawValue); buyer: \(assignedBuyerTeam); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(requestedItemsSummary); notes: \(notes)."
+  }
+
+  func matches(vendorProfileID: UUID?, accountID: UUID?, customerProfileID: UUID?, destinationAddressID: UUID?, packageContentID: UUID?, costRecordID: UUID?, returnClaimID: UUID?, evidenceID: UUID?, budgetCode: String, requesterTeam: String, buyerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
+    let accountMatch = accountID != nil && self.accountID == accountID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let costMatch = costRecordID != nil && self.costRecordID == costRecordID
+    let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let budget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+    let budgetMatch = !budget.isEmpty && (self.budgetCode.localizedCaseInsensitiveContains(budget) || budget.localizedCaseInsensitiveContains(self.budgetCode))
+    let requester = requesterTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let requesterMatch = !requester.isEmpty && (self.requesterTeam.localizedCaseInsensitiveContains(requester) || requester.localizedCaseInsensitiveContains(self.requesterTeam))
+    let buyer = buyerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let buyerMatch = !buyer.isEmpty && (assignedBuyerTeam.localizedCaseInsensitiveContains(buyer) || buyer.localizedCaseInsensitiveContains(assignedBuyerTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || requestedItemsSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(requestedItemsSummary)
+      || notes.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(notes)
+    )
+    return vendorMatch || accountMatch || customerMatch || destinationMatch || contentMatch || costMatch || claimMatch || evidenceMatch || linkedMatch || budgetMatch || requesterMatch || buyerMatch || contextMatch
   }
 }
 

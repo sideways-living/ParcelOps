@@ -1,23 +1,25 @@
 import SwiftUI
 
-struct ReturnsClaimsView: View {
+struct ProcurementView: View {
   var store: ParcelOpsStore
-  @State private var selectedClaimType: ReturnClaimType?
-  @State private var selectedStatus: ReturnClaimStatus?
-  @State private var selectedOutcome: ReturnClaimOutcome?
-  @State private var ownerTeam = ""
+  @State private var selectedApprovalStatus: ProcurementApprovalStatus?
+  @State private var selectedProcurementStatus: ProcurementStatus?
+  @State private var requesterTeam = ""
+  @State private var assignedBuyerTeam = ""
+  @State private var budgetCode = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredClaims: [ReturnClaimRecord] {
-    store.filteredReturnClaims(
-      claimType: selectedClaimType,
-      claimStatus: selectedStatus,
-      requestedOutcome: selectedOutcome,
-      ownerTeam: ownerTeam,
+  private var filteredRequests: [ProcurementRequest] {
+    store.filteredProcurementRequests(
+      approvalStatus: selectedApprovalStatus,
+      procurementStatus: selectedProcurementStatus,
+      requesterTeam: requesterTeam,
+      assignedBuyerTeam: assignedBuyerTeam,
+      budgetCode: budgetCode,
       riskLevel: selectedRiskLevel,
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
@@ -30,43 +32,43 @@ struct ReturnsClaimsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Return and claim records", symbol: "arrow.uturn.backward.square.fill") {
+        SettingsPanel(title: "Procurement requests", symbol: "cart.badge.plus") {
           HStack {
-            Text("\(filteredClaims.count) visible return/claim records")
+            Text("\(filteredRequests.count) visible procurement requests")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add claim", systemImage: "plus", action: store.addReturnClaimPlaceholder)
+            Button("Add request", systemImage: "plus", action: store.addProcurementRequestPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredClaims.isEmpty {
-            Text("No returns or claims match the selected filters.")
+          if filteredRequests.isEmpty {
+            Text("No procurement requests match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredClaims) { claim in
-              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim)) { updatedClaim in
-                store.updateReturnClaim(updatedClaim)
-              } onSubmitted: {
-                store.markReturnClaimSubmitted(claim)
+            ForEach(filteredRequests) { request in
+              ProcurementRequestRow(request: request) { updatedRequest in
+                store.updateProcurementRequest(updatedRequest)
               } onApproved: {
-                store.markReturnClaimApproved(claim)
-              } onResolved: {
-                store.markReturnClaimResolved(claim)
-              } onDisputed: {
-                store.markReturnClaimDisputed(claim)
+                store.markProcurementRequestApproved(request)
+              } onOrdered: {
+                store.markProcurementRequestOrdered(request)
+              } onReceived: {
+                store.markProcurementRequestReceived(request)
+              } onRejected: {
+                store.markProcurementRequestRejected(request)
               } onReviewed: {
-                store.markReturnClaimReviewed(claim)
+                store.markProcurementRequestReviewed(request)
               } onCreateTask: {
-                store.createReviewTask(from: claim)
+                store.createReviewTask(from: request)
               } onCreateDraft: {
-                store.createDraftMessage(from: claim)
+                store.createDraftMessage(from: request)
               } onRemove: {
-                store.removeReturnClaim(claim)
+                store.removeProcurementRequest(request)
               }
             }
           }
@@ -79,48 +81,48 @@ struct ReturnsClaimsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Returns & Claims")
+        Text("Procurement")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local return, exchange, refund, damage, missing item, and carrier claim tracking.")
+        Text("Local request, budget, approval, ordering, and receiving workflow tracking.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.unresolvedReturnClaims.count) unresolved", color: .orange)
-        Badge("\(store.disputedReturnClaims.count) disputed", color: .red)
+        Badge("\(store.unapprovedProcurementRequests.count) unapproved", color: .orange)
+        Badge("\(store.rejectedProcurementRequests.count) rejected", color: .red)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Type", selection: $selectedClaimType) {
-        Text("All types").tag(nil as ReturnClaimType?)
-        ForEach(ReturnClaimType.allCases) { type in
-          Text(type.rawValue).tag(type as ReturnClaimType?)
+      Picker("Approval", selection: $selectedApprovalStatus) {
+        Text("All approval").tag(nil as ProcurementApprovalStatus?)
+        ForEach(ProcurementApprovalStatus.allCases) { status in
+          Text(status.rawValue).tag(status as ProcurementApprovalStatus?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as ReturnClaimStatus?)
-        ForEach(ReturnClaimStatus.allCases) { status in
-          Text(status.rawValue).tag(status as ReturnClaimStatus?)
+      Picker("Procurement", selection: $selectedProcurementStatus) {
+        Text("All status").tag(nil as ProcurementStatus?)
+        ForEach(ProcurementStatus.allCases) { status in
+          Text(status.rawValue).tag(status as ProcurementStatus?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Outcome", selection: $selectedOutcome) {
-        Text("All outcomes").tag(nil as ReturnClaimOutcome?)
-        ForEach(ReturnClaimOutcome.allCases) { outcome in
-          Text(outcome.rawValue).tag(outcome as ReturnClaimOutcome?)
-        }
-      }
-      .pickerStyle(.menu)
-
-      TextField("Owner/team", text: $ownerTeam)
+      TextField("Requester/team", text: $requesterTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
+        .frame(maxWidth: 150)
+
+      TextField("Buyer/team", text: $assignedBuyerTeam)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 140)
+
+      TextField("Budget", text: $budgetCode)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 120)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -149,10 +151,11 @@ struct ReturnsClaimsView: View {
       Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedClaimType = nil
-        selectedStatus = nil
-        selectedOutcome = nil
-        ownerTeam = ""
+        selectedApprovalStatus = nil
+        selectedProcurementStatus = nil
+        requesterTeam = ""
+        assignedBuyerTeam = ""
+        budgetCode = ""
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -162,14 +165,13 @@ struct ReturnsClaimsView: View {
   }
 }
 
-struct ReturnClaimRow: View {
-  var claim: ReturnClaimRecord
-  var procurementRequests: [ProcurementRequest] = []
-  var onSave: (ReturnClaimRecord) -> Void
-  var onSubmitted: () -> Void
+struct ProcurementRequestRow: View {
+  var request: ProcurementRequest
+  var onSave: (ProcurementRequest) -> Void
   var onApproved: () -> Void
-  var onResolved: () -> Void
-  var onDisputed: () -> Void
+  var onOrdered: () -> Void
+  var onReceived: () -> Void
+  var onRejected: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -179,57 +181,53 @@ struct ReturnClaimRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: claim.claimType.symbol)
-          .foregroundStyle(claim.riskLevel.color)
+        Image(systemName: request.procurementStatus.symbol)
+          .foregroundStyle(request.riskLevel.color)
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(claim.title)
+              Text(request.title)
                 .font(.headline)
-              Text("\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)")
+              Text("\(request.estimatedCostText) \(request.currency) • \(request.budgetCode)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(claim.claimStatus.rawValue, color: claim.claimStatus.color)
+            Badge(request.approvalStatus.rawValue, color: request.approvalStatus.color)
           }
 
-          Text(claim.reasonSummary)
+          Text(request.requestedItemsSummary)
             .foregroundStyle(.secondary)
-          Text("\(claim.refundReplacementAmountText) \(claim.currency) • Owner \(claim.assignedOwnerTeam) • Due \(claim.dueDate)")
+          Text("Requester \(request.requesterTeam) • Buyer \(request.assignedBuyerTeam) • Needed \(request.neededByDate)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
           HStack(spacing: 8) {
-            Badge(claim.riskLevel.rawValue, color: claim.riskLevel.color)
-            Badge(claim.reviewState.rawValue, color: claim.reviewState.color)
-            Label("\(claim.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Label(claim.linkedEntityType.rawValue, systemImage: claim.linkedEntityType.symbol)
+            Badge(request.procurementStatus.rawValue, color: request.procurementStatus.color)
+            Badge(request.riskLevel.rawValue, color: request.riskLevel.color)
+            Badge(request.reviewState.rawValue, color: request.reviewState.color)
+            Label(request.linkedEntityType.rawValue, systemImage: request.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      ProcurementRequestStrip(requests: procurementRequests)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Submitted", systemImage: "paperplane.fill", action: onSubmitted)
-          .buttonStyle(.bordered)
         Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
           .buttonStyle(.bordered)
-        Button("Resolved", systemImage: "checkmark.circle.fill", action: onResolved)
+        Button("Ordered", systemImage: "cart.fill", action: onOrdered)
           .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Received", systemImage: "shippingbox.fill", action: onReceived)
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reject", systemImage: "xmark.circle.fill", action: onRejected)
+          .buttonStyle(.bordered)
+        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
@@ -243,51 +241,49 @@ struct ReturnClaimRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      ReturnClaimEditView(claim: claim) { updatedClaim in
-        onSave(updatedClaim)
+      ProcurementRequestEditView(request: request) { updatedRequest in
+        onSave(updatedRequest)
       }
     }
   }
 }
 
-struct ReturnClaimEditView: View {
+struct ProcurementRequestEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: ReturnClaimRecord
-  var onSave: (ReturnClaimRecord) -> Void
+  @State private var draft: ProcurementRequest
+  var onSave: (ProcurementRequest) -> Void
 
-  init(claim: ReturnClaimRecord, onSave: @escaping (ReturnClaimRecord) -> Void) {
-    self._draft = State(initialValue: claim)
+  init(request: ProcurementRequest, onSave: @escaping (ProcurementRequest) -> Void) {
+    self._draft = State(initialValue: request)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Claim") {
+        Section("Request") {
           TextField("Title", text: $draft.title)
-          Picker("Type", selection: $draft.claimType) {
-            ForEach(ReturnClaimType.allCases) { type in
-              Text(type.rawValue).tag(type)
-            }
-          }
-          Picker("Outcome", selection: $draft.requestedOutcome) {
-            ForEach(ReturnClaimOutcome.allCases) { outcome in
-              Text(outcome.rawValue).tag(outcome)
-            }
-          }
-          Picker("Status", selection: $draft.claimStatus) {
-            ForEach(ReturnClaimStatus.allCases) { status in
+          TextField("Requested items", text: $draft.requestedItemsSummary, axis: .vertical)
+          TextField("Requester/team", text: $draft.requesterTeam)
+          TextField("Requested date", text: $draft.requestedDate)
+          TextField("Needed by", text: $draft.neededByDate)
+        }
+
+        Section("Budget and buyer") {
+          TextField("Estimated cost", text: $draft.estimatedCostText)
+          TextField("Currency", text: $draft.currency)
+          TextField("Budget code", text: $draft.budgetCode)
+          TextField("Assigned buyer/team", text: $draft.assignedBuyerTeam)
+          Picker("Approval", selection: $draft.approvalStatus) {
+            ForEach(ProcurementApprovalStatus.allCases) { status in
               Text(status.rawValue).tag(status)
             }
           }
-          TextField("Reason", text: $draft.reasonSummary, axis: .vertical)
-        }
-
-        Section("Amount and owner") {
-          TextField("Refund/replacement amount", text: $draft.refundReplacementAmountText)
-          TextField("Currency", text: $draft.currency)
-          TextField("Assigned owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Due date", text: $draft.dueDate)
+          Picker("Procurement status", selection: $draft.procurementStatus) {
+            ForEach(ProcurementStatus.allCases) { status in
+              Text(status.rawValue).tag(status)
+            }
+          }
         }
 
         Section("Review") {
@@ -302,6 +298,7 @@ struct ReturnClaimEditView: View {
             }
           }
           TextField("Last reviewed", text: $draft.lastReviewedDate)
+          TextField("Notes", text: $draft.notes, axis: .vertical)
         }
 
         Section("Link") {
@@ -313,7 +310,7 @@ struct ReturnClaimEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Claim")
+      .navigationTitle("Edit Procurement")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -326,6 +323,6 @@ struct ReturnClaimEditView: View {
         }
       }
     }
-    .frame(minWidth: 580, minHeight: 600)
+    .frame(minWidth: 580, minHeight: 620)
   }
 }

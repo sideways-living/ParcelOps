@@ -47,7 +47,7 @@ struct PackageContentsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContents) { content in
-              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content)) { updatedContent in
+              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content)) { updatedContent in
                 store.updatePackageContent(updatedContent)
               } onVerified: {
                 store.markPackageContentVerified(content)
@@ -155,6 +155,7 @@ struct PackageContentRow: View {
   var content: PackageContentRecord
   var costRecords: [CostRecord] = []
   var returnClaims: [ReturnClaimRecord] = []
+  var procurementRequests: [ProcurementRequest] = []
   var onSave: (PackageContentRecord) -> Void
   var onVerified: () -> Void
   var onDiscrepancy: () -> Void
@@ -206,6 +207,7 @@ struct PackageContentRow: View {
 
       CostRecordStrip(costs: costRecords)
       ReturnClaimStrip(claims: returnClaims)
+      ProcurementRequestStrip(requests: procurementRequests)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

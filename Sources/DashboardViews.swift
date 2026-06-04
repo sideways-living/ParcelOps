@@ -192,6 +192,16 @@ struct DashboardView: View {
             CompactReturnClaimList(claims: Array((store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence).prefix(4)))
           }
 
+          AnalyticsSection(title: "Procurement", symbol: "cart.badge.plus") {
+            MetricStrip(items: [
+              ("Review", "\(store.procurementRequestsNeedingReview.count)", .orange),
+              ("Unapproved", "\(store.unapprovedProcurementRequests.count)", .orange),
+              ("Rejected", "\(store.rejectedProcurementRequests.count)", .red),
+              ("Missing budget", "\(store.missingBudgetCodeProcurementRequests.count)", .red)
+            ])
+            CompactProcurementRequestList(requests: Array((store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -650,6 +660,23 @@ struct CompactReturnClaimList: View {
           detail: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)",
           badge: claim.claimStatus.rawValue,
           color: claim.claimStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactProcurementRequestList: View {
+  var requests: [ProcurementRequest]
+
+  var body: some View {
+    CompactList(title: "Procurement requests", symbol: "cart.badge.plus") {
+      ForEach(requests) { request in
+        CompactRow(
+          title: request.title,
+          detail: "\(request.estimatedCostText) \(request.currency) • \(request.budgetCode)",
+          badge: request.procurementStatus.rawValue,
+          color: request.procurementStatus.color
         )
       }
     }

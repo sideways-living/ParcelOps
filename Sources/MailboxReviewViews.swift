@@ -893,6 +893,30 @@ struct NeedsReviewView: View {
           }
         }
 
+        SettingsPanel(title: "Procurement", symbol: "cart.badge.plus") {
+          ForEach(Array(Set(store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests))) { request in
+            ProcurementRequestRow(request: request) { updatedRequest in
+              store.updateProcurementRequest(updatedRequest)
+            } onApproved: {
+              store.markProcurementRequestApproved(request)
+            } onOrdered: {
+              store.markProcurementRequestOrdered(request)
+            } onReceived: {
+              store.markProcurementRequestReceived(request)
+            } onRejected: {
+              store.markProcurementRequestRejected(request)
+            } onReviewed: {
+              store.markProcurementRequestReviewed(request)
+            } onCreateTask: {
+              store.createReviewTask(from: request)
+            } onCreateDraft: {
+              store.createDraftMessage(from: request)
+            } onRemove: {
+              store.removeProcurementRequest(request)
+            }
+          }
+        }
+
         SettingsPanel(title: "Accounts", symbol: "key.horizontal.fill") {
           ForEach(store.accountRecordsNeedingReview) { account in
             AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
