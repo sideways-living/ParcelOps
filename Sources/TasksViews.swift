@@ -56,7 +56,7 @@ struct TasksView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task)) { updatedTask in
+              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -143,6 +143,7 @@ struct ReviewTaskRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ReviewTask) -> Void
   var onComplete: () -> Void
   var onReopen: () -> Void
@@ -214,6 +215,9 @@ struct ReviewTaskRow: View {
           }
           if !deliveryInstructions.isEmpty {
             DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
           }
         }
       }

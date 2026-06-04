@@ -41,6 +41,7 @@ struct AcceptanceReviewView: View {
                   customerProfiles: store.suggestedCustomerProfiles(for: candidate),
                   destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
                   deliveryInstructions: store.suggestedDeliveryInstructions(for: candidate),
+                  packageContents: store.suggestedPackageContents(for: candidate),
                   onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
                   onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
                   onCreateOrder: { store.createOrder(from: candidate) },
@@ -132,6 +133,7 @@ struct AcceptanceCandidateRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onLinkOrder: (TrackedOrder) -> Void
   var onLinkShipmentGroup: (ShipmentGroup) -> Void
   var onCreateOrder: () -> Void
@@ -202,6 +204,9 @@ struct AcceptanceCandidateRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

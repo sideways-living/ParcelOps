@@ -800,6 +800,75 @@ enum SampleData {
     )
   ]
 
+  static var packageContents: [PackageContentRecord] = [
+    PackageContentRecord(
+      title: "Office equipment bundle",
+      linkedEntityType: .order,
+      linkedEntityID: orders[0].id.uuidString,
+      orderID: orders[0].id,
+      shipmentGroupID: shipmentGroups.first?.id,
+      destinationAddressID: destinationAddresses[0].id,
+      deliveryInstructionID: deliveryInstructions[0].id,
+      customerProfileID: customerRecipientProfiles[0].id,
+      itemSummary: "Laptop stand, USB-C dock, and field kit accessories.",
+      expectedQuantity: 3,
+      verifiedQuantity: 2,
+      itemCategory: .electronics,
+      valueBand: .high,
+      verificationStatus: .partiallyVerified,
+      discrepancySummary: "USB-C dock still needs local confirmation against evidence.",
+      evidenceAttachmentIDs: evidenceAttachments.prefix(1).map(\.id),
+      riskLevel: .high,
+      createdDate: "Today 8:45 AM",
+      lastReviewedDate: "Today 9:05 AM",
+      reviewState: .monitor
+    ),
+    PackageContentRecord(
+      title: "Operations stationery replenishment",
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: shipmentGroups.first?.id.uuidString ?? "Unlinked",
+      orderID: orders.indices.contains(1) ? orders[1].id : nil,
+      shipmentGroupID: shipmentGroups.first?.id,
+      destinationAddressID: destinationAddresses[1].id,
+      deliveryInstructionID: deliveryInstructions[1].id,
+      customerProfileID: customerRecipientProfiles[1].id,
+      itemSummary: "Printer paper, labels, and packing tape for the operations hub.",
+      expectedQuantity: 12,
+      verifiedQuantity: 12,
+      itemCategory: .officeSupplies,
+      valueBand: .medium,
+      verificationStatus: .verified,
+      discrepancySummary: "No discrepancy recorded.",
+      evidenceAttachmentIDs: [],
+      riskLevel: .low,
+      createdDate: "Yesterday 10:30 AM",
+      lastReviewedDate: "Yesterday 11:00 AM",
+      reviewState: .accepted
+    ),
+    PackageContentRecord(
+      title: "Shopify customer contents to confirm",
+      linkedEntityType: .destinationAddress,
+      linkedEntityID: destinationAddresses[2].id.uuidString,
+      orderID: nil,
+      shipmentGroupID: nil,
+      destinationAddressID: destinationAddresses[2].id,
+      deliveryInstructionID: deliveryInstructions[2].id,
+      customerProfileID: customerRecipientProfiles[2].id,
+      itemSummary: "Customer order contents not verified until Shopify syncing is implemented.",
+      expectedQuantity: 1,
+      verifiedQuantity: 0,
+      itemCategory: .other,
+      valueBand: .unknown,
+      verificationStatus: .discrepancy,
+      discrepancySummary: "Detected content details are missing and require manual review.",
+      evidenceAttachmentIDs: [],
+      riskLevel: .critical,
+      createdDate: "Today 10:05 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",

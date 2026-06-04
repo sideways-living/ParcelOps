@@ -35,6 +35,7 @@ struct ImportQueueView: View {
               customerProfiles: store.suggestedCustomerProfiles(for: item),
               destinationAddresses: store.suggestedDestinationAddresses(for: item),
               deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
+              packageContents: store.suggestedPackageContents(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -116,6 +117,7 @@ struct ImportQueueItemRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ImportQueueItem) -> Void = { _ in }
   var onLinkOrder: (TrackedOrder) -> Void = { _ in }
   var onLinkShipmentGroup: (ShipmentGroup) -> Void = { _ in }
@@ -139,6 +141,7 @@ struct ImportQueueItemRow: View {
     customerProfiles: [CustomerRecipientProfile] = [],
     destinationAddresses: [DestinationAddressRecord] = [],
     deliveryInstructions: [DeliveryInstructionRecord] = [],
+    packageContents: [PackageContentRecord] = [],
     onSave: @escaping (ImportQueueItem) -> Void = { _ in },
     onLinkOrder: @escaping (TrackedOrder) -> Void = { _ in },
     onLinkShipmentGroup: @escaping (ShipmentGroup) -> Void = { _ in },
@@ -159,6 +162,7 @@ struct ImportQueueItemRow: View {
     self.customerProfiles = customerProfiles
     self.destinationAddresses = destinationAddresses
     self.deliveryInstructions = deliveryInstructions
+    self.packageContents = packageContents
     self.onSave = onSave
     self.onLinkOrder = onLinkOrder
     self.onLinkShipmentGroup = onLinkShipmentGroup
@@ -230,6 +234,9 @@ struct ImportQueueItemRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

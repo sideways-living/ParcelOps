@@ -47,7 +47,7 @@ struct ExceptionPlaybooksView: View {
           }
 
           ForEach(filteredPlaybooks) { playbook in
-            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook)) { updatedPlaybook in
+            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
               store.updateExceptionPlaybook(updatedPlaybook)
             } onToggle: {
               store.toggleExceptionPlaybook(playbook)
@@ -125,6 +125,7 @@ struct ExceptionPlaybookRow: View {
   var handoffNotes: [HandoffNote] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ExceptionPlaybook) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -180,6 +181,9 @@ struct ExceptionPlaybookRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

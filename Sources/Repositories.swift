@@ -110,6 +110,11 @@ protocol DeliveryInstructionRepository {
   func saveDeliveryInstructions(_ instructions: [DeliveryInstructionRecord])
 }
 
+protocol PackageContentRepository {
+  func loadPackageContents() -> [PackageContentRecord]
+  func savePackageContents(_ contents: [PackageContentRecord])
+}
+
 protocol AccountCredentialRepository {
   func loadAccountCredentialRecords() -> [AccountCredentialRecord]
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord])
@@ -135,7 +140,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -353,6 +358,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(instructions, to: .deliveryInstructions)
   }
 
+  func loadPackageContents() -> [PackageContentRecord] {
+    load([PackageContentRecord].self, from: .packageContents, defaultValue: SampleData.packageContents)
+  }
+
+  func savePackageContents(_ contents: [PackageContentRecord]) {
+    save(contents, to: .packageContents)
+  }
+
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] {
     load([AccountCredentialRecord].self, from: .accountCredentialRecords, defaultValue: SampleData.accountCredentialRecords)
   }
@@ -474,6 +487,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case customerRecipientProfiles = "customer-profiles.json"
     case destinationAddresses = "destination-addresses.json"
     case deliveryInstructions = "delivery-instructions.json"
+    case packageContents = "package-contents.json"
     case accountCredentialRecords = "account-credential-records.json"
     case vendorProfiles = "vendor-profiles.json"
     case shipmentGroups = "shipment-groups.json"
@@ -482,7 +496,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -508,6 +522,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var customerRecipientProfiles = SampleData.customerRecipientProfiles
   private var destinationAddresses = SampleData.destinationAddresses
   private var deliveryInstructions = SampleData.deliveryInstructions
+  private var packageContents = SampleData.packageContents
   private var accountCredentialRecords = SampleData.accountCredentialRecords
   private var vendorProfiles = SampleData.vendorProfiles
   private var shipmentGroups = SampleData.shipmentGroups
@@ -588,6 +603,9 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadDeliveryInstructions() -> [DeliveryInstructionRecord] { deliveryInstructions }
   func saveDeliveryInstructions(_ instructions: [DeliveryInstructionRecord]) { deliveryInstructions = instructions }
+
+  func loadPackageContents() -> [PackageContentRecord] { packageContents }
+  func savePackageContents(_ contents: [PackageContentRecord]) { packageContents = contents }
 
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] { accountCredentialRecords }
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) { accountCredentialRecords = accounts }

@@ -31,7 +31,7 @@ struct CustomerProfilesView: View {
 
         SettingsPanel(title: "Profiles", symbol: "person.text.rectangle.fill") {
           ForEach(filteredProfiles) { profile in
-            CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile)) { updatedProfile in
+            CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
               store.updateCustomerRecipientProfile(updatedProfile)
             } onToggle: {
               store.toggleCustomerRecipientProfile(profile)
@@ -117,6 +117,7 @@ struct CustomerProfileRow: View {
   var profile: CustomerRecipientProfile
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (CustomerRecipientProfile) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -158,6 +159,9 @@ struct CustomerProfileRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

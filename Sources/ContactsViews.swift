@@ -56,7 +56,7 @@ struct ContactsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact)) { updatedContact in
+              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -148,6 +148,7 @@ struct ContactDirectoryRow: View {
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ContactDirectoryEntry) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -252,6 +253,9 @@ struct ContactDirectoryRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
     }
     .padding(12)

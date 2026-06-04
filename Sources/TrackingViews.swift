@@ -43,7 +43,7 @@ struct TrackingView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
@@ -116,6 +116,7 @@ struct TrackingEventRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var shipmentGroups: [ShipmentGroup] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
@@ -176,6 +177,9 @@ struct TrackingEventRow: View {
           }
           if !deliveryInstructions.isEmpty {
             DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
           }
 
           ForEach(relatedTasks()) { task in

@@ -34,6 +34,7 @@ final class ParcelOpsStore {
   var customerRecipientProfiles: [CustomerRecipientProfile]
   var destinationAddresses: [DestinationAddressRecord]
   var deliveryInstructions: [DeliveryInstructionRecord]
+  var packageContents: [PackageContentRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -60,6 +61,7 @@ final class ParcelOpsStore {
   private let customerRecipientProfileRepository: CustomerRecipientProfileRepository
   private let destinationAddressRepository: DestinationAddressRepository
   private let deliveryInstructionRepository: DeliveryInstructionRepository
+  private let packageContentRepository: PackageContentRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -72,7 +74,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -103,6 +105,7 @@ final class ParcelOpsStore {
     self.customerRecipientProfileRepository = repository
     self.destinationAddressRepository = repository
     self.deliveryInstructionRepository = repository
+    self.packageContentRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -139,6 +142,7 @@ final class ParcelOpsStore {
     self.customerRecipientProfiles = repository.loadCustomerRecipientProfiles()
     self.destinationAddresses = repository.loadDestinationAddresses()
     self.deliveryInstructions = repository.loadDeliveryInstructions()
+    self.packageContents = repository.loadPackageContents()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -171,7 +175,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -340,6 +344,26 @@ final class ParcelOpsStore {
 
   var deliveryInstructionsWithAccessConstraints: [DeliveryInstructionRecord] {
     deliveryInstructions.filter { !$0.accessConstraintSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  var packageContentsNeedingReview: [PackageContentRecord] {
+    packageContents.filter { $0.reviewState != .accepted }
+  }
+
+  var unverifiedPackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.verificationStatus != .verified }
+  }
+
+  var packageContentDiscrepancies: [PackageContentRecord] {
+    packageContents.filter { $0.verificationStatus == .discrepancy || !$0.discrepancySummary.localizedCaseInsensitiveContains("no discrepancy") }
+  }
+
+  var highRiskPackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var highValuePackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.valueBand == .high || $0.valueBand == .critical }
   }
 
   var enabledAccountRecordCount: Int {
@@ -533,6 +557,7 @@ final class ParcelOpsStore {
       + customerProfileWorkbenchItems()
       + destinationAddressWorkbenchItems()
       + deliveryInstructionWorkbenchItems()
+      + packageContentWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2241,6 +2266,25 @@ final class ParcelOpsStore {
         reviewState: instruction.reviewState,
         source: .deliveryInstruction,
         suggestedNextAction: instruction.accessConstraintSummary.isEmpty ? "Review delivery instruction" : "Confirm access constraints"
+      )
+    }
+  }
+
+  private func packageContentWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(packageContentsNeedingReview + unverifiedPackageContents + packageContentDiscrepancies + highRiskPackageContents + highValuePackageContents)).map { content in
+      WorkbenchItem(
+        id: "package-content-\(content.id.uuidString)",
+        title: content.title,
+        summary: "\(content.itemSummary) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
+        linkedEntityType: .packageContent,
+        linkedEntityID: content.id.uuidString,
+        prioritySeverity: content.verificationStatus == .discrepancy ? "High" : content.riskLevel.rawValue,
+        status: content.verificationStatus.rawValue,
+        assignee: content.itemCategory.rawValue,
+        dueDateText: content.lastReviewedDate,
+        reviewState: content.reviewState,
+        source: .packageContent,
+        suggestedNextAction: content.verificationStatus == .verified ? "Review package contents" : "Verify package contents"
       )
     }
   }
@@ -4795,6 +4839,174 @@ final class ParcelOpsStore {
     suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(item.summary) \(item.suggestedNextAction)", carrier: "", riskLevel: item.shipmentRiskLevel, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredPackageContents(itemCategory: PackageItemCategory?, valueBand: PackageValueBand?, verificationStatus: PackageVerificationStatus?, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [PackageContentRecord] {
+    packageContents.filter { content in
+      let matchesCategory = itemCategory == nil || content.itemCategory == itemCategory
+      let matchesValue = valueBand == nil || content.valueBand == valueBand
+      let matchesVerification = verificationStatus == nil || content.verificationStatus == verificationStatus
+      let matchesRisk = riskLevel == nil || content.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || content.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || content.reviewState == reviewState
+      return matchesCategory && matchesValue && matchesVerification && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addPackageContentPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let address = destinationAddresses.first
+    let instruction = deliveryInstructions.first
+    let content = PackageContentRecord(title: "New package content \(packageContents.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", orderID: order?.id, shipmentGroupID: group?.id, destinationAddressID: address?.id, deliveryInstructionID: instruction?.id, customerProfileID: address?.customerProfileID ?? customerRecipientProfiles.first?.id, itemSummary: "Items to verify locally.", expectedQuantity: 1, verifiedQuantity: 0, itemCategory: .other, valueBand: .unknown, verificationStatus: .notVerified, discrepancySummary: "No discrepancy recorded yet.", evidenceAttachmentIDs: [], riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    packageContents.insert(content, at: 0)
+    persistPackageContents()
+    logAudit(action: .created, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Package content placeholder added.", afterDetail: content.auditDetail)
+  }
+
+  func updatePackageContent(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index] = content
+    persistPackageContents()
+    logAudit(action: .edited, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Package content details updated.", beforeDetail: beforeDetail, afterDetail: content.auditDetail)
+  }
+
+  func markPackageContentVerified(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].verifiedQuantity = packageContents[index].expectedQuantity
+    packageContents[index].verificationStatus = .verified
+    packageContents[index].discrepancySummary = "No discrepancy recorded."
+    packageContents[index].reviewState = .accepted
+    packageContents[index].lastReviewedDate = Self.auditTimestamp()
+    persistPackageContents()
+    logAudit(action: .completed, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content verified locally.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func markPackageContentDiscrepancy(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].verificationStatus = .discrepancy
+    packageContents[index].reviewState = .needsReview
+    packageContents[index].discrepancySummary = packageContents[index].discrepancySummary.localizedCaseInsensitiveContains("no discrepancy") ? "Quantity or item details need manual verification." : packageContents[index].discrepancySummary
+    persistPackageContents()
+    logAudit(action: .edited, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content discrepancy marked.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func markPackageContentReviewed(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].reviewState = .accepted
+    packageContents[index].lastReviewedDate = Self.auditTimestamp()
+    persistPackageContents()
+    logAudit(action: .reviewed, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content marked reviewed.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func removePackageContent(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let removed = packageContents.remove(at: index)
+    persistPackageContents()
+    logAudit(action: .removed, entityType: .packageContent, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Package content removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from content: PackageContentRecord) {
+    createReviewTask(linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString, label: content.title, summary: "Verify package contents: \(content.itemSummary). \(content.discrepancySummary)", priority: content.riskLevel == .critical ? .urgent : content.riskLevel == .high ? .high : .normal, assignee: content.itemCategory.rawValue)
+  }
+
+  func createDraftMessage(from content: PackageContentRecord) {
+    let recipient = content.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString, label: content.title, recipient: recipient)
+    logAudit(action: .created, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Draft message created from package content.", afterDetail: content.auditDetail)
+  }
+
+  private func suggestedPackageContents(orderID: UUID?, shipmentGroupID: UUID?, destinationAddressID: UUID?, deliveryInstructionID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [PackageContentRecord] {
+    packageContents.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, destinationAddressID: destinationAddressID, deliveryInstructionID: deliveryInstructionID, customerProfileID: customerProfileID, evidenceID: evidenceID, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedPackageContents(for order: TrackedOrder) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: order.id, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, evidenceID: nil, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedPackageContents(for email: ForwardedEmailIntake) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: email.linkedOrderID, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: email).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: email).first?.id, customerProfileID: suggestedCustomerProfiles(for: email).first?.id, evidenceID: nil, context: "\(email.detectedMerchant) \(email.detectedOrderNumber) \(email.detectedDestinationAddress)", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedPackageContents(for item: ImportQueueItem) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: item.suggestedLinkedOrderID, shipmentGroupID: item.suggestedShipmentGroupID, destinationAddressID: suggestedDestinationAddresses(for: item).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: item).first?.id, customerProfileID: suggestedCustomerProfiles(for: item).first?.id, evidenceID: nil, context: "\(item.rawSummary) \(item.detectedMerchant) \(item.detectedDestinationAddress)", linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedPackageContents(for candidate: AcceptanceCandidate) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: candidate.suggestedLinkedOrderID, shipmentGroupID: candidate.suggestedShipmentGroupID, destinationAddressID: suggestedDestinationAddresses(for: candidate).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: candidate).first?.id, customerProfileID: suggestedCustomerProfiles(for: candidate).first?.id, evidenceID: nil, context: "\(candidate.detectedMerchant) \(candidate.detectedDestinationAddress)", linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedPackageContents(for group: ShipmentGroup) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: group.primaryOrderID, shipmentGroupID: group.id, destinationAddressID: suggestedDestinationAddresses(for: group).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: group).first?.id, customerProfileID: suggestedCustomerProfiles(for: group).first?.id, evidenceID: group.relatedEvidenceIDs.first, context: "\(group.groupName) \(group.destinationSummary) \(group.statusSummary)", linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedPackageContents(for attachment: EvidenceAttachment) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: attachment).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, evidenceID: attachment.id, context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedPackageContents(for address: DestinationAddressRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: address.id, deliveryInstructionID: nil, customerProfileID: address.customerProfileID, evidenceID: nil, context: "\(address.label) \(address.deliveryInstructions)", linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString)
+  }
+
+  func suggestedPackageContents(for instruction: DeliveryInstructionRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: instruction.destinationAddressID, deliveryInstructionID: instruction.id, customerProfileID: instruction.customerProfileID, evidenceID: nil, context: "\(instruction.title) \(instruction.instructionSummary)", linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString)
+  }
+
+  func suggestedPackageContents(for profile: CustomerRecipientProfile) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: profile).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: profile).first?.id, customerProfileID: profile.id, evidenceID: nil, context: "\(profile.displayName) \(profile.defaultDestinationAddress)", linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedPackageContents(for task: ReviewTask) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: task.summary, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for note: HandoffNote) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(note.summary) \(note.notes)", linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for event: CarrierTrackingEvent) -> [PackageContentRecord] {
+    let order = orders.first { $0.id == event.orderID }
+    return suggestedPackageContents(orderID: event.orderID, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: event).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: event).first?.id, customerProfileID: order.flatMap { suggestedCustomerProfiles(for: $0).first?.id }, evidenceID: nil, context: "\(event.trackingNumber) \(event.detail)", linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedPackageContents(for issue: ValidationIssue) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(issue.title) \(issue.detail)", linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedPackageContents(for issue: ReconciliationIssue) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(issue.title) \(issue.summary) \(issue.detectedValue)", linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedPackageContents(for draft: DraftMessage) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(draft.subject) \(draft.body)", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for contact: ContactDirectoryEntry) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: contact).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: contact).first?.id, customerProfileID: suggestedCustomerProfiles(for: contact).first?.id, evidenceID: nil, context: "\(contact.organisation) \(contact.notes)", linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedPackageContents(for account: AccountCredentialRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: account).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: account).first?.id, customerProfileID: suggestedCustomerProfiles(for: account).first?.id, evidenceID: nil, context: "\(account.organisation) \(account.notes)", linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedPackageContents(for profile: VendorProfile) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: profile).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: profile).first?.id, customerProfileID: suggestedCustomerProfiles(for: profile).first?.id, evidenceID: nil, context: "\(profile.primaryOrganisation) \(profile.serviceLevelNotes)", linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedPackageContents(for policy: SLAPolicy) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(policy.name) \(policy.conditionSummary)", linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedPackageContents(for playbook: ExceptionPlaybook) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(playbook.name) \(playbook.triggerSummary)", linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedPackageContents(for item: WorkbenchItem) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -5258,6 +5470,10 @@ final class ParcelOpsStore {
       if let instruction = deliveryInstructions.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markDeliveryInstructionReviewed(instruction)
       }
+    case .packageContent:
+      if let content = packageContents.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markPackageContentReviewed(content)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -5520,6 +5736,10 @@ final class ParcelOpsStore {
 
   private func persistDeliveryInstructions() {
     deliveryInstructionRepository.saveDeliveryInstructions(deliveryInstructions)
+  }
+
+  private func persistPackageContents() {
+    packageContentRepository.savePackageContents(packageContents)
   }
 
   private func persistAccountCredentialRecords() {
@@ -5821,6 +6041,31 @@ private extension DeliveryInstructionRecord {
     let carrierMatch = !carrier.isEmpty && (carrierNotes.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(carrierNotes))
     let riskMatch = riskLevel != nil && self.riskLevel == riskLevel
     return addressMatch || profileMatch || linkedMatch || contextMatch || carrierMatch || riskMatch
+  }
+}
+
+private extension PackageContentRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); instruction: \(deliveryInstructionID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); category: \(itemCategory.rawValue); value: \(valueBand.rawValue); quantity: \(verifiedQuantity)/\(expectedQuantity); verification: \(verificationStatus.rawValue); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(itemSummary); discrepancy: \(discrepancySummary)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, destinationAddressID: UUID?, deliveryInstructionID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let instructionMatch = deliveryInstructionID != nil && self.deliveryInstructionID == deliveryInstructionID
+    let profileMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || itemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(itemSummary)
+      || discrepancySummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(discrepancySummary)
+    )
+    return orderMatch || groupMatch || destinationMatch || instructionMatch || profileMatch || evidenceMatch || linkedMatch || contextMatch
   }
 }
 

@@ -86,7 +86,7 @@ struct CommunicationView: View {
             }
 
             ForEach(filteredDrafts) { draft in
-              DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft)) { updatedDraft in
+              DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
                 store.updateDraftMessage(updatedDraft)
               } onReady: {
                 store.markDraftMessageReady(draft)
@@ -219,6 +219,7 @@ struct DraftMessageRow: View {
   var draft: DraftMessage
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (DraftMessage) -> Void
   var onReady: () -> Void
   var onSent: () -> Void
@@ -269,6 +270,9 @@ struct DraftMessageRow: View {
           }
           if !deliveryInstructions.isEmpty {
             DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
           }
         }
       }

@@ -162,6 +162,16 @@ struct DashboardView: View {
             CompactDeliveryInstructionList(instructions: Array((store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled }).prefix(4)))
           }
 
+          AnalyticsSection(title: "Package contents", symbol: "shippingbox.circle.fill") {
+            MetricStrip(items: [
+              ("Unverified", "\(store.unverifiedPackageContents.count)", .orange),
+              ("Discrepancy", "\(store.packageContentDiscrepancies.count)", .red),
+              ("High risk", "\(store.highRiskPackageContents.count)", .red),
+              ("High value", "\(store.highValuePackageContents.count)", .purple)
+            ])
+            CompactPackageContentList(contents: Array((store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -569,6 +579,23 @@ struct CompactDeliveryInstructionList: View {
           detail: "\(instruction.instructionType.rawValue) • \(instruction.preferredDeliveryWindow)",
           badge: instruction.riskLevel.rawValue,
           color: instruction.riskLevel.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactPackageContentList: View {
+  var contents: [PackageContentRecord]
+
+  var body: some View {
+    CompactList(title: "Package contents", symbol: "shippingbox.circle.fill") {
+      ForEach(contents) { content in
+        CompactRow(
+          title: content.title,
+          detail: "\(content.itemCategory.rawValue) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
+          badge: content.verificationStatus.rawValue,
+          color: content.verificationStatus.color
         )
       }
     }

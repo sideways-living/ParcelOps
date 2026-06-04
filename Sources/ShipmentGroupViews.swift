@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -99,6 +99,7 @@ struct ShipmentGroupRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ShipmentGroup) -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -116,6 +117,7 @@ struct ShipmentGroupRow: View {
     customerProfiles: [CustomerRecipientProfile] = [],
     destinationAddresses: [DestinationAddressRecord] = [],
     deliveryInstructions: [DeliveryInstructionRecord] = [],
+    packageContents: [PackageContentRecord] = [],
     onSave: @escaping (ShipmentGroup) -> Void,
     onReviewed: @escaping () -> Void,
     onCreateTask: @escaping () -> Void,
@@ -130,6 +132,7 @@ struct ShipmentGroupRow: View {
     self.customerProfiles = customerProfiles
     self.destinationAddresses = destinationAddresses
     self.deliveryInstructions = deliveryInstructions
+    self.packageContents = packageContents
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onCreateTask = onCreateTask
@@ -196,6 +199,9 @@ struct ShipmentGroupRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

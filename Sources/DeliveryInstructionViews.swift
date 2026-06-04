@@ -54,7 +54,8 @@ struct DeliveryInstructionsView: View {
               DeliveryInstructionRow(
                 instruction: instruction,
                 destinationAddress: store.destinationAddresses.first { $0.id == instruction.destinationAddressID },
-                customerProfile: store.customerRecipientProfiles.first { $0.id == instruction.customerProfileID }
+                customerProfile: store.customerRecipientProfiles.first { $0.id == instruction.customerProfileID },
+                packageContents: store.suggestedPackageContents(for: instruction)
               ) { updatedInstruction in
                 store.updateDeliveryInstruction(updatedInstruction)
               } onToggle: {
@@ -160,6 +161,7 @@ struct DeliveryInstructionRow: View {
   var instruction: DeliveryInstructionRecord
   var destinationAddress: DestinationAddressRecord?
   var customerProfile: CustomerRecipientProfile?
+  var packageContents: [PackageContentRecord] = []
   var onSave: (DeliveryInstructionRecord) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -232,6 +234,10 @@ struct DeliveryInstructionRow: View {
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
     }
     .padding(12)

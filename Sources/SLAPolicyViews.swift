@@ -50,7 +50,7 @@ struct SLAPoliciesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredPolicies) { policy in
-              SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy)) { updatedPolicy in
+              SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
                 store.updateSLAPolicy(updatedPolicy)
               } onToggle: {
                 store.toggleSLAPolicy(policy)
@@ -123,6 +123,7 @@ struct SLAPolicyRow: View {
   var policy: SLAPolicy
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (SLAPolicy) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -175,6 +176,9 @@ struct SLAPolicyRow: View {
           }
           if !deliveryInstructions.isEmpty {
             DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
           }
         }
       }

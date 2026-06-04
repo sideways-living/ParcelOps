@@ -39,7 +39,8 @@ struct ReconciliationView: View {
                 handoffNotes: store.handoffNotes(for: issue),
                 customerProfiles: store.suggestedCustomerProfiles(for: issue),
                 destinationAddresses: store.suggestedDestinationAddresses(for: issue),
-                deliveryInstructions: store.suggestedDeliveryInstructions(for: issue)
+                deliveryInstructions: store.suggestedDeliveryInstructions(for: issue),
+                packageContents: store.suggestedPackageContents(for: issue)
               ) {
                 store.markReconciliationIssueReviewed(issue)
               } onCreateTask: {
@@ -132,6 +133,7 @@ struct ReconciliationIssueRow: View {
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onReviewed: () -> Void = {}
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
@@ -192,6 +194,9 @@ struct ReconciliationIssueRow: View {
       }
       if !deliveryInstructions.isEmpty {
         DeliveryInstructionStrip(instructions: deliveryInstructions)
+      }
+      if !packageContents.isEmpty {
+        PackageContentStrip(contents: packageContents)
       }
 
       HStack {

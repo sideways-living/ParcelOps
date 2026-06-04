@@ -20,6 +20,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case customerProfiles
   case destinationAddresses
   case deliveryInstructions
+  case packageContents
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -55,6 +56,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .customerProfiles: "Customer Profiles"
     case .destinationAddresses: "Destination Addresses"
     case .deliveryInstructions: "Delivery Instructions"
+    case .packageContents: "Package Contents"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -90,6 +92,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .customerProfiles: "Customers"
     case .destinationAddresses: "Addresses"
     case .deliveryInstructions: "Instructions"
+    case .packageContents: "Contents"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -125,6 +128,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .customerProfiles: "person.text.rectangle.fill"
     case .destinationAddresses: "mappin.and.ellipse"
     case .deliveryInstructions: "signpost.right.and.left.fill"
+    case .packageContents: "shippingbox.circle.fill"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -532,6 +536,30 @@ struct DeliveryInstructionRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct PackageContentRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var orderID: UUID?
+  var shipmentGroupID: UUID?
+  var destinationAddressID: UUID?
+  var deliveryInstructionID: UUID?
+  var customerProfileID: UUID?
+  var itemSummary: String
+  var expectedQuantity: Int
+  var verifiedQuantity: Int
+  var itemCategory: PackageItemCategory
+  var valueBand: PackageValueBand
+  var verificationStatus: PackageVerificationStatus
+  var discrepancySummary: String
+  var evidenceAttachmentIDs: [UUID]
+  var riskLevel: ShipmentRiskLevel
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -785,6 +813,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case customerRecipientProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -851,6 +880,38 @@ enum DeliveryInstructionType: String, CaseIterable, Identifiable, Hashable, Coda
   case handling = "Handling"
   case security = "Security"
   case contactRequired = "Contact required"
+
+  var id: String { rawValue }
+}
+
+enum PackageItemCategory: String, CaseIterable, Identifiable, Hashable, Codable {
+  case officeSupplies = "Office supplies"
+  case electronics = "Electronics"
+  case furniture = "Furniture"
+  case samples = "Samples"
+  case documents = "Documents"
+  case apparel = "Apparel"
+  case other = "Other"
+
+  var id: String { rawValue }
+}
+
+enum PackageValueBand: String, CaseIterable, Identifiable, Hashable, Codable {
+  case low = "Low value"
+  case medium = "Medium value"
+  case high = "High value"
+  case critical = "Critical value"
+  case unknown = "Unknown value"
+
+  var id: String { rawValue }
+}
+
+enum PackageVerificationStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case notVerified = "Not verified"
+  case partiallyVerified = "Partially verified"
+  case verified = "Verified"
+  case discrepancy = "Discrepancy"
+  case blocked = "Blocked"
 
   var id: String { rawValue }
 }
@@ -927,6 +988,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case customerProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -987,6 +1049,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case customerProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -1061,6 +1124,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case customerProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -1078,6 +1142,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case customerProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -1107,6 +1172,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case customerProfile = "Customer profile"
   case destinationAddress = "Destination address"
   case deliveryInstruction = "Delivery instruction"
+  case packageContent = "Package content"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
