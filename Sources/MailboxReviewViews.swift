@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -829,7 +829,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Package contents", symbol: "shippingbox.circle.fill") {
           ForEach(Array(Set(store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents))) { content in
-            PackageContentRow(content: content) { updatedContent in
+            PackageContentRow(content: content, custodyRecords: store.suggestedCustodyRecords(for: content)) { updatedContent in
               store.updatePackageContent(updatedContent)
             } onVerified: {
               store.markPackageContentVerified(content)
@@ -871,7 +871,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
           ForEach(Array(Set(store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence))) { claim in
-            ReturnClaimRow(claim: claim) { updatedClaim in
+            ReturnClaimRow(claim: claim, custodyRecords: store.suggestedCustodyRecords(for: claim)) { updatedClaim in
               store.updateReturnClaim(updatedClaim)
             } onSubmitted: {
               store.markReturnClaimSubmitted(claim)
@@ -895,7 +895,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Procurement", symbol: "cart.badge.plus") {
           ForEach(Array(Set(store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests))) { request in
-            ProcurementRequestRow(request: request) { updatedRequest in
+            ProcurementRequestRow(request: request, custodyRecords: store.suggestedCustodyRecords(for: request)) { updatedRequest in
               store.updateProcurementRequest(updatedRequest)
             } onApproved: {
               store.markProcurementRequestApproved(request)
@@ -919,7 +919,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Receiving inspections", symbol: "checklist.checked") {
           ForEach(Array(Set(store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections))) { inspection in
-            ReceivingInspectionRow(inspection: inspection) { updatedInspection in
+            ReceivingInspectionRow(inspection: inspection, custodyRecords: store.suggestedCustodyRecords(for: inspection)) { updatedInspection in
               store.updateReceivingInspection(updatedInspection)
             } onInspected: {
               store.markReceivingInspectionInspected(inspection)
@@ -943,7 +943,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Inventory receipts", symbol: "archivebox.fill") {
           ForEach(Array(Set(store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage))) { receipt in
-            InventoryReceiptRow(receipt: receipt) { updatedReceipt in
+            InventoryReceiptRow(receipt: receipt, custodyRecords: store.suggestedCustodyRecords(for: receipt)) { updatedReceipt in
               store.updateInventoryReceipt(updatedReceipt)
             } onStocked: {
               store.markInventoryReceiptStocked(receipt)
@@ -967,7 +967,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Storage locations", symbol: "cabinet.fill") {
           ForEach(Array(Set(store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings))) { location in
-            StorageLocationRow(location: location) { updatedLocation in
+            StorageLocationRow(location: location, custodyRecords: store.suggestedCustodyRecords(for: location)) { updatedLocation in
               store.updateStorageLocation(updatedLocation)
             } onToggle: {
               store.toggleStorageLocation(location)
@@ -979,6 +979,30 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: location)
             } onRemove: {
               store.removeStorageLocation(location)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
+          ForEach(Array(Set(store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations))) { record in
+            CustodyRecordRow(record: record) { updatedRecord in
+              store.updateCustodyRecord(updatedRecord)
+            } onTransferred: {
+              store.markCustodyRecordTransferred(record)
+            } onReceived: {
+              store.markCustodyRecordReceived(record)
+            } onReturnedClosed: {
+              store.markCustodyRecordReturnedClosed(record)
+            } onDisputed: {
+              store.markCustodyRecordDisputed(record)
+            } onReviewed: {
+              store.markCustodyRecordReviewed(record)
+            } onCreateTask: {
+              store.createReviewTask(from: record)
+            } onCreateDraft: {
+              store.createDraftMessage(from: record)
+            } onRemove: {
+              store.removeCustodyRecord(record)
             }
           }
         }

@@ -1,21 +1,23 @@
 import SwiftUI
 
-struct InventoryReceiptsView: View {
+struct CustodyChainView: View {
   var store: ParcelOpsStore
-  @State private var selectedReceiptType: InventoryReceiptType?
-  @State private var selectedStatus: InventoryStockHandoffStatus?
+  @State private var selectedStatus: CustodyStatus?
+  @State private var custodianTeam = ""
   @State private var ownerTeam = ""
+  @State private var selectedHandoffMethod: CustodyHandoffMethod?
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredReceipts: [InventoryReceiptRecord] {
-    store.filteredInventoryReceipts(
-      receiptType: selectedReceiptType,
-      stockHandoffStatus: selectedStatus,
+  private var filteredRecords: [CustodyRecord] {
+    store.filteredCustodyRecords(
+      custodyStatus: selectedStatus,
+      custodianTeam: custodianTeam,
       ownerTeam: ownerTeam,
+      handoffMethod: selectedHandoffMethod,
       riskLevel: selectedRiskLevel,
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
@@ -28,43 +30,43 @@ struct InventoryReceiptsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Inventory receipt records", symbol: "archivebox.fill") {
+        SettingsPanel(title: "Custody chain records", symbol: "person.badge.shield.checkmark.fill") {
           HStack {
-            Text("\(filteredReceipts.count) visible inventory receipts")
+            Text("\(filteredRecords.count) visible custody records")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add receipt", systemImage: "plus", action: store.addInventoryReceiptPlaceholder)
+            Button("Add custody", systemImage: "plus", action: store.addCustodyRecordPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredReceipts.isEmpty {
-            Text("No inventory receipts match the selected filters.")
+          if filteredRecords.isEmpty {
+            Text("No custody records match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredReceipts) { receipt in
-              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt)) { updatedReceipt in
-                store.updateInventoryReceipt(updatedReceipt)
-              } onStocked: {
-                store.markInventoryReceiptStocked(receipt)
-              } onHandedOff: {
-                store.markInventoryReceiptHandedOff(receipt)
-              } onPartiallyAccepted: {
-                store.markInventoryReceiptPartiallyAccepted(receipt)
-              } onRejected: {
-                store.markInventoryReceiptRejected(receipt)
+            ForEach(filteredRecords) { record in
+              CustodyRecordRow(record: record) { updatedRecord in
+                store.updateCustodyRecord(updatedRecord)
+              } onTransferred: {
+                store.markCustodyRecordTransferred(record)
+              } onReceived: {
+                store.markCustodyRecordReceived(record)
+              } onReturnedClosed: {
+                store.markCustodyRecordReturnedClosed(record)
+              } onDisputed: {
+                store.markCustodyRecordDisputed(record)
               } onReviewed: {
-                store.markInventoryReceiptReviewed(receipt)
+                store.markCustodyRecordReviewed(record)
               } onCreateTask: {
-                store.createReviewTask(from: receipt)
+                store.createReviewTask(from: record)
               } onCreateDraft: {
-                store.createDraftMessage(from: receipt)
+                store.createDraftMessage(from: record)
               } onRemove: {
-                store.removeInventoryReceipt(receipt)
+                store.removeCustodyRecord(record)
               }
             }
           }
@@ -77,40 +79,44 @@ struct InventoryReceiptsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Inventory Receipts")
+        Text("Custody Chain")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local stock receipt, storage assignment, acceptance, rejection, and team handoff tracking.")
+        Text("Local possession, handoff, and responsibility tracking for parcels and operational records.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.rejectedInventoryReceipts.count) rejected", color: .red)
-        Badge("\(store.inventoryReceiptsMissingStorage.count) missing storage", color: .orange)
+        Badge("\(store.openCustodyTransfers.count) open transfers", color: .blue)
+        Badge("\(store.disputedCustodyRecords.count) disputed", color: .red)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Type", selection: $selectedReceiptType) {
-        Text("All types").tag(nil as InventoryReceiptType?)
-        ForEach(InventoryReceiptType.allCases) { type in
-          Text(type.rawValue).tag(type as InventoryReceiptType?)
+      Picker("Status", selection: $selectedStatus) {
+        Text("All status").tag(nil as CustodyStatus?)
+        ForEach(CustodyStatus.allCases) { status in
+          Text(status.rawValue).tag(status as CustodyStatus?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as InventoryStockHandoffStatus?)
-        ForEach(InventoryStockHandoffStatus.allCases) { status in
-          Text(status.rawValue).tag(status as InventoryStockHandoffStatus?)
-        }
-      }
-      .pickerStyle(.menu)
+      TextField("Custodian/team", text: $custodianTeam)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 155)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
+        .frame(maxWidth: 145)
+
+      Picker("Method", selection: $selectedHandoffMethod) {
+        Text("All methods").tag(nil as CustodyHandoffMethod?)
+        ForEach(CustodyHandoffMethod.allCases) { method in
+          Text(method.rawValue).tag(method as CustodyHandoffMethod?)
+        }
+      }
+      .pickerStyle(.menu)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -139,9 +145,10 @@ struct InventoryReceiptsView: View {
       Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedReceiptType = nil
         selectedStatus = nil
+        custodianTeam = ""
         ownerTeam = ""
+        selectedHandoffMethod = nil
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -151,15 +158,13 @@ struct InventoryReceiptsView: View {
   }
 }
 
-struct InventoryReceiptRow: View {
-  var receipt: InventoryReceiptRecord
-  var storageLocations: [StorageLocationRecord] = []
-  var custodyRecords: [CustodyRecord] = []
-  var onSave: (InventoryReceiptRecord) -> Void
-  var onStocked: () -> Void
-  var onHandedOff: () -> Void
-  var onPartiallyAccepted: () -> Void
-  var onRejected: () -> Void
+struct CustodyRecordRow: View {
+  var record: CustodyRecord
+  var onSave: (CustodyRecord) -> Void
+  var onTransferred: () -> Void
+  var onReceived: () -> Void
+  var onReturnedClosed: () -> Void
+  var onDisputed: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -169,56 +174,53 @@ struct InventoryReceiptRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: receipt.receiptType.symbol)
-          .foregroundStyle(receipt.riskLevel.color)
+        Image(systemName: record.handoffMethod.symbol)
+          .foregroundStyle(record.riskLevel.color)
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(receipt.title)
+              Text(record.title)
                 .font(.headline)
-              Text("\(receipt.receiptType.rawValue) • \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted")
+              Text("\(record.currentCustodianTeam) from \(record.previousCustodianTeam)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(receipt.stockHandoffStatus.rawValue, color: receipt.stockHandoffStatus.color)
+            Badge(record.custodyStatus.rawValue, color: record.custodyStatus.color)
           }
 
-          Text(receipt.itemSummary)
+          Text(record.custodyReason)
             .foregroundStyle(.secondary)
-          Text("\(receipt.storageLocationSummary) • Owner \(receipt.assignedOwnerTeam)")
+          Text("\(record.handoffMethod.rawValue) • Owner \(record.assignedOwnerTeam) • Expected \(record.expectedReturnCloseDate)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
           HStack(spacing: 8) {
-            Badge(receipt.riskLevel.rawValue, color: receipt.riskLevel.color)
-            Badge(receipt.reviewState.rawValue, color: receipt.reviewState.color)
-            Label("Rejected \(receipt.quantityRejected)", systemImage: "xmark.circle.fill")
+            Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
+            Badge(record.reviewState.rawValue, color: record.reviewState.color)
+            Label(record.linkedEntityType.rawValue, systemImage: record.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label(receipt.linkedEntityType.rawValue, systemImage: receipt.linkedEntityType.symbol)
+            Label("\(record.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      StorageLocationStrip(locations: storageLocations)
-      CustodyRecordStrip(records: custodyRecords)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Stocked", systemImage: "archivebox.fill", action: onStocked)
+        Button("Transferred", systemImage: "arrow.right.circle.fill", action: onTransferred)
           .buttonStyle(.bordered)
-        Button("Handed off", systemImage: "arrow.left.arrow.right.square.fill", action: onHandedOff)
+        Button("Received", systemImage: "checkmark.circle.fill", action: onReceived)
           .buttonStyle(.bordered)
-        Button("Partial", systemImage: "plusminus.circle.fill", action: onPartiallyAccepted)
+        Button("Closed", systemImage: "checkmark.seal.fill", action: onReturnedClosed)
           .buttonStyle(.bordered)
-        Button("Reject", systemImage: "xmark.circle.fill", action: onRejected)
+        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -234,53 +236,50 @@ struct InventoryReceiptRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      InventoryReceiptEditView(receipt: receipt) { updatedReceipt in
-        onSave(updatedReceipt)
+      CustodyRecordEditView(record: record) { updatedRecord in
+        onSave(updatedRecord)
       }
     }
   }
 }
 
-struct InventoryReceiptEditView: View {
+struct CustodyRecordEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: InventoryReceiptRecord
-  var onSave: (InventoryReceiptRecord) -> Void
+  @State private var draft: CustodyRecord
+  var onSave: (CustodyRecord) -> Void
 
-  init(receipt: InventoryReceiptRecord, onSave: @escaping (InventoryReceiptRecord) -> Void) {
-    self._draft = State(initialValue: receipt)
+  init(record: CustodyRecord, onSave: @escaping (CustodyRecord) -> Void) {
+    self._draft = State(initialValue: record)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Receipt") {
+        Section("Custody") {
           TextField("Title", text: $draft.title)
-          TextField("Item summary", text: $draft.itemSummary, axis: .vertical)
-          Picker("Type", selection: $draft.receiptType) {
-            ForEach(InventoryReceiptType.allCases) { type in
-              Text(type.rawValue).tag(type)
-            }
-          }
-          Picker("Stock/handoff status", selection: $draft.stockHandoffStatus) {
-            ForEach(InventoryStockHandoffStatus.allCases) { status in
+          Picker("Status", selection: $draft.custodyStatus) {
+            ForEach(CustodyStatus.allCases) { status in
               Text(status.rawValue).tag(status)
             }
           }
+          Picker("Handoff method", selection: $draft.handoffMethod) {
+            ForEach(CustodyHandoffMethod.allCases) { method in
+              Text(method.rawValue).tag(method)
+            }
+          }
+          TextField("Custody reason", text: $draft.custodyReason, axis: .vertical)
         }
 
-        Section("Quantities and location") {
-          Stepper("Received: \(draft.quantityReceived)", value: $draft.quantityReceived, in: 0...999)
-          Stepper("Accepted: \(draft.quantityAccepted)", value: $draft.quantityAccepted, in: 0...999)
-          Stepper("Rejected: \(draft.quantityRejected)", value: $draft.quantityRejected, in: 0...999)
-          TextField("Storage/location", text: $draft.storageLocationSummary, axis: .vertical)
-          TextField("Discrepancy summary", text: $draft.discrepancySummary, axis: .vertical)
+        Section("Teams and dates") {
+          TextField("Current custodian/team", text: $draft.currentCustodianTeam)
+          TextField("Previous custodian/team", text: $draft.previousCustodianTeam)
+          TextField("Assigned owner/team", text: $draft.assignedOwnerTeam)
+          TextField("Transfer date", text: $draft.transferDate)
+          TextField("Expected return/close date", text: $draft.expectedReturnCloseDate)
         }
 
-        Section("Ownership and dates") {
-          TextField("Owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Received date", text: $draft.receivedDate)
-          TextField("Handoff date", text: $draft.handoffDate)
+        Section("Review") {
           Picker("Risk", selection: $draft.riskLevel) {
             ForEach(ShipmentRiskLevel.allCases) { risk in
               Text(risk.rawValue).tag(risk)
@@ -301,9 +300,10 @@ struct InventoryReceiptEditView: View {
             }
           }
           TextField("Linked record ID", text: $draft.linkedEntityID)
+          TextField("Notes", text: $draft.notes, axis: .vertical)
         }
       }
-      .navigationTitle("Edit Receipt")
+      .navigationTitle("Edit Custody")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -316,6 +316,6 @@ struct InventoryReceiptEditView: View {
         }
       }
     }
-    .frame(minWidth: 580, minHeight: 620)
+    .frame(minWidth: 620, minHeight: 660)
   }
 }

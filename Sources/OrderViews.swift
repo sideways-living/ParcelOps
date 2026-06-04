@@ -276,6 +276,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
+          let records = store.suggestedCustodyRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local custody records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            CustodyRecordStrip(records: records)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

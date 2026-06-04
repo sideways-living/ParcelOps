@@ -232,6 +232,16 @@ struct DashboardView: View {
             CompactStorageLocationList(locations: Array((store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings).prefix(4)))
           }
 
+          AnalyticsSection(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.custodyRecordsNeedingReview.count)", .orange),
+              ("Disputed", "\(store.disputedCustodyRecords.count)", .red),
+              ("Open", "\(store.openCustodyTransfers.count)", .blue),
+              ("Missing", "\(store.custodyRecordsMissingCustodians.count + store.custodyRecordsMissingLocations.count)", .red)
+            ])
+            CompactCustodyRecordList(records: Array((store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -758,6 +768,23 @@ struct CompactStorageLocationList: View {
           detail: "\(location.locationCode) • \(location.areaZone)",
           badge: location.isEnabled ? "Enabled" : "Disabled",
           color: location.isEnabled ? .green : .gray
+        )
+      }
+    }
+  }
+}
+
+struct CompactCustodyRecordList: View {
+  var records: [CustodyRecord]
+
+  var body: some View {
+    CompactList(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
+      ForEach(records) { record in
+        CompactRow(
+          title: record.title,
+          detail: "\(record.currentCustodianTeam) • \(record.expectedReturnCloseDate)",
+          badge: record.custodyStatus.rawValue,
+          color: record.custodyStatus.color
         )
       }
     }
