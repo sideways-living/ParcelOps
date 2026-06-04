@@ -50,7 +50,7 @@ struct SLAPoliciesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredPolicies) { policy in
-              SLAPolicyRow(policy: policy) { updatedPolicy in
+              SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy)) { updatedPolicy in
                 store.updateSLAPolicy(updatedPolicy)
               } onToggle: {
                 store.toggleSLAPolicy(policy)
@@ -121,6 +121,7 @@ struct SLAPoliciesView: View {
 
 struct SLAPolicyRow: View {
   var policy: SLAPolicy
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (SLAPolicy) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -167,6 +168,10 @@ struct SLAPolicyRow: View {
           Text("\(policy.matchCount) local matches")
             .font(.caption)
             .foregroundStyle(.secondary)
+
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
+          }
         }
       }
 

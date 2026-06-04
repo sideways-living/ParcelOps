@@ -31,7 +31,7 @@ struct CustomerProfilesView: View {
 
         SettingsPanel(title: "Profiles", symbol: "person.text.rectangle.fill") {
           ForEach(filteredProfiles) { profile in
-            CustomerProfileRow(profile: profile) { updatedProfile in
+            CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile)) { updatedProfile in
               store.updateCustomerRecipientProfile(updatedProfile)
             } onToggle: {
               store.toggleCustomerRecipientProfile(profile)
@@ -115,6 +115,7 @@ struct CustomerProfilesView: View {
 
 struct CustomerProfileRow: View {
   var profile: CustomerRecipientProfile
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (CustomerRecipientProfile) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -150,6 +151,10 @@ struct CustomerProfileRow: View {
       Text(profile.notes)
         .font(.callout)
         .foregroundStyle(.secondary)
+
+      if !destinationAddresses.isEmpty {
+        DestinationAddressStrip(addresses: destinationAddresses)
+      }
 
       HStack {
         Button("Edit", systemImage: "pencil") { isEditing = true }

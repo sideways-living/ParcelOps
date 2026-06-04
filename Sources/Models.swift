@@ -18,6 +18,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case communication
   case contacts
   case customerProfiles
+  case destinationAddresses
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -51,6 +52,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "Communication"
     case .contacts: "Contacts"
     case .customerProfiles: "Customer Profiles"
+    case .destinationAddresses: "Destination Addresses"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -84,6 +86,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "Comms"
     case .contacts: "Contacts"
     case .customerProfiles: "Customers"
+    case .destinationAddresses: "Addresses"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -117,6 +120,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .communication: "bubble.left.and.text.bubble.right.fill"
     case .contacts: "person.crop.circle.badge.checkmark"
     case .customerProfiles: "person.text.rectangle.fill"
+    case .destinationAddresses: "mappin.and.ellipse"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -486,6 +490,24 @@ struct CustomerRecipientProfile: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct DestinationAddressRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var label: String
+  var customerProfileID: UUID?
+  var organisationTeam: String
+  var addressLineSummary: String
+  var cityRegion: String
+  var country: String
+  var deliveryInstructions: String
+  var accessNotes: String
+  var preferredCarrier: String
+  var riskLevel: ShipmentRiskLevel
+  var isEnabled: Bool
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -737,6 +759,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case draftMessage = "Draft message"
   case contactDirectoryEntry = "Contact"
   case customerRecipientProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -866,6 +889,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case draftMessage = "Draft message"
   case contact = "Contact"
   case customerProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -924,6 +948,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case draftMessage = "Draft message"
   case contact = "Contact"
   case customerProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -996,6 +1021,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case internalTeam = "Internal team"
   case contact = "Contact"
   case customerProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -1011,6 +1037,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case shopifyStore = "Shopify store"
   case internalTeam = "Internal team"
   case customerProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -1038,6 +1065,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case draftMessage = "Draft message"
   case contact = "Contact"
   case customerProfile = "Customer profile"
+  case destinationAddress = "Destination address"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"

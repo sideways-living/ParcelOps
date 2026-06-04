@@ -142,6 +142,16 @@ struct DashboardView: View {
             CompactCustomerProfileList(profiles: Array((store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }).prefix(4)))
           }
 
+          AnalyticsSection(title: "Destination addresses", symbol: "mappin.and.ellipse") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledDestinationAddressCount)", .green),
+              ("Disabled", "\(store.disabledDestinationAddressCount)", .gray),
+              ("Review", "\(store.destinationAddressesNeedingReview.count)", .orange),
+              ("High risk", "\(store.highRiskDestinationAddresses.count)", .red)
+            ])
+            CompactDestinationAddressList(addresses: Array((store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled }).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -515,6 +525,23 @@ struct CompactCustomerProfileList: View {
           detail: "\(profile.organisationTeam) • \(profile.deliveryPreference.rawValue)",
           badge: profile.isEnabled ? profile.reviewState.rawValue : "Disabled",
           color: profile.isEnabled ? profile.reviewState.color : .gray
+        )
+      }
+    }
+  }
+}
+
+struct CompactDestinationAddressList: View {
+  var addresses: [DestinationAddressRecord]
+
+  var body: some View {
+    CompactList(title: "Destination addresses", symbol: "mappin.and.ellipse") {
+      ForEach(addresses) { address in
+        CompactRow(
+          title: address.label,
+          detail: "\(address.addressLineSummary), \(address.cityRegion) • \(address.preferredCarrier)",
+          badge: address.riskLevel.rawValue,
+          color: address.riskLevel.color
         )
       }
     }

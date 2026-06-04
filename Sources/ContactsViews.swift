@@ -56,7 +56,7 @@ struct ContactsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact)) { updatedContact in
+              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -146,6 +146,7 @@ struct ContactDirectoryRow: View {
   var contact: ContactDirectoryEntry
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedProfiles: [VendorProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (ContactDirectoryEntry) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -243,6 +244,10 @@ struct ContactDirectoryRow: View {
             }
           }
         }
+      }
+
+      if !destinationAddresses.isEmpty {
+        DestinationAddressStrip(addresses: destinationAddresses)
       }
     }
     .padding(12)

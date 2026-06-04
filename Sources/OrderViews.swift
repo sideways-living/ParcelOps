@@ -171,6 +171,23 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Destination addresses", symbol: "mappin.and.ellipse") {
+          let addresses = store.suggestedDestinationAddresses(for: order)
+
+          if addresses.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local destination addresses matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create address", systemImage: "mappin.and.ellipse") {
+                store.addDestinationAddress(label: "\(order.customer) destination", customerProfileID: store.suggestedCustomerProfiles(for: order).first?.id, organisationTeam: order.customer, addressSummary: order.destination, cityRegion: order.destination, preferredCarrier: order.carrier)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            DestinationAddressStrip(addresses: addresses)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 
@@ -342,7 +359,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
@@ -390,7 +407,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(attachments) { attachment in
-                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment)) {
+                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
                   store.removeEvidence(attachment)

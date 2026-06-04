@@ -47,7 +47,7 @@ struct ExceptionPlaybooksView: View {
           }
 
           ForEach(filteredPlaybooks) { playbook in
-            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook)) { updatedPlaybook in
+            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook)) { updatedPlaybook in
               store.updateExceptionPlaybook(updatedPlaybook)
             } onToggle: {
               store.toggleExceptionPlaybook(playbook)
@@ -123,6 +123,7 @@ struct ExceptionPlaybooksView: View {
 struct ExceptionPlaybookRow: View {
   var playbook: ExceptionPlaybook
   var handoffNotes: [HandoffNote] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (ExceptionPlaybook) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -171,6 +172,10 @@ struct ExceptionPlaybookRow: View {
 
       if !handoffNotes.isEmpty {
         HandoffNoteStrip(notes: handoffNotes)
+      }
+
+      if !destinationAddresses.isEmpty {
+        DestinationAddressStrip(addresses: destinationAddresses)
       }
 
       HStack {

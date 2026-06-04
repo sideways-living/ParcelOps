@@ -692,6 +692,57 @@ enum SampleData {
     )
   ]
 
+  static var destinationAddresses: [DestinationAddressRecord] = [
+    DestinationAddressRecord(
+      label: "Brisbane Eagle Street field site",
+      customerProfileID: customerRecipientProfiles[0].id,
+      organisationTeam: "ParcelOps Field Ops",
+      addressLineSummary: "77 Eagle Street",
+      cityRegion: "Brisbane QLD",
+      country: "Australia",
+      deliveryInstructions: "Escalate address exceptions to Brisbane Field Team before carrier cut-off.",
+      accessNotes: "Reception accepts parcels during business hours only.",
+      preferredCarrier: "Jade Delivery",
+      riskLevel: .high,
+      isEnabled: true,
+      createdDate: "Today 8:10 AM",
+      lastReviewedDate: "Today 8:25 AM",
+      reviewState: .monitor
+    ),
+    DestinationAddressRecord(
+      label: "Melbourne operations hub",
+      customerProfileID: customerRecipientProfiles[1].id,
+      organisationTeam: "ParcelOps Operations",
+      addressLineSummary: "Melbourne operations hub",
+      cityRegion: "Melbourne VIC",
+      country: "Australia",
+      deliveryInstructions: "Default delivery destination for operations intake.",
+      accessNotes: "Dock access by appointment.",
+      preferredCarrier: "Any carrier",
+      riskLevel: .medium,
+      isEnabled: true,
+      createdDate: "Yesterday 9:05 AM",
+      lastReviewedDate: "Yesterday 9:25 AM",
+      reviewState: .accepted
+    ),
+    DestinationAddressRecord(
+      label: "Shopify demo customer address",
+      customerProfileID: customerRecipientProfiles[2].id,
+      organisationTeam: "Shopify demo store",
+      addressLineSummary: "12 Market Street",
+      cityRegion: "Melbourne VIC",
+      country: "Australia",
+      deliveryInstructions: "Placeholder destination until Shopify customer syncing is implemented.",
+      accessNotes: "Needs manual confirmation.",
+      preferredCarrier: "Jade Delivery",
+      riskLevel: .high,
+      isEnabled: false,
+      createdDate: "Today 9:50 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",

@@ -39,6 +39,7 @@ struct AcceptanceReviewView: View {
                   playbooks: store.suggestedPlaybooks(for: candidate),
                   handoffNotes: store.handoffNotes(for: candidate),
                   customerProfiles: store.suggestedCustomerProfiles(for: candidate),
+                  destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
                   onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
                   onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
                   onCreateOrder: { store.createOrder(from: candidate) },
@@ -128,6 +129,7 @@ struct AcceptanceCandidateRow: View {
   var playbooks: [ExceptionPlaybook] = []
   var handoffNotes: [HandoffNote] = []
   var customerProfiles: [CustomerRecipientProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onLinkOrder: (TrackedOrder) -> Void
   var onLinkShipmentGroup: (ShipmentGroup) -> Void
   var onCreateOrder: () -> Void
@@ -192,6 +194,9 @@ struct AcceptanceCandidateRow: View {
 
       if !customerProfiles.isEmpty {
         CustomerProfileStrip(profiles: customerProfiles)
+      }
+      if !destinationAddresses.isEmpty {
+        DestinationAddressStrip(addresses: destinationAddresses)
       }
 
       HStack {

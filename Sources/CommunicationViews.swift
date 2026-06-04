@@ -86,7 +86,7 @@ struct CommunicationView: View {
             }
 
             ForEach(filteredDrafts) { draft in
-              DraftMessageRow(draft: draft) { updatedDraft in
+              DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft)) { updatedDraft in
                 store.updateDraftMessage(updatedDraft)
               } onReady: {
                 store.markDraftMessageReady(draft)
@@ -217,6 +217,7 @@ struct CommunicationTemplateRow: View {
 
 struct DraftMessageRow: View {
   var draft: DraftMessage
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (DraftMessage) -> Void
   var onReady: () -> Void
   var onSent: () -> Void
@@ -260,6 +261,10 @@ struct DraftMessageRow: View {
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .truncationMode(.middle)
+          }
+
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
           }
         }
       }

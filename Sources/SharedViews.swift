@@ -119,6 +119,7 @@ extension AuditEntityType {
     case .draftMessage: "envelope.open.fill"
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
     case .customerRecipientProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -143,6 +144,7 @@ extension TimelineEntityType {
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -216,6 +218,7 @@ extension WorkbenchSource {
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -263,7 +266,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -680,6 +683,43 @@ struct CustomerProfileStrip: View {
   }
 }
 
+struct DestinationAddressStrip: View {
+  var addresses: [DestinationAddressRecord]
+
+  var body: some View {
+    if !addresses.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Destination addresses", systemImage: "mappin.and.ellipse")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(addresses.prefix(3)) { address in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "mappin.and.ellipse")
+              .foregroundStyle(address.riskLevel.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(address.label)
+                .font(.caption.weight(.semibold))
+              Text("\(address.addressLineSummary), \(address.cityRegion)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text("\(address.preferredCarrier) • \(address.deliveryInstructions)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(address.riskLevel.rawValue, color: address.riskLevel.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -689,6 +729,7 @@ extension ContactLinkedEntityType {
     case .shopifyStore: "cart.fill"
     case .internalTeam: "person.2.fill"
     case .customerProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -722,6 +763,7 @@ extension AccountLinkedEntityType {
     case .internalTeam: "person.2.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -758,6 +800,7 @@ extension ReviewTaskLinkedEntityType {
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
+    case .destinationAddress: "mappin.and.ellipse"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -871,7 +914,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -937,6 +980,7 @@ extension TimelineActivity {
     case .draftMessage: .draftMessage
     case .contact: .contact
     case .customerProfile: .customerProfile
+    case .destinationAddress: .destinationAddress
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

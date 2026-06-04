@@ -33,6 +33,7 @@ struct ImportQueueView: View {
               playbooks: store.suggestedPlaybooks(for: item),
               handoffNotes: store.handoffNotes(for: item),
               customerProfiles: store.suggestedCustomerProfiles(for: item),
+              destinationAddresses: store.suggestedDestinationAddresses(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -112,6 +113,7 @@ struct ImportQueueItemRow: View {
   var playbooks: [ExceptionPlaybook] = []
   var handoffNotes: [HandoffNote] = []
   var customerProfiles: [CustomerRecipientProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
   var onSave: (ImportQueueItem) -> Void = { _ in }
   var onLinkOrder: (TrackedOrder) -> Void = { _ in }
   var onLinkShipmentGroup: (ShipmentGroup) -> Void = { _ in }
@@ -133,6 +135,7 @@ struct ImportQueueItemRow: View {
     playbooks: [ExceptionPlaybook] = [],
     handoffNotes: [HandoffNote] = [],
     customerProfiles: [CustomerRecipientProfile] = [],
+    destinationAddresses: [DestinationAddressRecord] = [],
     onSave: @escaping (ImportQueueItem) -> Void = { _ in },
     onLinkOrder: @escaping (TrackedOrder) -> Void = { _ in },
     onLinkShipmentGroup: @escaping (ShipmentGroup) -> Void = { _ in },
@@ -151,6 +154,7 @@ struct ImportQueueItemRow: View {
     self.playbooks = playbooks
     self.handoffNotes = handoffNotes
     self.customerProfiles = customerProfiles
+    self.destinationAddresses = destinationAddresses
     self.onSave = onSave
     self.onLinkOrder = onLinkOrder
     self.onLinkShipmentGroup = onLinkShipmentGroup
@@ -216,6 +220,9 @@ struct ImportQueueItemRow: View {
 
       if !customerProfiles.isEmpty {
         CustomerProfileStrip(profiles: customerProfiles)
+      }
+      if !destinationAddresses.isEmpty {
+        DestinationAddressStrip(addresses: destinationAddresses)
       }
 
       HStack {

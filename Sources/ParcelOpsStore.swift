@@ -32,6 +32,7 @@ final class ParcelOpsStore {
   var draftMessages: [DraftMessage]
   var contactDirectoryEntries: [ContactDirectoryEntry]
   var customerRecipientProfiles: [CustomerRecipientProfile]
+  var destinationAddresses: [DestinationAddressRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -56,6 +57,7 @@ final class ParcelOpsStore {
   private let communicationRepository: CommunicationRepository
   private let contactDirectoryRepository: ContactDirectoryRepository
   private let customerRecipientProfileRepository: CustomerRecipientProfileRepository
+  private let destinationAddressRepository: DestinationAddressRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -68,7 +70,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -97,6 +99,7 @@ final class ParcelOpsStore {
     self.communicationRepository = repository
     self.contactDirectoryRepository = repository
     self.customerRecipientProfileRepository = repository
+    self.destinationAddressRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -131,6 +134,7 @@ final class ParcelOpsStore {
     self.draftMessages = repository.loadDraftMessages()
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
     self.customerRecipientProfiles = repository.loadCustomerRecipientProfiles()
+    self.destinationAddresses = repository.loadDestinationAddresses()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -163,7 +167,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -296,6 +300,22 @@ final class ParcelOpsStore {
 
   var customerProfilesNeedingReview: [CustomerRecipientProfile] {
     customerRecipientProfiles.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledDestinationAddressCount: Int {
+    destinationAddresses.filter(\.isEnabled).count
+  }
+
+  var disabledDestinationAddressCount: Int {
+    destinationAddresses.filter { !$0.isEnabled }.count
+  }
+
+  var destinationAddressesNeedingReview: [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskDestinationAddresses: [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
   }
 
   var enabledAccountRecordCount: Int {
@@ -487,6 +507,7 @@ final class ParcelOpsStore {
       + draftMessageWorkbenchItems()
       + contactWorkbenchItems()
       + customerProfileWorkbenchItems()
+      + destinationAddressWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2157,6 +2178,25 @@ final class ParcelOpsStore {
         reviewState: profile.reviewState,
         source: .customerProfile,
         suggestedNextAction: profile.isEnabled ? "Review customer profile" : "Enable or confirm profile"
+      )
+    }
+  }
+
+  private func destinationAddressWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(destinationAddressesNeedingReview + destinationAddresses.filter { !$0.isEnabled } + highRiskDestinationAddresses)).map { address in
+      WorkbenchItem(
+        id: "destination-address-\(address.id.uuidString)",
+        title: address.label,
+        summary: "\(address.addressLineSummary), \(address.cityRegion) • \(address.deliveryInstructions)",
+        linkedEntityType: .destinationAddress,
+        linkedEntityID: address.id.uuidString,
+        prioritySeverity: address.isEnabled ? address.riskLevel.rawValue : "High",
+        status: address.isEnabled ? "Enabled" : "Disabled",
+        assignee: address.organisationTeam,
+        dueDateText: address.lastReviewedDate,
+        reviewState: address.reviewState,
+        source: .destinationAddress,
+        suggestedNextAction: address.isEnabled ? "Review address risk and instructions" : "Enable or confirm destination"
       )
     }
   }
@@ -4410,6 +4450,154 @@ final class ParcelOpsStore {
     customerRecipientProfiles.filter { $0.matches(email: "", team: item.assignee, destination: item.summary, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID) }
   }
 
+  func filteredDestinationAddresses(organisationTeam: String?, preferredCarrier: String?, riskLevel: ShipmentRiskLevel?, isEnabled: Bool?, reviewState: ReviewState?) -> [DestinationAddressRecord] {
+    destinationAddresses.filter { address in
+      let matchesTeam = organisationTeam == nil || address.organisationTeam == organisationTeam
+      let matchesCarrier = preferredCarrier == nil || address.preferredCarrier == preferredCarrier
+      let matchesRisk = riskLevel == nil || address.riskLevel == riskLevel
+      let matchesEnabled = isEnabled == nil || address.isEnabled == isEnabled
+      let matchesReview = reviewState == nil || address.reviewState == reviewState
+      return matchesTeam && matchesCarrier && matchesRisk && matchesEnabled && matchesReview
+    }
+  }
+
+  func addDestinationAddressPlaceholder() {
+    let address = DestinationAddressRecord(label: "New destination \(destinationAddresses.count + 1)", customerProfileID: customerRecipientProfiles.first?.id, organisationTeam: customerRecipientProfiles.first?.organisationTeam ?? "Unassigned team", addressLineSummary: "Address to confirm", cityRegion: "City/region", country: "Australia", deliveryInstructions: "Add local delivery instructions.", accessNotes: "Add access notes.", preferredCarrier: "Any carrier", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    destinationAddresses.insert(address, at: 0)
+    persistDestinationAddresses()
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address placeholder added.", afterDetail: address.auditDetail)
+  }
+
+  func addDestinationAddress(label: String, customerProfileID: UUID?, organisationTeam: String, addressSummary: String, cityRegion: String, preferredCarrier: String) {
+    let address = DestinationAddressRecord(label: label, customerProfileID: customerProfileID, organisationTeam: organisationTeam, addressLineSummary: addressSummary, cityRegion: cityRegion, country: "Australia", deliveryInstructions: "Local address created from workflow.", accessNotes: "Access notes to confirm.", preferredCarrier: preferredCarrier, riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    destinationAddresses.insert(address, at: 0)
+    persistDestinationAddresses()
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address created from workflow.", afterDetail: address.auditDetail)
+  }
+
+  func updateDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index] = address
+    persistDestinationAddresses()
+    logAudit(action: .edited, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address details updated.", beforeDetail: beforeDetail, afterDetail: address.auditDetail)
+  }
+
+  func toggleDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index].isEnabled.toggle()
+    persistDestinationAddresses()
+    logAudit(action: destinationAddresses[index].isEnabled ? .enabled : .disabled, entityType: .destinationAddress, entityID: destinationAddresses[index].id.uuidString, entityLabel: destinationAddresses[index].label, summary: destinationAddresses[index].isEnabled ? "Destination address enabled." : "Destination address disabled.", beforeDetail: beforeDetail, afterDetail: destinationAddresses[index].auditDetail)
+  }
+
+  func markDestinationAddressReviewed(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index].reviewState = .accepted
+    destinationAddresses[index].lastReviewedDate = Self.auditTimestamp()
+    persistDestinationAddresses()
+    logAudit(action: .reviewed, entityType: .destinationAddress, entityID: destinationAddresses[index].id.uuidString, entityLabel: destinationAddresses[index].label, summary: "Destination address marked reviewed.", beforeDetail: beforeDetail, afterDetail: destinationAddresses[index].auditDetail)
+  }
+
+  func removeDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let removed = destinationAddresses.remove(at: index)
+    persistDestinationAddresses()
+    logAudit(action: .removed, entityType: .destinationAddress, entityID: removed.id.uuidString, entityLabel: removed.label, summary: "Destination address removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from address: DestinationAddressRecord) {
+    createReviewTask(linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString, label: address.label, summary: "Review destination address for \(address.organisationTeam). Risk: \(address.riskLevel.rawValue). \(address.deliveryInstructions)", priority: address.riskLevel == .critical ? .urgent : address.riskLevel == .high ? .high : .normal, assignee: address.organisationTeam)
+  }
+
+  func createDraftMessage(from address: DestinationAddressRecord) {
+    let recipient = address.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString, label: address.label, recipient: recipient)
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Draft message created from destination address.", afterDetail: address.auditDetail)
+  }
+
+  private func suggestedDestinationAddresses(profileID: UUID?, destination: String, team: String, carrier: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.matches(profileID: profileID, destination: destination, team: team, carrier: carrier, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDestinationAddresses(for profile: CustomerRecipientProfile) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: profile.id, destination: profile.defaultDestinationAddress, team: profile.organisationTeam, carrier: "", linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for order: TrackedOrder) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: order.destination, team: order.customer, carrier: order.carrier, linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for email: ForwardedEmailIntake) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: email.detectedDestinationAddress, team: email.detectedMerchant, carrier: "", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for item: ImportQueueItem) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: item.detectedDestinationAddress, team: item.detectedMerchant, carrier: "", linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for candidate: AcceptanceCandidate) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: candidate.detectedDestinationAddress, team: candidate.detectedMerchant, carrier: "", linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for group: ShipmentGroup) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: group.destinationSummary, team: group.recipientCustomerSummary, carrier: group.carrierSummary, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for task: ReviewTask) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: task.summary, team: task.assignee, carrier: "", linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for note: HandoffNote) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: note.summary, team: note.assignee, carrier: "", linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for event: CarrierTrackingEvent) -> [DestinationAddressRecord] {
+    let order = orders.first { $0.id == event.orderID }
+    return suggestedDestinationAddresses(profileID: nil, destination: order?.destination ?? event.location, team: order?.customer ?? "", carrier: event.carrier, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for attachment: EvidenceAttachment) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: attachment.summary, team: attachment.summary, carrier: "", linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for issue: ValidationIssue) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: issue.detail, team: issue.subtitle, carrier: "", linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedDestinationAddresses(for issue: ReconciliationIssue) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: issue.detectedValue, team: issue.summary, carrier: "", linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedDestinationAddresses(for draft: DraftMessage) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: draft.body, team: draft.subject, carrier: "", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for contact: ContactDirectoryEntry) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: contact.notes, team: contact.organisation, carrier: "", linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for account: AccountCredentialRecord) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: account.notes, team: account.organisation, carrier: "", linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for profile: VendorProfile) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: profile.serviceLevelNotes, team: profile.primaryOrganisation, carrier: profile.primaryOrganisation, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for policy: SLAPolicy) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: policy.conditionSummary, team: policy.name, carrier: "", linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for playbook: ExceptionPlaybook) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: playbook.triggerSummary, team: playbook.escalationContact, carrier: "", linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for item: WorkbenchItem) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: item.summary, team: item.assignee, carrier: "", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -4865,6 +5053,10 @@ final class ParcelOpsStore {
       if let profile = customerRecipientProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markCustomerRecipientProfileReviewed(profile)
       }
+    case .destinationAddress:
+      if let address = destinationAddresses.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDestinationAddressReviewed(address)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -5119,6 +5311,10 @@ final class ParcelOpsStore {
 
   private func persistCustomerRecipientProfiles() {
     customerRecipientProfileRepository.saveCustomerRecipientProfiles(customerRecipientProfiles)
+  }
+
+  private func persistDestinationAddresses() {
+    destinationAddressRepository.saveDestinationAddresses(destinationAddresses)
   }
 
   private func persistAccountCredentialRecords() {
@@ -5382,6 +5578,21 @@ private extension CustomerRecipientProfile {
     let destinationMatch = !destination.isEmpty && (defaultDestinationAddress.localizedCaseInsensitiveContains(destination) || destination.localizedCaseInsensitiveContains(defaultDestinationAddress))
     let linkedMatch = linkedEntityType == .customerProfile && id.uuidString == linkedEntityID
     return emailMatch || teamMatch || destinationMatch || linkedMatch
+  }
+}
+
+private extension DestinationAddressRecord {
+  var auditDetail: String {
+    "Label: \(label); customer profile: \(customerProfileID?.uuidString ?? "none"); organisation/team: \(organisationTeam); address: \(addressLineSummary); city/region: \(cityRegion); country: \(country); preferred carrier: \(preferredCarrier); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); instructions: \(deliveryInstructions); access: \(accessNotes)."
+  }
+
+  func matches(profileID: UUID?, destination: String, team: String, carrier: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let profileMatch = profileID != nil && customerProfileID == profileID
+    let destinationMatch = !destination.isEmpty && (addressLineSummary.localizedCaseInsensitiveContains(destination) || cityRegion.localizedCaseInsensitiveContains(destination) || destination.localizedCaseInsensitiveContains(addressLineSummary) || destination.localizedCaseInsensitiveContains(cityRegion))
+    let teamMatch = !team.isEmpty && (organisationTeam.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(organisationTeam) || label.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(label))
+    let carrierMatch = !carrier.isEmpty && (preferredCarrier.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(preferredCarrier))
+    let linkedMatch = linkedEntityType == .destinationAddress && id.uuidString == linkedEntityID
+    return profileMatch || destinationMatch || teamMatch || carrierMatch || linkedMatch
   }
 }
 
