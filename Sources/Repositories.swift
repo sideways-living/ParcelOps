@@ -130,6 +130,11 @@ protocol ProcurementRequestRepository {
   func saveProcurementRequests(_ requests: [ProcurementRequest])
 }
 
+protocol ReceivingInspectionRepository {
+  func loadReceivingInspections() -> [ReceivingInspectionRecord]
+  func saveReceivingInspections(_ inspections: [ReceivingInspectionRecord])
+}
+
 protocol AccountCredentialRepository {
   func loadAccountCredentialRecords() -> [AccountCredentialRecord]
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord])
@@ -155,7 +160,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -405,6 +410,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(requests, to: .procurementRequests)
   }
 
+  func loadReceivingInspections() -> [ReceivingInspectionRecord] {
+    load([ReceivingInspectionRecord].self, from: .receivingInspections, defaultValue: SampleData.receivingInspections)
+  }
+
+  func saveReceivingInspections(_ inspections: [ReceivingInspectionRecord]) {
+    save(inspections, to: .receivingInspections)
+  }
+
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] {
     load([AccountCredentialRecord].self, from: .accountCredentialRecords, defaultValue: SampleData.accountCredentialRecords)
   }
@@ -530,6 +543,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case costRecords = "cost-records.json"
     case returnClaims = "return-claims.json"
     case procurementRequests = "procurement-requests.json"
+    case receivingInspections = "receiving-inspections.json"
     case accountCredentialRecords = "account-credential-records.json"
     case vendorProfiles = "vendor-profiles.json"
     case shipmentGroups = "shipment-groups.json"
@@ -538,7 +552,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -568,6 +582,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var costRecords = SampleData.costRecords
   private var returnClaims = SampleData.returnClaims
   private var procurementRequests = SampleData.procurementRequests
+  private var receivingInspections = SampleData.receivingInspections
   private var accountCredentialRecords = SampleData.accountCredentialRecords
   private var vendorProfiles = SampleData.vendorProfiles
   private var shipmentGroups = SampleData.shipmentGroups
@@ -658,6 +673,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   func saveReturnClaims(_ claims: [ReturnClaimRecord]) { returnClaims = claims }
   func loadProcurementRequests() -> [ProcurementRequest] { procurementRequests }
   func saveProcurementRequests(_ requests: [ProcurementRequest]) { procurementRequests = requests }
+  func loadReceivingInspections() -> [ReceivingInspectionRecord] { receivingInspections }
+  func saveReceivingInspections(_ inspections: [ReceivingInspectionRecord]) { receivingInspections = inspections }
 
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] { accountCredentialRecords }
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) { accountCredentialRecords = accounts }

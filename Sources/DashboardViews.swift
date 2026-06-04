@@ -202,6 +202,16 @@ struct DashboardView: View {
             CompactProcurementRequestList(requests: Array((store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests).prefix(4)))
           }
 
+          AnalyticsSection(title: "Receiving inspections", symbol: "checklist.checked") {
+            MetricStrip(items: [
+              ("Review", "\(store.receivingInspectionsNeedingReview.count)", .orange),
+              ("Blocked", "\(store.blockedReceivingInspections.count)", .purple),
+              ("Discrepancies", "\(store.unresolvedInspectionDiscrepancies.count)", .red),
+              ("Qty mismatch", "\(store.quantityMismatchReceivingInspections.count)", .orange)
+            ])
+            CompactReceivingInspectionList(inspections: Array((store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -677,6 +687,23 @@ struct CompactProcurementRequestList: View {
           detail: "\(request.estimatedCostText) \(request.currency) • \(request.budgetCode)",
           badge: request.procurementStatus.rawValue,
           color: request.procurementStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactReceivingInspectionList: View {
+  var inspections: [ReceivingInspectionRecord]
+
+  var body: some View {
+    CompactList(title: "Receiving inspections", symbol: "checklist.checked") {
+      ForEach(inspections) { inspection in
+        CompactRow(
+          title: inspection.title,
+          detail: "\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received",
+          badge: inspection.inspectionStatus.rawValue,
+          color: inspection.inspectionStatus.color
         )
       }
     }

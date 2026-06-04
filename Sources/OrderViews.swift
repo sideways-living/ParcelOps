@@ -243,6 +243,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Receiving inspections", symbol: "checklist.checked") {
+          let inspections = store.suggestedReceivingInspections(for: order)
+
+          if inspections.isEmpty {
+            Text("No local receiving inspections matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ReceivingInspectionStrip(inspections: inspections)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -913,6 +913,30 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: request)
             } onRemove: {
               store.removeProcurementRequest(request)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Receiving inspections", symbol: "checklist.checked") {
+          ForEach(Array(Set(store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections))) { inspection in
+            ReceivingInspectionRow(inspection: inspection) { updatedInspection in
+              store.updateReceivingInspection(updatedInspection)
+            } onInspected: {
+              store.markReceivingInspectionInspected(inspection)
+            } onDiscrepancy: {
+              store.markReceivingInspectionDiscrepancy(inspection)
+            } onResolved: {
+              store.markReceivingInspectionResolved(inspection)
+            } onBlocked: {
+              store.markReceivingInspectionBlocked(inspection)
+            } onReviewed: {
+              store.markReceivingInspectionReviewed(inspection)
+            } onCreateTask: {
+              store.createReviewTask(from: inspection)
+            } onCreateDraft: {
+              store.createDraftMessage(from: inspection)
+            } onRemove: {
+              store.removeReceivingInspection(inspection)
             }
           }
         }

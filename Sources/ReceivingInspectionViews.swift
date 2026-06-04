@@ -1,23 +1,23 @@
 import SwiftUI
 
-struct ReturnsClaimsView: View {
+struct ReceivingInspectionsView: View {
   var store: ParcelOpsStore
-  @State private var selectedClaimType: ReturnClaimType?
-  @State private var selectedStatus: ReturnClaimStatus?
-  @State private var selectedOutcome: ReturnClaimOutcome?
-  @State private var ownerTeam = ""
+  @State private var selectedInspectionType: ReceivingInspectionType?
+  @State private var selectedInspectionStatus: ReceivingInspectionStatus?
+  @State private var selectedDiscrepancyType: ReceivingDiscrepancyType?
+  @State private var inspectorTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredClaims: [ReturnClaimRecord] {
-    store.filteredReturnClaims(
-      claimType: selectedClaimType,
-      claimStatus: selectedStatus,
-      requestedOutcome: selectedOutcome,
-      ownerTeam: ownerTeam,
+  private var filteredInspections: [ReceivingInspectionRecord] {
+    store.filteredReceivingInspections(
+      inspectionType: selectedInspectionType,
+      inspectionStatus: selectedInspectionStatus,
+      discrepancyType: selectedDiscrepancyType,
+      inspectorTeam: inspectorTeam,
       riskLevel: selectedRiskLevel,
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
@@ -30,43 +30,43 @@ struct ReturnsClaimsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Return and claim records", symbol: "arrow.uturn.backward.square.fill") {
+        SettingsPanel(title: "Receiving inspection records", symbol: "checklist.checked") {
           HStack {
-            Text("\(filteredClaims.count) visible return/claim records")
+            Text("\(filteredInspections.count) visible receiving inspections")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add claim", systemImage: "plus", action: store.addReturnClaimPlaceholder)
+            Button("Add inspection", systemImage: "plus", action: store.addReceivingInspectionPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredClaims.isEmpty {
-            Text("No returns or claims match the selected filters.")
+          if filteredInspections.isEmpty {
+            Text("No receiving inspections match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredClaims) { claim in
-              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim)) { updatedClaim in
-                store.updateReturnClaim(updatedClaim)
-              } onSubmitted: {
-                store.markReturnClaimSubmitted(claim)
-              } onApproved: {
-                store.markReturnClaimApproved(claim)
+            ForEach(filteredInspections) { inspection in
+              ReceivingInspectionRow(inspection: inspection) { updatedInspection in
+                store.updateReceivingInspection(updatedInspection)
+              } onInspected: {
+                store.markReceivingInspectionInspected(inspection)
+              } onDiscrepancy: {
+                store.markReceivingInspectionDiscrepancy(inspection)
               } onResolved: {
-                store.markReturnClaimResolved(claim)
-              } onDisputed: {
-                store.markReturnClaimDisputed(claim)
+                store.markReceivingInspectionResolved(inspection)
+              } onBlocked: {
+                store.markReceivingInspectionBlocked(inspection)
               } onReviewed: {
-                store.markReturnClaimReviewed(claim)
+                store.markReceivingInspectionReviewed(inspection)
               } onCreateTask: {
-                store.createReviewTask(from: claim)
+                store.createReviewTask(from: inspection)
               } onCreateDraft: {
-                store.createDraftMessage(from: claim)
+                store.createDraftMessage(from: inspection)
               } onRemove: {
-                store.removeReturnClaim(claim)
+                store.removeReceivingInspection(inspection)
               }
             }
           }
@@ -79,48 +79,48 @@ struct ReturnsClaimsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Returns & Claims")
+        Text("Receiving Inspections")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local return, exchange, refund, damage, missing item, and carrier claim tracking.")
+        Text("Local package receipt, condition checks, quantity discrepancies, and inspection follow-up.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.unresolvedReturnClaims.count) unresolved", color: .orange)
-        Badge("\(store.disputedReturnClaims.count) disputed", color: .red)
+        Badge("\(store.unresolvedInspectionDiscrepancies.count) discrepancies", color: .red)
+        Badge("\(store.blockedReceivingInspections.count) blocked", color: .purple)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Type", selection: $selectedClaimType) {
-        Text("All types").tag(nil as ReturnClaimType?)
-        ForEach(ReturnClaimType.allCases) { type in
-          Text(type.rawValue).tag(type as ReturnClaimType?)
+      Picker("Type", selection: $selectedInspectionType) {
+        Text("All types").tag(nil as ReceivingInspectionType?)
+        ForEach(ReceivingInspectionType.allCases) { type in
+          Text(type.rawValue).tag(type as ReceivingInspectionType?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as ReturnClaimStatus?)
-        ForEach(ReturnClaimStatus.allCases) { status in
-          Text(status.rawValue).tag(status as ReturnClaimStatus?)
+      Picker("Status", selection: $selectedInspectionStatus) {
+        Text("All status").tag(nil as ReceivingInspectionStatus?)
+        ForEach(ReceivingInspectionStatus.allCases) { status in
+          Text(status.rawValue).tag(status as ReceivingInspectionStatus?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Outcome", selection: $selectedOutcome) {
-        Text("All outcomes").tag(nil as ReturnClaimOutcome?)
-        ForEach(ReturnClaimOutcome.allCases) { outcome in
-          Text(outcome.rawValue).tag(outcome as ReturnClaimOutcome?)
+      Picker("Discrepancy", selection: $selectedDiscrepancyType) {
+        Text("All discrepancy").tag(nil as ReceivingDiscrepancyType?)
+        ForEach(ReceivingDiscrepancyType.allCases) { type in
+          Text(type.rawValue).tag(type as ReceivingDiscrepancyType?)
         }
       }
       .pickerStyle(.menu)
 
-      TextField("Owner/team", text: $ownerTeam)
+      TextField("Inspector/team", text: $inspectorTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
+        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -149,10 +149,10 @@ struct ReturnsClaimsView: View {
       Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedClaimType = nil
-        selectedStatus = nil
-        selectedOutcome = nil
-        ownerTeam = ""
+        selectedInspectionType = nil
+        selectedInspectionStatus = nil
+        selectedDiscrepancyType = nil
+        inspectorTeam = ""
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -162,15 +162,13 @@ struct ReturnsClaimsView: View {
   }
 }
 
-struct ReturnClaimRow: View {
-  var claim: ReturnClaimRecord
-  var procurementRequests: [ProcurementRequest] = []
-  var receivingInspections: [ReceivingInspectionRecord] = []
-  var onSave: (ReturnClaimRecord) -> Void
-  var onSubmitted: () -> Void
-  var onApproved: () -> Void
+struct ReceivingInspectionRow: View {
+  var inspection: ReceivingInspectionRecord
+  var onSave: (ReceivingInspectionRecord) -> Void
+  var onInspected: () -> Void
+  var onDiscrepancy: () -> Void
   var onResolved: () -> Void
-  var onDisputed: () -> Void
+  var onBlocked: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -180,56 +178,54 @@ struct ReturnClaimRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: claim.claimType.symbol)
-          .foregroundStyle(claim.riskLevel.color)
+        Image(systemName: inspection.inspectionType.symbol)
+          .foregroundStyle(inspection.riskLevel.color)
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(claim.title)
+              Text(inspection.title)
                 .font(.headline)
-              Text("\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)")
+              Text("\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(claim.claimStatus.rawValue, color: claim.claimStatus.color)
+            Badge(inspection.inspectionStatus.rawValue, color: inspection.inspectionStatus.color)
           }
 
-          Text(claim.reasonSummary)
+          Text(inspection.expectedItemSummary)
             .foregroundStyle(.secondary)
-          Text("\(claim.refundReplacementAmountText) \(claim.currency) • Owner \(claim.assignedOwnerTeam) • Due \(claim.dueDate)")
+          Text(inspection.discrepancyType == .none ? inspection.conditionSummary : inspection.discrepancySummary)
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
           HStack(spacing: 8) {
-            Badge(claim.riskLevel.rawValue, color: claim.riskLevel.color)
-            Badge(claim.reviewState.rawValue, color: claim.reviewState.color)
-            Label("\(claim.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
+            Badge(inspection.discrepancyType.rawValue, color: inspection.discrepancyType.color)
+            Badge(inspection.riskLevel.rawValue, color: inspection.riskLevel.color)
+            Badge(inspection.reviewState.rawValue, color: inspection.reviewState.color)
+            Label("Due \(inspection.dueDate)", systemImage: "calendar")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label(claim.linkedEntityType.rawValue, systemImage: claim.linkedEntityType.symbol)
+            Label(inspection.linkedEntityType.rawValue, systemImage: inspection.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      ProcurementRequestStrip(requests: procurementRequests)
-      ReceivingInspectionStrip(inspections: receivingInspections)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Submitted", systemImage: "paperplane.fill", action: onSubmitted)
+        Button("Inspected", systemImage: "checkmark.seal.fill", action: onInspected)
           .buttonStyle(.bordered)
-        Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
+        Button("Discrepancy", systemImage: "exclamationmark.triangle.fill", action: onDiscrepancy)
           .buttonStyle(.bordered)
         Button("Resolved", systemImage: "checkmark.circle.fill", action: onResolved)
           .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Blocked", systemImage: "hand.raised.fill", action: onBlocked)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -245,54 +241,58 @@ struct ReturnClaimRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      ReturnClaimEditView(claim: claim) { updatedClaim in
-        onSave(updatedClaim)
+      ReceivingInspectionEditView(inspection: inspection) { updatedInspection in
+        onSave(updatedInspection)
       }
     }
   }
 }
 
-struct ReturnClaimEditView: View {
+struct ReceivingInspectionEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: ReturnClaimRecord
-  var onSave: (ReturnClaimRecord) -> Void
+  @State private var draft: ReceivingInspectionRecord
+  var onSave: (ReceivingInspectionRecord) -> Void
 
-  init(claim: ReturnClaimRecord, onSave: @escaping (ReturnClaimRecord) -> Void) {
-    self._draft = State(initialValue: claim)
+  init(inspection: ReceivingInspectionRecord, onSave: @escaping (ReceivingInspectionRecord) -> Void) {
+    self._draft = State(initialValue: inspection)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Claim") {
+        Section("Inspection") {
           TextField("Title", text: $draft.title)
-          Picker("Type", selection: $draft.claimType) {
-            ForEach(ReturnClaimType.allCases) { type in
+          TextField("Expected items", text: $draft.expectedItemSummary, axis: .vertical)
+          TextField("Received items", text: $draft.receivedItemSummary, axis: .vertical)
+          Picker("Type", selection: $draft.inspectionType) {
+            ForEach(ReceivingInspectionType.allCases) { type in
               Text(type.rawValue).tag(type)
             }
           }
-          Picker("Outcome", selection: $draft.requestedOutcome) {
-            ForEach(ReturnClaimOutcome.allCases) { outcome in
-              Text(outcome.rawValue).tag(outcome)
-            }
-          }
-          Picker("Status", selection: $draft.claimStatus) {
-            ForEach(ReturnClaimStatus.allCases) { status in
+          Picker("Status", selection: $draft.inspectionStatus) {
+            ForEach(ReceivingInspectionStatus.allCases) { status in
               Text(status.rawValue).tag(status)
             }
           }
-          TextField("Reason", text: $draft.reasonSummary, axis: .vertical)
         }
 
-        Section("Amount and owner") {
-          TextField("Refund/replacement amount", text: $draft.refundReplacementAmountText)
-          TextField("Currency", text: $draft.currency)
-          TextField("Assigned owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Due date", text: $draft.dueDate)
+        Section("Quantity and condition") {
+          Stepper("Expected quantity: \(draft.quantityExpected)", value: $draft.quantityExpected, in: 0...999)
+          Stepper("Received quantity: \(draft.quantityReceived)", value: $draft.quantityReceived, in: 0...999)
+          TextField("Condition summary", text: $draft.conditionSummary, axis: .vertical)
+          Picker("Discrepancy type", selection: $draft.discrepancyType) {
+            ForEach(ReceivingDiscrepancyType.allCases) { type in
+              Text(type.rawValue).tag(type)
+            }
+          }
+          TextField("Discrepancy summary", text: $draft.discrepancySummary, axis: .vertical)
         }
 
         Section("Review") {
+          TextField("Inspector/team", text: $draft.assignedInspectorTeam)
+          TextField("Inspection date", text: $draft.inspectionDate)
+          TextField("Due date", text: $draft.dueDate)
           Picker("Risk", selection: $draft.riskLevel) {
             ForEach(ShipmentRiskLevel.allCases) { risk in
               Text(risk.rawValue).tag(risk)
@@ -315,7 +315,7 @@ struct ReturnClaimEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Claim")
+      .navigationTitle("Edit Inspection")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -328,6 +328,6 @@ struct ReturnClaimEditView: View {
         }
       }
     }
-    .frame(minWidth: 580, minHeight: 600)
+    .frame(minWidth: 580, minHeight: 620)
   }
 }
