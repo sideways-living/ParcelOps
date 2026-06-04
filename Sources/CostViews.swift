@@ -51,7 +51,7 @@ struct CostsBudgetsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredCosts) { cost in
-              CostRecordRow(cost: cost) { updatedCost in
+              CostRecordRow(cost: cost, returnClaims: store.suggestedReturnClaims(for: cost)) { updatedCost in
                 store.updateCostRecord(updatedCost)
               } onApproved: {
                 store.markCostRecordApproved(cost)
@@ -169,6 +169,7 @@ struct CostsBudgetsView: View {
 
 struct CostRecordRow: View {
   var cost: CostRecord
+  var returnClaims: [ReturnClaimRecord] = []
   var onSave: (CostRecord) -> Void
   var onApproved: () -> Void
   var onReimbursed: () -> Void
@@ -216,6 +217,8 @@ struct CostRecordRow: View {
           }
         }
       }
+
+      ReturnClaimStrip(claims: returnClaims)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

@@ -123,6 +123,7 @@ extension AuditEntityType {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -151,6 +152,7 @@ extension TimelineEntityType {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -228,6 +230,7 @@ extension WorkbenchSource {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -275,7 +278,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -840,6 +843,67 @@ struct CostRecordStrip: View {
   }
 }
 
+struct ReturnClaimStrip: View {
+  var claims: [ReturnClaimRecord]
+
+  var body: some View {
+    if !claims.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Returns & claims", systemImage: "arrow.uturn.backward.square.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(claims.prefix(3)) { claim in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: claim.claimType.symbol)
+              .foregroundStyle(claim.riskLevel.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(claim.title)
+                .font(.caption.weight(.semibold))
+              Text("\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text("\(claim.refundReplacementAmountText) \(claim.currency) • \(claim.assignedOwnerTeam)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(claim.claimStatus.rawValue, color: claim.claimStatus.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
+extension ReturnClaimType {
+  var symbol: String {
+    switch self {
+    case .returnRequest: "arrow.uturn.backward.square.fill"
+    case .exchange: "arrow.left.arrow.right.square.fill"
+    case .refund: "creditcard.trianglebadge.exclamationmark"
+    case .damageClaim: "exclamationmark.triangle.fill"
+    case .missingItemClaim: "shippingbox.and.arrow.backward.fill"
+    case .carrierClaim: "truck.box.fill"
+    }
+  }
+}
+
+extension ReturnClaimStatus {
+  var color: Color {
+    switch self {
+    case .draft, .readyToSubmit: .orange
+    case .submitted: .blue
+    case .approved, .resolved: .green
+    case .disputed, .blocked: .red
+    }
+  }
+}
+
 extension CostCategory {
   var symbol: String {
     switch self {
@@ -926,6 +990,7 @@ extension ContactLinkedEntityType {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -963,6 +1028,7 @@ extension AccountLinkedEntityType {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -1003,6 +1069,7 @@ extension ReviewTaskLinkedEntityType {
     case .deliveryInstruction: "signpost.right.and.left.fill"
     case .packageContent: "shippingbox.circle.fill"
     case .costRecord: "creditcard.and.123"
+    case .returnClaim: "arrow.uturn.backward.square.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -1116,7 +1183,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -1186,6 +1253,7 @@ extension TimelineActivity {
     case .deliveryInstruction: .deliveryInstruction
     case .packageContent: .packageContent
     case .costRecord: .costRecord
+    case .returnClaim: .returnClaim
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

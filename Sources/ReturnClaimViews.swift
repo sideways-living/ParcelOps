@@ -1,21 +1,23 @@
 import SwiftUI
 
-struct PackageContentsView: View {
+struct ReturnsClaimsView: View {
   var store: ParcelOpsStore
-  @State private var selectedCategory: PackageItemCategory?
-  @State private var selectedValueBand: PackageValueBand?
-  @State private var selectedVerificationStatus: PackageVerificationStatus?
+  @State private var selectedClaimType: ReturnClaimType?
+  @State private var selectedStatus: ReturnClaimStatus?
+  @State private var selectedOutcome: ReturnClaimOutcome?
+  @State private var ownerTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredContents: [PackageContentRecord] {
-    store.filteredPackageContents(
-      itemCategory: selectedCategory,
-      valueBand: selectedValueBand,
-      verificationStatus: selectedVerificationStatus,
+  private var filteredClaims: [ReturnClaimRecord] {
+    store.filteredReturnClaims(
+      claimType: selectedClaimType,
+      claimStatus: selectedStatus,
+      requestedOutcome: selectedOutcome,
+      ownerTeam: ownerTeam,
       riskLevel: selectedRiskLevel,
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
@@ -28,39 +30,43 @@ struct PackageContentsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Content records", symbol: "shippingbox.circle.fill") {
+        SettingsPanel(title: "Return and claim records", symbol: "arrow.uturn.backward.square.fill") {
           HStack {
-            Text("\(filteredContents.count) visible content records")
+            Text("\(filteredClaims.count) visible return/claim records")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add content", systemImage: "plus", action: store.addPackageContentPlaceholder)
+            Button("Add claim", systemImage: "plus", action: store.addReturnClaimPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredContents.isEmpty {
-            Text("No package contents match the selected filters.")
+          if filteredClaims.isEmpty {
+            Text("No returns or claims match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredContents) { content in
-              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content)) { updatedContent in
-                store.updatePackageContent(updatedContent)
-              } onVerified: {
-                store.markPackageContentVerified(content)
-              } onDiscrepancy: {
-                store.markPackageContentDiscrepancy(content)
+            ForEach(filteredClaims) { claim in
+              ReturnClaimRow(claim: claim) { updatedClaim in
+                store.updateReturnClaim(updatedClaim)
+              } onSubmitted: {
+                store.markReturnClaimSubmitted(claim)
+              } onApproved: {
+                store.markReturnClaimApproved(claim)
+              } onResolved: {
+                store.markReturnClaimResolved(claim)
+              } onDisputed: {
+                store.markReturnClaimDisputed(claim)
               } onReviewed: {
-                store.markPackageContentReviewed(content)
+                store.markReturnClaimReviewed(claim)
               } onCreateTask: {
-                store.createReviewTask(from: content)
+                store.createReviewTask(from: claim)
               } onCreateDraft: {
-                store.createDraftMessage(from: content)
+                store.createDraftMessage(from: claim)
               } onRemove: {
-                store.removePackageContent(content)
+                store.removeReturnClaim(claim)
               }
             }
           }
@@ -73,44 +79,48 @@ struct PackageContentsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Package Contents")
+        Text("Returns & Claims")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local item verification, quantity checks, evidence links, and discrepancy review for packages.")
+        Text("Local return, exchange, refund, damage, missing item, and carrier claim tracking.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.unverifiedPackageContents.count) unverified", color: .orange)
-        Badge("\(store.packageContentDiscrepancies.count) discrepancies", color: .red)
+        Badge("\(store.unresolvedReturnClaims.count) unresolved", color: .orange)
+        Badge("\(store.disputedReturnClaims.count) disputed", color: .red)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Category", selection: $selectedCategory) {
-        Text("All categories").tag(nil as PackageItemCategory?)
-        ForEach(PackageItemCategory.allCases) { category in
-          Text(category.rawValue).tag(category as PackageItemCategory?)
+      Picker("Type", selection: $selectedClaimType) {
+        Text("All types").tag(nil as ReturnClaimType?)
+        ForEach(ReturnClaimType.allCases) { type in
+          Text(type.rawValue).tag(type as ReturnClaimType?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Value", selection: $selectedValueBand) {
-        Text("All value").tag(nil as PackageValueBand?)
-        ForEach(PackageValueBand.allCases) { value in
-          Text(value.rawValue).tag(value as PackageValueBand?)
+      Picker("Status", selection: $selectedStatus) {
+        Text("All status").tag(nil as ReturnClaimStatus?)
+        ForEach(ReturnClaimStatus.allCases) { status in
+          Text(status.rawValue).tag(status as ReturnClaimStatus?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Verification", selection: $selectedVerificationStatus) {
-        Text("All verification").tag(nil as PackageVerificationStatus?)
-        ForEach(PackageVerificationStatus.allCases) { status in
-          Text(status.rawValue).tag(status as PackageVerificationStatus?)
+      Picker("Outcome", selection: $selectedOutcome) {
+        Text("All outcomes").tag(nil as ReturnClaimOutcome?)
+        ForEach(ReturnClaimOutcome.allCases) { outcome in
+          Text(outcome.rawValue).tag(outcome as ReturnClaimOutcome?)
         }
       }
       .pickerStyle(.menu)
+
+      TextField("Owner/team", text: $ownerTeam)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 160)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -139,9 +149,10 @@ struct PackageContentsView: View {
       Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedCategory = nil
-        selectedValueBand = nil
-        selectedVerificationStatus = nil
+        selectedClaimType = nil
+        selectedStatus = nil
+        selectedOutcome = nil
+        ownerTeam = ""
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -151,13 +162,13 @@ struct PackageContentsView: View {
   }
 }
 
-struct PackageContentRow: View {
-  var content: PackageContentRecord
-  var costRecords: [CostRecord] = []
-  var returnClaims: [ReturnClaimRecord] = []
-  var onSave: (PackageContentRecord) -> Void
-  var onVerified: () -> Void
-  var onDiscrepancy: () -> Void
+struct ReturnClaimRow: View {
+  var claim: ReturnClaimRecord
+  var onSave: (ReturnClaimRecord) -> Void
+  var onSubmitted: () -> Void
+  var onApproved: () -> Void
+  var onResolved: () -> Void
+  var onDisputed: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -167,54 +178,55 @@ struct PackageContentRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: content.itemCategory.symbol)
-          .foregroundStyle(content.riskLevel.color)
+        Image(systemName: claim.claimType.symbol)
+          .foregroundStyle(claim.riskLevel.color)
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(content.title)
+              Text(claim.title)
                 .font(.headline)
-              Text("\(content.itemCategory.rawValue) • \(content.valueBand.rawValue)")
+              Text("\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(content.verificationStatus.rawValue, color: content.verificationStatus.color)
+            Badge(claim.claimStatus.rawValue, color: claim.claimStatus.color)
           }
 
-          Text(content.itemSummary)
+          Text(claim.reasonSummary)
             .foregroundStyle(.secondary)
-          Text(content.discrepancySummary)
+          Text("\(claim.refundReplacementAmountText) \(claim.currency) • Owner \(claim.assignedOwnerTeam) • Due \(claim.dueDate)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
           HStack(spacing: 8) {
-            Badge(content.riskLevel.rawValue, color: content.riskLevel.color)
-            Badge(content.reviewState.rawValue, color: content.reviewState.color)
-            Label("\(content.verifiedQuantity)/\(content.expectedQuantity)", systemImage: "number.circle.fill")
+            Badge(claim.riskLevel.rawValue, color: claim.riskLevel.color)
+            Badge(claim.reviewState.rawValue, color: claim.reviewState.color)
+            Label("\(claim.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label(content.linkedEntityType.rawValue, systemImage: content.linkedEntityType.symbol)
+            Label(claim.linkedEntityType.rawValue, systemImage: claim.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      CostRecordStrip(costs: costRecords)
-      ReturnClaimStrip(claims: returnClaims)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Verified", systemImage: "checkmark.seal.fill", action: onVerified)
+        Button("Submitted", systemImage: "paperplane.fill", action: onSubmitted)
           .buttonStyle(.bordered)
-        Button("Discrepancy", systemImage: "exclamationmark.triangle.fill", action: onDiscrepancy)
+        Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Resolved", systemImage: "checkmark.circle.fill", action: onResolved)
+          .buttonStyle(.bordered)
+        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+          .buttonStyle(.bordered)
+        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
@@ -228,50 +240,54 @@ struct PackageContentRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      PackageContentEditView(content: content) { updatedContent in
-        onSave(updatedContent)
+      ReturnClaimEditView(claim: claim) { updatedClaim in
+        onSave(updatedClaim)
       }
     }
   }
 }
 
-struct PackageContentEditView: View {
+struct ReturnClaimEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: PackageContentRecord
-  var onSave: (PackageContentRecord) -> Void
+  @State private var draft: ReturnClaimRecord
+  var onSave: (ReturnClaimRecord) -> Void
 
-  init(content: PackageContentRecord, onSave: @escaping (PackageContentRecord) -> Void) {
-    self._draft = State(initialValue: content)
+  init(claim: ReturnClaimRecord, onSave: @escaping (ReturnClaimRecord) -> Void) {
+    self._draft = State(initialValue: claim)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Content") {
+        Section("Claim") {
           TextField("Title", text: $draft.title)
-          TextField("Item summary", text: $draft.itemSummary, axis: .vertical)
-          Stepper("Expected quantity: \(draft.expectedQuantity)", value: $draft.expectedQuantity, in: 0...999)
-          Stepper("Verified quantity: \(draft.verifiedQuantity)", value: $draft.verifiedQuantity, in: 0...999)
-          Picker("Category", selection: $draft.itemCategory) {
-            ForEach(PackageItemCategory.allCases) { category in
-              Text(category.rawValue).tag(category)
+          Picker("Type", selection: $draft.claimType) {
+            ForEach(ReturnClaimType.allCases) { type in
+              Text(type.rawValue).tag(type)
             }
           }
-          Picker("Value band", selection: $draft.valueBand) {
-            ForEach(PackageValueBand.allCases) { band in
-              Text(band.rawValue).tag(band)
+          Picker("Outcome", selection: $draft.requestedOutcome) {
+            ForEach(ReturnClaimOutcome.allCases) { outcome in
+              Text(outcome.rawValue).tag(outcome)
             }
           }
-        }
-
-        Section("Verification") {
-          Picker("Status", selection: $draft.verificationStatus) {
-            ForEach(PackageVerificationStatus.allCases) { status in
+          Picker("Status", selection: $draft.claimStatus) {
+            ForEach(ReturnClaimStatus.allCases) { status in
               Text(status.rawValue).tag(status)
             }
           }
-          TextField("Discrepancy summary", text: $draft.discrepancySummary, axis: .vertical)
+          TextField("Reason", text: $draft.reasonSummary, axis: .vertical)
+        }
+
+        Section("Amount and owner") {
+          TextField("Refund/replacement amount", text: $draft.refundReplacementAmountText)
+          TextField("Currency", text: $draft.currency)
+          TextField("Assigned owner/team", text: $draft.assignedOwnerTeam)
+          TextField("Due date", text: $draft.dueDate)
+        }
+
+        Section("Review") {
           Picker("Risk", selection: $draft.riskLevel) {
             ForEach(ShipmentRiskLevel.allCases) { risk in
               Text(risk.rawValue).tag(risk)
@@ -294,7 +310,7 @@ struct PackageContentEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Content")
+      .navigationTitle("Edit Claim")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -307,6 +323,6 @@ struct PackageContentEditView: View {
         }
       }
     }
-    .frame(minWidth: 560, minHeight: 560)
+    .frame(minWidth: 580, minHeight: 600)
   }
 }

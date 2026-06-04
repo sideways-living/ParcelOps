@@ -869,6 +869,30 @@ struct NeedsReviewView: View {
           }
         }
 
+        SettingsPanel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
+          ForEach(Array(Set(store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence))) { claim in
+            ReturnClaimRow(claim: claim) { updatedClaim in
+              store.updateReturnClaim(updatedClaim)
+            } onSubmitted: {
+              store.markReturnClaimSubmitted(claim)
+            } onApproved: {
+              store.markReturnClaimApproved(claim)
+            } onResolved: {
+              store.markReturnClaimResolved(claim)
+            } onDisputed: {
+              store.markReturnClaimDisputed(claim)
+            } onReviewed: {
+              store.markReturnClaimReviewed(claim)
+            } onCreateTask: {
+              store.createReviewTask(from: claim)
+            } onCreateDraft: {
+              store.createDraftMessage(from: claim)
+            } onRemove: {
+              store.removeReturnClaim(claim)
+            }
+          }
+        }
+
         SettingsPanel(title: "Accounts", symbol: "key.horizontal.fill") {
           ForEach(store.accountRecordsNeedingReview) { account in
             AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in

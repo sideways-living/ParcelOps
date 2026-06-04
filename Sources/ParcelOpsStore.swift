@@ -36,6 +36,7 @@ final class ParcelOpsStore {
   var deliveryInstructions: [DeliveryInstructionRecord]
   var packageContents: [PackageContentRecord]
   var costRecords: [CostRecord]
+  var returnClaims: [ReturnClaimRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -64,6 +65,7 @@ final class ParcelOpsStore {
   private let deliveryInstructionRepository: DeliveryInstructionRepository
   private let packageContentRepository: PackageContentRepository
   private let costRecordRepository: CostRecordRepository
+  private let returnClaimRepository: ReturnClaimRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -76,7 +78,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -109,6 +111,7 @@ final class ParcelOpsStore {
     self.deliveryInstructionRepository = repository
     self.packageContentRepository = repository
     self.costRecordRepository = repository
+    self.returnClaimRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -147,6 +150,7 @@ final class ParcelOpsStore {
     self.deliveryInstructions = repository.loadDeliveryInstructions()
     self.packageContents = repository.loadPackageContents()
     self.costRecords = repository.loadCostRecords()
+    self.returnClaims = repository.loadReturnClaims()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -179,7 +183,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -397,6 +401,30 @@ final class ParcelOpsStore {
     }
   }
 
+  var returnClaimsNeedingReview: [ReturnClaimRecord] {
+    returnClaims.filter { $0.reviewState != .accepted }
+  }
+
+  var disputedReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.claimStatus == .disputed || $0.claimStatus == .blocked }
+  }
+
+  var unresolvedReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.claimStatus != .resolved && $0.claimStatus != .approved }
+  }
+
+  var overdueReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.dueDate.localizedCaseInsensitiveContains("overdue") || $0.dueDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var highRiskReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var returnClaimsMissingEvidence: [ReturnClaimRecord] {
+    returnClaims.filter { $0.evidenceAttachmentIDs.isEmpty }
+  }
+
   var enabledAccountRecordCount: Int {
     accountCredentialRecords.filter(\.isEnabled).count
   }
@@ -590,6 +618,7 @@ final class ParcelOpsStore {
       + deliveryInstructionWorkbenchItems()
       + packageContentWorkbenchItems()
       + costRecordWorkbenchItems()
+      + returnClaimWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2336,6 +2365,25 @@ final class ParcelOpsStore {
         reviewState: cost.reviewState,
         source: .costRecord,
         suggestedNextAction: cost.approvalStatus == .approved ? "Review reimbursement status" : "Approve or dispute cost"
+      )
+    }
+  }
+
+  private func returnClaimWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(returnClaimsNeedingReview + disputedReturnClaims + unresolvedReturnClaims + overdueReturnClaims + highRiskReturnClaims + returnClaimsMissingEvidence)).map { claim in
+      WorkbenchItem(
+        id: "return-claim-\(claim.id.uuidString)",
+        title: claim.title,
+        summary: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue) • \(claim.refundReplacementAmountText) \(claim.currency)",
+        linkedEntityType: .returnClaim,
+        linkedEntityID: claim.id.uuidString,
+        prioritySeverity: claim.claimStatus == .disputed || claim.claimStatus == .blocked ? "High" : claim.riskLevel.rawValue,
+        status: claim.claimStatus.rawValue,
+        assignee: claim.assignedOwnerTeam,
+        dueDateText: claim.dueDate,
+        reviewState: claim.reviewState,
+        source: .returnClaim,
+        suggestedNextAction: claim.claimStatus == .resolved ? "Review resolved claim" : "Submit, resolve, or dispute claim"
       )
     }
   }
@@ -5239,6 +5287,124 @@ final class ParcelOpsStore {
     suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredReturnClaims(claimType: ReturnClaimType?, claimStatus: ReturnClaimStatus?, requestedOutcome: ReturnClaimOutcome?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ReturnClaimRecord] {
+    returnClaims.filter { claim in
+      let matchesType = claimType == nil || claim.claimType == claimType
+      let matchesStatus = claimStatus == nil || claim.claimStatus == claimStatus
+      let matchesOutcome = requestedOutcome == nil || claim.requestedOutcome == requestedOutcome
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || claim.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || claim.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || claim.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || claim.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOutcome && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addReturnClaimPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let content = packageContents.first
+    let cost = costRecords.first
+    let claim = ReturnClaimRecord(title: "New return or claim \(returnClaims.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", orderID: order?.id, shipmentGroupID: group?.id, packageContentID: content?.id, costRecordID: cost?.id, customerProfileID: order.flatMap { suggestedCustomerProfiles(for: $0).first?.id } ?? customerRecipientProfiles.first?.id, vendorProfileID: nil, accountID: nil, claimType: .returnRequest, reasonSummary: "Local placeholder for return, exchange, refund, or claim review.", requestedOutcome: .replacement, claimStatus: .draft, refundReplacementAmountText: "0.00", currency: "AUD", evidenceAttachmentIDs: [], carrierTrackingEventIDs: [], assignedOwnerTeam: order?.customer ?? "Operations", dueDate: "To schedule", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    returnClaims.insert(claim, at: 0)
+    persistReturnClaims()
+    logAudit(action: .created, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Return or claim placeholder added.", afterDetail: claim.auditDetail)
+  }
+
+  func updateReturnClaim(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index] = claim
+    persistReturnClaims()
+    logAudit(action: .edited, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Return or claim details updated.", beforeDetail: beforeDetail, afterDetail: claim.auditDetail)
+  }
+
+  func markReturnClaimSubmitted(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .submitted, reviewState: .monitor, summary: "Return or claim submitted locally.", action: .created)
+  }
+
+  func markReturnClaimApproved(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .approved, reviewState: .accepted, summary: "Return or claim approved locally.", action: .completed)
+  }
+
+  func markReturnClaimResolved(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .resolved, reviewState: .accepted, summary: "Return or claim resolved locally.", action: .completed)
+  }
+
+  func markReturnClaimDisputed(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .disputed, reviewState: .needsReview, summary: "Return or claim marked disputed.", action: .edited, forceHighRisk: true)
+  }
+
+  func markReturnClaimReviewed(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index].reviewState = .accepted
+    returnClaims[index].lastReviewedDate = Self.auditTimestamp()
+    persistReturnClaims()
+    logAudit(action: .reviewed, entityType: .returnClaim, entityID: returnClaims[index].id.uuidString, entityLabel: returnClaims[index].title, summary: "Return or claim marked reviewed.", beforeDetail: beforeDetail, afterDetail: returnClaims[index].auditDetail)
+  }
+
+  func removeReturnClaim(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let removed = returnClaims.remove(at: index)
+    persistReturnClaims()
+    logAudit(action: .removed, entityType: .returnClaim, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Return or claim removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from claim: ReturnClaimRecord) {
+    createReviewTask(linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString, label: claim.title, summary: "Review \(claim.claimType.rawValue): \(claim.reasonSummary). Requested outcome: \(claim.requestedOutcome.rawValue).", priority: claim.riskLevel == .critical ? .urgent : claim.riskLevel == .high ? .high : .normal, assignee: claim.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from claim: ReturnClaimRecord) {
+    createDraftMessage(linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString, label: claim.title, recipient: claim.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Draft message created from return or claim.", afterDetail: claim.auditDetail)
+  }
+
+  private func updateReturnClaimStatus(_ claim: ReturnClaimRecord, status: ReturnClaimStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index].claimStatus = status
+    returnClaims[index].reviewState = reviewState
+    returnClaims[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      returnClaims[index].riskLevel = returnClaims[index].riskLevel == .critical ? .critical : .high
+    }
+    persistReturnClaims()
+    logAudit(action: action, entityType: .returnClaim, entityID: returnClaims[index].id.uuidString, entityLabel: returnClaims[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: returnClaims[index].auditDetail)
+  }
+
+  private func suggestedReturnClaims(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, costRecordID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ReturnClaimRecord] {
+    returnClaims.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, costRecordID: costRecordID, customerProfileID: customerProfileID, vendorProfileID: vendorProfileID, accountID: accountID, evidenceID: evidenceID, trackingEventID: trackingEventID, ownerTeam: ownerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedReturnClaims(for order: TrackedOrder) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, costRecordID: suggestedCostRecords(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, vendorProfileID: suggestedVendorProfiles(for: order).first?.id, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: order.customer, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for content: PackageContentRecord) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, costRecordID: suggestedCostRecords(for: content).first?.id, customerProfileID: content.customerProfileID, vendorProfileID: nil, accountID: nil, evidenceID: content.evidenceAttachmentIDs.first, trackingEventID: nil, ownerTeam: "", context: "\(content.title) \(content.itemSummary) \(content.discrepancySummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for cost: CostRecord) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: cost.orderID, shipmentGroupID: cost.shipmentGroupID, packageContentID: cost.packageContentID, costRecordID: cost.id, customerProfileID: cost.customerProfileID, vendorProfileID: cost.vendorProfileID, accountID: cost.accountID, evidenceID: cost.evidenceAttachmentIDs.first, trackingEventID: nil, ownerTeam: cost.costOwnerTeam, context: "\(cost.title) \(cost.notes)", linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for item: WorkbenchItem) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, costRecordID: suggestedCostRecords(for: item).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func suggestedReturnClaims(for email: ForwardedEmailIntake) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: email.linkedOrderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: email).first?.id, costRecordID: suggestedCostRecords(for: email).first?.id, customerProfileID: suggestedCustomerProfiles(for: email).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: "", context: "\(email.detectedMerchant) \(email.detectedOrderNumber) \(email.rawBodyPreview)", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for event: CarrierTrackingEvent) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: event.orderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: event).first?.id, costRecordID: suggestedCostRecords(for: event).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: event.id, ownerTeam: "", context: "\(event.carrier) \(event.trackingNumber) \(event.detail)", linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for attachment: EvidenceAttachment) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: attachment).first?.id, costRecordID: suggestedCostRecords(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: attachment.id, trackingEventID: nil, ownerTeam: "", context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -5710,6 +5876,10 @@ final class ParcelOpsStore {
       if let cost = costRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markCostRecordReviewed(cost)
       }
+    case .returnClaim:
+      if let claim = returnClaims.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markReturnClaimReviewed(claim)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -5980,6 +6150,10 @@ final class ParcelOpsStore {
 
   private func persistCostRecords() {
     costRecordRepository.saveCostRecords(costRecords)
+  }
+
+  private func persistReturnClaims() {
+    returnClaimRepository.saveReturnClaims(returnClaims)
   }
 
   private func persistAccountCredentialRecords() {
@@ -6338,6 +6512,38 @@ private extension CostRecord {
       || context.localizedCaseInsensitiveContains(costCategory.rawValue)
     )
     return orderMatch || groupMatch || contentMatch || customerMatch || vendorMatch || accountMatch || evidenceMatch || linkedMatch || budgetMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ReturnClaimRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); cost: \(costRecordID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); vendor profile: \(vendorProfileID?.uuidString ?? "none"); account: \(accountID?.uuidString ?? "none"); type: \(claimType.rawValue); outcome: \(requestedOutcome.rawValue); status: \(claimStatus.rawValue); amount: \(refundReplacementAmountText) \(currency); owner: \(assignedOwnerTeam); due: \(dueDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); reason: \(reasonSummary)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, costRecordID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let costMatch = costRecordID != nil && self.costRecordID == costRecordID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
+    let accountMatch = accountID != nil && self.accountID == accountID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let trackingMatch = trackingEventID != nil && carrierTrackingEventIDs.contains(trackingEventID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || reasonSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(reasonSummary)
+      || claimType.rawValue.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(claimType.rawValue)
+      || requestedOutcome.rawValue.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(requestedOutcome.rawValue)
+    )
+    return orderMatch || groupMatch || contentMatch || costMatch || customerMatch || vendorMatch || accountMatch || evidenceMatch || trackingMatch || linkedMatch || ownerMatch || contextMatch
   }
 }
 

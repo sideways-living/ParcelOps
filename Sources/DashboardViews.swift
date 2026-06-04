@@ -182,6 +182,16 @@ struct DashboardView: View {
             CompactCostRecordList(costs: Array((store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords).prefix(4)))
           }
 
+          AnalyticsSection(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.returnClaimsNeedingReview.count)", .orange),
+              ("Disputed", "\(store.disputedReturnClaims.count)", .red),
+              ("Unresolved", "\(store.unresolvedReturnClaims.count)", .orange),
+              ("Missing evidence", "\(store.returnClaimsMissingEvidence.count)", .red)
+            ])
+            CompactReturnClaimList(claims: Array((store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -623,6 +633,23 @@ struct CompactCostRecordList: View {
           detail: "\(cost.amountText) \(cost.currency) • \(cost.budgetCode)",
           badge: cost.approvalStatus.rawValue,
           color: cost.approvalStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactReturnClaimList: View {
+  var claims: [ReturnClaimRecord]
+
+  var body: some View {
+    CompactList(title: "Returns and claims", symbol: "arrow.uturn.backward.square.fill") {
+      ForEach(claims) { claim in
+        CompactRow(
+          title: claim.title,
+          detail: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)",
+          badge: claim.claimStatus.rawValue,
+          color: claim.claimStatus.color
         )
       }
     }

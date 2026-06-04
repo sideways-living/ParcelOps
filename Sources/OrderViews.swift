@@ -221,6 +221,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
+          let claims = store.suggestedReturnClaims(for: order)
+
+          if claims.isEmpty {
+            Text("No local returns or claims matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ReturnClaimStrip(claims: claims)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 
