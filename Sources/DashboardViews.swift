@@ -152,6 +152,16 @@ struct DashboardView: View {
             CompactDestinationAddressList(addresses: Array((store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled }).prefix(4)))
           }
 
+          AnalyticsSection(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledDeliveryInstructionCount)", .green),
+              ("Disabled", "\(store.disabledDeliveryInstructionCount)", .gray),
+              ("Review", "\(store.deliveryInstructionsNeedingReview.count)", .orange),
+              ("Access", "\(store.deliveryInstructionsWithAccessConstraints.count)", .red)
+            ])
+            CompactDeliveryInstructionList(instructions: Array((store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled }).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -542,6 +552,23 @@ struct CompactDestinationAddressList: View {
           detail: "\(address.addressLineSummary), \(address.cityRegion) • \(address.preferredCarrier)",
           badge: address.riskLevel.rawValue,
           color: address.riskLevel.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactDeliveryInstructionList: View {
+  var instructions: [DeliveryInstructionRecord]
+
+  var body: some View {
+    CompactList(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
+      ForEach(instructions) { instruction in
+        CompactRow(
+          title: instruction.title,
+          detail: "\(instruction.instructionType.rawValue) • \(instruction.preferredDeliveryWindow)",
+          badge: instruction.riskLevel.rawValue,
+          color: instruction.riskLevel.color
         )
       }
     }

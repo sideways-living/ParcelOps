@@ -33,6 +33,7 @@ final class ParcelOpsStore {
   var contactDirectoryEntries: [ContactDirectoryEntry]
   var customerRecipientProfiles: [CustomerRecipientProfile]
   var destinationAddresses: [DestinationAddressRecord]
+  var deliveryInstructions: [DeliveryInstructionRecord]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -58,6 +59,7 @@ final class ParcelOpsStore {
   private let contactDirectoryRepository: ContactDirectoryRepository
   private let customerRecipientProfileRepository: CustomerRecipientProfileRepository
   private let destinationAddressRepository: DestinationAddressRepository
+  private let deliveryInstructionRepository: DeliveryInstructionRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -70,7 +72,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -100,6 +102,7 @@ final class ParcelOpsStore {
     self.contactDirectoryRepository = repository
     self.customerRecipientProfileRepository = repository
     self.destinationAddressRepository = repository
+    self.deliveryInstructionRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -135,6 +138,7 @@ final class ParcelOpsStore {
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
     self.customerRecipientProfiles = repository.loadCustomerRecipientProfiles()
     self.destinationAddresses = repository.loadDestinationAddresses()
+    self.deliveryInstructions = repository.loadDeliveryInstructions()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -167,7 +171,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -316,6 +320,26 @@ final class ParcelOpsStore {
 
   var highRiskDestinationAddresses: [DestinationAddressRecord] {
     destinationAddresses.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var enabledDeliveryInstructionCount: Int {
+    deliveryInstructions.filter(\.isEnabled).count
+  }
+
+  var disabledDeliveryInstructionCount: Int {
+    deliveryInstructions.filter { !$0.isEnabled }.count
+  }
+
+  var deliveryInstructionsNeedingReview: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskDeliveryInstructions: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var deliveryInstructionsWithAccessConstraints: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { !$0.accessConstraintSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
   }
 
   var enabledAccountRecordCount: Int {
@@ -508,6 +532,7 @@ final class ParcelOpsStore {
       + contactWorkbenchItems()
       + customerProfileWorkbenchItems()
       + destinationAddressWorkbenchItems()
+      + deliveryInstructionWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2197,6 +2222,25 @@ final class ParcelOpsStore {
         reviewState: address.reviewState,
         source: .destinationAddress,
         suggestedNextAction: address.isEnabled ? "Review address risk and instructions" : "Enable or confirm destination"
+      )
+    }
+  }
+
+  private func deliveryInstructionWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(deliveryInstructionsNeedingReview + deliveryInstructions.filter { !$0.isEnabled } + highRiskDeliveryInstructions + deliveryInstructionsWithAccessConstraints.filter { $0.reviewState != .accepted })).map { instruction in
+      WorkbenchItem(
+        id: "delivery-instruction-\(instruction.id.uuidString)",
+        title: instruction.title,
+        summary: "\(instruction.instructionType.rawValue) • \(instruction.instructionSummary)",
+        linkedEntityType: .deliveryInstruction,
+        linkedEntityID: instruction.id.uuidString,
+        prioritySeverity: instruction.isEnabled ? instruction.riskLevel.rawValue : "High",
+        status: instruction.isEnabled ? "Enabled" : "Disabled",
+        assignee: instruction.preferredDeliveryWindow,
+        dueDateText: instruction.lastReviewedDate,
+        reviewState: instruction.reviewState,
+        source: .deliveryInstruction,
+        suggestedNextAction: instruction.accessConstraintSummary.isEmpty ? "Review delivery instruction" : "Confirm access constraints"
       )
     }
   }
@@ -4598,6 +4642,159 @@ final class ParcelOpsStore {
     suggestedDestinationAddresses(profileID: nil, destination: item.summary, team: item.assignee, carrier: "", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredDeliveryInstructions(instructionType: DeliveryInstructionType?, profileID: UUID?, carrierContext: String?, riskLevel: ShipmentRiskLevel?, isEnabled: Bool?, reviewState: ReviewState?) -> [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { instruction in
+      let matchesType = instructionType == nil || instruction.instructionType == instructionType
+      let matchesProfile = profileID == nil || instruction.customerProfileID == profileID
+      let matchesCarrier = carrierContext == nil || instruction.carrierNotes.localizedCaseInsensitiveContains(carrierContext ?? "") || instruction.instructionSummary.localizedCaseInsensitiveContains(carrierContext ?? "")
+      let matchesRisk = riskLevel == nil || instruction.riskLevel == riskLevel
+      let matchesEnabled = isEnabled == nil || instruction.isEnabled == isEnabled
+      let matchesReview = reviewState == nil || instruction.reviewState == reviewState
+      return matchesType && matchesProfile && matchesCarrier && matchesRisk && matchesEnabled && matchesReview
+    }
+  }
+
+  func addDeliveryInstructionPlaceholder() {
+    let address = destinationAddresses.first
+    let instruction = DeliveryInstructionRecord(title: "New instruction \(deliveryInstructions.count + 1)", destinationAddressID: address?.id, customerProfileID: address?.customerProfileID ?? customerRecipientProfiles.first?.id, linkedEntityType: .destinationAddress, linkedEntityID: address?.id.uuidString ?? "Unlinked", instructionType: .accessConstraint, instructionSummary: "Add local delivery instruction summary.", accessConstraintSummary: "Add access constraints to review.", preferredDeliveryWindow: "To confirm", restrictedDeliveryWindow: "To confirm", carrierNotes: "Carrier notes to confirm.", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    deliveryInstructions.insert(instruction, at: 0)
+    persistDeliveryInstructions()
+    logAudit(action: .created, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Delivery instruction placeholder added.", afterDetail: instruction.auditDetail)
+  }
+
+  func updateDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index] = instruction
+    persistDeliveryInstructions()
+    logAudit(action: .edited, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Delivery instruction details updated.", beforeDetail: beforeDetail, afterDetail: instruction.auditDetail)
+  }
+
+  func toggleDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index].isEnabled.toggle()
+    persistDeliveryInstructions()
+    logAudit(action: deliveryInstructions[index].isEnabled ? .enabled : .disabled, entityType: .deliveryInstruction, entityID: deliveryInstructions[index].id.uuidString, entityLabel: deliveryInstructions[index].title, summary: deliveryInstructions[index].isEnabled ? "Delivery instruction enabled." : "Delivery instruction disabled.", beforeDetail: beforeDetail, afterDetail: deliveryInstructions[index].auditDetail)
+  }
+
+  func markDeliveryInstructionReviewed(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index].reviewState = .accepted
+    deliveryInstructions[index].lastReviewedDate = Self.auditTimestamp()
+    persistDeliveryInstructions()
+    logAudit(action: .reviewed, entityType: .deliveryInstruction, entityID: deliveryInstructions[index].id.uuidString, entityLabel: deliveryInstructions[index].title, summary: "Delivery instruction marked reviewed.", beforeDetail: beforeDetail, afterDetail: deliveryInstructions[index].auditDetail)
+  }
+
+  func removeDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let removed = deliveryInstructions.remove(at: index)
+    persistDeliveryInstructions()
+    logAudit(action: .removed, entityType: .deliveryInstruction, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Delivery instruction removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from instruction: DeliveryInstructionRecord) {
+    let assignee = instruction.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.organisationTeam } ?? "Operations"
+    createReviewTask(linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString, label: instruction.title, summary: "Review \(instruction.instructionType.rawValue.lowercased()) instruction. \(instruction.instructionSummary) \(instruction.accessConstraintSummary)", priority: instruction.riskLevel == .critical ? .urgent : instruction.riskLevel == .high ? .high : .normal, assignee: assignee)
+  }
+
+  func createDraftMessage(from instruction: DeliveryInstructionRecord) {
+    let recipient = instruction.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString, label: instruction.title, recipient: recipient)
+    logAudit(action: .created, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Draft message created from delivery instruction.", afterDetail: instruction.auditDetail)
+  }
+
+  private func suggestedDeliveryInstructions(destinationAddressID: UUID?, profileID: UUID?, context: String, carrier: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.matches(destinationAddressID: destinationAddressID, profileID: profileID, context: context, carrier: carrier, riskLevel: riskLevel, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDeliveryInstructions(for address: DestinationAddressRecord) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: address.id, profileID: address.customerProfileID, context: "\(address.addressLineSummary) \(address.deliveryInstructions) \(address.accessNotes)", carrier: address.preferredCarrier, riskLevel: address.riskLevel, linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for profile: CustomerRecipientProfile) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: profile.id, context: "\(profile.defaultDestinationAddress) \(profile.deliveryPreference.rawValue) \(profile.notes)", carrier: "", riskLevel: nil, linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for order: TrackedOrder) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: order).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(order.destination) \(order.customer)", carrier: order.carrier, riskLevel: nil, linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for email: ForwardedEmailIntake) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: email).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(email.detectedDestinationAddress) \(email.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for item: ImportQueueItem) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: item).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(item.detectedDestinationAddress) \(item.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for candidate: AcceptanceCandidate) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: candidate).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(candidate.detectedDestinationAddress) \(candidate.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for group: ShipmentGroup) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: group).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(group.destinationSummary) \(group.recipientCustomerSummary)", carrier: group.carrierSummary, riskLevel: group.riskLevel, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for task: ReviewTask) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: task.summary, carrier: "", riskLevel: nil, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for note: HandoffNote) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(note.summary) \(note.notes)", carrier: "", riskLevel: nil, linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for event: CarrierTrackingEvent) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: event).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(event.location) \(event.detail)", carrier: event.carrier, riskLevel: nil, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for attachment: EvidenceAttachment) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: attachment.summary, carrier: "", riskLevel: nil, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for issue: ValidationIssue) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(issue.subtitle) \(issue.detail)", carrier: "", riskLevel: issue.severity.shipmentRiskLevel, linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedDeliveryInstructions(for issue: ReconciliationIssue) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(issue.summary) \(issue.detectedValue) \(issue.currentOperationalValue)", carrier: "", riskLevel: issue.severity.shipmentRiskLevel, linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedDeliveryInstructions(for draft: DraftMessage) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(draft.subject) \(draft.body)", carrier: "", riskLevel: nil, linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for contact: ContactDirectoryEntry) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(contact.organisation) \(contact.notes)", carrier: "", riskLevel: nil, linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for account: AccountCredentialRecord) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(account.organisation) \(account.notes)", carrier: "", riskLevel: nil, linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for profile: VendorProfile) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(profile.primaryOrganisation) \(profile.serviceLevelNotes)", carrier: profile.primaryOrganisation, riskLevel: profile.riskLevel.shipmentRiskLevel, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for policy: SLAPolicy) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(policy.name) \(policy.conditionSummary)", carrier: "", riskLevel: nil, linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for playbook: ExceptionPlaybook) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(playbook.triggerSummary) \(playbook.recommendedSteps)", carrier: "", riskLevel: nil, linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for item: WorkbenchItem) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(item.summary) \(item.suggestedNextAction)", carrier: "", riskLevel: item.shipmentRiskLevel, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -5057,6 +5254,10 @@ final class ParcelOpsStore {
       if let address = destinationAddresses.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markDestinationAddressReviewed(address)
       }
+    case .deliveryInstruction:
+      if let instruction = deliveryInstructions.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDeliveryInstructionReviewed(instruction)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -5315,6 +5516,10 @@ final class ParcelOpsStore {
 
   private func persistDestinationAddresses() {
     destinationAddressRepository.saveDestinationAddresses(destinationAddresses)
+  }
+
+  private func persistDeliveryInstructions() {
+    deliveryInstructionRepository.saveDeliveryInstructions(deliveryInstructions)
   }
 
   private func persistAccountCredentialRecords() {
@@ -5593,6 +5798,63 @@ private extension DestinationAddressRecord {
     let carrierMatch = !carrier.isEmpty && (preferredCarrier.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(preferredCarrier))
     let linkedMatch = linkedEntityType == .destinationAddress && id.uuidString == linkedEntityID
     return profileMatch || destinationMatch || teamMatch || carrierMatch || linkedMatch
+  }
+}
+
+private extension DeliveryInstructionRecord {
+  var auditDetail: String {
+    "Title: \(title); destination address: \(destinationAddressID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); linked: \(linkedEntityType.rawValue) \(linkedEntityID); type: \(instructionType.rawValue); preferred window: \(preferredDeliveryWindow); restricted window: \(restrictedDeliveryWindow); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); instruction: \(instructionSummary); access: \(accessConstraintSummary); carrier notes: \(carrierNotes)."
+  }
+
+  func matches(destinationAddressID: UUID?, profileID: UUID?, context: String, carrier: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let addressMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let profileMatch = profileID != nil && customerProfileID == profileID
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || instructionSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(instructionSummary)
+      || accessConstraintSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(accessConstraintSummary)
+    )
+    let carrierMatch = !carrier.isEmpty && (carrierNotes.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(carrierNotes))
+    let riskMatch = riskLevel != nil && self.riskLevel == riskLevel
+    return addressMatch || profileMatch || linkedMatch || contextMatch || carrierMatch || riskMatch
+  }
+}
+
+private extension ValidationSeverity {
+  var shipmentRiskLevel: ShipmentRiskLevel? {
+    switch self {
+    case .info: .low
+    case .warning: .medium
+    case .high: .high
+    case .critical: .critical
+    }
+  }
+}
+
+private extension VendorRiskLevel {
+  var shipmentRiskLevel: ShipmentRiskLevel {
+    switch self {
+    case .low: .low
+    case .medium: .medium
+    case .high: .high
+    case .critical: .critical
+    }
+  }
+}
+
+private extension WorkbenchItem {
+  var shipmentRiskLevel: ShipmentRiskLevel? {
+    switch prioritySeverity {
+    case "Low": .low
+    case "Medium", "Normal": .medium
+    case "High": .high
+    case "Critical", "Urgent": .critical
+    default: nil
+    }
   }
 }
 

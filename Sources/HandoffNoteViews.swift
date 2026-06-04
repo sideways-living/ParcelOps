@@ -50,7 +50,7 @@ struct HandoffNotesView: View {
           }
 
           ForEach(filteredNotes) { note in
-            HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note)) { updatedNote in
+            HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note)) { updatedNote in
               store.updateHandoffNote(updatedNote)
             } onAcknowledge: {
               store.acknowledgeHandoffNote(note)
@@ -132,6 +132,7 @@ struct HandoffNoteRow: View {
   var note: HandoffNote
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onSave: (HandoffNote) -> Void
   var onAcknowledge: () -> Void
   var onComplete: () -> Void
@@ -187,6 +188,9 @@ struct HandoffNoteRow: View {
       }
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
 
       HStack {

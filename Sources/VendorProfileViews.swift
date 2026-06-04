@@ -52,7 +52,7 @@ struct VendorProfilesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredProfiles) { profile in
-              VendorProfileRow(profile: profile, contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords, destinationAddresses: store.suggestedDestinationAddresses(for: profile)) { updatedProfile in
+              VendorProfileRow(profile: profile, contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile)) { updatedProfile in
                 store.updateVendorProfile(updatedProfile)
               } onToggle: {
                 store.toggleVendorProfile(profile)
@@ -133,6 +133,7 @@ struct VendorProfileRow: View {
   var contacts: [ContactDirectoryEntry] = []
   var accounts: [AccountCredentialRecord] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onSave: (VendorProfile) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -214,6 +215,9 @@ struct VendorProfileRow: View {
 
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
     }
     .padding(12)

@@ -35,7 +35,7 @@ struct DestinationAddressesView: View {
 
         SettingsPanel(title: "Addresses", symbol: "mappin.and.ellipse") {
           ForEach(filteredAddresses) { address in
-            DestinationAddressRow(address: address, customerProfiles: store.customerRecipientProfiles) { updatedAddress in
+              DestinationAddressRow(address: address, customerProfiles: store.customerRecipientProfiles, deliveryInstructions: store.suggestedDeliveryInstructions(for: address)) { updatedAddress in
               store.updateDestinationAddress(updatedAddress)
             } onToggle: {
               store.toggleDestinationAddress(address)
@@ -114,6 +114,7 @@ struct DestinationAddressesView: View {
 struct DestinationAddressRow: View {
   var address: DestinationAddressRecord
   var customerProfiles: [CustomerRecipientProfile] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onSave: (DestinationAddressRecord) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -173,6 +174,10 @@ struct DestinationAddressRow: View {
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
     }
     .padding(12)

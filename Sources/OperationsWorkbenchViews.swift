@@ -42,7 +42,7 @@ struct OperationsWorkbenchView: View {
         ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.items) { item in
-              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item)) {
+              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item)) {
                 store.createReviewTask(from: item)
               } onCreateDraft: {
                 store.createDraftMessage(from: item)
@@ -131,6 +131,7 @@ struct WorkbenchItemRow: View {
   var item: WorkbenchItem
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
@@ -189,6 +190,9 @@ struct WorkbenchItemRow: View {
       }
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
     }
     .padding(12)

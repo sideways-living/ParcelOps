@@ -27,7 +27,7 @@ struct ValidationView: View {
         ForEach(store.groupedValidationIssues(filteredIssues)) { group in
           SettingsPanel(title: group.severity.rawValue, symbol: group.severity.symbol) {
             ForEach(group.issues) { issue in
-              ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue)) {
+              ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue)) {
                 store.createReviewTask(from: issue)
               } onCreateDraft: {
                 store.createDraftMessage(from: issue)
@@ -105,6 +105,7 @@ struct ValidationIssueRow: View {
   var handoffNotes: [HandoffNote] = []
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
 
@@ -172,6 +173,9 @@ struct ValidationIssueRow: View {
       }
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
     }
     .padding(12)

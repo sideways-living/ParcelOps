@@ -34,6 +34,7 @@ struct ImportQueueView: View {
               handoffNotes: store.handoffNotes(for: item),
               customerProfiles: store.suggestedCustomerProfiles(for: item),
               destinationAddresses: store.suggestedDestinationAddresses(for: item),
+              deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -114,6 +115,7 @@ struct ImportQueueItemRow: View {
   var handoffNotes: [HandoffNote] = []
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onSave: (ImportQueueItem) -> Void = { _ in }
   var onLinkOrder: (TrackedOrder) -> Void = { _ in }
   var onLinkShipmentGroup: (ShipmentGroup) -> Void = { _ in }
@@ -136,6 +138,7 @@ struct ImportQueueItemRow: View {
     handoffNotes: [HandoffNote] = [],
     customerProfiles: [CustomerRecipientProfile] = [],
     destinationAddresses: [DestinationAddressRecord] = [],
+    deliveryInstructions: [DeliveryInstructionRecord] = [],
     onSave: @escaping (ImportQueueItem) -> Void = { _ in },
     onLinkOrder: @escaping (TrackedOrder) -> Void = { _ in },
     onLinkShipmentGroup: @escaping (ShipmentGroup) -> Void = { _ in },
@@ -155,6 +158,7 @@ struct ImportQueueItemRow: View {
     self.handoffNotes = handoffNotes
     self.customerProfiles = customerProfiles
     self.destinationAddresses = destinationAddresses
+    self.deliveryInstructions = deliveryInstructions
     self.onSave = onSave
     self.onLinkOrder = onLinkOrder
     self.onLinkShipmentGroup = onLinkShipmentGroup
@@ -223,6 +227,9 @@ struct ImportQueueItemRow: View {
       }
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
 
       HStack {

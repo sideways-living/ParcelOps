@@ -58,7 +58,7 @@ struct AccountsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAccounts) { account in
-              AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account)) { updatedAccount in
+              AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account)) { updatedAccount in
                 store.updateAccountCredentialRecord(updatedAccount)
               } onToggle: {
                 store.toggleAccountCredentialRecord(account)
@@ -156,6 +156,7 @@ struct AccountCredentialRow: View {
   var contacts: [ContactDirectoryEntry] = []
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
   var onSave: (AccountCredentialRecord) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -252,6 +253,9 @@ struct AccountCredentialRow: View {
 
       if !destinationAddresses.isEmpty {
         DestinationAddressStrip(addresses: destinationAddresses)
+      }
+      if !deliveryInstructions.isEmpty {
+        DeliveryInstructionStrip(instructions: deliveryInstructions)
       }
     }
     .padding(12)

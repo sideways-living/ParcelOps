@@ -120,6 +120,7 @@ extension AuditEntityType {
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
     case .customerRecipientProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -145,6 +146,7 @@ extension TimelineEntityType {
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -219,6 +221,7 @@ extension WorkbenchSource {
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -266,7 +269,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -720,6 +723,56 @@ struct DestinationAddressStrip: View {
   }
 }
 
+struct DeliveryInstructionStrip: View {
+  var instructions: [DeliveryInstructionRecord]
+
+  var body: some View {
+    if !instructions.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Delivery instructions", systemImage: "signpost.right.and.left.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(instructions.prefix(3)) { instruction in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: instruction.instructionType.symbol)
+              .foregroundStyle(instruction.riskLevel.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(instruction.title)
+                .font(.caption.weight(.semibold))
+              Text("\(instruction.instructionType.rawValue) • \(instruction.preferredDeliveryWindow)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(instruction.accessConstraintSummary.isEmpty ? instruction.instructionSummary : instruction.accessConstraintSummary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(instruction.riskLevel.rawValue, color: instruction.riskLevel.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
+extension DeliveryInstructionType {
+  var symbol: String {
+    switch self {
+    case .deliveryWindow: "clock.badge.checkmark.fill"
+    case .accessConstraint: "lock.shield.fill"
+    case .carrierNote: "truck.box.fill"
+    case .handling: "shippingbox.circle.fill"
+    case .security: "shield.lefthalf.filled"
+    case .contactRequired: "phone.badge.checkmark.fill"
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -730,6 +783,7 @@ extension ContactLinkedEntityType {
     case .internalTeam: "person.2.fill"
     case .customerProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -764,6 +818,7 @@ extension AccountLinkedEntityType {
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -801,6 +856,7 @@ extension ReviewTaskLinkedEntityType {
     case .contact: "person.crop.circle.badge.checkmark"
     case .customerProfile: "person.text.rectangle.fill"
     case .destinationAddress: "mappin.and.ellipse"
+    case .deliveryInstruction: "signpost.right.and.left.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -914,7 +970,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -981,6 +1037,7 @@ extension TimelineActivity {
     case .contact: .contact
     case .customerProfile: .customerProfile
     case .destinationAddress: .destinationAddress
+    case .deliveryInstruction: .deliveryInstruction
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

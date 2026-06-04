@@ -743,6 +743,63 @@ enum SampleData {
     )
   ]
 
+  static var deliveryInstructions: [DeliveryInstructionRecord] = [
+    DeliveryInstructionRecord(
+      title: "Field site reception window",
+      destinationAddressID: destinationAddresses[0].id,
+      customerProfileID: customerRecipientProfiles[0].id,
+      linkedEntityType: .destinationAddress,
+      linkedEntityID: destinationAddresses[0].id.uuidString,
+      instructionType: .deliveryWindow,
+      instructionSummary: "Deliver to reception before the afternoon carrier cut-off.",
+      accessConstraintSummary: "Reception only accepts parcels while the field desk is staffed.",
+      preferredDeliveryWindow: "Weekdays 9:00 AM - 2:00 PM",
+      restrictedDeliveryWindow: "After 3:00 PM requires team confirmation",
+      carrierNotes: "Jade Delivery should call the field ops contact before failed-delivery scan.",
+      riskLevel: .high,
+      isEnabled: true,
+      createdDate: "Today 8:20 AM",
+      lastReviewedDate: "Today 8:35 AM",
+      reviewState: .monitor
+    ),
+    DeliveryInstructionRecord(
+      title: "Operations dock appointment",
+      destinationAddressID: destinationAddresses[1].id,
+      customerProfileID: customerRecipientProfiles[1].id,
+      linkedEntityType: .destinationAddress,
+      linkedEntityID: destinationAddresses[1].id.uuidString,
+      instructionType: .accessConstraint,
+      instructionSummary: "Use the loading dock for bulky operations orders.",
+      accessConstraintSummary: "Dock access is by appointment and must be noted before dispatch.",
+      preferredDeliveryWindow: "Weekdays 10:00 AM - 4:00 PM",
+      restrictedDeliveryWindow: "No dock access on weekends",
+      carrierNotes: "Any carrier can use front reception for small satchels.",
+      riskLevel: .medium,
+      isEnabled: true,
+      createdDate: "Yesterday 9:20 AM",
+      lastReviewedDate: "Yesterday 9:40 AM",
+      reviewState: .accepted
+    ),
+    DeliveryInstructionRecord(
+      title: "Shopify address confirmation",
+      destinationAddressID: destinationAddresses[2].id,
+      customerProfileID: customerRecipientProfiles[2].id,
+      linkedEntityType: .destinationAddress,
+      linkedEntityID: destinationAddresses[2].id.uuidString,
+      instructionType: .contactRequired,
+      instructionSummary: "Confirm the customer delivery notes before accepting the shipment group.",
+      accessConstraintSummary: "Address is disabled until customer profile and destination are reviewed.",
+      preferredDeliveryWindow: "To be confirmed",
+      restrictedDeliveryWindow: "Do not dispatch until manually confirmed",
+      carrierNotes: "Hold carrier selection until Shopify syncing exists.",
+      riskLevel: .critical,
+      isEnabled: false,
+      createdDate: "Today 9:55 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",
