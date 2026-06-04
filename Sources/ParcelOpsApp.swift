@@ -121,6 +121,8 @@ struct ParcelOpsRootView: View {
       DeliveryInstructionsView(store: store)
     case .packageContents:
       PackageContentsView(store: store)
+    case .costsBudgets:
+      CostsBudgetsView(store: store)
     case .accounts:
       AccountsView(store: store)
     case .vendorProfiles:
@@ -157,7 +159,7 @@ struct ExpandableBottomMenu: View {
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
+    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .costsBudgets, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
   }
 
   var body: some View {

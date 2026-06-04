@@ -172,6 +172,16 @@ struct DashboardView: View {
             CompactPackageContentList(contents: Array((store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents).prefix(4)))
           }
 
+          AnalyticsSection(title: "Costs & budgets", symbol: "creditcard.and.123") {
+            MetricStrip(items: [
+              ("Review", "\(store.costRecordsNeedingReview.count)", .orange),
+              ("Disputed", "\(store.disputedCostRecords.count)", .red),
+              ("Unreimbursed", "\(store.unreimbursedCostRecords.count)", .orange),
+              ("Missing budget", "\(store.missingBudgetCodeCostRecords.count)", .red)
+            ])
+            CompactCostRecordList(costs: Array((store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -596,6 +606,23 @@ struct CompactPackageContentList: View {
           detail: "\(content.itemCategory.rawValue) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
           badge: content.verificationStatus.rawValue,
           color: content.verificationStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactCostRecordList: View {
+  var costs: [CostRecord]
+
+  var body: some View {
+    CompactList(title: "Costs needing action", symbol: "creditcard.and.123") {
+      ForEach(costs) { cost in
+        CompactRow(
+          title: cost.title,
+          detail: "\(cost.amountText) \(cost.currency) • \(cost.budgetCode)",
+          badge: cost.approvalStatus.rawValue,
+          color: cost.approvalStatus.color
         )
       }
     }

@@ -210,6 +210,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Costs & budgets", symbol: "creditcard.and.123") {
+          let costs = store.suggestedCostRecords(for: order)
+
+          if costs.isEmpty {
+            Text("No local cost records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            CostRecordStrip(costs: costs)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

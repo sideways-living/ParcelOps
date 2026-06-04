@@ -847,6 +847,28 @@ struct NeedsReviewView: View {
           }
         }
 
+        SettingsPanel(title: "Costs & budgets", symbol: "creditcard.and.123") {
+          ForEach(Array(Set(store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords))) { cost in
+            CostRecordRow(cost: cost) { updatedCost in
+              store.updateCostRecord(updatedCost)
+            } onApproved: {
+              store.markCostRecordApproved(cost)
+            } onReimbursed: {
+              store.markCostRecordReimbursed(cost)
+            } onDisputed: {
+              store.markCostRecordDisputed(cost)
+            } onReviewed: {
+              store.markCostRecordReviewed(cost)
+            } onCreateTask: {
+              store.createReviewTask(from: cost)
+            } onCreateDraft: {
+              store.createDraftMessage(from: cost)
+            } onRemove: {
+              store.removeCostRecord(cost)
+            }
+          }
+        }
+
         SettingsPanel(title: "Accounts", symbol: "key.horizontal.fill") {
           ForEach(store.accountRecordsNeedingReview) { account in
             AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
