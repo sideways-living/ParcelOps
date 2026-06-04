@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -961,6 +961,24 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: receipt)
             } onRemove: {
               store.removeInventoryReceipt(receipt)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Storage locations", symbol: "cabinet.fill") {
+          ForEach(Array(Set(store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings))) { location in
+            StorageLocationRow(location: location) { updatedLocation in
+              store.updateStorageLocation(updatedLocation)
+            } onToggle: {
+              store.toggleStorageLocation(location)
+            } onReviewed: {
+              store.markStorageLocationReviewed(location)
+            } onCreateTask: {
+              store.createReviewTask(from: location)
+            } onCreateDraft: {
+              store.createDraftMessage(from: location)
+            } onRemove: {
+              store.removeStorageLocation(location)
             }
           }
         }

@@ -222,6 +222,16 @@ struct DashboardView: View {
             CompactInventoryReceiptList(receipts: Array((store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage).prefix(4)))
           }
 
+          AnalyticsSection(title: "Storage locations", symbol: "cabinet.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.storageLocationsNeedingReview.count)", .orange),
+              ("Disabled", "\(store.disabledStorageLocations.count)", .gray),
+              ("Missing code", "\(store.storageLocationsMissingCodes.count)", .red),
+              ("Capacity", "\(store.storageLocationsWithCapacityWarnings.count)", .red)
+            ])
+            CompactStorageLocationList(locations: Array((store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -731,6 +741,23 @@ struct CompactInventoryReceiptList: View {
           detail: "\(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
           badge: receipt.stockHandoffStatus.rawValue,
           color: receipt.stockHandoffStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactStorageLocationList: View {
+  var locations: [StorageLocationRecord]
+
+  var body: some View {
+    CompactList(title: "Storage locations", symbol: "cabinet.fill") {
+      ForEach(locations) { location in
+        CompactRow(
+          title: location.title,
+          detail: "\(location.locationCode) • \(location.areaZone)",
+          badge: location.isEnabled ? "Enabled" : "Disabled",
+          color: location.isEnabled ? .green : .gray
         )
       }
     }

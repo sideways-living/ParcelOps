@@ -127,6 +127,7 @@ extension AuditEntityType {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -159,6 +160,7 @@ extension TimelineEntityType {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -240,6 +242,7 @@ extension WorkbenchSource {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -287,7 +290,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -1000,6 +1003,43 @@ struct InventoryReceiptStrip: View {
   }
 }
 
+struct StorageLocationStrip: View {
+  var locations: [StorageLocationRecord]
+
+  var body: some View {
+    if !locations.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Storage locations", systemImage: "cabinet.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(locations.prefix(3)) { location in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: location.locationType.symbol)
+              .foregroundStyle(location.riskLevel.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(location.title)
+                .font(.caption.weight(.semibold))
+              Text("\(location.locationCode) • \(location.areaZone)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(location.currentUsageSummary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(location.isEnabled ? "Enabled" : "Disabled", color: location.isEnabled ? .green : .gray)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ReceivingInspectionType {
   var symbol: String {
     switch self {
@@ -1022,6 +1062,20 @@ extension InventoryReceiptType {
     case .replacementReceipt: "shippingbox.circle.fill"
     case .sampleReceipt: "testtube.2"
     case .exceptionReceipt: "exclamationmark.triangle.fill"
+    }
+  }
+}
+
+extension StorageLocationType {
+  var symbol: String {
+    switch self {
+    case .shelf: "cabinet.fill"
+    case .bin: "archivebox.fill"
+    case .cage: "lock.square.fill"
+    case .desk: "table.furniture.fill"
+    case .locker: "lock.rectangle.stack.fill"
+    case .handoffArea: "arrow.left.arrow.right.square.fill"
+    case .stagingArea: "tray.and.arrow.down.fill"
     }
   }
 }
@@ -1203,6 +1257,7 @@ extension ContactLinkedEntityType {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -1244,6 +1299,7 @@ extension AccountLinkedEntityType {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -1288,6 +1344,7 @@ extension ReviewTaskLinkedEntityType {
     case .procurementRequest: "cart.badge.plus"
     case .receivingInspection: "checklist.checked"
     case .inventoryReceipt: "archivebox.fill"
+    case .storageLocation: "cabinet.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -1401,7 +1458,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -1475,6 +1532,7 @@ extension TimelineActivity {
     case .procurementRequest: .procurementRequest
     case .receivingInspection: .receivingInspection
     case .inventoryReceipt: .inventoryReceipt
+    case .storageLocation: .storageLocation
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

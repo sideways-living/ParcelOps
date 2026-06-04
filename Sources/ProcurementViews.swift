@@ -51,7 +51,7 @@ struct ProcurementView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRequests) { request in
-              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request)) { updatedRequest in
+              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request)) { updatedRequest in
                 store.updateProcurementRequest(updatedRequest)
               } onApproved: {
                 store.markProcurementRequestApproved(request)
@@ -169,6 +169,7 @@ struct ProcurementRequestRow: View {
   var request: ProcurementRequest
   var receivingInspections: [ReceivingInspectionRecord] = []
   var inventoryReceipts: [InventoryReceiptRecord] = []
+  var storageLocations: [StorageLocationRecord] = []
   var onSave: (ProcurementRequest) -> Void
   var onApproved: () -> Void
   var onOrdered: () -> Void
@@ -220,6 +221,7 @@ struct ProcurementRequestRow: View {
 
       ReceivingInspectionStrip(inspections: receivingInspections)
       InventoryReceiptStrip(receipts: inventoryReceipts)
+      StorageLocationStrip(locations: storageLocations)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

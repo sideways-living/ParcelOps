@@ -131,6 +131,8 @@ struct ParcelOpsRootView: View {
       ReceivingInspectionsView(store: store)
     case .inventoryReceipts:
       InventoryReceiptsView(store: store)
+    case .storageLocations:
+      StorageLocationsView(store: store)
     case .accounts:
       AccountsView(store: store)
     case .vendorProfiles:
@@ -167,7 +169,7 @@ struct ExpandableBottomMenu: View {
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
+    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
   }
 
   var body: some View {

@@ -49,7 +49,7 @@ struct ReturnsClaimsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredClaims) { claim in
-              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim)) { updatedClaim in
+              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim)) { updatedClaim in
                 store.updateReturnClaim(updatedClaim)
               } onSubmitted: {
                 store.markReturnClaimSubmitted(claim)
@@ -167,6 +167,7 @@ struct ReturnClaimRow: View {
   var procurementRequests: [ProcurementRequest] = []
   var receivingInspections: [ReceivingInspectionRecord] = []
   var inventoryReceipts: [InventoryReceiptRecord] = []
+  var storageLocations: [StorageLocationRecord] = []
   var onSave: (ReturnClaimRecord) -> Void
   var onSubmitted: () -> Void
   var onApproved: () -> Void
@@ -221,6 +222,7 @@ struct ReturnClaimRow: View {
       ProcurementRequestStrip(requests: procurementRequests)
       ReceivingInspectionStrip(inspections: receivingInspections)
       InventoryReceiptStrip(receipts: inventoryReceipts)
+      StorageLocationStrip(locations: storageLocations)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

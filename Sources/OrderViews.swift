@@ -265,6 +265,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Storage locations", symbol: "cabinet.fill") {
+          let locations = store.suggestedStorageLocations(for: order)
+
+          if locations.isEmpty {
+            Text("No local storage locations matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            StorageLocationStrip(locations: locations)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

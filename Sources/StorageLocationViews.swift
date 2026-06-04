@@ -1,22 +1,24 @@
 import SwiftUI
 
-struct InventoryReceiptsView: View {
+struct StorageLocationsView: View {
   var store: ParcelOpsStore
-  @State private var selectedReceiptType: InventoryReceiptType?
-  @State private var selectedStatus: InventoryStockHandoffStatus?
+  @State private var selectedLocationType: StorageLocationType?
+  @State private var areaZone = ""
   @State private var ownerTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
+  @State private var selectedEnabledState: Bool?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredReceipts: [InventoryReceiptRecord] {
-    store.filteredInventoryReceipts(
-      receiptType: selectedReceiptType,
-      stockHandoffStatus: selectedStatus,
+  private var filteredLocations: [StorageLocationRecord] {
+    store.filteredStorageLocations(
+      locationType: selectedLocationType,
+      areaZone: areaZone,
       ownerTeam: ownerTeam,
       riskLevel: selectedRiskLevel,
+      enabledState: selectedEnabledState,
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
@@ -28,43 +30,37 @@ struct InventoryReceiptsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Inventory receipt records", symbol: "archivebox.fill") {
+        SettingsPanel(title: "Storage location records", symbol: "cabinet.fill") {
           HStack {
-            Text("\(filteredReceipts.count) visible inventory receipts")
+            Text("\(filteredLocations.count) visible storage locations")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add receipt", systemImage: "plus", action: store.addInventoryReceiptPlaceholder)
+            Button("Add location", systemImage: "plus", action: store.addStorageLocationPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredReceipts.isEmpty {
-            Text("No inventory receipts match the selected filters.")
+          if filteredLocations.isEmpty {
+            Text("No storage locations match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredReceipts) { receipt in
-              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt)) { updatedReceipt in
-                store.updateInventoryReceipt(updatedReceipt)
-              } onStocked: {
-                store.markInventoryReceiptStocked(receipt)
-              } onHandedOff: {
-                store.markInventoryReceiptHandedOff(receipt)
-              } onPartiallyAccepted: {
-                store.markInventoryReceiptPartiallyAccepted(receipt)
-              } onRejected: {
-                store.markInventoryReceiptRejected(receipt)
+            ForEach(filteredLocations) { location in
+              StorageLocationRow(location: location) { updatedLocation in
+                store.updateStorageLocation(updatedLocation)
+              } onToggle: {
+                store.toggleStorageLocation(location)
               } onReviewed: {
-                store.markInventoryReceiptReviewed(receipt)
+                store.markStorageLocationReviewed(location)
               } onCreateTask: {
-                store.createReviewTask(from: receipt)
+                store.createReviewTask(from: location)
               } onCreateDraft: {
-                store.createDraftMessage(from: receipt)
+                store.createDraftMessage(from: location)
               } onRemove: {
-                store.removeInventoryReceipt(receipt)
+                store.removeStorageLocation(location)
               }
             }
           }
@@ -77,46 +73,49 @@ struct InventoryReceiptsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Inventory Receipts")
+        Text("Storage Locations")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local stock receipt, storage assignment, acceptance, rejection, and team handoff tracking.")
+        Text("Local shelves, bins, cages, desks, lockers, and handoff areas for receipt storage.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.rejectedInventoryReceipts.count) rejected", color: .red)
-        Badge("\(store.inventoryReceiptsMissingStorage.count) missing storage", color: .orange)
+        Badge("\(store.storageLocationsMissingCodes.count) missing codes", color: .orange)
+        Badge("\(store.storageLocationsWithCapacityWarnings.count) capacity warnings", color: .red)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Type", selection: $selectedReceiptType) {
-        Text("All types").tag(nil as InventoryReceiptType?)
-        ForEach(InventoryReceiptType.allCases) { type in
-          Text(type.rawValue).tag(type as InventoryReceiptType?)
+      Picker("Type", selection: $selectedLocationType) {
+        Text("All types").tag(nil as StorageLocationType?)
+        ForEach(StorageLocationType.allCases) { type in
+          Text(type.rawValue).tag(type as StorageLocationType?)
         }
       }
       .pickerStyle(.menu)
 
-      Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as InventoryStockHandoffStatus?)
-        ForEach(InventoryStockHandoffStatus.allCases) { status in
-          Text(status.rawValue).tag(status as InventoryStockHandoffStatus?)
-        }
-      }
-      .pickerStyle(.menu)
+      TextField("Area/zone", text: $areaZone)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 140)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
+        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
         ForEach(ShipmentRiskLevel.allCases) { risk in
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
+      }
+      .pickerStyle(.menu)
+
+      Picker("Enabled", selection: $selectedEnabledState) {
+        Text("All states").tag(nil as Bool?)
+        Text("Enabled").tag(true as Bool?)
+        Text("Disabled").tag(false as Bool?)
       }
       .pickerStyle(.menu)
 
@@ -139,10 +138,11 @@ struct InventoryReceiptsView: View {
       Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedReceiptType = nil
-        selectedStatus = nil
+        selectedLocationType = nil
+        areaZone = ""
         ownerTeam = ""
         selectedRiskLevel = nil
+        selectedEnabledState = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
       }
@@ -151,14 +151,10 @@ struct InventoryReceiptsView: View {
   }
 }
 
-struct InventoryReceiptRow: View {
-  var receipt: InventoryReceiptRecord
-  var storageLocations: [StorageLocationRecord] = []
-  var onSave: (InventoryReceiptRecord) -> Void
-  var onStocked: () -> Void
-  var onHandedOff: () -> Void
-  var onPartiallyAccepted: () -> Void
-  var onRejected: () -> Void
+struct StorageLocationRow: View {
+  var location: StorageLocationRecord
+  var onSave: (StorageLocationRecord) -> Void
+  var onToggle: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -168,55 +164,47 @@ struct InventoryReceiptRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: receipt.receiptType.symbol)
-          .foregroundStyle(receipt.riskLevel.color)
+        Image(systemName: location.locationType.symbol)
+          .foregroundStyle(location.riskLevel.color)
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(receipt.title)
+              Text(location.title)
                 .font(.headline)
-              Text("\(receipt.receiptType.rawValue) • \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted")
+              Text("\(location.locationCode) • \(location.areaZone)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(receipt.stockHandoffStatus.rawValue, color: receipt.stockHandoffStatus.color)
+            Badge(location.isEnabled ? "Enabled" : "Disabled", color: location.isEnabled ? .green : .gray)
           }
 
-          Text(receipt.itemSummary)
+          Text(location.currentUsageSummary)
             .foregroundStyle(.secondary)
-          Text("\(receipt.storageLocationSummary) • Owner \(receipt.assignedOwnerTeam)")
+          Text("\(location.capacitySummary) • Owner \(location.assignedOwnerTeam)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
           HStack(spacing: 8) {
-            Badge(receipt.riskLevel.rawValue, color: receipt.riskLevel.color)
-            Badge(receipt.reviewState.rawValue, color: receipt.reviewState.color)
-            Label("Rejected \(receipt.quantityRejected)", systemImage: "xmark.circle.fill")
+            Badge(location.riskLevel.rawValue, color: location.riskLevel.color)
+            Badge(location.reviewState.rawValue, color: location.reviewState.color)
+            Label("\(location.inventoryReceiptIDs.count) receipts", systemImage: "archivebox.fill")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label(receipt.linkedEntityType.rawValue, systemImage: receipt.linkedEntityType.symbol)
+            Label(location.linkedEntityType.rawValue, systemImage: location.linkedEntityType.symbol)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      StorageLocationStrip(locations: storageLocations)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Stocked", systemImage: "archivebox.fill", action: onStocked)
-          .buttonStyle(.bordered)
-        Button("Handed off", systemImage: "arrow.left.arrow.right.square.fill", action: onHandedOff)
-          .buttonStyle(.bordered)
-        Button("Partial", systemImage: "plusminus.circle.fill", action: onPartiallyAccepted)
-          .buttonStyle(.bordered)
-        Button("Reject", systemImage: "xmark.circle.fill", action: onRejected)
+        Button(location.isEnabled ? "Disable" : "Enable", systemImage: location.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -232,53 +220,46 @@ struct InventoryReceiptRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      InventoryReceiptEditView(receipt: receipt) { updatedReceipt in
-        onSave(updatedReceipt)
+      StorageLocationEditView(location: location) { updatedLocation in
+        onSave(updatedLocation)
       }
     }
   }
 }
 
-struct InventoryReceiptEditView: View {
+struct StorageLocationEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: InventoryReceiptRecord
-  var onSave: (InventoryReceiptRecord) -> Void
+  @State private var draft: StorageLocationRecord
+  var onSave: (StorageLocationRecord) -> Void
 
-  init(receipt: InventoryReceiptRecord, onSave: @escaping (InventoryReceiptRecord) -> Void) {
-    self._draft = State(initialValue: receipt)
+  init(location: StorageLocationRecord, onSave: @escaping (StorageLocationRecord) -> Void) {
+    self._draft = State(initialValue: location)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Receipt") {
+        Section("Location") {
           TextField("Title", text: $draft.title)
-          TextField("Item summary", text: $draft.itemSummary, axis: .vertical)
-          Picker("Type", selection: $draft.receiptType) {
-            ForEach(InventoryReceiptType.allCases) { type in
+          Picker("Type", selection: $draft.locationType) {
+            ForEach(StorageLocationType.allCases) { type in
               Text(type.rawValue).tag(type)
             }
           }
-          Picker("Stock/handoff status", selection: $draft.stockHandoffStatus) {
-            ForEach(InventoryStockHandoffStatus.allCases) { status in
-              Text(status.rawValue).tag(status)
-            }
-          }
+          TextField("Location code", text: $draft.locationCode)
+          TextField("Area/zone", text: $draft.areaZone)
+          Toggle("Enabled", isOn: $draft.isEnabled)
         }
 
-        Section("Quantities and location") {
-          Stepper("Received: \(draft.quantityReceived)", value: $draft.quantityReceived, in: 0...999)
-          Stepper("Accepted: \(draft.quantityAccepted)", value: $draft.quantityAccepted, in: 0...999)
-          Stepper("Rejected: \(draft.quantityRejected)", value: $draft.quantityRejected, in: 0...999)
-          TextField("Storage/location", text: $draft.storageLocationSummary, axis: .vertical)
-          TextField("Discrepancy summary", text: $draft.discrepancySummary, axis: .vertical)
-        }
-
-        Section("Ownership and dates") {
+        Section("Capacity and access") {
+          TextField("Capacity summary", text: $draft.capacitySummary, axis: .vertical)
+          TextField("Current usage", text: $draft.currentUsageSummary, axis: .vertical)
+          TextField("Access notes", text: $draft.accessNotes, axis: .vertical)
           TextField("Owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Received date", text: $draft.receivedDate)
-          TextField("Handoff date", text: $draft.handoffDate)
+        }
+
+        Section("Review") {
           Picker("Risk", selection: $draft.riskLevel) {
             ForEach(ShipmentRiskLevel.allCases) { risk in
               Text(risk.rawValue).tag(risk)
@@ -301,7 +282,7 @@ struct InventoryReceiptEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Receipt")
+      .navigationTitle("Edit Location")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })

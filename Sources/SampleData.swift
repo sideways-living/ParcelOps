@@ -1298,6 +1298,75 @@ enum SampleData {
     )
   ]
 
+  static var storageLocations: [StorageLocationRecord] = [
+    StorageLocationRecord(
+      title: "Receiving cage exception shelf",
+      locationType: .cage,
+      locationCode: "RC-EX-01",
+      areaZone: "Receiving cage",
+      capacitySummary: "Holds up to 12 exception parcels",
+      currentUsageSummary: "Capacity warning: 10 of 12 positions reserved for exception stock.",
+      linkedEntityType: .inventoryReceipt,
+      linkedEntityID: inventoryReceipts[0].id.uuidString,
+      inventoryReceiptIDs: [inventoryReceipts[0].id],
+      receivingInspectionIDs: [receivingInspections[0].id],
+      packageContentIDs: [packageContents[0].id],
+      orderIDs: [orders[0].id],
+      shipmentGroupIDs: shipmentGroups.first.map { [$0.id] } ?? [],
+      assignedOwnerTeam: "Receiving Desk",
+      accessNotes: "Restricted cage access; supervisor review required before release.",
+      riskLevel: .high,
+      isEnabled: true,
+      createdDate: "Today 10:25 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    ),
+    StorageLocationRecord(
+      title: "Packing bench drawer A",
+      locationType: .shelf,
+      locationCode: "PB-A",
+      areaZone: "Parcel packing bench",
+      capacitySummary: "Six label roll slots",
+      currentUsageSummary: "4 of 6 slots filled.",
+      linkedEntityType: .inventoryReceipt,
+      linkedEntityID: inventoryReceipts[1].id.uuidString,
+      inventoryReceiptIDs: [inventoryReceipts[1].id],
+      receivingInspectionIDs: [receivingInspections[1].id],
+      packageContentIDs: [packageContents[1].id],
+      orderIDs: orders.indices.contains(1) ? [orders[1].id] : [],
+      shipmentGroupIDs: shipmentGroups.first.map { [$0.id] } ?? [],
+      assignedOwnerTeam: "ParcelOps Operations",
+      accessNotes: "Open bench stock for packing team.",
+      riskLevel: .low,
+      isEnabled: true,
+      createdDate: "Yesterday 3:30 PM",
+      lastReviewedDate: "Yesterday 3:35 PM",
+      reviewState: .accepted
+    ),
+    StorageLocationRecord(
+      title: "Unassigned replacement staging",
+      locationType: .stagingArea,
+      locationCode: "Missing",
+      areaZone: "Unassigned",
+      capacitySummary: "Capacity not confirmed",
+      currentUsageSummary: "Capacity warning: blocked replacement has no confirmed physical location.",
+      linkedEntityType: .inventoryReceipt,
+      linkedEntityID: inventoryReceipts[2].id.uuidString,
+      inventoryReceiptIDs: [inventoryReceipts[2].id],
+      receivingInspectionIDs: [receivingInspections[2].id],
+      packageContentIDs: [packageContents[2].id],
+      orderIDs: [],
+      shipmentGroupIDs: [],
+      assignedOwnerTeam: "Receiving Desk",
+      accessNotes: "Access path unknown until procurement documentation is corrected.",
+      riskLevel: .critical,
+      isEnabled: false,
+      createdDate: "Today 11:00 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",

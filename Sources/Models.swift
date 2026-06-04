@@ -26,6 +26,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case procurement
   case receivingInspections
   case inventoryReceipts
+  case storageLocations
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -67,6 +68,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .procurement: "Procurement"
     case .receivingInspections: "Receiving Inspections"
     case .inventoryReceipts: "Inventory Receipts"
+    case .storageLocations: "Storage Locations"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -108,6 +110,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .procurement: "Procure"
     case .receivingInspections: "Inspect"
     case .inventoryReceipts: "Stock"
+    case .storageLocations: "Storage"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -149,6 +152,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .procurement: "cart.badge.plus"
     case .receivingInspections: "checklist.checked"
     case .inventoryReceipts: "archivebox.fill"
+    case .storageLocations: "cabinet.fill"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -728,6 +732,30 @@ struct InventoryReceiptRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct StorageLocationRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var locationType: StorageLocationType
+  var locationCode: String
+  var areaZone: String
+  var capacitySummary: String
+  var currentUsageSummary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var inventoryReceiptIDs: [UUID]
+  var receivingInspectionIDs: [UUID]
+  var packageContentIDs: [UUID]
+  var orderIDs: [UUID]
+  var shipmentGroupIDs: [UUID]
+  var assignedOwnerTeam: String
+  var accessNotes: String
+  var riskLevel: ShipmentRiskLevel
+  var isEnabled: Bool
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -987,6 +1015,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1287,6 +1316,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1353,6 +1383,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -1433,6 +1464,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -1456,6 +1488,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -1491,6 +1524,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case procurementRequest = "Procurement request"
   case receivingInspection = "Receiving inspection"
   case inventoryReceipt = "Inventory receipt"
+  case storageLocation = "Storage location"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1555,6 +1589,18 @@ enum InventoryStockHandoffStatus: String, CaseIterable, Identifiable, Hashable, 
   case partiallyAccepted = "Partially accepted"
   case rejected = "Rejected"
   case needsReview = "Needs review"
+
+  var id: String { rawValue }
+}
+
+enum StorageLocationType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case shelf = "Shelf"
+  case bin = "Bin"
+  case cage = "Cage"
+  case desk = "Desk"
+  case locker = "Locker"
+  case handoffArea = "Handoff area"
+  case stagingArea = "Staging area"
 
   var id: String { rawValue }
 }
