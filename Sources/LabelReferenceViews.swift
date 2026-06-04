@@ -1,27 +1,20 @@
 import SwiftUI
 
-struct CustodyChainView: View {
+struct LabelReferencesView: View {
   var store: ParcelOpsStore
-  @State private var selectedStatus: CustodyStatus?
-  @State private var custodianTeam = ""
+  @State private var selectedType: LabelReferenceType?
+  @State private var selectedStatus: LabelReferenceStatus?
+  @State private var selectedSource: LabelReferenceSource?
+  @State private var carrier = ""
   @State private var ownerTeam = ""
-  @State private var selectedHandoffMethod: CustodyHandoffMethod?
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [CustodyRecord] {
-    store.filteredCustodyRecords(
-      custodyStatus: selectedStatus,
-      custodianTeam: custodianTeam,
-      ownerTeam: ownerTeam,
-      handoffMethod: selectedHandoffMethod,
-      riskLevel: selectedRiskLevel,
-      linkedEntityType: selectedLinkedEntityType,
-      reviewState: selectedReviewState
-    )
+  private var filteredRecords: [LabelReferenceRecord] {
+    store.filteredLabelReferenceRecords(labelType: selectedType, labelStatus: selectedStatus, labelSource: selectedSource, carrier: carrier, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
   }
 
   var body: some View {
@@ -30,18 +23,18 @@ struct CustodyChainView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Custody chain records", symbol: "person.badge.shield.checkmark.fill") {
+        SettingsPanel(title: "Label reference records", symbol: "barcode.viewfinder") {
           HStack {
-            Text("\(filteredRecords.count) visible custody records")
+            Text("\(filteredRecords.count) visible label references")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add custody", systemImage: "plus", action: store.addCustodyRecordPlaceholder)
+            Button("Add label", systemImage: "plus", action: store.addLabelReferencePlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No custody records match the selected filters.")
+            Text("No label references match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
@@ -49,24 +42,22 @@ struct CustodyChainView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record)) { updatedRecord in
-                store.updateCustodyRecord(updatedRecord)
-              } onTransferred: {
-                store.markCustodyRecordTransferred(record)
-              } onReceived: {
-                store.markCustodyRecordReceived(record)
-              } onReturnedClosed: {
-                store.markCustodyRecordReturnedClosed(record)
-              } onDisputed: {
-                store.markCustodyRecordDisputed(record)
+              LabelReferenceRow(record: record) { updatedRecord in
+                store.updateLabelReferenceRecord(updatedRecord)
+              } onPrinted: {
+                store.markLabelReferencePrinted(record)
+              } onVerified: {
+                store.markLabelReferenceVerified(record)
+              } onInvalid: {
+                store.markLabelReferenceInvalid(record)
               } onReviewed: {
-                store.markCustodyRecordReviewed(record)
+                store.markLabelReferenceReviewed(record)
               } onCreateTask: {
                 store.createReviewTask(from: record)
               } onCreateDraft: {
                 store.createDraftMessage(from: record)
               } onRemove: {
-                store.removeCustodyRecord(record)
+                store.removeLabelReferenceRecord(record)
               }
             }
           }
@@ -79,76 +70,71 @@ struct CustodyChainView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Custody Chain")
+        Text("Label References")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local possession, handoff, and responsibility tracking for parcels and operational records.")
+        Text("Local barcode, QR, tracking, storage, custody, receiving, return, and evidence label placeholders.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.openCustodyTransfers.count) open transfers", color: .blue)
-        Badge("\(store.disputedCustodyRecords.count) disputed", color: .red)
+        Badge("\(store.invalidLabelReferences.count) invalid", color: .red)
+        Badge("\(store.labelReferencesMissingValues.count) missing values", color: .orange)
       }
     }
   }
 
   private var filterBar: some View {
     HStack {
-      Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as CustodyStatus?)
-        ForEach(CustodyStatus.allCases) { status in
-          Text(status.rawValue).tag(status as CustodyStatus?)
-        }
+      Picker("Type", selection: $selectedType) {
+        Text("All types").tag(nil as LabelReferenceType?)
+        ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type as LabelReferenceType?) }
       }
       .pickerStyle(.menu)
 
-      TextField("Custodian/team", text: $custodianTeam)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 155)
+      Picker("Status", selection: $selectedStatus) {
+        Text("All status").tag(nil as LabelReferenceStatus?)
+        ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status as LabelReferenceStatus?) }
+      }
+      .pickerStyle(.menu)
 
+      Picker("Source", selection: $selectedSource) {
+        Text("All sources").tag(nil as LabelReferenceSource?)
+        ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source as LabelReferenceSource?) }
+      }
+      .pickerStyle(.menu)
+
+      TextField("Carrier", text: $carrier)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 120)
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 145)
-
-      Picker("Method", selection: $selectedHandoffMethod) {
-        Text("All methods").tag(nil as CustodyHandoffMethod?)
-        ForEach(CustodyHandoffMethod.allCases) { method in
-          Text(method.rawValue).tag(method as CustodyHandoffMethod?)
-        }
-      }
-      .pickerStyle(.menu)
+        .frame(maxWidth: 140)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
-        ForEach(ShipmentRiskLevel.allCases) { risk in
-          Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
-        }
+        ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(risk as ShipmentRiskLevel?) }
       }
       .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
-        ForEach(ReviewTaskLinkedEntityType.allCases) { type in
-          Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
-        }
+        ForEach(ReviewTaskLinkedEntityType.allCases) { type in Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?) }
       }
       .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
-        ForEach(reviewStates, id: \.self) { state in
-          Text(state.rawValue).tag(state as ReviewState?)
-        }
+        ForEach(reviewStates, id: \.self) { state in Text(state.rawValue).tag(state as ReviewState?) }
       }
       .pickerStyle(.menu)
 
       Spacer()
-
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+        selectedType = nil
         selectedStatus = nil
-        custodianTeam = ""
+        selectedSource = nil
+        carrier = ""
         ownerTeam = ""
-        selectedHandoffMethod = nil
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
         selectedReviewState = nil
@@ -158,14 +144,12 @@ struct CustodyChainView: View {
   }
 }
 
-struct CustodyRecordRow: View {
-  var record: CustodyRecord
-  var labelReferences: [LabelReferenceRecord] = []
-  var onSave: (CustodyRecord) -> Void
-  var onTransferred: () -> Void
-  var onReceived: () -> Void
-  var onReturnedClosed: () -> Void
-  var onDisputed: () -> Void
+struct LabelReferenceRow: View {
+  var record: LabelReferenceRecord
+  var onSave: (LabelReferenceRecord) -> Void
+  var onPrinted: () -> Void
+  var onVerified: () -> Void
+  var onInvalid: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -175,26 +159,24 @@ struct CustodyRecordRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: record.handoffMethod.symbol)
+        Image(systemName: record.labelType.symbol)
           .foregroundStyle(record.riskLevel.color)
           .frame(width: 28, height: 28)
-
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
               Text(record.title)
                 .font(.headline)
-              Text("\(record.currentCustodianTeam) from \(record.previousCustodianTeam)")
+              Text("\(record.labelType.rawValue) • \(record.labelValuePlaceholder)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(record.custodyStatus.rawValue, color: record.custodyStatus.color)
+            Badge(record.labelStatus.rawValue, color: record.labelStatus.color)
           }
-
-          Text(record.custodyReason)
+          Text(record.notes)
             .foregroundStyle(.secondary)
-          Text("\(record.handoffMethod.rawValue) • Owner \(record.assignedOwnerTeam) • Expected \(record.expectedReturnCloseDate)")
+          Text("\(record.labelSource.rawValue) • \(record.associatedCarrier) • Owner \(record.assignedOwnerTeam)")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(3)
@@ -212,18 +194,14 @@ struct CustodyRecordRow: View {
         }
       }
 
-      LabelReferenceStrip(records: labelReferences)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Transferred", systemImage: "arrow.right.circle.fill", action: onTransferred)
+        Button("Printed", systemImage: "printer.fill", action: onPrinted)
           .buttonStyle(.bordered)
-        Button("Received", systemImage: "checkmark.circle.fill", action: onReceived)
+        Button("Verified", systemImage: "barcode.viewfinder", action: onVerified)
           .buttonStyle(.bordered)
-        Button("Closed", systemImage: "checkmark.seal.fill", action: onReturnedClosed)
-          .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Invalid", systemImage: "exclamationmark.triangle.fill", action: onInvalid)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -239,19 +217,19 @@ struct CustodyRecordRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      CustodyRecordEditView(record: record) { updatedRecord in
+      LabelReferenceEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
     }
   }
 }
 
-struct CustodyRecordEditView: View {
+struct LabelReferenceEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: CustodyRecord
-  var onSave: (CustodyRecord) -> Void
+  @State private var draft: LabelReferenceRecord
+  var onSave: (LabelReferenceRecord) -> Void
 
-  init(record: CustodyRecord, onSave: @escaping (CustodyRecord) -> Void) {
+  init(record: LabelReferenceRecord, onSave: @escaping (LabelReferenceRecord) -> Void) {
     self._draft = State(initialValue: record)
     self.onSave = onSave
   }
@@ -259,54 +237,45 @@ struct CustodyRecordEditView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Custody") {
+        Section("Label") {
           TextField("Title", text: $draft.title)
-          Picker("Status", selection: $draft.custodyStatus) {
-            ForEach(CustodyStatus.allCases) { status in
-              Text(status.rawValue).tag(status)
-            }
+          Picker("Type", selection: $draft.labelType) {
+            ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type) }
           }
-          Picker("Handoff method", selection: $draft.handoffMethod) {
-            ForEach(CustodyHandoffMethod.allCases) { method in
-              Text(method.rawValue).tag(method)
-            }
+          TextField("Value placeholder", text: $draft.labelValuePlaceholder)
+          Picker("Source", selection: $draft.labelSource) {
+            ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source) }
           }
-          TextField("Custody reason", text: $draft.custodyReason, axis: .vertical)
+          Picker("Status", selection: $draft.labelStatus) {
+            ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status) }
+          }
+          TextField("Associated carrier", text: $draft.associatedCarrier)
         }
 
-        Section("Teams and dates") {
-          TextField("Current custodian/team", text: $draft.currentCustodianTeam)
-          TextField("Previous custodian/team", text: $draft.previousCustodianTeam)
-          TextField("Assigned owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Transfer date", text: $draft.transferDate)
-          TextField("Expected return/close date", text: $draft.expectedReturnCloseDate)
+        Section("Ownership") {
+          TextField("Owner/team", text: $draft.assignedOwnerTeam)
+          TextField("Created date", text: $draft.createdDate)
+          TextField("Last reviewed", text: $draft.lastReviewedDate)
+          TextField("Notes", text: $draft.notes, axis: .vertical)
         }
 
         Section("Review") {
           Picker("Risk", selection: $draft.riskLevel) {
-            ForEach(ShipmentRiskLevel.allCases) { risk in
-              Text(risk.rawValue).tag(risk)
-            }
+            ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(risk) }
           }
           Picker("Review state", selection: $draft.reviewState) {
-            ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
-              Text(state.rawValue).tag(state)
-            }
+            ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in Text(state.rawValue).tag(state) }
           }
-          TextField("Last reviewed", text: $draft.lastReviewedDate)
         }
 
         Section("Link") {
           Picker("Linked record type", selection: $draft.linkedEntityType) {
-            ForEach(ReviewTaskLinkedEntityType.allCases) { type in
-              Text(type.rawValue).tag(type)
-            }
+            ForEach(ReviewTaskLinkedEntityType.allCases) { type in Text(type.rawValue).tag(type) }
           }
           TextField("Linked record ID", text: $draft.linkedEntityID)
-          TextField("Notes", text: $draft.notes, axis: .vertical)
         }
       }
-      .navigationTitle("Edit Custody")
+      .navigationTitle("Edit Label")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })

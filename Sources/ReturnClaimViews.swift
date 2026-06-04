@@ -49,7 +49,7 @@ struct ReturnsClaimsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredClaims) { claim in
-              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim)) { updatedClaim in
+              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim)) { updatedClaim in
                 store.updateReturnClaim(updatedClaim)
               } onSubmitted: {
                 store.markReturnClaimSubmitted(claim)
@@ -169,6 +169,7 @@ struct ReturnClaimRow: View {
   var inventoryReceipts: [InventoryReceiptRecord] = []
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
+  var labelReferences: [LabelReferenceRecord] = []
   var onSave: (ReturnClaimRecord) -> Void
   var onSubmitted: () -> Void
   var onApproved: () -> Void
@@ -225,6 +226,7 @@ struct ReturnClaimRow: View {
       InventoryReceiptStrip(receipts: inventoryReceipts)
       StorageLocationStrip(locations: storageLocations)
       CustodyRecordStrip(records: custodyRecords)
+      LabelReferenceStrip(records: labelReferences)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

@@ -287,6 +287,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Label references", symbol: "barcode.viewfinder") {
+          let records = store.suggestedLabelReferenceRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local label references matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            LabelReferenceStrip(records: records)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

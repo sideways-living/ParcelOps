@@ -49,7 +49,7 @@ struct StorageLocationsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredLocations) { location in
-              StorageLocationRow(location: location, custodyRecords: store.suggestedCustodyRecords(for: location)) { updatedLocation in
+              StorageLocationRow(location: location, custodyRecords: store.suggestedCustodyRecords(for: location), labelReferences: store.suggestedLabelReferenceRecords(for: location)) { updatedLocation in
                 store.updateStorageLocation(updatedLocation)
               } onToggle: {
                 store.toggleStorageLocation(location)
@@ -154,6 +154,7 @@ struct StorageLocationsView: View {
 struct StorageLocationRow: View {
   var location: StorageLocationRecord
   var custodyRecords: [CustodyRecord] = []
+  var labelReferences: [LabelReferenceRecord] = []
   var onSave: (StorageLocationRecord) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
@@ -203,6 +204,7 @@ struct StorageLocationRow: View {
       }
 
       CustodyRecordStrip(records: custodyRecords)
+      LabelReferenceStrip(records: labelReferences)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

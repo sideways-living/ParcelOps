@@ -47,7 +47,7 @@ struct PackageContentsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContents) { content in
-              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content)) { updatedContent in
+              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content)) { updatedContent in
                 store.updatePackageContent(updatedContent)
               } onVerified: {
                 store.markPackageContentVerified(content)
@@ -160,6 +160,7 @@ struct PackageContentRow: View {
   var inventoryReceipts: [InventoryReceiptRecord] = []
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
+  var labelReferences: [LabelReferenceRecord] = []
   var onSave: (PackageContentRecord) -> Void
   var onVerified: () -> Void
   var onDiscrepancy: () -> Void
@@ -216,6 +217,7 @@ struct PackageContentRow: View {
       InventoryReceiptStrip(receipts: inventoryReceipts)
       StorageLocationStrip(locations: storageLocations)
       CustodyRecordStrip(records: custodyRecords)
+      LabelReferenceStrip(records: labelReferences)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

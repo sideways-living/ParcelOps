@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -985,7 +985,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
           ForEach(Array(Set(store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations))) { record in
-            CustodyRecordRow(record: record) { updatedRecord in
+            CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record)) { updatedRecord in
               store.updateCustodyRecord(updatedRecord)
             } onTransferred: {
               store.markCustodyRecordTransferred(record)
@@ -1003,6 +1003,28 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: record)
             } onRemove: {
               store.removeCustodyRecord(record)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Label references", symbol: "barcode.viewfinder") {
+          ForEach(Array(Set(store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords))) { record in
+            LabelReferenceRow(record: record) { updatedRecord in
+              store.updateLabelReferenceRecord(updatedRecord)
+            } onPrinted: {
+              store.markLabelReferencePrinted(record)
+            } onVerified: {
+              store.markLabelReferenceVerified(record)
+            } onInvalid: {
+              store.markLabelReferenceInvalid(record)
+            } onReviewed: {
+              store.markLabelReferenceReviewed(record)
+            } onCreateTask: {
+              store.createReviewTask(from: record)
+            } onCreateDraft: {
+              store.createDraftMessage(from: record)
+            } onRemove: {
+              store.removeLabelReferenceRecord(record)
             }
           }
         }

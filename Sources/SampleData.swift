@@ -1451,6 +1451,78 @@ enum SampleData {
     )
   ]
 
+  static var labelReferenceRecords: [LabelReferenceRecord] = [
+    LabelReferenceRecord(
+      title: "Exception carton tracking label",
+      linkedEntityType: .order,
+      linkedEntityID: orders[0].id.uuidString,
+      labelType: .trackingLabel,
+      labelValuePlaceholder: orders[0].trackingNumber,
+      labelSource: .carrierLabel,
+      labelStatus: .invalidNeedsReview,
+      associatedCarrier: orders[0].carrier,
+      storageLocationID: storageLocations[0].id,
+      inventoryReceiptID: inventoryReceipts[0].id,
+      custodyRecordID: custodyRecords[0].id,
+      orderID: orders[0].id,
+      shipmentGroupID: shipmentGroups.first?.id,
+      packageContentID: packageContents[0].id,
+      evidenceAttachmentIDs: evidenceAttachments.prefix(1).map(\.id),
+      assignedOwnerTeam: "Receiving Desk",
+      createdDate: "Today 10:35 AM",
+      lastReviewedDate: "Never",
+      notes: "Local placeholder for a damaged tracking label. No barcode scanning or label printing is performed.",
+      riskLevel: .high,
+      reviewState: .needsReview
+    ),
+    LabelReferenceRecord(
+      title: "Packing bench shelf QR placeholder",
+      linkedEntityType: .storageLocation,
+      linkedEntityID: storageLocations[1].id.uuidString,
+      labelType: .shelfBinLabel,
+      labelValuePlaceholder: storageLocations[1].locationCode,
+      labelSource: .storageLocation,
+      labelStatus: .scannedVerified,
+      associatedCarrier: "Any carrier",
+      storageLocationID: storageLocations[1].id,
+      inventoryReceiptID: inventoryReceipts[1].id,
+      custodyRecordID: custodyRecords[1].id,
+      orderID: orders.indices.contains(1) ? orders[1].id : nil,
+      shipmentGroupID: shipmentGroups.first?.id,
+      packageContentID: packageContents[1].id,
+      evidenceAttachmentIDs: [],
+      assignedOwnerTeam: "ParcelOps Operations",
+      createdDate: "Yesterday 3:45 PM",
+      lastReviewedDate: "Yesterday 3:50 PM",
+      notes: "Local QR placeholder used to identify the packing bench shelf in ParcelOps only.",
+      riskLevel: .low,
+      reviewState: .accepted
+    ),
+    LabelReferenceRecord(
+      title: "Replacement custody label missing value",
+      linkedEntityType: .custodyRecord,
+      linkedEntityID: custodyRecords[2].id.uuidString,
+      labelType: .custodyLabel,
+      labelValuePlaceholder: "To assign",
+      labelSource: .custodyChain,
+      labelStatus: .missingValue,
+      associatedCarrier: "Unassigned",
+      storageLocationID: storageLocations[2].id,
+      inventoryReceiptID: inventoryReceipts[2].id,
+      custodyRecordID: custodyRecords[2].id,
+      orderID: nil,
+      shipmentGroupID: nil,
+      packageContentID: packageContents[2].id,
+      evidenceAttachmentIDs: [],
+      assignedOwnerTeam: "Receiving Desk",
+      createdDate: "Today 11:10 AM",
+      lastReviewedDate: "Never",
+      notes: "Missing local label value until custody and storage source are corrected.",
+      riskLevel: .critical,
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",

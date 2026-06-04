@@ -51,7 +51,7 @@ struct ProcurementView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRequests) { request in
-              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request)) { updatedRequest in
+              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request)) { updatedRequest in
                 store.updateProcurementRequest(updatedRequest)
               } onApproved: {
                 store.markProcurementRequestApproved(request)
@@ -171,6 +171,7 @@ struct ProcurementRequestRow: View {
   var inventoryReceipts: [InventoryReceiptRecord] = []
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
+  var labelReferences: [LabelReferenceRecord] = []
   var onSave: (ProcurementRequest) -> Void
   var onApproved: () -> Void
   var onOrdered: () -> Void
@@ -224,6 +225,7 @@ struct ProcurementRequestRow: View {
       InventoryReceiptStrip(receipts: inventoryReceipts)
       StorageLocationStrip(locations: storageLocations)
       CustodyRecordStrip(records: custodyRecords)
+      LabelReferenceStrip(records: labelReferences)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

@@ -47,7 +47,7 @@ struct InventoryReceiptsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredReceipts) { receipt in
-              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt)) { updatedReceipt in
+              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt)) { updatedReceipt in
                 store.updateInventoryReceipt(updatedReceipt)
               } onStocked: {
                 store.markInventoryReceiptStocked(receipt)
@@ -155,6 +155,7 @@ struct InventoryReceiptRow: View {
   var receipt: InventoryReceiptRecord
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
+  var labelReferences: [LabelReferenceRecord] = []
   var onSave: (InventoryReceiptRecord) -> Void
   var onStocked: () -> Void
   var onHandedOff: () -> Void
@@ -208,6 +209,7 @@ struct InventoryReceiptRow: View {
 
       StorageLocationStrip(locations: storageLocations)
       CustodyRecordStrip(records: custodyRecords)
+      LabelReferenceStrip(records: labelReferences)
 
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })

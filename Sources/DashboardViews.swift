@@ -242,6 +242,16 @@ struct DashboardView: View {
             CompactCustodyRecordList(records: Array((store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations).prefix(4)))
           }
 
+          AnalyticsSection(title: "Label references", symbol: "barcode.viewfinder") {
+            MetricStrip(items: [
+              ("Review", "\(store.labelReferencesNeedingReview.count)", .orange),
+              ("Invalid", "\(store.invalidLabelReferences.count)", .red),
+              ("Unverified", "\(store.unverifiedLabelReferences.count)", .blue),
+              ("Missing", "\(store.labelReferencesMissingValues.count + store.labelReferencesMissingLinkedRecords.count)", .red)
+            ])
+            CompactLabelReferenceList(records: Array((store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -785,6 +795,23 @@ struct CompactCustodyRecordList: View {
           detail: "\(record.currentCustodianTeam) • \(record.expectedReturnCloseDate)",
           badge: record.custodyStatus.rawValue,
           color: record.custodyStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactLabelReferenceList: View {
+  var records: [LabelReferenceRecord]
+
+  var body: some View {
+    CompactList(title: "Label references", symbol: "barcode.viewfinder") {
+      ForEach(records) { record in
+        CompactRow(
+          title: record.title,
+          detail: "\(record.labelType.rawValue) • \(record.labelValuePlaceholder)",
+          badge: record.labelStatus.rawValue,
+          color: record.labelStatus.color
         )
       }
     }
