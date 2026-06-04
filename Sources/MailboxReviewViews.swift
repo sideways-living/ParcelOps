@@ -16,7 +16,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -72,6 +72,7 @@ struct IntakeEmailRow: View {
   var suggestedContacts: [ContactDirectoryEntry] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedProfiles: [VendorProfile] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
   var shipmentGroups: [ShipmentGroup] = []
   var onSave: (ForwardedEmailIntake) -> Void
   var onLinkOrder: (TrackedOrder) -> Void
@@ -253,6 +254,10 @@ struct IntakeEmailRow: View {
           }
         }
       }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
+      }
     }
     .padding(12)
     .background(.quinary)
@@ -393,7 +398,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -415,7 +420,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue)) {
+            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -432,7 +437,8 @@ struct NeedsReviewView: View {
               acceptanceRecords: store.acceptanceRecords(for: issue),
               validationIssues: store.relatedValidationIssues(for: issue),
               playbooks: store.suggestedPlaybooks(for: issue),
-              handoffNotes: store.handoffNotes(for: issue)
+              handoffNotes: store.handoffNotes(for: issue),
+              customerProfiles: store.suggestedCustomerProfiles(for: issue)
             ) {
               store.markReconciliationIssueReviewed(issue)
             } onCreateTask: {
@@ -447,7 +453,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -474,6 +480,7 @@ struct NeedsReviewView: View {
               history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
               playbooks: store.suggestedPlaybooks(for: candidate),
               handoffNotes: store.handoffNotes(for: candidate),
+              customerProfiles: store.suggestedCustomerProfiles(for: candidate),
               onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
               onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
               onCreateOrder: { store.createOrder(from: candidate) },
@@ -495,6 +502,7 @@ struct NeedsReviewView: View {
               shipmentGroups: store.shipmentGroups,
               playbooks: store.suggestedPlaybooks(for: item),
               handoffNotes: store.handoffNotes(for: item),
+              customerProfiles: store.suggestedCustomerProfiles(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -546,7 +554,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
             } onLinkOrder: { order in
               store.linkIntakeEmail(email, to: order)
@@ -586,7 +594,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Evidence", symbol: "paperclip") {
           ForEach(store.reviewEvidenceAttachments) { attachment in
-            EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment)) {
+            EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment)) {
               store.markEvidenceReviewed(attachment)
             } onRemove: {
               store.removeEvidence(attachment)
@@ -602,7 +610,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
@@ -626,7 +634,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Task escalations", symbol: "checklist") {
           ForEach(store.reviewTasksNeedingAttention) { task in
-            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task)) { updatedTask in
+            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task)) { updatedTask in
               store.updateReviewTask(updatedTask)
             } onComplete: {
               store.completeReviewTask(task)
@@ -646,7 +654,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
           ForEach(store.handoffNotesNeedingAttention) { note in
-            HandoffNoteRow(note: note) { updatedNote in
+            HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note)) { updatedNote in
               store.updateHandoffNote(updatedNote)
             } onAcknowledge: {
               store.acknowledgeHandoffNote(note)
@@ -736,6 +744,24 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: contact)
             } onRemove: {
               store.removeContactDirectoryEntry(contact)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
+          ForEach(Array(Set(store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }))) { profile in
+            CustomerProfileRow(profile: profile) { updatedProfile in
+              store.updateCustomerRecipientProfile(updatedProfile)
+            } onToggle: {
+              store.toggleCustomerRecipientProfile(profile)
+            } onReviewed: {
+              store.markCustomerRecipientProfileReviewed(profile)
+            } onCreateTask: {
+              store.createReviewTask(from: profile)
+            } onCreateDraft: {
+              store.createDraftMessage(from: profile)
+            } onRemove: {
+              store.removeCustomerRecipientProfile(profile)
             }
           }
         }

@@ -154,6 +154,23 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
+          let profiles = store.suggestedCustomerProfiles(for: order)
+
+          if profiles.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local customer profiles matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create profile", systemImage: "person.badge.plus") {
+                store.addCustomerRecipientProfile(displayName: order.customer, organisationTeam: order.customer, email: order.recipientEmail, destination: order.destination, profileType: .recipient)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            CustomerProfileStrip(profiles: profiles)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 
@@ -325,7 +342,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
@@ -373,7 +390,7 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(attachments) { attachment in
-                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment)) {
+                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
                   store.removeEvidence(attachment)

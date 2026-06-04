@@ -42,7 +42,7 @@ struct OperationsWorkbenchView: View {
         ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.items) { item in
-              WorkbenchItemRow(item: item) {
+              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item)) {
                 store.createReviewTask(from: item)
               } onCreateDraft: {
                 store.createDraftMessage(from: item)
@@ -129,6 +129,7 @@ struct OperationsWorkbenchView: View {
 
 struct WorkbenchItemRow: View {
   var item: WorkbenchItem
+  var customerProfiles: [CustomerRecipientProfile] = []
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
@@ -180,6 +181,10 @@ struct WorkbenchItemRow: View {
         Text(item.source.rawValue)
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
+      }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
       }
     }
     .padding(12)

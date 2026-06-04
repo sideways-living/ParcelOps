@@ -32,6 +32,7 @@ struct ImportQueueView: View {
               shipmentGroups: store.shipmentGroups,
               playbooks: store.suggestedPlaybooks(for: item),
               handoffNotes: store.handoffNotes(for: item),
+              customerProfiles: store.suggestedCustomerProfiles(for: item),
               onSave: store.updateImportQueueItem,
               onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
               onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
@@ -110,6 +111,7 @@ struct ImportQueueItemRow: View {
   var shipmentGroups: [ShipmentGroup] = []
   var playbooks: [ExceptionPlaybook] = []
   var handoffNotes: [HandoffNote] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
   var onSave: (ImportQueueItem) -> Void = { _ in }
   var onLinkOrder: (TrackedOrder) -> Void = { _ in }
   var onLinkShipmentGroup: (ShipmentGroup) -> Void = { _ in }
@@ -130,6 +132,7 @@ struct ImportQueueItemRow: View {
     shipmentGroups: [ShipmentGroup] = [],
     playbooks: [ExceptionPlaybook] = [],
     handoffNotes: [HandoffNote] = [],
+    customerProfiles: [CustomerRecipientProfile] = [],
     onSave: @escaping (ImportQueueItem) -> Void = { _ in },
     onLinkOrder: @escaping (TrackedOrder) -> Void = { _ in },
     onLinkShipmentGroup: @escaping (ShipmentGroup) -> Void = { _ in },
@@ -147,6 +150,7 @@ struct ImportQueueItemRow: View {
     self.shipmentGroups = shipmentGroups
     self.playbooks = playbooks
     self.handoffNotes = handoffNotes
+    self.customerProfiles = customerProfiles
     self.onSave = onSave
     self.onLinkOrder = onLinkOrder
     self.onLinkShipmentGroup = onLinkShipmentGroup
@@ -208,6 +212,10 @@ struct ImportQueueItemRow: View {
 
       if !handoffNotes.isEmpty {
         HandoffNoteStrip(notes: handoffNotes)
+      }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
       }
 
       HStack {

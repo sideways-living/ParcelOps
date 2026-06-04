@@ -118,6 +118,7 @@ extension AuditEntityType {
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
     case .contactDirectoryEntry: "person.crop.circle.badge.checkmark"
+    case .customerRecipientProfile: "person.text.rectangle.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -141,6 +142,7 @@ extension TimelineEntityType {
     case .communicationTemplate: "text.badge.checkmark"
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
+    case .customerProfile: "person.text.rectangle.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -213,6 +215,7 @@ extension WorkbenchSource {
     case .exceptionPlaybook: "book.closed.fill"
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
+    case .customerProfile: "person.text.rectangle.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -260,7 +263,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -376,6 +379,30 @@ extension VendorProfileType {
     case .shopifyStore: "cart.fill"
     case .internalTeam: "person.2.fill"
     case .marketplace: "bag.fill"
+    }
+  }
+}
+
+extension CustomerProfileType {
+  var symbol: String {
+    switch self {
+    case .customer: "person.fill"
+    case .recipient: "person.crop.square.fill"
+    case .internalTeam: "person.2.fill"
+    case .department: "building.columns.fill"
+    case .site: "mappin.and.ellipse"
+    }
+  }
+}
+
+extension DeliveryPreference {
+  var symbol: String {
+    switch self {
+    case .delivery: "truck.box.fill"
+    case .clickAndCollect: "bag.fill"
+    case .pickup: "shippingbox.and.arrow.backward.fill"
+    case .internalHandoff: "arrow.left.arrow.right.square.fill"
+    case .noPreference: "questionmark.circle.fill"
     }
   }
 }
@@ -616,6 +643,43 @@ struct HandoffNoteStrip: View {
   }
 }
 
+struct CustomerProfileStrip: View {
+  var profiles: [CustomerRecipientProfile]
+
+  var body: some View {
+    if !profiles.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Customer profiles", systemImage: "person.text.rectangle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(profiles.prefix(3)) { profile in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: profile.profileType.symbol)
+              .foregroundStyle(profile.isEnabled ? .blue : .orange)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(profile.displayName)
+                .font(.caption.weight(.semibold))
+              Text("\(profile.organisationTeam) • \(profile.deliveryPreference.rawValue)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(profile.defaultDestinationAddress)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(profile.reviewState.rawValue, color: profile.reviewState.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ContactLinkedEntityType {
   var symbol: String {
     switch self {
@@ -624,6 +688,7 @@ extension ContactLinkedEntityType {
     case .carrier: "truck.box.fill"
     case .shopifyStore: "cart.fill"
     case .internalTeam: "person.2.fill"
+    case .customerProfile: "person.text.rectangle.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -656,6 +721,7 @@ extension AccountLinkedEntityType {
     case .shopifyStore: "cart.fill"
     case .internalTeam: "person.2.fill"
     case .contact: "person.crop.circle.badge.checkmark"
+    case .customerProfile: "person.text.rectangle.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -691,6 +757,7 @@ extension ReviewTaskLinkedEntityType {
     case .exceptionPlaybook: "book.closed.fill"
     case .draftMessage: "envelope.open.fill"
     case .contact: "person.crop.circle.badge.checkmark"
+    case .customerProfile: "person.text.rectangle.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -804,7 +871,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       return id.uuidString == linkedEntityID
     }
   }
@@ -869,6 +936,7 @@ extension TimelineActivity {
     case .communicationTemplate: nil
     case .draftMessage: .draftMessage
     case .contact: .contact
+    case .customerProfile: .customerProfile
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

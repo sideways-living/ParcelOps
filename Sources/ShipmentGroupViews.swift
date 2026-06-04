@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -96,6 +96,7 @@ struct ShipmentGroupRow: View {
   var acceptanceRecords: [AcceptanceRecord] = []
   var playbooks: [ExceptionPlaybook] = []
   var handoffNotes: [HandoffNote] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
   var onSave: (ShipmentGroup) -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -110,6 +111,7 @@ struct ShipmentGroupRow: View {
     acceptanceRecords: [AcceptanceRecord] = [],
     playbooks: [ExceptionPlaybook] = [],
     handoffNotes: [HandoffNote] = [],
+    customerProfiles: [CustomerRecipientProfile] = [],
     onSave: @escaping (ShipmentGroup) -> Void,
     onReviewed: @escaping () -> Void,
     onCreateTask: @escaping () -> Void,
@@ -121,6 +123,7 @@ struct ShipmentGroupRow: View {
     self.acceptanceRecords = acceptanceRecords
     self.playbooks = playbooks
     self.handoffNotes = handoffNotes
+    self.customerProfiles = customerProfiles
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onCreateTask = onCreateTask
@@ -177,6 +180,10 @@ struct ShipmentGroupRow: View {
 
       if !handoffNotes.isEmpty {
         HandoffNoteStrip(notes: handoffNotes)
+      }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
       }
 
       HStack {

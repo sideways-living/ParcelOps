@@ -31,6 +31,7 @@ final class ParcelOpsStore {
   var communicationTemplates: [CommunicationTemplate]
   var draftMessages: [DraftMessage]
   var contactDirectoryEntries: [ContactDirectoryEntry]
+  var customerRecipientProfiles: [CustomerRecipientProfile]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -54,6 +55,7 @@ final class ParcelOpsStore {
   private let exceptionPlaybookRepository: ExceptionPlaybookRepository
   private let communicationRepository: CommunicationRepository
   private let contactDirectoryRepository: ContactDirectoryRepository
+  private let customerRecipientProfileRepository: CustomerRecipientProfileRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -66,7 +68,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -94,6 +96,7 @@ final class ParcelOpsStore {
     self.exceptionPlaybookRepository = repository
     self.communicationRepository = repository
     self.contactDirectoryRepository = repository
+    self.customerRecipientProfileRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -127,6 +130,7 @@ final class ParcelOpsStore {
     self.communicationTemplates = repository.loadCommunicationTemplates()
     self.draftMessages = repository.loadDraftMessages()
     self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
+    self.customerRecipientProfiles = repository.loadCustomerRecipientProfiles()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -159,7 +163,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -280,6 +284,18 @@ final class ParcelOpsStore {
 
   var contactsNeedingReview: [ContactDirectoryEntry] {
     contactDirectoryEntries.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledCustomerProfileCount: Int {
+    customerRecipientProfiles.filter(\.isEnabled).count
+  }
+
+  var disabledCustomerProfileCount: Int {
+    customerRecipientProfiles.filter { !$0.isEnabled }.count
+  }
+
+  var customerProfilesNeedingReview: [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.reviewState != .accepted }
   }
 
   var enabledAccountRecordCount: Int {
@@ -470,6 +486,7 @@ final class ParcelOpsStore {
       + exceptionPlaybookWorkbenchItems()
       + draftMessageWorkbenchItems()
       + contactWorkbenchItems()
+      + customerProfileWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2121,6 +2138,25 @@ final class ParcelOpsStore {
         reviewState: contact.reviewState,
         source: .contact,
         suggestedNextAction: "Review contact details"
+      )
+    }
+  }
+
+  private func customerProfileWorkbenchItems() -> [WorkbenchItem] {
+    customerRecipientProfiles.filter { $0.reviewState != .accepted || !$0.isEnabled }.map { profile in
+      WorkbenchItem(
+        id: "customer-profile-\(profile.id.uuidString)",
+        title: profile.displayName,
+        summary: "\(profile.organisationTeam) • \(profile.defaultDestinationAddress)",
+        linkedEntityType: .customerProfile,
+        linkedEntityID: profile.id.uuidString,
+        prioritySeverity: profile.isEnabled ? "Normal" : "High",
+        status: profile.isEnabled ? "Enabled" : "Disabled",
+        assignee: profile.organisationTeam,
+        dueDateText: profile.lastReviewedDate,
+        reviewState: profile.reviewState,
+        source: .customerProfile,
+        suggestedNextAction: profile.isEnabled ? "Review customer profile" : "Enable or confirm profile"
       )
     }
   }
@@ -4235,6 +4271,145 @@ final class ParcelOpsStore {
     }
   }
 
+  func filteredCustomerRecipientProfiles(profileType: CustomerProfileType?, organisationTeam: String?, isEnabled: Bool?, deliveryPreference: DeliveryPreference?, reviewState: ReviewState?) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { profile in
+      let matchesType = profileType == nil || profile.profileType == profileType
+      let matchesOrganisation = organisationTeam == nil || profile.organisationTeam == organisationTeam
+      let matchesEnabled = isEnabled == nil || profile.isEnabled == isEnabled
+      let matchesDelivery = deliveryPreference == nil || profile.deliveryPreference == deliveryPreference
+      let matchesReview = reviewState == nil || profile.reviewState == reviewState
+      return matchesType && matchesOrganisation && matchesEnabled && matchesDelivery && matchesReview
+    }
+  }
+
+  func addCustomerRecipientProfilePlaceholder() {
+    let profile = CustomerRecipientProfile(displayName: "New customer profile \(customerRecipientProfiles.count + 1)", profileType: .recipient, organisationTeam: "Unassigned team", primaryEmail: "recipient@example.com", phone: "Not recorded", defaultDestinationAddress: "Address to confirm", deliveryPreference: .noPreference, notes: "Define recipient, team, destination, and delivery preferences.", isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    customerRecipientProfiles.insert(profile, at: 0)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile placeholder added.", afterDetail: profile.auditDetail)
+  }
+
+  func addCustomerRecipientProfile(displayName: String, organisationTeam: String, email: String, destination: String, profileType: CustomerProfileType = .recipient) {
+    let profile = CustomerRecipientProfile(displayName: displayName, profileType: profileType, organisationTeam: organisationTeam, primaryEmail: email, phone: "Not recorded", defaultDestinationAddress: destination, deliveryPreference: .delivery, notes: "Local profile created from workflow.", isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    customerRecipientProfiles.insert(profile, at: 0)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile created from workflow.", afterDetail: profile.auditDetail)
+  }
+
+  func updateCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index] = profile
+    persistCustomerRecipientProfiles()
+    logAudit(action: .edited, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile details updated.", beforeDetail: beforeDetail, afterDetail: profile.auditDetail)
+  }
+
+  func toggleCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index].isEnabled.toggle()
+    persistCustomerRecipientProfiles()
+    logAudit(action: customerRecipientProfiles[index].isEnabled ? .enabled : .disabled, entityType: .customerRecipientProfile, entityID: customerRecipientProfiles[index].id.uuidString, entityLabel: customerRecipientProfiles[index].displayName, summary: customerRecipientProfiles[index].isEnabled ? "Customer profile enabled." : "Customer profile disabled.", beforeDetail: beforeDetail, afterDetail: customerRecipientProfiles[index].auditDetail)
+  }
+
+  func markCustomerRecipientProfileReviewed(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index].reviewState = .accepted
+    customerRecipientProfiles[index].lastReviewedDate = Self.auditTimestamp()
+    persistCustomerRecipientProfiles()
+    logAudit(action: .reviewed, entityType: .customerRecipientProfile, entityID: customerRecipientProfiles[index].id.uuidString, entityLabel: customerRecipientProfiles[index].displayName, summary: "Customer profile marked reviewed.", beforeDetail: beforeDetail, afterDetail: customerRecipientProfiles[index].auditDetail)
+  }
+
+  func removeCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let removed = customerRecipientProfiles.remove(at: index)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .removed, entityType: .customerRecipientProfile, entityID: removed.id.uuidString, entityLabel: removed.displayName, summary: "Customer profile removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from profile: CustomerRecipientProfile) {
+    createReviewTask(linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString, label: profile.displayName, summary: "Review customer profile for \(profile.organisationTeam). Destination: \(profile.defaultDestinationAddress). \(profile.notes)", priority: profile.isEnabled ? .normal : .high, assignee: profile.organisationTeam)
+  }
+
+  func createDraftMessage(from profile: CustomerRecipientProfile) {
+    createDraftMessage(linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString, label: profile.displayName, recipient: profile.primaryEmail)
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Draft message created from customer profile.", afterDetail: profile.auditDetail)
+  }
+
+  func suggestedCustomerProfiles(for order: TrackedOrder) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: order.recipientEmail, team: order.customer, destination: order.destination, linkedEntityType: .order, linkedEntityID: order.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for email: ForwardedEmailIntake) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: email.sender, team: email.detectedMerchant, destination: email.detectedDestinationAddress, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for item: ImportQueueItem) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: item.detectedMerchant, destination: item.detectedDestinationAddress, linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for candidate: AcceptanceCandidate) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: candidate.detectedMerchant, destination: candidate.detectedDestinationAddress, linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for group: ShipmentGroup) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: group.recipientCustomerSummary, destination: group.destinationSummary, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for task: ReviewTask) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: task.assignee, destination: task.summary, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for note: HandoffNote) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: note.assignee, destination: note.summary, linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for event: CarrierTrackingEvent) -> [CustomerRecipientProfile] {
+    let order = orders.first { $0.id == event.orderID }
+    return customerRecipientProfiles.filter { $0.matches(email: order?.recipientEmail ?? "", team: order?.customer ?? event.carrier, destination: order?.destination ?? event.location, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for attachment: EvidenceAttachment) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: attachment.summary, destination: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for issue: ValidationIssue) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: issue.subtitle, destination: issue.detail, linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID) }
+  }
+
+  func suggestedCustomerProfiles(for issue: ReconciliationIssue) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: issue.summary, destination: issue.detectedValue, linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id) }
+  }
+
+  func suggestedCustomerProfiles(for draft: DraftMessage) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: draft.recipient, team: draft.subject, destination: draft.body, linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for contact: ContactDirectoryEntry) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: contact.email, team: contact.organisation, destination: contact.notes, linkedEntityType: .contact, linkedEntityID: contact.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for account: AccountCredentialRecord) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: account.organisation, destination: account.notes, linkedEntityType: .account, linkedEntityID: account.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for profile: VendorProfile) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: profile.primaryOrganisation, destination: profile.serviceLevelNotes, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for policy: SLAPolicy) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: policy.name, destination: policy.conditionSummary, linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for playbook: ExceptionPlaybook) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: playbook.escalationContact, destination: playbook.triggerSummary, linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for item: WorkbenchItem) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: item.assignee, destination: item.summary, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID) }
+  }
+
   func addAccountCredentialRecordPlaceholder() {
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
@@ -4686,6 +4861,10 @@ final class ParcelOpsStore {
       if let contact = contactDirectoryEntries.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markContactDirectoryEntryReviewed(contact)
       }
+    case .customerProfile:
+      if let profile = customerRecipientProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markCustomerRecipientProfileReviewed(profile)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -4938,6 +5117,10 @@ final class ParcelOpsStore {
     contactDirectoryRepository.saveContactDirectoryEntries(contactDirectoryEntries)
   }
 
+  private func persistCustomerRecipientProfiles() {
+    customerRecipientProfileRepository.saveCustomerRecipientProfiles(customerRecipientProfiles)
+  }
+
   private func persistAccountCredentialRecords() {
     accountCredentialRepository.saveAccountCredentialRecords(accountCredentialRecords)
   }
@@ -5185,6 +5368,20 @@ private extension DraftMessage {
 private extension ContactDirectoryEntry {
   var auditDetail: String {
     "Name: \(name); organisation: \(organisation); role: \(role); email: \(email); phone: \(phone); channel: \(channelPreference.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last contacted: \(lastContactedDate); notes: \(notes)."
+  }
+}
+
+private extension CustomerRecipientProfile {
+  var auditDetail: String {
+    "Name: \(displayName); type: \(profileType.rawValue); organisation/team: \(organisationTeam); email: \(primaryEmail); phone: \(phone); destination: \(defaultDestinationAddress); preference: \(deliveryPreference.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(email: String, team: String, destination: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let emailMatch = !email.isEmpty && (primaryEmail.localizedCaseInsensitiveContains(email) || email.localizedCaseInsensitiveContains(primaryEmail))
+    let teamMatch = !team.isEmpty && (organisationTeam.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(organisationTeam) || displayName.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(displayName))
+    let destinationMatch = !destination.isEmpty && (defaultDestinationAddress.localizedCaseInsensitiveContains(destination) || destination.localizedCaseInsensitiveContains(defaultDestinationAddress))
+    let linkedMatch = linkedEntityType == .customerProfile && id.uuidString == linkedEntityID
+    return emailMatch || teamMatch || destinationMatch || linkedMatch
   }
 }
 

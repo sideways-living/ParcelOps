@@ -647,6 +647,51 @@ enum SampleData {
     )
   ]
 
+  static var customerRecipientProfiles: [CustomerRecipientProfile] = [
+    CustomerRecipientProfile(
+      displayName: "Brisbane Field Team",
+      profileType: .internalTeam,
+      organisationTeam: "ParcelOps Field Ops",
+      primaryEmail: "brisbane-field@parcelops.example",
+      phone: "Internal extension 208",
+      defaultDestinationAddress: "77 Eagle Street, Brisbane QLD",
+      deliveryPreference: .internalHandoff,
+      notes: "Owner for Brisbane pickup, delivery exception, and site handoff records.",
+      isEnabled: true,
+      createdDate: "Today 8:00 AM",
+      lastReviewedDate: "Today 8:20 AM",
+      reviewState: .accepted
+    ),
+    CustomerRecipientProfile(
+      displayName: "Operations Mailbox",
+      profileType: .department,
+      organisationTeam: "ParcelOps Operations",
+      primaryEmail: "orders@parcelops.example",
+      phone: "Internal extension 100",
+      defaultDestinationAddress: "Melbourne operations hub",
+      deliveryPreference: .delivery,
+      notes: "Default recipient profile for forwarded mailbox intake and manual imports.",
+      isEnabled: true,
+      createdDate: "Yesterday 9:00 AM",
+      lastReviewedDate: "Yesterday 9:20 AM",
+      reviewState: .monitor
+    ),
+    CustomerRecipientProfile(
+      displayName: "Shopify demo recipient",
+      profileType: .customer,
+      organisationTeam: "Shopify demo store",
+      primaryEmail: "customer@example.com",
+      phone: "Not recorded",
+      defaultDestinationAddress: "12 Market Street, Melbourne VIC",
+      deliveryPreference: .delivery,
+      notes: "Placeholder customer profile until real Shopify customer syncing exists.",
+      isEnabled: false,
+      createdDate: "Today 9:45 AM",
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+  ]
+
   static var accountCredentialRecords: [AccountCredentialRecord] = [
     AccountCredentialRecord(
       accountName: "Office Kit supplier portal",

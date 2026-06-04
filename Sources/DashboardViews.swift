@@ -132,6 +132,16 @@ struct DashboardView: View {
             CompactContactList(contacts: Array(store.contactsNeedingReview.prefix(4)))
           }
 
+          AnalyticsSection(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledCustomerProfileCount)", .green),
+              ("Disabled", "\(store.disabledCustomerProfileCount)", .gray),
+              ("Review", "\(store.customerProfilesNeedingReview.count)", .orange),
+              ("Total", "\(store.customerRecipientProfiles.count)", .blue)
+            ])
+            CompactCustomerProfileList(profiles: Array((store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -488,6 +498,23 @@ struct CompactContactList: View {
           detail: "\(contact.organisation) • \(contact.channelPreference.rawValue)",
           badge: contact.reviewState.rawValue,
           color: contact.reviewState.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactCustomerProfileList: View {
+  var profiles: [CustomerRecipientProfile]
+
+  var body: some View {
+    CompactList(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
+      ForEach(profiles) { profile in
+        CompactRow(
+          title: profile.displayName,
+          detail: "\(profile.organisationTeam) • \(profile.deliveryPreference.rawValue)",
+          badge: profile.isEnabled ? profile.reviewState.rawValue : "Disabled",
+          color: profile.isEnabled ? profile.reviewState.color : .gray
         )
       }
     }

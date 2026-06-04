@@ -38,6 +38,7 @@ struct AcceptanceReviewView: View {
                   history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
                   playbooks: store.suggestedPlaybooks(for: candidate),
                   handoffNotes: store.handoffNotes(for: candidate),
+                  customerProfiles: store.suggestedCustomerProfiles(for: candidate),
                   onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
                   onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
                   onCreateOrder: { store.createOrder(from: candidate) },
@@ -126,6 +127,7 @@ struct AcceptanceCandidateRow: View {
   var history: [AcceptanceRecord]
   var playbooks: [ExceptionPlaybook] = []
   var handoffNotes: [HandoffNote] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
   var onLinkOrder: (TrackedOrder) -> Void
   var onLinkShipmentGroup: (ShipmentGroup) -> Void
   var onCreateOrder: () -> Void
@@ -186,6 +188,10 @@ struct AcceptanceCandidateRow: View {
 
       if !handoffNotes.isEmpty {
         HandoffNoteStrip(notes: handoffNotes)
+      }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
       }
 
       HStack {

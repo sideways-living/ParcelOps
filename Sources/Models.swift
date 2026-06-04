@@ -17,6 +17,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case exceptionPlaybooks
   case communication
   case contacts
+  case customerProfiles
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -49,6 +50,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .exceptionPlaybooks: "Exception Playbooks"
     case .communication: "Communication"
     case .contacts: "Contacts"
+    case .customerProfiles: "Customer Profiles"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -81,6 +83,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .exceptionPlaybooks: "Playbooks"
     case .communication: "Comms"
     case .contacts: "Contacts"
+    case .customerProfiles: "Customers"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -113,6 +116,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .exceptionPlaybooks: "book.closed.fill"
     case .communication: "bubble.left.and.text.bubble.right.fill"
     case .contacts: "person.crop.circle.badge.checkmark"
+    case .customerProfiles: "person.text.rectangle.fill"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -466,6 +470,22 @@ struct ContactDirectoryEntry: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct CustomerRecipientProfile: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var displayName: String
+  var profileType: CustomerProfileType
+  var organisationTeam: String
+  var primaryEmail: String
+  var phone: String
+  var defaultDestinationAddress: String
+  var deliveryPreference: DeliveryPreference
+  var notes: String
+  var isEnabled: Bool
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -716,6 +736,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
   case contactDirectoryEntry = "Contact"
+  case customerRecipientProfile = "Customer profile"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -733,6 +754,26 @@ enum VendorProfileType: String, CaseIterable, Identifiable, Hashable, Codable {
   case shopifyStore = "Shopify store"
   case internalTeam = "Internal team"
   case marketplace = "Marketplace"
+
+  var id: String { rawValue }
+}
+
+enum CustomerProfileType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case customer = "Customer"
+  case recipient = "Recipient"
+  case internalTeam = "Internal team"
+  case department = "Department"
+  case site = "Site"
+
+  var id: String { rawValue }
+}
+
+enum DeliveryPreference: String, CaseIterable, Identifiable, Hashable, Codable {
+  case delivery = "Delivery"
+  case clickAndCollect = "Click and collect"
+  case pickup = "Pickup"
+  case internalHandoff = "Internal handoff"
+  case noPreference = "No preference"
 
   var id: String { rawValue }
 }
@@ -824,6 +865,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case communicationTemplate = "Communication template"
   case draftMessage = "Draft message"
   case contact = "Contact"
+  case customerProfile = "Customer profile"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -881,6 +923,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case exceptionPlaybook = "Exception playbook"
   case draftMessage = "Draft message"
   case contact = "Contact"
+  case customerProfile = "Customer profile"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -952,6 +995,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case shopifyStore = "Shopify store"
   case internalTeam = "Internal team"
   case contact = "Contact"
+  case customerProfile = "Customer profile"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -966,6 +1010,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case carrier = "Carrier"
   case shopifyStore = "Shopify store"
   case internalTeam = "Internal team"
+  case customerProfile = "Customer profile"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -992,6 +1037,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case exceptionPlaybook = "Exception playbook"
   case draftMessage = "Draft message"
   case contact = "Contact"
+  case customerProfile = "Customer profile"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
