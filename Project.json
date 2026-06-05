@@ -117,5 +117,33 @@
         }
       }
     }
+  },
+  "schemes": {
+    "ParcelOps": {
+      "build": {
+        "targets": {
+          "ParcelOps": "all"
+        }
+      },
+      "run": {
+        "config": "Debug"
+      },
+      "archive": {
+        "config": "Release"
+      }
+    },
+    "ParcelOps Watch": {
+      "build": {
+        "targets": {
+          "ParcelOps Watch": "all"
+        }
+      },
+      "run": {
+        "config": "Debug"
+      },
+      "archive": {
+        "config": "Release"
+      }
+    }
   }
 }
