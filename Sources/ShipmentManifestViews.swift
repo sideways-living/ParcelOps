@@ -1,11 +1,10 @@
 import SwiftUI
 
-struct LabelReferencesView: View {
+struct ShipmentManifestsView: View {
   var store: ParcelOpsStore
-  @State private var selectedType: LabelReferenceType?
-  @State private var selectedStatus: LabelReferenceStatus?
-  @State private var selectedSource: LabelReferenceSource?
-  @State private var carrier = ""
+  @State private var selectedType: ShipmentManifestType?
+  @State private var carrierCourier = ""
+  @State private var selectedStatus: ShipmentManifestDispatchStatus?
   @State private var ownerTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
@@ -13,8 +12,8 @@ struct LabelReferencesView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [LabelReferenceRecord] {
-    store.filteredLabelReferenceRecords(labelType: selectedType, labelStatus: selectedStatus, labelSource: selectedSource, carrier: carrier, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  private var filteredRecords: [ShipmentManifestRecord] {
+    store.filteredShipmentManifestRecords(manifestType: selectedType, carrierCourier: carrierCourier, dispatchStatus: selectedStatus, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
   }
 
   var body: some View {
@@ -23,18 +22,18 @@ struct LabelReferencesView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Label reference records", symbol: "barcode.viewfinder") {
+        SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {
           HStack {
-            Text("\(filteredRecords.count) visible label references")
+            Text("\(filteredRecords.count) visible manifests")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add label", systemImage: "plus", action: store.addLabelReferencePlaceholder)
+            Button("Add manifest", systemImage: "plus", action: store.addShipmentManifestPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No label references match the selected filters.")
+            Text("No shipment manifests match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
@@ -42,22 +41,26 @@ struct LabelReferencesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record)) { updatedRecord in
-                store.updateLabelReferenceRecord(updatedRecord)
-              } onPrinted: {
-                store.markLabelReferencePrinted(record)
-              } onVerified: {
-                store.markLabelReferenceVerified(record)
-              } onInvalid: {
-                store.markLabelReferenceInvalid(record)
+              ShipmentManifestRow(record: record) { updatedRecord in
+                store.updateShipmentManifestRecord(updatedRecord)
+              } onPrepared: {
+                store.markShipmentManifestPrepared(record)
+              } onDispatched: {
+                store.markShipmentManifestDispatched(record)
+              } onHandedOff: {
+                store.markShipmentManifestHandedOff(record)
+              } onBlocked: {
+                store.markShipmentManifestBlocked(record)
+              } onReopen: {
+                store.reopenShipmentManifest(record)
               } onReviewed: {
-                store.markLabelReferenceReviewed(record)
+                store.markShipmentManifestReviewed(record)
               } onCreateTask: {
                 store.createReviewTask(from: record)
               } onCreateDraft: {
                 store.createDraftMessage(from: record)
               } onRemove: {
-                store.removeLabelReferenceRecord(record)
+                store.removeShipmentManifestRecord(record)
               }
             }
           }
@@ -70,15 +73,15 @@ struct LabelReferencesView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Label References")
+        Text("Shipment Manifests")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local barcode, QR, tracking, storage, custody, receiving, return, and evidence label placeholders.")
+        Text("Local dispatch batches, courier handoffs, internal delivery runs, and outbound transfer groups.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.invalidLabelReferences.count) invalid", color: .red)
-        Badge("\(store.labelReferencesMissingValues.count) missing values", color: .orange)
+        Badge("\(store.blockedShipmentManifests.count) blocked", color: .red)
+        Badge("\(store.undispatchedShipmentManifests.count) undispatched", color: .orange)
       }
     }
   }
@@ -86,29 +89,24 @@ struct LabelReferencesView: View {
   private var filterBar: some View {
     HStack {
       Picker("Type", selection: $selectedType) {
-        Text("All types").tag(nil as LabelReferenceType?)
-        ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type as LabelReferenceType?) }
+        Text("All types").tag(nil as ShipmentManifestType?)
+        ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type as ShipmentManifestType?) }
       }
       .pickerStyle(.menu)
+
+      TextField("Carrier/courier", text: $carrierCourier)
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 150)
 
       Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as LabelReferenceStatus?)
-        ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status as LabelReferenceStatus?) }
+        Text("All status").tag(nil as ShipmentManifestDispatchStatus?)
+        ForEach(ShipmentManifestDispatchStatus.allCases) { status in Text(status.rawValue).tag(status as ShipmentManifestDispatchStatus?) }
       }
       .pickerStyle(.menu)
 
-      Picker("Source", selection: $selectedSource) {
-        Text("All sources").tag(nil as LabelReferenceSource?)
-        ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source as LabelReferenceSource?) }
-      }
-      .pickerStyle(.menu)
-
-      TextField("Carrier", text: $carrier)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 120)
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
+        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -131,9 +129,8 @@ struct LabelReferencesView: View {
       Spacer()
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedType = nil
+        carrierCourier = ""
         selectedStatus = nil
-        selectedSource = nil
-        carrier = ""
         ownerTeam = ""
         selectedRiskLevel = nil
         selectedLinkedEntityType = nil
@@ -144,14 +141,14 @@ struct LabelReferencesView: View {
   }
 }
 
-struct LabelReferenceRow: View {
-  var record: LabelReferenceRecord
-  var scanSessions: [ScanSessionRecord] = []
-  var shipmentManifests: [ShipmentManifestRecord] = []
-  var onSave: (LabelReferenceRecord) -> Void
-  var onPrinted: () -> Void
-  var onVerified: () -> Void
-  var onInvalid: () -> Void
+struct ShipmentManifestRow: View {
+  var record: ShipmentManifestRecord
+  var onSave: (ShipmentManifestRecord) -> Void
+  var onPrepared: () -> Void
+  var onDispatched: () -> Void
+  var onHandedOff: () -> Void
+  var onBlocked: () -> Void
+  var onReopen: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -161,7 +158,7 @@ struct LabelReferenceRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: record.labelType.symbol)
+        Image(systemName: record.manifestType.symbol)
           .foregroundStyle(record.riskLevel.color)
           .frame(width: 28, height: 28)
         VStack(alignment: .leading, spacing: 6) {
@@ -169,43 +166,43 @@ struct LabelReferenceRow: View {
             VStack(alignment: .leading, spacing: 2) {
               Text(record.title)
                 .font(.headline)
-              Text("\(record.labelType.rawValue) • \(record.labelValuePlaceholder)")
+              Text("\(record.manifestType.rawValue) • \(record.carrierCourier)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(record.labelStatus.rawValue, color: record.labelStatus.color)
+            Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
           }
-          Text(record.notes)
+          Text(record.destinationSummary)
             .foregroundStyle(.secondary)
-          Text("\(record.labelSource.rawValue) • \(record.associatedCarrier) • Owner \(record.assignedOwnerTeam)")
+          Text("\(record.manifestReferencePlaceholder) • planned \(record.plannedDispatchDate) • actual \(record.actualDispatchDate)")
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(3)
-
           HStack(spacing: 8) {
             Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
             Badge(record.reviewState.rawValue, color: record.reviewState.color)
-            Label(record.linkedEntityType.rawValue, systemImage: record.linkedEntityType.symbol)
+            Label("\(record.includedOrderIDs.count) orders", systemImage: "shippingbox.fill")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label("\(record.evidenceAttachmentIDs.count) evidence", systemImage: "paperclip")
+            Label("\(record.scanSessionIDs.count) scans", systemImage: "qrcode.viewfinder")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
       }
 
-      ScanSessionStrip(records: scanSessions)
-
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Printed", systemImage: "printer.fill", action: onPrinted)
+        Button("Prepared", systemImage: "checkmark.circle.fill", action: onPrepared)
           .buttonStyle(.bordered)
-        Button("Verified", systemImage: "barcode.viewfinder", action: onVerified)
+        Button("Dispatched", systemImage: "paperplane.fill", action: onDispatched)
           .buttonStyle(.bordered)
-        Button("Invalid", systemImage: "exclamationmark.triangle.fill", action: onInvalid)
+        Button("Handed off", systemImage: "person.badge.shield.checkmark.fill", action: onHandedOff)
+          .buttonStyle(.bordered)
+        Button("Blocked", systemImage: "exclamationmark.triangle.fill", action: onBlocked)
+          .buttonStyle(.bordered)
+        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
           .buttonStyle(.bordered)
@@ -221,19 +218,19 @@ struct LabelReferenceRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      LabelReferenceEditView(record: record) { updatedRecord in
+      ShipmentManifestEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
     }
   }
 }
 
-struct LabelReferenceEditView: View {
+struct ShipmentManifestEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: LabelReferenceRecord
-  var onSave: (LabelReferenceRecord) -> Void
+  @State private var draft: ShipmentManifestRecord
+  var onSave: (ShipmentManifestRecord) -> Void
 
-  init(record: LabelReferenceRecord, onSave: @escaping (LabelReferenceRecord) -> Void) {
+  init(record: ShipmentManifestRecord, onSave: @escaping (ShipmentManifestRecord) -> Void) {
     self._draft = State(initialValue: record)
     self.onSave = onSave
   }
@@ -241,25 +238,23 @@ struct LabelReferenceEditView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Label") {
+        Section("Manifest") {
           TextField("Title", text: $draft.title)
-          Picker("Type", selection: $draft.labelType) {
-            ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type) }
+          Picker("Type", selection: $draft.manifestType) {
+            ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type) }
           }
-          TextField("Value placeholder", text: $draft.labelValuePlaceholder)
-          Picker("Source", selection: $draft.labelSource) {
-            ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source) }
+          Picker("Status", selection: $draft.dispatchStatus) {
+            ForEach(ShipmentManifestDispatchStatus.allCases) { status in Text(status.rawValue).tag(status) }
           }
-          Picker("Status", selection: $draft.labelStatus) {
-            ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status) }
-          }
-          TextField("Associated carrier", text: $draft.associatedCarrier)
+          TextField("Carrier/courier", text: $draft.carrierCourier)
+          TextField("Destination summary", text: $draft.destinationSummary, axis: .vertical)
+          TextField("Manifest reference", text: $draft.manifestReferencePlaceholder)
         }
 
-        Section("Ownership") {
+        Section("Dispatch") {
           TextField("Owner/team", text: $draft.assignedOwnerTeam)
-          TextField("Created date", text: $draft.createdDate)
-          TextField("Last reviewed", text: $draft.lastReviewedDate)
+          TextField("Planned dispatch date", text: $draft.plannedDispatchDate)
+          TextField("Actual dispatch date", text: $draft.actualDispatchDate)
           TextField("Notes", text: $draft.notes, axis: .vertical)
         }
 
@@ -279,7 +274,7 @@ struct LabelReferenceEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Label")
+      .navigationTitle("Edit Manifest")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })
@@ -292,6 +287,6 @@ struct LabelReferenceEditView: View {
         }
       }
     }
-    .frame(minWidth: 620, minHeight: 660)
+    .frame(minWidth: 660, minHeight: 700)
   }
 }

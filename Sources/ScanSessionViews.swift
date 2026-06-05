@@ -41,7 +41,7 @@ struct ScanSessionsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              ScanSessionRow(record: record) { updatedRecord in
+              ScanSessionRow(record: record, shipmentManifests: store.suggestedShipmentManifestRecords(for: record)) { updatedRecord in
                 store.updateScanSessionRecord(updatedRecord)
               } onMatched: {
                 store.markScanSessionMatched(record)
@@ -143,6 +143,7 @@ struct ScanSessionsView: View {
 
 struct ScanSessionRow: View {
   var record: ScanSessionRecord
+  var shipmentManifests: [ShipmentManifestRecord] = []
   var onSave: (ScanSessionRecord) -> Void
   var onMatched: () -> Void
   var onMismatch: () -> Void
@@ -210,6 +211,10 @@ struct ScanSessionRow: View {
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if !shipmentManifests.isEmpty {
+        ShipmentManifestStrip(records: shipmentManifests)
       }
     }
     .padding(12)

@@ -262,6 +262,16 @@ struct DashboardView: View {
             CompactScanSessionList(records: Array((store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences).prefix(4)))
           }
 
+          AnalyticsSection(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.shipmentManifestsNeedingReview.count)", .orange),
+              ("Blocked", "\(store.blockedShipmentManifests.count)", .red),
+              ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
+              ("Missing", "\(store.shipmentManifestsMissingIncludedOrders.count + store.shipmentManifestsMissingHandoffLocation.count)", .red)
+            ])
+            CompactShipmentManifestList(records: Array((store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -839,6 +849,23 @@ struct CompactScanSessionList: View {
           detail: "\(record.scanPurpose.rawValue) • \(record.capturedValuePlaceholder.isEmpty ? "Missing captured value" : record.capturedValuePlaceholder)",
           badge: record.scanStatus.rawValue,
           color: record.scanStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactShipmentManifestList: View {
+  var records: [ShipmentManifestRecord]
+
+  var body: some View {
+    CompactList(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
+      ForEach(records) { record in
+        CompactRow(
+          title: record.title,
+          detail: "\(record.carrierCourier) • \(record.destinationSummary)",
+          badge: record.dispatchStatus.rawValue,
+          color: record.dispatchStatus.color
         )
       }
     }

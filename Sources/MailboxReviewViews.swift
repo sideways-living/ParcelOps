@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -1049,6 +1049,32 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: record)
             } onRemove: {
               store.removeScanSessionRecord(record)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
+          ForEach(Array(Set(store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans))) { record in
+            ShipmentManifestRow(record: record) { updatedRecord in
+              store.updateShipmentManifestRecord(updatedRecord)
+            } onPrepared: {
+              store.markShipmentManifestPrepared(record)
+            } onDispatched: {
+              store.markShipmentManifestDispatched(record)
+            } onHandedOff: {
+              store.markShipmentManifestHandedOff(record)
+            } onBlocked: {
+              store.markShipmentManifestBlocked(record)
+            } onReopen: {
+              store.reopenShipmentManifest(record)
+            } onReviewed: {
+              store.markShipmentManifestReviewed(record)
+            } onCreateTask: {
+              store.createReviewTask(from: record)
+            } onCreateDraft: {
+              store.createDraftMessage(from: record)
+            } onRemove: {
+              store.removeShipmentManifestRecord(record)
             }
           }
         }

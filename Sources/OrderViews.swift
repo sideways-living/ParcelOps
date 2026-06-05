@@ -309,6 +309,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
+          let records = store.suggestedShipmentManifestRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local shipment manifests matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ShipmentManifestStrip(records: records)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

@@ -42,7 +42,7 @@ struct OperationsWorkbenchView: View {
         ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.items) { item in
-              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), costRecords: store.suggestedCostRecords(for: item), returnClaims: store.suggestedReturnClaims(for: item), procurementRequests: store.suggestedProcurementRequests(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item)) {
+              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), costRecords: store.suggestedCostRecords(for: item), returnClaims: store.suggestedReturnClaims(for: item), procurementRequests: store.suggestedProcurementRequests(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item)) {
                 store.createReviewTask(from: item)
               } onCreateDraft: {
                 store.createDraftMessage(from: item)
@@ -142,6 +142,7 @@ struct WorkbenchItemRow: View {
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
+  var shipmentManifests: [ShipmentManifestRecord] = []
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
@@ -233,6 +234,9 @@ struct WorkbenchItemRow: View {
       }
       if !scanSessions.isEmpty {
         ScanSessionStrip(records: scanSessions)
+      }
+      if !shipmentManifests.isEmpty {
+        ShipmentManifestStrip(records: shipmentManifests)
       }
     }
     .padding(12)

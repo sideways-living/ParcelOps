@@ -47,7 +47,7 @@ struct InventoryReceiptsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredReceipts) { receipt in
-              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt)) { updatedReceipt in
+              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt), shipmentManifests: store.suggestedShipmentManifestRecords(for: receipt)) { updatedReceipt in
                 store.updateInventoryReceipt(updatedReceipt)
               } onStocked: {
                 store.markInventoryReceiptStocked(receipt)
@@ -157,6 +157,7 @@ struct InventoryReceiptRow: View {
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
+  var shipmentManifests: [ShipmentManifestRecord] = []
   var onSave: (InventoryReceiptRecord) -> Void
   var onStocked: () -> Void
   var onHandedOff: () -> Void

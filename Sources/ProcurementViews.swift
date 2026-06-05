@@ -51,7 +51,7 @@ struct ProcurementView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRequests) { request in
-              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request)) { updatedRequest in
+              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request), shipmentManifests: store.suggestedShipmentManifestRecords(for: request)) { updatedRequest in
                 store.updateProcurementRequest(updatedRequest)
               } onApproved: {
                 store.markProcurementRequestApproved(request)
@@ -173,6 +173,7 @@ struct ProcurementRequestRow: View {
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
+  var shipmentManifests: [ShipmentManifestRecord] = []
   var onSave: (ProcurementRequest) -> Void
   var onApproved: () -> Void
   var onOrdered: () -> Void

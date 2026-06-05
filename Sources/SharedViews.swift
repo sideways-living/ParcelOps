@@ -131,6 +131,7 @@ extension AuditEntityType {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -167,6 +168,7 @@ extension TimelineEntityType {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -252,6 +254,7 @@ extension WorkbenchSource {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -299,7 +302,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -1160,6 +1163,43 @@ struct ScanSessionStrip: View {
   }
 }
 
+struct ShipmentManifestStrip: View {
+  var records: [ShipmentManifestRecord]
+
+  var body: some View {
+    if !records.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Shipment manifests", systemImage: "list.bullet.clipboard.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(records.prefix(3)) { record in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: record.manifestType.symbol)
+              .foregroundStyle(record.dispatchStatus.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(record.title)
+                .font(.caption.weight(.semibold))
+              Text("\(record.carrierCourier) • \(record.destinationSummary)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(record.notes)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension ReceivingInspectionType {
   var symbol: String {
     switch self {
@@ -1282,6 +1322,31 @@ extension ScanSessionStatus {
     case .matched, .completed: .green
     case .planned, .reopened: .orange
     case .mismatchNeedsReview, .blocked: .red
+    }
+  }
+}
+
+extension ShipmentManifestType {
+  var symbol: String {
+    switch self {
+    case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchBatch: "shippingbox.and.arrow.backward.fill"
+    case .courierHandoff: "person.badge.shield.checkmark.fill"
+    case .internalDeliveryRun: "arrow.triangle.swap"
+    case .outboundTransferGroup: "tray.and.arrow.up.fill"
+    }
+  }
+}
+
+extension ShipmentManifestDispatchStatus {
+  var color: Color {
+    switch self {
+    case .draft: .gray
+    case .prepared: .blue
+    case .dispatched: .purple
+    case .handedOff: .green
+    case .blockedNeedsReview: .red
+    case .reopened: .orange
     }
   }
 }
@@ -1457,6 +1522,7 @@ extension ContactLinkedEntityType {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -1502,6 +1568,7 @@ extension AccountLinkedEntityType {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -1550,6 +1617,7 @@ extension ReviewTaskLinkedEntityType {
     case .custodyRecord: "person.badge.shield.checkmark.fill"
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
+    case .shipmentManifest: "list.bullet.clipboard.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -1663,7 +1731,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return id.uuidString == linkedEntityID
     }
@@ -1742,6 +1810,7 @@ extension TimelineActivity {
     case .custodyRecord: .custodyRecord
     case .labelReference: .labelReference
     case .scanSession: .scanSession
+    case .shipmentManifest: .shipmentManifest
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup
