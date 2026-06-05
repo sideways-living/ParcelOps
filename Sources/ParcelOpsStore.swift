@@ -4,22 +4,42 @@ import SwiftUI
 final class ParcelOpsStore {
   var searchText = ""
   var selectedStatus: OrderStatus?
-  var settings: ParcelOpsSettings
+  var settings: ParcelOpsSettings {
+    didSet {
+      settingsRepository.saveSettings(settings)
+    }
+  }
 
   var orders: [TrackedOrder]
   var mailEvents: [MailEvent]
+  var intakeEmails: [ForwardedEmailIntake]
   var mailboxes: [TrackedMailbox]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
+  var auditEvents: [AuditEvent]
+  var evidenceAttachments: [EvidenceAttachment]
+  var carrierTrackingEvents: [CarrierTrackingEvent]
+  var automationRules: [AutomationRule]
+  var savedFilters: [SavedFilter]
+  var reviewTasks: [ReviewTask]
+  var slaPolicies: [SLAPolicy]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
+  private let intakeEmailRepository: IntakeEmailRepository
   private let integrationRepository: IntegrationRepository
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
+  private let auditRepository: AuditRepository
+  private let evidenceRepository: EvidenceRepository
+  private let trackingRepository: TrackingRepository
+  private let automationRuleRepository: AutomationRuleRepository
+  private let savedFilterRepository: SavedFilterRepository
+  private let reviewTaskRepository: ReviewTaskRepository
+  private let slaPolicyRepository: SLAPolicyRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -27,8 +47,10 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository
+
   init(
-    repository: InMemoryParcelOpsRepository = InMemoryParcelOpsRepository(),
+    repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),
@@ -38,9 +60,17 @@ final class ParcelOpsStore {
   ) {
     self.orderRepository = repository
     self.mailEventRepository = repository
+    self.intakeEmailRepository = repository
     self.integrationRepository = repository
     self.wishlistRepository = repository
     self.settingsRepository = repository
+    self.auditRepository = repository
+    self.evidenceRepository = repository
+    self.trackingRepository = repository
+    self.automationRuleRepository = repository
+    self.savedFilterRepository = repository
+    self.reviewTaskRepository = repository
+    self.slaPolicyRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -49,6 +79,7 @@ final class ParcelOpsStore {
     self.workflowTemplateEngine = workflowTemplateEngine
     self.orders = repository.loadOrders()
     self.mailEvents = repository.loadMailEvents()
+    self.intakeEmails = repository.loadIntakeEmails()
     self.mailboxes = repository.loadMailboxes()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
@@ -56,10 +87,21 @@ final class ParcelOpsStore {
     self.wishlistItems = repository.loadWishlistItems()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
+    self.auditEvents = repository.loadAuditEvents()
+    self.evidenceAttachments = repository.loadEvidenceAttachments()
+    self.carrierTrackingEvents = repository.loadCarrierTrackingEvents()
+    self.automationRules = repository.loadAutomationRules()
+    self.savedFilters = repository.loadSavedFilters()
+    self.reviewTasks = repository.loadReviewTasks()
+    self.slaPolicies = repository.loadSLAPolicies()
   }
 
   var activeCount: Int {
     orders.filter { $0.status != .delivered }.count
+  }
+
+  var deliveredCount: Int {
+    orders.filter { $0.status == .delivered }.count
   }
 
   var exceptionCount: Int {
@@ -74,8 +116,86 @@ final class ParcelOpsStore {
     mailEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
 
+  var reviewIntakeEmails: [ForwardedEmailIntake] {
+    intakeEmails.filter { $0.reviewState == .needsReview }
+  }
+
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count
+  }
+
+  var reviewEvidenceAttachments: [EvidenceAttachment] {
+    evidenceAttachments.filter { $0.reviewState != .accepted }
+  }
+
+  var reviewCarrierTrackingEvents: [CarrierTrackingEvent] {
+    carrierTrackingEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
+  }
+
+  var trackingWarningCount: Int {
+    carrierTrackingEvents.filter { $0.severity == .watch || $0.severity == .critical }.count
+  }
+
+  var criticalTrackingCount: Int {
+    carrierTrackingEvents.filter { $0.severity == .critical }.count
+  }
+
+  var enabledAutomationRuleCount: Int {
+    automationRules.filter(\.isEnabled).count
+  }
+
+  var disabledAutomationRuleCount: Int {
+    automationRules.filter { !$0.isEnabled }.count
+  }
+
+  var openReviewTasks: [ReviewTask] {
+    reviewTasks.filter { $0.status != .completed }
+  }
+
+  var reviewTasksNeedingAttention: [ReviewTask] {
+    reviewTasks.filter { task in
+      task.status != .completed && (task.priority == .high || task.priority == .urgent || task.reviewState != .accepted || task.isLocallyOverdue)
+    }
+  }
+
+  var overdueOpenReviewTasks: [ReviewTask] {
+    openReviewTasks.filter(\.isLocallyOverdue)
+  }
+
+  var urgentOpenReviewTasks: [ReviewTask] {
+    openReviewTasks.filter { $0.priority == .urgent }
+  }
+
+  var policiesNeedingReview: [SLAPolicy] {
+    slaPolicies.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledSLAPolicyCount: Int {
+    slaPolicies.filter(\.isEnabled).count
+  }
+
+  var disabledSLAPolicyCount: Int {
+    slaPolicies.filter { !$0.isEnabled }.count
+  }
+
+  var recentPolicyMatches: [SLAPolicy] {
+    Array(slaPolicies.filter { $0.matchCount > 0 }.sorted { lhs, rhs in
+      lhs.lastEvaluatedDate > rhs.lastEvaluatedDate
+    }.prefix(5))
+  }
+
+  var recentAuditEvents: [AuditEvent] {
+    Array(auditEvents.prefix(5))
+  }
+
+  var highestRiskTrackingEvents: [CarrierTrackingEvent] {
+    Array(carrierTrackingEvents.sorted { lhs, rhs in
+      lhs.severity.riskRank > rhs.severity.riskRank
+    }.prefix(5))
+  }
+
+  var newestIntakeEmails: [ForwardedEmailIntake] {
+    Array(intakeEmails.prefix(5))
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -89,6 +209,136 @@ final class ParcelOpsStore {
         || order.checkedMailbox.lowercased().contains(query)
         || order.trackingNumber.lowercased().contains(query)
       return matchesStatus && matchesQuery
+    }
+  }
+
+  func searchResults(
+    query: String,
+    entityTypeFilter: SearchEntityType?,
+    reviewStateFilter: ReviewState?
+  ) -> [SearchResult] {
+    let normalizedQuery = query.normalizedSearchText
+    let allResults = orderSearchResults()
+      + intakeEmailSearchResults()
+      + trackingEventSearchResults()
+      + evidenceSearchResults()
+      + auditEventSearchResults()
+      + automationRuleSearchResults()
+
+    return allResults.filter { result in
+      let matchesEntity = entityTypeFilter == nil || result.entityType == entityTypeFilter
+      let matchesReview = reviewStateFilter == nil || result.reviewState == reviewStateFilter
+      let matchesQuery = normalizedQuery.isEmpty || result.searchableText.normalizedSearchText.contains(normalizedQuery)
+      return matchesEntity && matchesReview && matchesQuery
+    }
+  }
+
+  func groupedSearchResults(
+    query: String,
+    entityTypeFilter: SearchEntityType?,
+    reviewStateFilter: ReviewState?
+  ) -> [SearchResultGroup] {
+    let results = searchResults(
+      query: query,
+      entityTypeFilter: entityTypeFilter,
+      reviewStateFilter: reviewStateFilter
+    )
+
+    return SearchEntityType.allCases.compactMap { entityType in
+      let groupedResults = results.filter { $0.entityType == entityType }
+      guard !groupedResults.isEmpty else { return nil }
+      return SearchResultGroup(entityType: entityType, results: groupedResults)
+    }
+  }
+
+  private func orderSearchResults() -> [SearchResult] {
+    orders.map { order in
+      SearchResult(
+        id: "order-\(order.id.uuidString)",
+        entityType: .order,
+        title: "\(order.store) \(order.orderNumber)",
+        subtitle: "\(order.status.rawValue) to \(order.destination)",
+        detail: "Tracking \(order.trackingNumber) via \(order.carrier). \(order.latestStatus)",
+        severity: order.status == .exception ? .critical : nil,
+        reviewState: order.reviewState,
+        linkedEntityID: order.id.uuidString
+      )
+    }
+  }
+
+  private func intakeEmailSearchResults() -> [SearchResult] {
+    intakeEmails.map { email in
+      SearchResult(
+        id: "intake-\(email.id.uuidString)",
+        entityType: .intakeEmail,
+        title: email.subject,
+        subtitle: "\(email.detectedMerchant) from \(email.sender)",
+        detail: "Order \(email.detectedOrderNumber), tracking \(email.detectedTrackingNumber), destination \(email.detectedDestinationAddress). \(email.rawBodyPreview)",
+        severity: email.reviewState == .needsReview ? .watch : nil,
+        reviewState: email.reviewState.searchReviewState,
+        linkedEntityID: email.id.uuidString
+      )
+    }
+  }
+
+  private func trackingEventSearchResults() -> [SearchResult] {
+    carrierTrackingEvents.map { event in
+      let orderLabel = orders.first { $0.id == event.orderID }?.orderNumber ?? "Unlinked order"
+      return SearchResult(
+        id: "tracking-\(event.id.uuidString)",
+        entityType: .trackingEvent,
+        title: "\(event.carrier) \(event.trackingNumber)",
+        subtitle: "\(event.status) for \(orderLabel)",
+        detail: "\(event.eventTime) at \(event.location). \(event.detail)",
+        severity: event.severity,
+        reviewState: event.reviewState,
+        linkedEntityID: event.id.uuidString
+      )
+    }
+  }
+
+  private func evidenceSearchResults() -> [SearchResult] {
+    evidenceAttachments.map { attachment in
+      SearchResult(
+        id: "evidence-\(attachment.id.uuidString)",
+        entityType: .evidence,
+        title: attachment.fileName,
+        subtitle: "\(attachment.fileType) from \(attachment.source.rawValue)",
+        detail: "\(attachment.summary) Linked to \(attachment.linkedEntityType.rawValue) \(attachment.linkedEntityID.uuidString). Path \(attachment.localFilePath)",
+        severity: attachment.reviewState == .needsReview ? .watch : nil,
+        reviewState: attachment.reviewState,
+        linkedEntityID: attachment.id.uuidString
+      )
+    }
+  }
+
+  private func auditEventSearchResults() -> [SearchResult] {
+    auditEvents.map { event in
+      SearchResult(
+        id: "audit-\(event.id.uuidString)",
+        entityType: .auditEvent,
+        title: "\(event.action.rawValue) \(event.entityLabel)",
+        subtitle: "\(event.entityType.rawValue) by \(event.actor) at \(event.timestamp)",
+        detail: [event.summary, event.beforeDetail, event.afterDetail].compactMap(\.self).joined(separator: " "),
+        severity: nil,
+        reviewState: nil,
+        linkedEntityID: event.entityID
+      )
+    }
+  }
+
+  private func automationRuleSearchResults() -> [SearchResult] {
+    automationRules.map { rule in
+      SearchResult(
+        id: "automation-\(rule.id.uuidString)",
+        entityType: .automationRule,
+        title: rule.name,
+        subtitle: rule.isEnabled ? "Enabled \(rule.triggerType.rawValue)" : "Disabled \(rule.triggerType.rawValue)",
+        detail: "\(rule.conditionSummary) \(rule.actionSummary) Last run \(rule.lastRunDate), \(rule.runCount) runs.",
+        severity: rule.reviewState == .needsReview ? .watch : nil,
+        reviewState: rule.reviewState,
+        linkedEntityID: rule.id.uuidString
+      )
     }
   }
 
@@ -118,16 +368,34 @@ final class ParcelOpsStore {
     )
     orders.insert(order, at: 0)
     persistOrders()
+    logAudit(
+      action: .created,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Manual draft order created.",
+      afterDetail: order.auditDetail
+    )
   }
 
   func clearIssue(for orderNumber: String) {
     for index in orders.indices where orders[index].orderNumber == orderNumber {
+      let beforeDetail = orders[index].auditDetail
       orders[index].reviewState = .accepted
       if orders[index].status == .exception {
         orders[index].status = .inTransit
       }
       orders[index].latestStatus = "Issue cleared by user review"
       orders[index].contactHistory.insert(ContactHistoryEvent(time: "Now", source: .manual, contactPoint: "Needs Review", summary: "User cleared the issue.", evidence: "Related review entries were resolved together.", reviewState: .accepted), at: 0)
+      logAudit(
+        action: .cleared,
+        entityType: .order,
+        entityID: orders[index].id.uuidString,
+        entityLabel: orders[index].orderNumber,
+        summary: "Order review issue cleared.",
+        beforeDetail: beforeDetail,
+        afterDetail: orders[index].auditDetail
+      )
     }
 
     for index in mailEvents.indices where mailEvents[index].matchedOrder == orderNumber {
@@ -150,6 +418,702 @@ final class ParcelOpsStore {
     }
     persistOrders()
     persistMailEvents()
+  }
+
+  func linkIntakeEmail(_ email: ForwardedEmailIntake, to order: TrackedOrder) {
+    guard let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[emailIndex].auditDetail
+    intakeEmails[emailIndex].linkedOrderID = order.id
+    intakeEmails[emailIndex].reviewState = .reviewed
+
+    if let orderIndex = orders.firstIndex(where: { $0.id == order.id }) {
+      orders[orderIndex].contactHistory.insert(
+        ContactHistoryEvent(
+          time: "Now",
+          source: .mailbox,
+          contactPoint: "Forwarded email intake",
+          summary: "Forwarded email linked to this order.",
+          evidence: "\(email.subject) from \(email.sender)",
+          reviewState: .accepted
+        ),
+        at: 0
+      )
+      orders[orderIndex].latestStatus = "Forwarded email evidence linked"
+    }
+
+    persistOrders()
+    persistIntakeEmails()
+    logAudit(
+      action: .linked,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[emailIndex].id.uuidString,
+      entityLabel: intakeEmails[emailIndex].auditLabel,
+      summary: "Forwarded intake email linked to order \(order.orderNumber).",
+      beforeDetail: beforeDetail,
+      afterDetail: intakeEmails[emailIndex].auditDetail
+    )
+  }
+
+  func createOrder(from email: ForwardedEmailIntake) {
+    let orderNumber = email.detectedOrderNumber.isPlaceholder ? "EMAIL-\(3000 + orders.count + 1)" : email.detectedOrderNumber
+    let trackingNumber = email.detectedTrackingNumber.isPlaceholder ? "Pending" : email.detectedTrackingNumber
+    let destination = email.detectedDestinationAddress.isPlaceholder ? "Pending review" : email.detectedDestinationAddress
+
+    let order = TrackedOrder(
+      orderNumber: orderNumber,
+      store: email.detectedMerchant.isPlaceholder ? "Forwarded email supplier" : email.detectedMerchant,
+      recipientEmail: "captured-from-forward@parcelops.example",
+      checkedMailbox: "tracking-intake@parcelops.example",
+      customer: "Unassigned",
+      fulfillment: .delivery,
+      carrier: trackingNumber == "Pending" ? "Pending" : "Carrier pending",
+      trackingNumber: trackingNumber,
+      destination: destination,
+      eta: "Pending",
+      source: .forwardedMailbox,
+      status: trackingNumber == "Pending" ? .intake : .shipped,
+      reviewState: .needsReview,
+      latestStatus: "Created from forwarded email and awaiting review",
+      timeline: [
+        TimelineEvent(title: "Forwarded email captured", detail: email.subject, time: "Now", symbol: "envelope.open.fill")
+      ],
+      contactHistory: [
+        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: "Forwarded email intake", summary: "Order draft created from forwarded email.", evidence: email.rawBodyPreview, reviewState: .needsReview)
+      ]
+    )
+
+    orders.insert(order, at: 0)
+
+    if let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) {
+      intakeEmails[emailIndex].linkedOrderID = order.id
+      intakeEmails[emailIndex].reviewState = .reviewed
+    }
+
+    persistOrders()
+    persistIntakeEmails()
+    logAudit(
+      action: .created,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Tracked order created from forwarded intake email.",
+      afterDetail: order.auditDetail
+    )
+    logAudit(
+      action: .reviewed,
+      entityType: .intakeEmail,
+      entityID: email.id.uuidString,
+      entityLabel: email.auditLabel,
+      summary: "Forwarded intake email marked reviewed after order creation.",
+      beforeDetail: email.auditDetail,
+      afterDetail: intakeEmails.first { $0.id == email.id }?.auditDetail
+    )
+  }
+
+  func updateIntakeEmail(_ email: ForwardedEmailIntake) {
+    guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[index].auditDetail
+    intakeEmails[index] = email
+    persistIntakeEmails()
+    logAudit(
+      action: .edited,
+      entityType: .intakeEmail,
+      entityID: email.id.uuidString,
+      entityLabel: email.auditLabel,
+      summary: "Forwarded intake email details corrected.",
+      beforeDetail: beforeDetail,
+      afterDetail: email.auditDetail
+    )
+  }
+
+  func updateOrder(_ order: TrackedOrder) {
+    guard let index = orders.firstIndex(where: { $0.id == order.id }) else { return }
+    let beforeDetail = orders[index].auditDetail
+    var updatedOrder = order
+    updatedOrder.latestStatus = "Order details updated by user review"
+    updatedOrder.contactHistory.insert(
+      ContactHistoryEvent(
+        time: "Now",
+        source: .manual,
+        contactPoint: "Order editor",
+        summary: "User corrected order details.",
+        evidence: "Merchant, recipient, fulfillment, carrier, tracking, destination, status, or review state may have changed.",
+        reviewState: updatedOrder.reviewState
+      ),
+      at: 0
+    )
+    orders[index] = updatedOrder
+    persistOrders()
+    logAudit(
+      action: .edited,
+      entityType: .order,
+      entityID: updatedOrder.id.uuidString,
+      entityLabel: updatedOrder.orderNumber,
+      summary: "Tracked order details corrected.",
+      beforeDetail: beforeDetail,
+      afterDetail: updatedOrder.auditDetail
+    )
+  }
+
+  func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
+    updateIntakeEmail(email, reviewState: .reviewed)
+  }
+
+  func ignoreIntakeEmail(_ email: ForwardedEmailIntake) {
+    updateIntakeEmail(email, reviewState: .ignored)
+  }
+
+  func evidence(for linkedEntityType: EvidenceLinkedEntityType, linkedEntityID: UUID) -> [EvidenceAttachment] {
+    evidenceAttachments.filter {
+      $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID
+    }
+  }
+
+  func addPlaceholderEvidence(to linkedEntityType: EvidenceLinkedEntityType, linkedEntityID: UUID, label: String) {
+    let attachment = EvidenceAttachment(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      fileName: "\(label.replacingOccurrences(of: " ", with: "-"))-evidence.pdf",
+      fileType: "PDF",
+      source: .manualUpload,
+      addedDate: Self.auditTimestamp(),
+      summary: "Placeholder evidence attachment added for local review.",
+      reviewState: .needsReview,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/\(label.replacingOccurrences(of: " ", with: "-"))-evidence.pdf"
+    )
+    evidenceAttachments.insert(attachment, at: 0)
+    persistEvidenceAttachments()
+    logAudit(
+      action: .created,
+      entityType: .evidence,
+      entityID: attachment.id.uuidString,
+      entityLabel: attachment.fileName,
+      summary: "Evidence attachment added.",
+      afterDetail: attachment.auditDetail
+    )
+  }
+
+  func markEvidenceReviewed(_ attachment: EvidenceAttachment) {
+    guard let index = evidenceAttachments.firstIndex(where: { $0.id == attachment.id }) else { return }
+    let beforeDetail = evidenceAttachments[index].auditDetail
+    evidenceAttachments[index].reviewState = .accepted
+    persistEvidenceAttachments()
+    logAudit(
+      action: .reviewed,
+      entityType: .evidence,
+      entityID: evidenceAttachments[index].id.uuidString,
+      entityLabel: evidenceAttachments[index].fileName,
+      summary: "Evidence attachment marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: evidenceAttachments[index].auditDetail
+    )
+  }
+
+  func removeEvidence(_ attachment: EvidenceAttachment) {
+    guard let index = evidenceAttachments.firstIndex(where: { $0.id == attachment.id }) else { return }
+    let removed = evidenceAttachments.remove(at: index)
+    persistEvidenceAttachments()
+    logAudit(
+      action: .removed,
+      entityType: .evidence,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.fileName,
+      summary: "Evidence attachment removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func trackingEvents(for orderID: UUID) -> [CarrierTrackingEvent] {
+    carrierTrackingEvents.filter { $0.orderID == orderID }
+  }
+
+  func addPlaceholderTrackingEvent(to order: TrackedOrder) {
+    let event = CarrierTrackingEvent(
+      orderID: order.id,
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+      eventTime: Self.auditTimestamp(),
+      location: order.destination,
+      status: "Manual tracking note",
+      detail: "Placeholder carrier tracking event added for local review.",
+      severity: .watch,
+      source: .manual,
+      reviewState: .needsReview
+    )
+    carrierTrackingEvents.insert(event, at: 0)
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .created,
+      entityType: .trackingEvent,
+      entityID: event.id.uuidString,
+      entityLabel: event.trackingNumber,
+      summary: "Carrier tracking event added.",
+      afterDetail: event.auditDetail
+    )
+  }
+
+  func markTrackingEventReviewed(_ event: CarrierTrackingEvent) {
+    guard let index = carrierTrackingEvents.firstIndex(where: { $0.id == event.id }) else { return }
+    let beforeDetail = carrierTrackingEvents[index].auditDetail
+    carrierTrackingEvents[index].reviewState = .accepted
+    carrierTrackingEvents[index].severity = .info
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .reviewed,
+      entityType: .trackingEvent,
+      entityID: carrierTrackingEvents[index].id.uuidString,
+      entityLabel: carrierTrackingEvents[index].trackingNumber,
+      summary: "Carrier tracking event marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: carrierTrackingEvents[index].auditDetail
+    )
+  }
+
+  func removeTrackingEvent(_ event: CarrierTrackingEvent) {
+    guard let index = carrierTrackingEvents.firstIndex(where: { $0.id == event.id }) else { return }
+    let removed = carrierTrackingEvents.remove(at: index)
+    persistCarrierTrackingEvents()
+    logAudit(
+      action: .removed,
+      entityType: .trackingEvent,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.trackingNumber,
+      summary: "Carrier tracking event removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addAutomationRulePlaceholder() {
+    let rule = AutomationRule(
+      name: "New local rule \(automationRules.count + 1)",
+      triggerType: .manualReview,
+      conditionSummary: "Define the local condition this rule should watch.",
+      actionSummary: "Define the local action this rule should suggest.",
+      isEnabled: false,
+      lastRunDate: "Never",
+      reviewState: .needsReview,
+      runCount: 0
+    )
+    automationRules.insert(rule, at: 0)
+    persistAutomationRules()
+    logAudit(
+      action: .created,
+      entityType: .automationRule,
+      entityID: rule.id.uuidString,
+      entityLabel: rule.name,
+      summary: "Automation rule placeholder added.",
+      afterDetail: rule.auditDetail
+    )
+  }
+
+  func toggleAutomationRule(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = automationRules[index].auditDetail
+    automationRules[index].isEnabled.toggle()
+    persistAutomationRules()
+    logAudit(
+      action: automationRules[index].isEnabled ? .enabled : .disabled,
+      entityType: .automationRule,
+      entityID: automationRules[index].id.uuidString,
+      entityLabel: automationRules[index].name,
+      summary: automationRules[index].isEnabled ? "Automation rule enabled." : "Automation rule disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: automationRules[index].auditDetail
+    )
+  }
+
+  func markAutomationRuleReviewed(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = automationRules[index].auditDetail
+    automationRules[index].reviewState = .accepted
+    persistAutomationRules()
+    logAudit(
+      action: .reviewed,
+      entityType: .automationRule,
+      entityID: automationRules[index].id.uuidString,
+      entityLabel: automationRules[index].name,
+      summary: "Automation rule marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: automationRules[index].auditDetail
+    )
+  }
+
+  func removeAutomationRule(_ rule: AutomationRule) {
+    guard let index = automationRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let removed = automationRules.remove(at: index)
+    persistAutomationRules()
+    logAudit(
+      action: .removed,
+      entityType: .automationRule,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Automation rule removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addSavedFilterPlaceholder(
+    queryText: String,
+    entityTypeFilter: SearchEntityType?,
+    reviewStateFilter: ReviewState?
+  ) {
+    let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ruleName = trimmedQuery.isEmpty ? "Saved search \(savedFilters.count + 1)" : "Search for \(trimmedQuery)"
+    let filter = SavedFilter(
+      name: ruleName,
+      queryText: trimmedQuery,
+      entityTypeFilter: entityTypeFilter,
+      reviewStateFilter: reviewStateFilter,
+      createdDate: Self.auditTimestamp(),
+      isPinned: false
+    )
+    savedFilters.insert(filter, at: 0)
+    persistSavedFilters()
+    logAudit(
+      action: .created,
+      entityType: .savedFilter,
+      entityID: filter.id.uuidString,
+      entityLabel: filter.name,
+      summary: "Saved search filter created.",
+      afterDetail: filter.auditDetail
+    )
+  }
+
+  func toggleSavedFilterPinned(_ filter: SavedFilter) {
+    guard let index = savedFilters.firstIndex(where: { $0.id == filter.id }) else { return }
+    let beforeDetail = savedFilters[index].auditDetail
+    savedFilters[index].isPinned.toggle()
+    persistSavedFilters()
+    logAudit(
+      action: savedFilters[index].isPinned ? .pinned : .unpinned,
+      entityType: .savedFilter,
+      entityID: savedFilters[index].id.uuidString,
+      entityLabel: savedFilters[index].name,
+      summary: savedFilters[index].isPinned ? "Saved search filter pinned." : "Saved search filter unpinned.",
+      beforeDetail: beforeDetail,
+      afterDetail: savedFilters[index].auditDetail
+    )
+  }
+
+  func removeSavedFilter(_ filter: SavedFilter) {
+    guard let index = savedFilters.firstIndex(where: { $0.id == filter.id }) else { return }
+    let removed = savedFilters.remove(at: index)
+    persistSavedFilters()
+    logAudit(
+      action: .removed,
+      entityType: .savedFilter,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Saved search filter removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addReviewTaskPlaceholder() {
+    let task = ReviewTask(
+      title: "New follow-up task \(reviewTasks.count + 1)",
+      summary: "Define the local review or escalation work required.",
+      linkedEntityType: .order,
+      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      priority: .normal,
+      dueDate: "Today",
+      assignee: "Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task placeholder added.")
+  }
+
+  func createReviewTask(
+    linkedEntityType: ReviewTaskLinkedEntityType,
+    linkedEntityID: String,
+    label: String,
+    summary: String,
+    priority: TaskPriority = .normal,
+    assignee: String = "Operations"
+  ) {
+    let task = ReviewTask(
+      title: "Follow up \(label)",
+      summary: summary,
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      priority: priority,
+      dueDate: priority == .urgent ? "Today" : "Tomorrow",
+      assignee: assignee,
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task created from \(linkedEntityType.rawValue.lowercased()).")
+  }
+
+  func createReviewTask(from order: TrackedOrder) {
+    createReviewTask(
+      linkedEntityType: .order,
+      linkedEntityID: order.id.uuidString,
+      label: order.orderNumber,
+      summary: "Follow up \(order.store) order \(order.orderNumber): \(order.latestStatus)",
+      priority: order.status == .exception ? .urgent : .high,
+      assignee: order.customer
+    )
+  }
+
+  func createReviewTask(from email: ForwardedEmailIntake) {
+    createReviewTask(
+      linkedEntityType: .intakeEmail,
+      linkedEntityID: email.id.uuidString,
+      label: email.auditLabel,
+      summary: "Review forwarded email from \(email.sender): \(email.subject)",
+      priority: email.reviewState == .needsReview ? .high : .normal
+    )
+  }
+
+  func createReviewTask(from event: CarrierTrackingEvent) {
+    createReviewTask(
+      linkedEntityType: .trackingEvent,
+      linkedEntityID: event.id.uuidString,
+      label: event.trackingNumber,
+      summary: "\(event.carrier) reported \(event.status) at \(event.location). \(event.detail)",
+      priority: event.severity == .critical ? .urgent : .high
+    )
+  }
+
+  func createReviewTask(from attachment: EvidenceAttachment) {
+    createReviewTask(
+      linkedEntityType: .evidence,
+      linkedEntityID: attachment.id.uuidString,
+      label: attachment.fileName,
+      summary: "Review evidence attachment: \(attachment.summary)",
+      priority: attachment.reviewState == .needsReview ? .high : .normal
+    )
+  }
+
+  func createReviewTask(from rule: AutomationRule) {
+    createReviewTask(
+      linkedEntityType: .automationRule,
+      linkedEntityID: rule.id.uuidString,
+      label: rule.name,
+      summary: "Review automation rule intent: \(rule.conditionSummary) \(rule.actionSummary)",
+      priority: rule.reviewState == .needsReview ? .high : .normal
+    )
+  }
+
+  func createReviewTask(from filter: SavedFilter) {
+    createReviewTask(
+      linkedEntityType: .savedFilter,
+      linkedEntityID: filter.id.uuidString,
+      label: filter.name,
+      summary: "Review saved search filter: \(filter.auditDetail)",
+      priority: filter.isPinned ? .high : .normal
+    )
+  }
+
+  func createReviewTask(from auditEvent: AuditEvent) {
+    createReviewTask(
+      linkedEntityType: .auditEvent,
+      linkedEntityID: auditEvent.id.uuidString,
+      label: auditEvent.entityLabel,
+      summary: "Follow up audit event: \(auditEvent.summary)",
+      priority: auditEvent.action == .removed ? .high : .normal
+    )
+  }
+
+  func updateReviewTask(_ task: ReviewTask) {
+    guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
+    let beforeDetail = reviewTasks[index].auditDetail
+    reviewTasks[index] = task
+    persistReviewTasks()
+    logAudit(
+      action: .edited,
+      entityType: .reviewTask,
+      entityID: task.id.uuidString,
+      entityLabel: task.title,
+      summary: "Review task details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: task.auditDetail
+    )
+  }
+
+  func completeReviewTask(_ task: ReviewTask) {
+    guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
+    let beforeDetail = reviewTasks[index].auditDetail
+    reviewTasks[index].status = .completed
+    reviewTasks[index].completedDate = Self.auditTimestamp()
+    reviewTasks[index].reviewState = .accepted
+    persistReviewTasks()
+    logAudit(
+      action: .completed,
+      entityType: .reviewTask,
+      entityID: reviewTasks[index].id.uuidString,
+      entityLabel: reviewTasks[index].title,
+      summary: "Review task completed.",
+      beforeDetail: beforeDetail,
+      afterDetail: reviewTasks[index].auditDetail
+    )
+  }
+
+  func reopenReviewTask(_ task: ReviewTask) {
+    guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
+    let beforeDetail = reviewTasks[index].auditDetail
+    reviewTasks[index].status = .open
+    reviewTasks[index].completedDate = nil
+    reviewTasks[index].reviewState = .needsReview
+    persistReviewTasks()
+    logAudit(
+      action: .reopened,
+      entityType: .reviewTask,
+      entityID: reviewTasks[index].id.uuidString,
+      entityLabel: reviewTasks[index].title,
+      summary: "Review task reopened.",
+      beforeDetail: beforeDetail,
+      afterDetail: reviewTasks[index].auditDetail
+    )
+  }
+
+  func markReviewTaskReviewed(_ task: ReviewTask) {
+    guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
+    let beforeDetail = reviewTasks[index].auditDetail
+    reviewTasks[index].reviewState = .accepted
+    persistReviewTasks()
+    logAudit(
+      action: .reviewed,
+      entityType: .reviewTask,
+      entityID: reviewTasks[index].id.uuidString,
+      entityLabel: reviewTasks[index].title,
+      summary: "Review task marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: reviewTasks[index].auditDetail
+    )
+  }
+
+  func removeReviewTask(_ task: ReviewTask) {
+    guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
+    let removed = reviewTasks.remove(at: index)
+    persistReviewTasks()
+    logAudit(
+      action: .removed,
+      entityType: .reviewTask,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.title,
+      summary: "Review task removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func tasks(for linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> [ReviewTask] {
+    reviewTasks.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
+  }
+
+  func policies(for linkedEntityType: ReviewTaskLinkedEntityType) -> [SLAPolicy] {
+    slaPolicies.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
+  }
+
+  func addSLAPolicyPlaceholder() {
+    let policy = SLAPolicy(
+      name: "New SLA policy \(slaPolicies.count + 1)",
+      linkedEntityType: .order,
+      conditionSummary: "Define the local condition this policy should watch.",
+      responseTarget: "Respond today",
+      resolutionTarget: "Resolve within 1 business day",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastEvaluatedDate: "Never",
+      matchCount: 0,
+      reviewState: .needsReview
+    )
+    slaPolicies.insert(policy, at: 0)
+    persistSLAPolicies()
+    logAudit(
+      action: .created,
+      entityType: .slaPolicy,
+      entityID: policy.id.uuidString,
+      entityLabel: policy.name,
+      summary: "SLA policy placeholder added.",
+      afterDetail: policy.auditDetail
+    )
+  }
+
+  func updateSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index] = policy
+    persistSLAPolicies()
+    logAudit(
+      action: .edited,
+      entityType: .slaPolicy,
+      entityID: policy.id.uuidString,
+      entityLabel: policy.name,
+      summary: "SLA policy details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: policy.auditDetail
+    )
+  }
+
+  func toggleSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].isEnabled.toggle()
+    persistSLAPolicies()
+    logAudit(
+      action: slaPolicies[index].isEnabled ? .enabled : .disabled,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: slaPolicies[index].isEnabled ? "SLA policy enabled." : "SLA policy disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func markSLAPolicyReviewed(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].reviewState = .accepted
+    persistSLAPolicies()
+    logAudit(
+      action: .reviewed,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: "SLA policy marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func evaluateSLAPolicyPlaceholder(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let beforeDetail = slaPolicies[index].auditDetail
+    slaPolicies[index].lastEvaluatedDate = Self.auditTimestamp()
+    slaPolicies[index].matchCount += 1
+    persistSLAPolicies()
+    logAudit(
+      action: .evaluated,
+      entityType: .slaPolicy,
+      entityID: slaPolicies[index].id.uuidString,
+      entityLabel: slaPolicies[index].name,
+      summary: "SLA policy manually evaluated locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: slaPolicies[index].auditDetail
+    )
+  }
+
+  func removeSLAPolicy(_ policy: SLAPolicy) {
+    guard let index = slaPolicies.firstIndex(where: { $0.id == policy.id }) else { return }
+    let removed = slaPolicies.remove(at: index)
+    persistSLAPolicies()
+    logAudit(
+      action: .removed,
+      entityType: .slaPolicy,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "SLA policy removed.",
+      beforeDetail: removed.auditDetail
+    )
   }
 
   func exportToParcel(order: TrackedOrder) {
@@ -265,6 +1229,10 @@ final class ParcelOpsStore {
     mailEventRepository.saveMailEvents(mailEvents)
   }
 
+  private func persistIntakeEmails() {
+    intakeEmailRepository.saveIntakeEmails(intakeEmails)
+  }
+
   private func persistIntegrations() {
     integrationRepository.saveMailboxes(mailboxes)
     integrationRepository.saveShopifyConnections(shopifyConnections)
@@ -275,5 +1243,172 @@ final class ParcelOpsStore {
   private func persistWishlist() {
     wishlistRepository.saveWishlistItems(wishlistItems)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
+  }
+
+  private func persistEvidenceAttachments() {
+    evidenceRepository.saveEvidenceAttachments(evidenceAttachments)
+  }
+
+  private func persistCarrierTrackingEvents() {
+    trackingRepository.saveCarrierTrackingEvents(carrierTrackingEvents)
+  }
+
+  private func persistAutomationRules() {
+    automationRuleRepository.saveAutomationRules(automationRules)
+  }
+
+  private func persistSavedFilters() {
+    savedFilterRepository.saveSavedFilters(savedFilters)
+  }
+
+  private func persistReviewTasks() {
+    reviewTaskRepository.saveReviewTasks(reviewTasks)
+  }
+
+  private func persistSLAPolicies() {
+    slaPolicyRepository.saveSLAPolicies(slaPolicies)
+  }
+
+  private func addReviewTask(_ task: ReviewTask, summary: String) {
+    reviewTasks.insert(task, at: 0)
+    persistReviewTasks()
+    logAudit(
+      action: .created,
+      entityType: .reviewTask,
+      entityID: task.id.uuidString,
+      entityLabel: task.title,
+      summary: summary,
+      afterDetail: task.auditDetail
+    )
+  }
+
+  private func updateIntakeEmail(_ email: ForwardedEmailIntake, reviewState: IntakeEmailReviewState) {
+    guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = intakeEmails[index].auditDetail
+    intakeEmails[index].reviewState = reviewState
+    persistIntakeEmails()
+    logAudit(
+      action: reviewState == .ignored ? .ignored : .reviewed,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[index].id.uuidString,
+      entityLabel: intakeEmails[index].auditLabel,
+      summary: reviewState == .ignored ? "Forwarded intake email ignored." : "Forwarded intake email marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: intakeEmails[index].auditDetail
+    )
+  }
+
+  private func logAudit(
+    action: AuditAction,
+    entityType: AuditEntityType,
+    entityID: String,
+    entityLabel: String,
+    summary: String,
+    beforeDetail: String? = nil,
+    afterDetail: String? = nil
+  ) {
+    auditEvents.insert(
+      AuditEvent(
+        timestamp: Self.auditTimestamp(),
+        actor: "Local user",
+        action: action,
+        entityType: entityType,
+        entityID: entityID,
+        entityLabel: entityLabel,
+        summary: summary,
+        beforeDetail: beforeDetail,
+        afterDetail: afterDetail
+      ),
+      at: 0
+    )
+    auditRepository.saveAuditEvents(auditEvents)
+  }
+
+  private static func auditTimestamp() -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter.string(from: Date())
+  }
+}
+
+private extension String {
+  var isPlaceholder: Bool {
+    let normalized = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return normalized.isEmpty || normalized == "pending" || normalized == "not detected"
+  }
+
+  var normalizedSearchText: String {
+    folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+  }
+}
+
+private extension IntakeEmailReviewState {
+  var searchReviewState: ReviewState {
+    switch self {
+    case .needsReview: .needsReview
+    case .reviewed: .accepted
+    case .ignored: .monitor
+    }
+  }
+}
+
+private extension SearchResult {
+  var searchableText: String {
+    "\(entityType.rawValue) \(title) \(subtitle) \(detail) \(severity?.rawValue ?? "") \(reviewState?.rawValue ?? "") \(linkedEntityID)"
+  }
+}
+
+private extension TrackedOrder {
+  var auditDetail: String {
+    "Store: \(store); order: \(orderNumber); customer: \(customer); recipient: \(recipientEmail); fulfillment: \(fulfillment.rawValue); carrier: \(carrier); tracking: \(trackingNumber); destination: \(destination); status: \(status.rawValue); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension ForwardedEmailIntake {
+  var auditLabel: String {
+    detectedOrderNumber.isPlaceholder ? subject : detectedOrderNumber
+  }
+
+  var auditDetail: String {
+    "Sender: \(sender); subject: \(subject); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension EvidenceAttachment {
+  var auditDetail: String {
+    "File: \(fileName); type: \(fileType); source: \(source.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID.uuidString); review: \(reviewState.rawValue); path: \(localFilePath)."
+  }
+}
+
+private extension CarrierTrackingEvent {
+  var auditDetail: String {
+    "Carrier: \(carrier); tracking: \(trackingNumber); time: \(eventTime); location: \(location); status: \(status); severity: \(severity.rawValue); source: \(source.rawValue); review: \(reviewState.rawValue)."
+  }
+}
+
+private extension AutomationRule {
+  var auditDetail: String {
+    "Name: \(name); trigger: \(triggerType.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); last run: \(lastRunDate); runs: \(runCount); condition: \(conditionSummary); action: \(actionSummary)."
+  }
+}
+
+private extension SavedFilter {
+  var auditDetail: String {
+    "Name: \(name); query: \(queryText.isEmpty ? "any" : queryText); entity: \(entityTypeFilter?.rawValue ?? "All"); review: \(reviewStateFilter?.rawValue ?? "All"); pinned: \(isPinned ? "yes" : "no"); created: \(createdDate)."
+  }
+}
+
+private extension ReviewTask {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); due: \(dueDate); assignee: \(assignee); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate ?? "not completed"); summary: \(summary)."
+  }
+}
+
+private extension SLAPolicy {
+  var auditDetail: String {
+    "Name: \(name); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); response: \(responseTarget); resolution: \(resolutionTarget); review: \(reviewState.rawValue); created: \(createdDate); last evaluated: \(lastEvaluatedDate); matches: \(matchCount); condition: \(conditionSummary)."
   }
 }

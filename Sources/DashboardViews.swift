@@ -5,47 +5,123 @@ struct DashboardView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var metricColumns: [GridItem] {
+    Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 2 : 4)
+  }
+  private var sectionColumns: [GridItem] {
+    Array(repeating: GridItem(.flexible(), spacing: 14), count: isCompact ? 1 : 2)
+  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        VStack(alignment: .leading, spacing: 12) {
-          VStack(alignment: .leading, spacing: 6) {
-            Text("Operations overview")
-              .font(isCompact ? .title.bold() : .largeTitle.bold())
-            Text("Mail intake, supplier accounts, recipient email matching, wishlist intake, collections, and delivery exports.")
-              .foregroundStyle(.secondary)
-          }
-          HStack {
-            Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
-              .buttonStyle(.borderedProminent)
-            Button("Sync", systemImage: "arrow.clockwise", action: store.syncSources)
-              .buttonStyle(.bordered)
+        header
+
+        AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
+          LazyVGrid(columns: metricColumns, spacing: 12) {
+            MetricCard(title: "Active", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
+            MetricCard(title: "Delivered", value: "\(store.deliveredCount)", symbol: "checkmark.circle.fill", color: .green)
+            MetricCard(title: "Orders review", value: "\(store.reviewOrders.count)", symbol: "checkmark.shield.fill", color: .orange)
+            MetricCard(title: "Total orders", value: "\(store.orders.count)", symbol: "tray.full.fill", color: .blue)
           }
         }
 
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 2 : 4), spacing: 12) {
-          MetricCard(title: "Active orders", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
-          MetricCard(title: "Exceptions", value: "\(store.exceptionCount)", symbol: "exclamationmark.triangle.fill", color: .red)
-          MetricCard(title: "Mailbox events", value: "\(store.mailEvents.count)", symbol: "envelope.fill", color: .blue)
-          MetricCard(title: "Wishlist", value: "\(store.wishlistItems.count)", symbol: "star.square.fill", color: .purple)
+        LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
+          AnalyticsSection(title: "Review workload", symbol: "exclamationmark.triangle.fill") {
+            MetricStrip(items: [
+              ("Queue", "\(store.reviewQueueCount)", .orange),
+              ("Intake", "\(store.reviewIntakeEmails.count)", .blue),
+              ("Evidence", "\(store.reviewEvidenceAttachments.count)", .purple),
+              ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .red)
+            ])
+            CompactIntakeList(emails: store.newestIntakeEmails)
+          }
+
+          AnalyticsSection(title: "Tracking health", symbol: "location.fill.viewfinder") {
+            MetricStrip(items: [
+              ("Warnings", "\(store.trackingWarningCount)", .orange),
+              ("Critical", "\(store.criticalTrackingCount)", .red),
+              ("Events", "\(store.carrierTrackingEvents.count)", .blue)
+            ])
+            CompactTrackingList(events: store.highestRiskTrackingEvents, orders: store.orders)
+          }
+
+          AnalyticsSection(title: "Evidence", symbol: "paperclip") {
+            MetricStrip(items: [
+              ("Total", "\(store.evidenceAttachments.count)", .blue),
+              ("Needs review", "\(store.reviewEvidenceAttachments.count)", .orange)
+            ])
+            CompactEvidenceList(attachments: Array(store.evidenceAttachments.prefix(4)))
+          }
+
+          AnalyticsSection(title: "Automation", symbol: "arrow.triangle.branch") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledAutomationRuleCount)", .green),
+              ("Disabled", "\(store.disabledAutomationRuleCount)", .gray),
+              ("Rules", "\(store.automationRules.count)", .teal)
+            ])
+            CompactAutomationList(rules: Array(store.automationRules.prefix(4)))
+          }
+
+          AnalyticsSection(title: "Tasks", symbol: "checklist") {
+            MetricStrip(items: [
+              ("Open", "\(store.openReviewTasks.count)", .blue),
+              ("Attention", "\(store.reviewTasksNeedingAttention.count)", .orange),
+              ("Total", "\(store.reviewTasks.count)", .teal)
+            ])
+            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)))
+          }
+
+          AnalyticsSection(title: "SLA policies", symbol: "timer") {
+            MetricStrip(items: [
+              ("Enabled", "\(store.enabledSLAPolicyCount)", .green),
+              ("Disabled", "\(store.disabledSLAPolicyCount)", .gray),
+              ("Review", "\(store.policiesNeedingReview.count)", .orange),
+              ("Overdue", "\(store.overdueOpenReviewTasks.count)", .red)
+            ])
+            CompactSLAPolicyList(policies: store.recentPolicyMatches)
+          }
         }
 
-        if isCompact {
-          VStack(alignment: .leading, spacing: 14) {
-            OrdersCompactView(orders: store.orders)
-            MailboxCompactView(events: store.mailEvents)
-          }
-        } else {
-          HStack(alignment: .top, spacing: 14) {
-            OrdersCompactView(orders: store.orders)
-            MailboxCompactView(events: store.mailEvents)
-          }
+        AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
+          CompactAuditList(events: store.recentAuditEvents)
         }
       }
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var header: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Operations overview")
+          .font(isCompact ? .title.bold() : .largeTitle.bold())
+        Text("Current work across orders, intake, tracking, evidence, automation, and review.")
+          .foregroundStyle(.secondary)
+      }
+      HStack {
+        Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
+          .buttonStyle(.borderedProminent)
+        Button("Sync", systemImage: "arrow.clockwise", action: store.syncSources)
+          .buttonStyle(.bordered)
+      }
+    }
+  }
+}
+
+struct AnalyticsSection<Content: View>: View {
+  var title: String
+  var symbol: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Label(title, systemImage: symbol)
+        .font(.headline)
+      content
+    }
+    .frame(maxWidth: .infinity, alignment: .topLeading)
   }
 }
 
@@ -73,44 +149,197 @@ struct MetricCard: View {
   }
 }
 
-struct OrdersCompactView: View {
-  var orders: [TrackedOrder]
+struct MetricStrip: View {
+  var items: [(String, String, Color)]
 
   var body: some View {
-    Panel(title: "Active order queue", symbol: "shippingbox.fill") {
-      VStack(spacing: 10) {
-        ForEach(orders.prefix(4)) { order in
-          OrderListRow(order: order)
+    HStack(spacing: 8) {
+      ForEach(items, id: \.0) { item in
+        VStack(alignment: .leading, spacing: 4) {
+          Text(item.1)
+            .font(.title3.bold())
+            .foregroundStyle(item.2)
+          Text(item.0)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
       }
     }
   }
 }
 
-struct MailboxCompactView: View {
-  var events: [MailEvent]
+struct CompactIntakeList: View {
+  var emails: [ForwardedEmailIntake]
 
   var body: some View {
-    Panel(title: "Mailbox events", symbol: "envelope.badge.fill") {
-      VStack(spacing: 10) {
-        ForEach(events) { event in
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-              Text(event.sender)
-                .font(.headline)
-              Text(event.summary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            }
-            Spacer()
-            Badge(event.severity.rawValue, color: event.severity.color)
-          }
-          .padding(10)
-          .background(.quinary)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
+    CompactList(title: "Newest intake", symbol: "envelope.open.fill") {
+      ForEach(emails) { email in
+        CompactRow(
+          title: email.detectedOrderNumber,
+          detail: "\(email.detectedMerchant) • \(email.subject)",
+          badge: email.reviewState.rawValue,
+          color: email.reviewState.color
+        )
       }
     }
+  }
+}
+
+struct CompactTrackingList: View {
+  var events: [CarrierTrackingEvent]
+  var orders: [TrackedOrder]
+
+  var body: some View {
+    CompactList(title: "Highest risk tracking", symbol: "location.fill.viewfinder") {
+      ForEach(events) { event in
+        let orderNumber = orders.first { $0.id == event.orderID }?.orderNumber ?? "Unlinked"
+        CompactRow(
+          title: event.status,
+          detail: "\(orderNumber) • \(event.carrier) • \(event.location)",
+          badge: event.severity.rawValue,
+          color: event.severity.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactEvidenceList: View {
+  var attachments: [EvidenceAttachment]
+
+  var body: some View {
+    CompactList(title: "Latest evidence", symbol: "paperclip") {
+      ForEach(attachments) { attachment in
+        CompactRow(
+          title: attachment.fileName,
+          detail: "\(attachment.fileType) • \(attachment.source.rawValue)",
+          badge: attachment.reviewState.rawValue,
+          color: attachment.reviewState.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactAutomationList: View {
+  var rules: [AutomationRule]
+
+  var body: some View {
+    CompactList(title: "Automation rules", symbol: "arrow.triangle.branch") {
+      ForEach(rules) { rule in
+        CompactRow(
+          title: rule.name,
+          detail: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
+          badge: rule.isEnabled ? "Enabled" : "Disabled",
+          color: rule.isEnabled ? .green : .gray
+        )
+      }
+    }
+  }
+}
+
+struct CompactTaskList: View {
+  var tasks: [ReviewTask]
+
+  var body: some View {
+    CompactList(title: "Task escalations", symbol: "checklist") {
+      ForEach(tasks) { task in
+        CompactRow(
+          title: task.title,
+          detail: "\(task.assignee) • due \(task.dueDate)",
+          badge: task.priority.rawValue,
+          color: task.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactSLAPolicyList: View {
+  var policies: [SLAPolicy]
+
+  var body: some View {
+    CompactList(title: "Recent policy matches", symbol: "timer") {
+      ForEach(policies) { policy in
+        CompactRow(
+          title: policy.name,
+          detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
+          badge: "\(policy.matchCount)",
+          color: policy.priority.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactAuditList: View {
+  var events: [AuditEvent]
+
+  var body: some View {
+    CompactList(title: "Recent audit", symbol: "list.clipboard.fill") {
+      ForEach(events) { event in
+        CompactRow(
+          title: event.summary,
+          detail: "\(event.entityType.rawValue) • \(event.entityLabel) • \(event.timestamp)",
+          badge: event.action.rawValue,
+          color: event.action.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactList<Content: View>: View {
+  var title: String
+  var symbol: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      VStack(spacing: 8) {
+        content
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct CompactRow: View {
+  var title: String
+  var detail: String
+  var badge: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+          .font(.callout.weight(.semibold))
+          .lineLimit(1)
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+      Spacer()
+      Badge(badge, color: color)
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }

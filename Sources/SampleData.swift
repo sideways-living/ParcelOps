@@ -109,6 +109,45 @@ enum SampleData {
     MailEvent(sender: "Northwind Wholesale", summary: "Invoice matched, but no dispatch or carrier information yet.", receivedTime: "Yesterday 5:01 PM", matchedOrder: "NWS-7720", severity: .watch, reviewState: .monitor)
   ]
 
+  static var intakeEmails: [ForwardedEmailIntake] = [
+    ForwardedEmailIntake(
+      sender: "shipping@safetypro.example",
+      subject: "Your SafetyPro Supplies order SP-10492 has shipped",
+      receivedDate: "Yesterday 6:10 PM",
+      rawBodyPreview: "Thanks for your order. Your order SP-10492 has shipped with Australia Post. Tracking number 33AUL8841295. Delivery address: 18 Collins Street, Melbourne VIC.",
+      detectedMerchant: "SafetyPro Supplies",
+      detectedOrderNumber: "SP-10492",
+      detectedTrackingNumber: "33AUL8841295",
+      detectedDestinationAddress: "18 Collins Street, Melbourne VIC",
+      linkedOrderID: orders[0].id,
+      reviewState: .reviewed
+    ),
+    ForwardedEmailIntake(
+      sender: "orders@officekit.example",
+      subject: "Office Kit order OK-58214 confirmation",
+      receivedDate: "Today 11:42 AM",
+      rawBodyPreview: "Order OK-58214 is confirmed. We will ship thermal label rolls to Dock 4, 9 Harbour Road, Sydney NSW. Tracking will follow shortly.",
+      detectedMerchant: "Office Kit Store",
+      detectedOrderNumber: "OK-58214",
+      detectedTrackingNumber: "Pending",
+      detectedDestinationAddress: "Dock 4, 9 Harbour Road, Sydney NSW",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    ),
+    ForwardedEmailIntake(
+      sender: "newsletter@supplier.example",
+      subject: "June supplier specials",
+      receivedDate: "Today 9:18 AM",
+      rawBodyPreview: "Monthly promotion with no order number, tracking number, or delivery address detected.",
+      detectedMerchant: "Unknown supplier",
+      detectedOrderNumber: "Not detected",
+      detectedTrackingNumber: "Not detected",
+      detectedDestinationAddress: "Not detected",
+      linkedOrderID: nil,
+      reviewState: .ignored
+    )
+  ]
+
   static var mailboxes: [TrackedMailbox] = [
     TrackedMailbox(address: "tracking-intake@parcelops.example", provider: .microsoft365, monitoredFolders: "Inbox, Forwarded Orders", status: "Watching", lastChecked: "2 min ago", routingRule: "Default order intake and carrier alerts"),
     TrackedMailbox(address: "field-purchasing@parcelops.example", provider: .gmail, monitoredFolders: "Purchases, Shipping", status: "Watching", lastChecked: "5 min ago", routingRule: "Field team purchases"),
@@ -143,5 +182,260 @@ enum SampleData {
     SourceConnection(name: "3 watched folders", kind: .watchedFolder, account: "Desktop, Downloads, iCloud Drive", status: "Watching", lastSync: "3 min ago"),
     SourceConnection(name: "Northwind Wholesale", kind: .vaultLogin, account: "Password vault", status: "Needs 2FA soon", lastSync: "1 hr ago"),
     SourceConnection(name: "SafetyPro Supplies", kind: .vaultLogin, account: "Password vault", status: "Synced", lastSync: "14 min ago")
+  ]
+
+  static var evidenceAttachments: [EvidenceAttachment] = [
+    EvidenceAttachment(
+      linkedEntityType: .order,
+      linkedEntityID: orders[0].id,
+      fileName: "SafetyPro-SP-10492-shipping-confirmation.eml",
+      fileType: "Email export",
+      source: .forwardedEmail,
+      addedDate: "Yesterday 6:12 PM",
+      summary: "Shipping confirmation with Australia Post tracking number 33AUL8841295.",
+      reviewState: .accepted,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/SafetyPro-SP-10492-shipping-confirmation.eml"
+    ),
+    EvidenceAttachment(
+      linkedEntityType: .intakeEmail,
+      linkedEntityID: intakeEmails[1].id,
+      fileName: "OfficeKit-OK-58214-order-confirmation.pdf",
+      fileType: "PDF",
+      source: .manualUpload,
+      addedDate: "Today 11:44 AM",
+      summary: "Forwarded confirmation rendered to PDF for review before order creation.",
+      reviewState: .needsReview,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/OfficeKit-OK-58214-order-confirmation.pdf"
+    ),
+    EvidenceAttachment(
+      linkedEntityType: .order,
+      linkedEntityID: orders[3].id,
+      fileName: "Regional-Courier-MAN-2194-dock-details.png",
+      fileType: "Screenshot",
+      source: .screenshot,
+      addedDate: "Today 10:22 AM",
+      summary: "Screenshot of dock delivery details supplied by Facilities.",
+      reviewState: .monitor,
+      localFilePath: "~/Library/Application Support/ParcelOps/Evidence/Regional-Courier-MAN-2194-dock-details.png"
+    )
+  ]
+
+  static var carrierTrackingEvents: [CarrierTrackingEvent] = [
+    CarrierTrackingEvent(
+      orderID: orders[0].id,
+      carrier: "Australia Post",
+      trackingNumber: "33AUL8841295",
+      eventTime: "Today 9:12 AM",
+      location: "Melbourne VIC",
+      status: "In transit",
+      detail: "Arrived at Melbourne sorting facility.",
+      severity: .info,
+      source: .carrierMock,
+      reviewState: .accepted
+    ),
+    CarrierTrackingEvent(
+      orderID: orders[1].id,
+      carrier: "DHL",
+      trackingNumber: "JD0146000098312",
+      eventTime: "Today 8:05 AM",
+      location: "Brisbane QLD",
+      status: "Address confirmation required",
+      detail: "Carrier needs suite or reception details before delivery can continue.",
+      severity: .critical,
+      source: .carrierMock,
+      reviewState: .needsReview
+    ),
+    CarrierTrackingEvent(
+      orderID: orders[2].id,
+      carrier: "Northwind Perth counter",
+      trackingNumber: "Pickup code NW7720",
+      eventTime: "Today 7:30 AM",
+      location: "Perth WA",
+      status: "Awaiting dispatch confirmation",
+      detail: "Portal shows order ready soon, but no collection confirmation has been received.",
+      severity: .watch,
+      source: .shopifyMock,
+      reviewState: .monitor
+    )
+  ]
+
+  static var automationRules: [AutomationRule] = [
+    AutomationRule(
+      name: "Create review task for uncertain forwarded emails",
+      triggerType: .forwardedEmailCaptured,
+      conditionSummary: "Detected order number, tracking number, or destination is missing.",
+      actionSummary: "Leave intake email in Needs Review and avoid creating an order automatically.",
+      isEnabled: true,
+      lastRunDate: "Today 11:42 AM",
+      reviewState: .accepted,
+      runCount: 12
+    ),
+    AutomationRule(
+      name: "Route tracking warnings to review",
+      triggerType: .trackingWarning,
+      conditionSummary: "Carrier event severity is Watch or Critical.",
+      actionSummary: "Add event to Needs Review without contacting the carrier.",
+      isEnabled: true,
+      lastRunDate: "Today 8:05 AM",
+      reviewState: .monitor,
+      runCount: 4
+    ),
+    AutomationRule(
+      name: "Require evidence review before acceptance",
+      triggerType: .evidenceAdded,
+      conditionSummary: "New attachment is added from placeholder, screenshot, or watched folder.",
+      actionSummary: "Set evidence review state to Needs review.",
+      isEnabled: false,
+      lastRunDate: "Never",
+      reviewState: .needsReview,
+      runCount: 0
+    )
+  ]
+
+  static var savedFilters: [SavedFilter] = [
+    SavedFilter(
+      name: "Open review workload",
+      queryText: "",
+      entityTypeFilter: nil,
+      reviewStateFilter: .needsReview,
+      createdDate: "Today 11:45 AM",
+      isPinned: true
+    ),
+    SavedFilter(
+      name: "Tracking warnings",
+      queryText: "warning",
+      entityTypeFilter: .trackingEvent,
+      reviewStateFilter: nil,
+      createdDate: "Today 10:20 AM",
+      isPinned: true
+    ),
+    SavedFilter(
+      name: "Office Kit intake",
+      queryText: "Office Kit",
+      entityTypeFilter: .intakeEmail,
+      reviewStateFilter: .needsReview,
+      createdDate: "Yesterday 4:35 PM",
+      isPinned: false
+    )
+  ]
+
+  static var reviewTasks: [ReviewTask] = [
+    ReviewTask(
+      title: "Confirm DHL delivery address",
+      summary: "Contact Brisbane Field Team for suite or reception details before DHL continues delivery.",
+      linkedEntityType: .order,
+      linkedEntityID: orders[1].id.uuidString,
+      priority: .urgent,
+      dueDate: "Today 2:00 PM",
+      assignee: "Brisbane Field Team",
+      status: .open,
+      createdDate: "Today 8:07 AM",
+      completedDate: nil,
+      reviewState: .needsReview
+    ),
+    ReviewTask(
+      title: "Create Office Kit order record",
+      summary: "Review forwarded confirmation and create a tracked order after merchant and destination are accepted.",
+      linkedEntityType: .intakeEmail,
+      linkedEntityID: intakeEmails[1].id.uuidString,
+      priority: .high,
+      dueDate: "Today 4:00 PM",
+      assignee: "Operations",
+      status: .inProgress,
+      createdDate: "Today 11:45 AM",
+      completedDate: nil,
+      reviewState: .needsReview
+    ),
+    ReviewTask(
+      title: "Check evidence retention path",
+      summary: "Confirm placeholder evidence path is acceptable before marking the Office Kit attachment reviewed.",
+      linkedEntityType: .evidence,
+      linkedEntityID: evidenceAttachments[1].id.uuidString,
+      priority: .normal,
+      dueDate: "Tomorrow",
+      assignee: "Records",
+      status: .open,
+      createdDate: "Today 11:50 AM",
+      completedDate: nil,
+      reviewState: .monitor
+    )
+  ]
+
+  static var slaPolicies: [SLAPolicy] = [
+    SLAPolicy(
+      name: "Carrier critical events same-day response",
+      linkedEntityType: .trackingEvent,
+      conditionSummary: "Carrier tracking event severity is Critical or task priority is Urgent.",
+      responseTarget: "Respond within 2 business hours",
+      resolutionTarget: "Resolve or escalate same day",
+      priority: .urgent,
+      isEnabled: true,
+      createdDate: "Today 8:00 AM",
+      lastEvaluatedDate: "Today 8:07 AM",
+      matchCount: 1,
+      reviewState: .accepted
+    ),
+    SLAPolicy(
+      name: "Forwarded intake missing tracking",
+      linkedEntityType: .intakeEmail,
+      conditionSummary: "Forwarded email has order details but tracking is Pending or Not detected.",
+      responseTarget: "Review within 4 business hours",
+      resolutionTarget: "Create or link order within 1 business day",
+      priority: .high,
+      isEnabled: true,
+      createdDate: "Yesterday 3:20 PM",
+      lastEvaluatedDate: "Today 11:45 AM",
+      matchCount: 2,
+      reviewState: .monitor
+    ),
+    SLAPolicy(
+      name: "Evidence retention review",
+      linkedEntityType: .evidence,
+      conditionSummary: "New evidence is added from placeholder upload or watched folder.",
+      responseTarget: "Acknowledge by next business day",
+      resolutionTarget: "Mark reviewed within 2 business days",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: "Yesterday 1:10 PM",
+      lastEvaluatedDate: "Never",
+      matchCount: 0,
+      reviewState: .needsReview
+    )
+  ]
+
+  static var auditEvents: [AuditEvent] = [
+    AuditEvent(
+      timestamp: "Today 11:42 AM",
+      actor: "Local user",
+      action: .created,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[1].id.uuidString,
+      entityLabel: "OK-58214",
+      summary: "Forwarded order email captured for review.",
+      beforeDetail: nil,
+      afterDetail: "Merchant Office Kit Store, order OK-58214, destination Dock 4, 9 Harbour Road, Sydney NSW."
+    ),
+    AuditEvent(
+      timestamp: "Yesterday 6:10 PM",
+      actor: "Local user",
+      action: .linked,
+      entityType: .intakeEmail,
+      entityID: intakeEmails[0].id.uuidString,
+      entityLabel: "SP-10492",
+      summary: "Forwarded shipping email linked to tracked order SP-10492.",
+      beforeDetail: "Intake email was not linked.",
+      afterDetail: "Linked to SafetyPro Supplies order SP-10492."
+    ),
+    AuditEvent(
+      timestamp: "Today 8:05 AM",
+      actor: "Local user",
+      action: .cleared,
+      entityType: .mailEvent,
+      entityID: mailEvents[0].id.uuidString,
+      entityLabel: "DHL Support",
+      summary: "Carrier address issue routed into the review queue.",
+      beforeDetail: "Review state Needs review.",
+      afterDetail: "Awaiting user correction before acceptance."
+    )
   ]
 }

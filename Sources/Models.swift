@@ -8,6 +8,12 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case wishlist
   case integrations
   case automation
+  case tracking
+  case evidence
+  case tasks
+  case slaPolicies
+  case search
+  case audit
   case settings
 
   var id: String { rawValue }
@@ -21,6 +27,12 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Integrations"
     case .automation: "Automation Flow"
+    case .tracking: "Tracking"
+    case .evidence: "Evidence"
+    case .tasks: "Tasks"
+    case .slaPolicies: "SLA Policies"
+    case .search: "Search"
+    case .audit: "Audit"
     case .settings: "Settings"
     }
   }
@@ -34,6 +46,12 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "Wishlist"
     case .integrations: "Sources"
     case .automation: "Flow"
+    case .tracking: "Tracking"
+    case .evidence: "Evidence"
+    case .tasks: "Tasks"
+    case .slaPolicies: "SLA"
+    case .search: "Search"
+    case .audit: "Audit"
     case .settings: "Settings"
     }
   }
@@ -47,12 +65,18 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .wishlist: "star.square.fill"
     case .integrations: "point.3.connected.trianglepath.dotted"
     case .automation: "arrow.triangle.branch"
+    case .tracking: "location.fill.viewfinder"
+    case .evidence: "paperclip"
+    case .tasks: "checklist"
+    case .slaPolicies: "timer"
+    case .search: "magnifyingglass"
+    case .audit: "list.clipboard.fill"
     case .settings: "gearshape.fill"
     }
   }
 }
 
-struct TrackedOrder: Identifiable, Hashable {
+struct TrackedOrder: Identifiable, Hashable, Codable {
   var id = UUID()
   var orderNumber: String
   var store: String
@@ -72,7 +96,7 @@ struct TrackedOrder: Identifiable, Hashable {
   var contactHistory: [ContactHistoryEvent]
 }
 
-struct TimelineEvent: Identifiable, Hashable {
+struct TimelineEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var title: String
   var detail: String
@@ -80,7 +104,7 @@ struct TimelineEvent: Identifiable, Hashable {
   var symbol: String
 }
 
-struct ContactHistoryEvent: Identifiable, Hashable {
+struct ContactHistoryEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var time: String
   var source: ContactSource
@@ -90,7 +114,7 @@ struct ContactHistoryEvent: Identifiable, Hashable {
   var reviewState: ReviewState
 }
 
-struct MailEvent: Identifiable, Hashable {
+struct MailEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var sender: String
   var summary: String
@@ -100,7 +124,131 @@ struct MailEvent: Identifiable, Hashable {
   var reviewState: ReviewState
 }
 
-struct SourceConnection: Identifiable, Hashable {
+struct ForwardedEmailIntake: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var rawBodyPreview: String
+  var detectedMerchant: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var detectedDestinationAddress: String
+  var linkedOrderID: UUID?
+  var reviewState: IntakeEmailReviewState
+}
+
+struct AuditEvent: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var timestamp: String
+  var actor: String
+  var action: AuditAction
+  var entityType: AuditEntityType
+  var entityID: String
+  var entityLabel: String
+  var summary: String
+  var beforeDetail: String?
+  var afterDetail: String?
+}
+
+struct EvidenceAttachment: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var linkedEntityType: EvidenceLinkedEntityType
+  var linkedEntityID: UUID
+  var fileName: String
+  var fileType: String
+  var source: EvidenceSource
+  var addedDate: String
+  var summary: String
+  var reviewState: ReviewState
+  var localFilePath: String
+}
+
+struct CarrierTrackingEvent: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var orderID: UUID
+  var carrier: String
+  var trackingNumber: String
+  var eventTime: String
+  var location: String
+  var status: String
+  var detail: String
+  var severity: Severity
+  var source: TrackingEventSource
+  var reviewState: ReviewState
+}
+
+struct AutomationRule: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var triggerType: AutomationTriggerType
+  var conditionSummary: String
+  var actionSummary: String
+  var isEnabled: Bool
+  var lastRunDate: String
+  var reviewState: ReviewState
+  var runCount: Int
+}
+
+struct SearchResult: Identifiable, Hashable {
+  var id: String
+  var entityType: SearchEntityType
+  var title: String
+  var subtitle: String
+  var detail: String
+  var severity: Severity?
+  var reviewState: ReviewState?
+  var linkedEntityID: String
+}
+
+struct SearchResultGroup: Identifiable, Hashable {
+  var entityType: SearchEntityType
+  var results: [SearchResult]
+
+  var id: SearchEntityType { entityType }
+}
+
+struct SavedFilter: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var queryText: String
+  var entityTypeFilter: SearchEntityType?
+  var reviewStateFilter: ReviewState?
+  var createdDate: String
+  var isPinned: Bool
+}
+
+struct ReviewTask: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var summary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var priority: TaskPriority
+  var dueDate: String
+  var assignee: String
+  var status: TaskStatus
+  var createdDate: String
+  var completedDate: String?
+  var reviewState: ReviewState
+}
+
+struct SLAPolicy: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var name: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var conditionSummary: String
+  var responseTarget: String
+  var resolutionTarget: String
+  var priority: TaskPriority
+  var isEnabled: Bool
+  var createdDate: String
+  var lastEvaluatedDate: String
+  var matchCount: Int
+  var reviewState: ReviewState
+}
+
+struct SourceConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
   var kind: ConnectionKind
@@ -109,7 +257,7 @@ struct SourceConnection: Identifiable, Hashable {
   var lastSync: String
 }
 
-struct TrackedMailbox: Identifiable, Hashable {
+struct TrackedMailbox: Identifiable, Hashable, Codable {
   var id = UUID()
   var address: String
   var provider: MailboxProvider
@@ -119,7 +267,7 @@ struct TrackedMailbox: Identifiable, Hashable {
   var routingRule: String
 }
 
-struct ShopifyConnection: Identifiable, Hashable {
+struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String
   var storeDomain: String
@@ -130,7 +278,7 @@ struct ShopifyConnection: Identifiable, Hashable {
   var isEnabled: Bool
 }
 
-struct WatchedFolder: Identifiable, Hashable {
+struct WatchedFolder: Identifiable, Hashable, Codable {
   var id = UUID()
   var name: String
   var location: String
@@ -141,7 +289,7 @@ struct WatchedFolder: Identifiable, Hashable {
   var lastScan: String
 }
 
-struct WishlistItem: Identifiable, Hashable {
+struct WishlistItem: Identifiable, Hashable, Codable {
   var id = UUID()
   var itemName: String
   var storefront: String
@@ -154,7 +302,7 @@ struct WishlistItem: Identifiable, Hashable {
   var capturedDetail: String
 }
 
-enum FulfillmentMethod: String, Hashable {
+enum FulfillmentMethod: String, Hashable, Codable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"
 
@@ -166,7 +314,7 @@ enum FulfillmentMethod: String, Hashable {
   }
 }
 
-enum IntakeSource: String, CaseIterable, Hashable {
+enum IntakeSource: String, CaseIterable, Hashable, Codable {
   case forwardedMailbox = "Forwarded mailbox"
   case shopify = "Shopify OAuth"
   case storeLogin = "Store login"
@@ -184,7 +332,7 @@ enum IntakeSource: String, CaseIterable, Hashable {
   }
 }
 
-enum OrderStatus: String, CaseIterable, Identifiable, Hashable {
+enum OrderStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case intake = "Intake"
   case ordered = "Ordered"
   case shipped = "Shipped"
@@ -195,19 +343,135 @@ enum OrderStatus: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
-enum ReviewState: String, Hashable {
+enum ReviewState: String, Hashable, Codable {
   case accepted = "Accepted"
   case needsReview = "Needs review"
   case monitor = "Monitor"
 }
 
-enum Severity: String, Hashable {
+enum IntakeEmailReviewState: String, Hashable, Codable {
+  case needsReview = "Needs review"
+  case reviewed = "Reviewed"
+  case ignored = "Ignored"
+}
+
+enum AuditAction: String, CaseIterable, Identifiable, Hashable, Codable {
+  case created = "Created"
+  case edited = "Edited"
+  case enabled = "Enabled"
+  case disabled = "Disabled"
+  case linked = "Linked"
+  case reviewed = "Reviewed"
+  case ignored = "Ignored"
+  case cleared = "Cleared"
+  case pinned = "Pinned"
+  case unpinned = "Unpinned"
+  case completed = "Completed"
+  case reopened = "Reopened"
+  case evaluated = "Evaluated"
+  case removed = "Removed"
+
+  var id: String { rawValue }
+}
+
+enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case mailEvent = "Mailbox event"
+  case evidence = "Evidence"
+  case trackingEvent = "Tracking event"
+  case automationRule = "Automation rule"
+  case savedFilter = "Saved filter"
+  case reviewTask = "Review task"
+  case slaPolicy = "SLA policy"
+
+  var id: String { rawValue }
+}
+
+enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case automationRule = "Automation rule"
+  case savedFilter = "Saved filter"
+  case auditEvent = "Audit event"
+
+  var id: String { rawValue }
+}
+
+enum TaskPriority: String, CaseIterable, Identifiable, Hashable, Codable {
+  case low = "Low"
+  case normal = "Normal"
+  case high = "High"
+  case urgent = "Urgent"
+
+  var id: String { rawValue }
+}
+
+enum TaskStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case open = "Open"
+  case inProgress = "In progress"
+  case blocked = "Blocked"
+  case completed = "Completed"
+
+  var id: String { rawValue }
+}
+
+enum SearchEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+  case trackingEvent = "Tracking event"
+  case evidence = "Evidence"
+  case auditEvent = "Audit event"
+  case automationRule = "Automation rule"
+
+  var id: String { rawValue }
+}
+
+enum AutomationTriggerType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case forwardedEmailCaptured = "Forwarded email captured"
+  case orderNeedsReview = "Order needs review"
+  case trackingWarning = "Tracking warning"
+  case evidenceAdded = "Evidence added"
+  case manualReview = "Manual review"
+
+  var id: String { rawValue }
+}
+
+enum EvidenceLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case order = "Order"
+  case intakeEmail = "Intake email"
+
+  var id: String { rawValue }
+}
+
+enum EvidenceSource: String, CaseIterable, Identifiable, Hashable, Codable {
+  case forwardedEmail = "Forwarded email"
+  case manualUpload = "Manual upload"
+  case watchedFolder = "Watched folder"
+  case screenshot = "Screenshot"
+  case supplierPortal = "Supplier portal"
+
+  var id: String { rawValue }
+}
+
+enum TrackingEventSource: String, CaseIterable, Identifiable, Hashable, Codable {
+  case manual = "Manual"
+  case forwardedEmail = "Forwarded email"
+  case carrierMock = "Carrier mock"
+  case shopifyMock = "Shopify mock"
+
+  var id: String { rawValue }
+}
+
+enum Severity: String, Hashable, Codable {
   case info = "Info"
   case watch = "Watch"
   case critical = "Critical"
 }
 
-enum ContactSource: String, Hashable {
+enum ContactSource: String, Hashable, Codable {
   case mailbox = "Mailbox"
   case shopify = "Shopify"
   case watchedFolder = "Watched folder"
@@ -227,7 +491,7 @@ enum ContactSource: String, Hashable {
   }
 }
 
-enum ConnectionKind: String, Hashable {
+enum ConnectionKind: String, Hashable, Codable {
   case mailbox = "Forwarded mailbox"
   case shopify = "Shopify"
   case vaultLogin = "Password vault"
@@ -243,7 +507,7 @@ enum ConnectionKind: String, Hashable {
   }
 }
 
-enum MailboxProvider: String, Hashable {
+enum MailboxProvider: String, Hashable, Codable {
   case microsoft365 = "Microsoft 365"
   case gmail = "Gmail"
   case imap = "IMAP"
@@ -257,7 +521,7 @@ enum MailboxProvider: String, Hashable {
   }
 }
 
-enum WishlistSource: String, Hashable {
+enum WishlistSource: String, Hashable, Codable {
   case pdf = "PDF upload"
   case screenshot = "Screenshot"
   case shareSheet = "Share"
@@ -275,7 +539,7 @@ enum WishlistSource: String, Hashable {
   }
 }
 
-struct ParcelOpsSettings: Hashable {
+struct ParcelOpsSettings: Hashable, Codable {
   var mailboxMonitoringEnabled = true
   var autoCreateOrdersFromEmail = true
   var shopifySyncEnabled = true

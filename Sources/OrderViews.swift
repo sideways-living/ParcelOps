@@ -86,21 +86,38 @@ struct OrderDetailView: View {
   var order: TrackedOrder
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var isEditing = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var currentOrder: TrackedOrder {
+    store.orders.first { $0.id == order.id } ?? order
+  }
 
   var body: some View {
+    let order = currentOrder
+
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        VStack(alignment: .leading, spacing: 10) {
-          Text(order.orderNumber)
-            .font(isCompact ? .title.bold() : .largeTitle.bold())
-          Text(order.store)
-            .foregroundStyle(.secondary)
-          HStack {
-            Badge(order.status.rawValue, color: order.status.color)
-            Badge(order.reviewState.rawValue, color: order.reviewState.color)
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 10) {
+            Text(order.orderNumber)
+              .font(isCompact ? .title.bold() : .largeTitle.bold())
+            Text(order.store)
+              .foregroundStyle(.secondary)
+            HStack {
+              Badge(order.status.rawValue, color: order.status.color)
+              Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            }
           }
+          Spacer()
+          Button("Edit", systemImage: "pencil") {
+            isEditing = true
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: order)
+          }
+          .buttonStyle(.bordered)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -116,11 +133,120 @@ struct OrderDetailView: View {
           DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
         }
 
+        Panel(title: "SLA context", symbol: "timer") {
+          let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+          let policies = store.policies(for: .order)
+
+          VStack(alignment: .leading, spacing: 10) {
+            if tasks.isEmpty && policies.isEmpty {
+              Text("No local SLA tasks or policies linked to this order.")
+                .foregroundStyle(.secondary)
+            } else {
+              ForEach(tasks) { task in
+                HStack {
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                      .font(.callout.weight(.semibold))
+                    Text("Due \(task.dueDate) • \(task.assignee)")
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                  }
+                  Spacer()
+                  Badge(task.isLocallyOverdue ? "Overdue" : task.priority.rawValue, color: task.isLocallyOverdue ? .red : task.priority.color)
+                }
+                .padding(10)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+              }
+
+              ForEach(policies) { policy in
+                Text("\(policy.name): \(policy.responseTarget); \(policy.resolutionTarget)")
+                  .font(.caption)
+                  .foregroundStyle(policy.priority.color)
+              }
+            }
+          }
+        }
+
         if order.fulfillment == .delivery {
           Button("Send to Parcel", systemImage: "square.and.arrow.up") {
             store.exportToParcel(order: order)
           }
           .buttonStyle(.borderedProminent)
+        }
+
+        Panel(title: "Tracking", symbol: "location.fill.viewfinder") {
+          let events = store.trackingEvents(for: order.id)
+
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("\(events.count) carrier events")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Add event", systemImage: "plus") {
+                store.addPlaceholderTrackingEvent(to: order)
+              }
+              .buttonStyle(.bordered)
+            }
+
+            if events.isEmpty {
+              Text("No tracking events linked.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+              ForEach(events) { event in
+                TrackingEventRow(event: event, order: order) {
+                  store.markTrackingEventReviewed(event)
+                } onRemove: {
+                  store.removeTrackingEvent(event)
+                } onCreateTask: {
+                  store.createReviewTask(from: event)
+                } relatedTasks: {
+                  store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
+                }
+              }
+            }
+          }
+        }
+
+        Panel(title: "Evidence", symbol: "paperclip") {
+          let attachments = store.evidence(for: .order, linkedEntityID: order.id)
+
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("\(attachments.count) linked attachments")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Add evidence", systemImage: "plus") {
+                store.addPlaceholderEvidence(to: .order, linkedEntityID: order.id, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+
+            if attachments.isEmpty {
+              Text("No evidence linked.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quinary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+              ForEach(attachments) { attachment in
+                EvidenceAttachmentRow(attachment: attachment) {
+                  store.markEvidenceReviewed(attachment)
+                } onRemove: {
+                  store.removeEvidence(attachment)
+                } onCreateTask: {
+                  store.createReviewTask(from: attachment)
+                }
+              }
+            }
+          }
         }
 
         Panel(title: "Timeline", symbol: "clock.fill") {
@@ -140,6 +266,80 @@ struct OrderDetailView: View {
         }
       }
       .padding(isCompact ? 14 : 24)
+    }
+    .sheet(isPresented: $isEditing) {
+      OrderEditView(order: order) { updatedOrder in
+        store.updateOrder(updatedOrder)
+      }
+    }
+  }
+}
+
+struct OrderEditView: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: TrackedOrder
+  var onSave: (TrackedOrder) -> Void
+
+  init(order: TrackedOrder, onSave: @escaping (TrackedOrder) -> Void) {
+    self._draft = State(initialValue: order)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Order") {
+          TextField("Merchant", text: $draft.store)
+          TextField("Order number", text: $draft.orderNumber)
+          TextField("Customer/team", text: $draft.customer)
+          TextField("Recipient email", text: $draft.recipientEmail)
+          TextField("Checked mailbox", text: $draft.checkedMailbox)
+        }
+
+        Section("Fulfillment") {
+          Picker("Fulfillment method", selection: $draft.fulfillment) {
+            Text(FulfillmentMethod.delivery.rawValue).tag(FulfillmentMethod.delivery)
+            Text(FulfillmentMethod.clickAndCollect.rawValue).tag(FulfillmentMethod.clickAndCollect)
+          }
+          TextField(draft.fulfillment == .delivery ? "Carrier" : "Collection point", text: $draft.carrier)
+          TextField(draft.fulfillment == .delivery ? "Tracking number" : "Collection reference", text: $draft.trackingNumber)
+          TextField(draft.fulfillment == .delivery ? "Destination address" : "Pickup address", text: $draft.destination, axis: .vertical)
+            .lineLimit(2...4)
+          TextField(draft.fulfillment == .delivery ? "Delivery ETA" : "Pickup window", text: $draft.eta)
+        }
+
+        Section("Review") {
+          Picker("Status", selection: $draft.status) {
+            ForEach(OrderStatus.allCases) { status in
+              Text(status.rawValue).tag(status)
+            }
+          }
+          Picker("Review state", selection: $draft.reviewState) {
+            Text(ReviewState.accepted.rawValue).tag(ReviewState.accepted)
+            Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview)
+            Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor)
+          }
+          TextField("Latest status", text: $draft.latestStatus, axis: .vertical)
+            .lineLimit(2...4)
+        }
+      }
+      .navigationTitle("Edit order")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+        }
+      }
+      #if os(macOS)
+      .frame(minWidth: 560, minHeight: 620)
+      #endif
     }
   }
 }

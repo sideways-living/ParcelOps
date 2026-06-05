@@ -1,44 +1,275 @@
 import SwiftUI
 
 struct MailboxView: View {
-  var events: [MailEvent]
+  var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 12) {
-        ForEach(events) { event in
-          VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-              Image(systemName: "envelope.open.fill")
-                .foregroundStyle(event.severity.color)
-                .frame(width: 30, height: 30)
-              VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                  Text(event.sender)
-                    .font(.headline)
-                  Badge(event.severity.rawValue, color: event.severity.color)
-                  Badge(event.reviewState.rawValue, color: event.reviewState.color)
-                  Spacer()
-                  Text(event.receivedTime)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                Text(event.summary)
-                  .foregroundStyle(.secondary)
-                Text("Matched order: \(event.matchedOrder)")
-                  .font(.caption.weight(.semibold))
-              }
+      VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Forwarded email intake")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Local captures from the tracking mailbox are reviewed here before they become order records or supporting evidence.")
+            .foregroundStyle(.secondary)
+        }
+
+        SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
+          ForEach(store.intakeEmails) { email in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
+              store.updateIntakeEmail(updatedEmail)
+            } onLinkOrder: { order in
+              store.linkIntakeEmail(email, to: order)
+            } onCreateOrder: {
+              store.createOrder(from: email)
+            } onReviewed: {
+              store.markIntakeEmailReviewed(email)
+            } onIgnore: {
+              store.ignoreIntakeEmail(email)
+            } onAddEvidence: {
+              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+            } onReviewEvidence: { attachment in
+              store.markEvidenceReviewed(attachment)
+            } onRemoveEvidence: { attachment in
+              store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: email)
             }
           }
-          .padding(14)
-          .background(.background)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-          .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+        }
+
+        SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
+          ForEach(store.mailEvents) { event in
+            MailEventRow(event: event)
+          }
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+struct IntakeEmailRow: View {
+  var email: ForwardedEmailIntake
+  var orders: [TrackedOrder]
+  var evidenceAttachments: [EvidenceAttachment]
+  var onSave: (ForwardedEmailIntake) -> Void
+  var onLinkOrder: (TrackedOrder) -> Void
+  var onCreateOrder: () -> Void
+  var onReviewed: () -> Void
+  var onIgnore: () -> Void
+  var onAddEvidence: () -> Void
+  var onReviewEvidence: (EvidenceAttachment) -> Void
+  var onRemoveEvidence: (EvidenceAttachment) -> Void
+  var onCreateTask: () -> Void = {}
+  @State private var isEditing = false
+
+  private var linkedOrder: TrackedOrder? {
+    orders.first { $0.id == email.linkedOrderID }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "envelope.open.fill")
+          .foregroundStyle(email.reviewState.color)
+          .frame(width: 28, height: 28)
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(email.subject)
+                .font(.headline)
+              Text("\(email.sender) • \(email.receivedDate)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge(email.reviewState.rawValue, color: email.reviewState.color)
+          }
+          Text(email.rawBodyPreview)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+            IntakeFact(title: "Merchant", value: email.detectedMerchant, symbol: "storefront.fill")
+            IntakeFact(title: "Order", value: email.detectedOrderNumber, symbol: "number")
+            IntakeFact(title: "Tracking", value: email.detectedTrackingNumber, symbol: "barcode.viewfinder")
+            IntakeFact(title: "Destination", value: email.detectedDestinationAddress, symbol: "mappin.and.ellipse")
+          }
+          if let linkedOrder {
+            Text("Linked to \(linkedOrder.orderNumber) • \(linkedOrder.store)")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          }
+        }
+      }
+
+      HStack {
+        Button("Edit", systemImage: "pencil", action: { isEditing = true })
+          .buttonStyle(.bordered)
+
+        Menu {
+          ForEach(orders) { order in
+            Button("\(order.orderNumber) • \(order.store)") {
+              onLinkOrder(order)
+            }
+          }
+        } label: {
+          Label("Link order", systemImage: "link")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
+          .buttonStyle(.borderedProminent)
+        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Ignore", systemImage: "trash", action: onIgnore)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          Label("Evidence", systemImage: "paperclip")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("Add", systemImage: "plus", action: onAddEvidence)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+
+        if evidenceAttachments.isEmpty {
+          Text("No evidence linked.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(evidenceAttachments) { attachment in
+            EvidenceAttachmentRow(attachment: attachment) {
+              onReviewEvidence(attachment)
+            } onRemove: {
+              onRemoveEvidence(attachment)
+            }
+          }
+        }
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      IntakeEmailEditView(email: email) { updatedEmail in
+        onSave(updatedEmail)
+      }
+    }
+  }
+}
+
+struct IntakeEmailEditView: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: ForwardedEmailIntake
+  var onSave: (ForwardedEmailIntake) -> Void
+
+  init(email: ForwardedEmailIntake, onSave: @escaping (ForwardedEmailIntake) -> Void) {
+    self._draft = State(initialValue: email)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Email") {
+          TextField("Sender", text: $draft.sender)
+          TextField("Subject", text: $draft.subject)
+          TextField("Received", text: $draft.receivedDate)
+          TextField("Body preview", text: $draft.rawBodyPreview, axis: .vertical)
+            .lineLimit(3...6)
+        }
+
+        Section("Detected order details") {
+          TextField("Merchant", text: $draft.detectedMerchant)
+          TextField("Order number", text: $draft.detectedOrderNumber)
+          TextField("Tracking number", text: $draft.detectedTrackingNumber)
+          TextField("Destination address", text: $draft.detectedDestinationAddress, axis: .vertical)
+            .lineLimit(2...4)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text(IntakeEmailReviewState.needsReview.rawValue).tag(IntakeEmailReviewState.needsReview)
+            Text(IntakeEmailReviewState.reviewed.rawValue).tag(IntakeEmailReviewState.reviewed)
+            Text(IntakeEmailReviewState.ignored.rawValue).tag(IntakeEmailReviewState.ignored)
+          }
+        }
+      }
+      .navigationTitle("Edit intake email")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+        }
+      }
+      #if os(macOS)
+      .frame(minWidth: 520, minHeight: 520)
+      #endif
+    }
+  }
+}
+
+struct IntakeFact: View {
+  var title: String
+  var value: String
+  var symbol: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 6) {
+      Image(systemName: symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        Text(value)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+      }
+    }
+  }
+}
+
+struct MailEventRow: View {
+  var event: MailEvent
+
+  var body: some View {
+    HStack(alignment: .top) {
+      Image(systemName: "envelope.badge.fill")
+        .foregroundStyle(event.severity.color)
+        .frame(width: 30, height: 30)
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          Text(event.sender)
+            .font(.headline)
+          Badge(event.severity.rawValue, color: event.severity.color)
+          Badge(event.reviewState.rawValue, color: event.reviewState.color)
+          Spacer()
+          Text(event.receivedTime)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Text(event.summary)
+          .foregroundStyle(.secondary)
+        Text("Matched order: \(event.matchedOrder)")
+          .font(.caption.weight(.semibold))
+      }
+    }
+    .padding(12)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -62,10 +293,14 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
-            ReviewOrderRow(order: order) {
+            ReviewOrderRow(order: order) { updatedOrder in
+              store.updateOrder(updatedOrder)
+            } onClear: {
               store.clearIssue(for: order.orderNumber)
             } onDiscard: {
               store.discardSpam(for: order.orderNumber)
+            } onCreateTask: {
+              store.createReviewTask(from: order)
             }
           }
         }
@@ -76,6 +311,96 @@ struct NeedsReviewView: View {
               store.clearIssue(for: event.matchedOrder)
             } onDiscard: {
               store.discardSpam(for: event.matchedOrder)
+            } onCreateTask: {
+              store.createReviewTask(
+                linkedEntityType: .auditEvent,
+                linkedEntityID: event.id.uuidString,
+                label: event.matchedOrder,
+                summary: "Follow up mailbox event from \(event.sender): \(event.summary)",
+                priority: event.severity == .critical ? .urgent : .high
+              )
+            }
+          }
+        }
+
+        SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
+          ForEach(store.reviewIntakeEmails) { email in
+            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id)) { updatedEmail in
+              store.updateIntakeEmail(updatedEmail)
+            } onLinkOrder: { order in
+              store.linkIntakeEmail(email, to: order)
+            } onCreateOrder: {
+              store.createOrder(from: email)
+            } onReviewed: {
+              store.markIntakeEmailReviewed(email)
+            } onIgnore: {
+              store.ignoreIntakeEmail(email)
+            } onAddEvidence: {
+              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+            } onReviewEvidence: { attachment in
+              store.markEvidenceReviewed(attachment)
+            } onRemoveEvidence: { attachment in
+              store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: email)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Evidence", symbol: "paperclip") {
+          ForEach(store.reviewEvidenceAttachments) { attachment in
+            EvidenceAttachmentRow(attachment: attachment) {
+              store.markEvidenceReviewed(attachment)
+            } onRemove: {
+              store.removeEvidence(attachment)
+            } onCreateTask: {
+              store.createReviewTask(from: attachment)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
+          ForEach(store.reviewCarrierTrackingEvents) { event in
+            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }) {
+              store.markTrackingEventReviewed(event)
+            } onRemove: {
+              store.removeTrackingEvent(event)
+            } onCreateTask: {
+              store.createReviewTask(from: event)
+            } relatedTasks: {
+              store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Task escalations", symbol: "checklist") {
+          ForEach(store.reviewTasksNeedingAttention) { task in
+            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
+              store.updateReviewTask(updatedTask)
+            } onComplete: {
+              store.completeReviewTask(task)
+            } onReopen: {
+              store.reopenReviewTask(task)
+            } onReviewed: {
+              store.markReviewTaskReviewed(task)
+            } onRemove: {
+              store.removeReviewTask(task)
+            }
+          }
+        }
+
+        SettingsPanel(title: "SLA policies", symbol: "timer") {
+          ForEach(store.policiesNeedingReview) { policy in
+            SLAPolicyRow(policy: policy) { updatedPolicy in
+              store.updateSLAPolicy(updatedPolicy)
+            } onToggle: {
+              store.toggleSLAPolicy(policy)
+            } onReviewed: {
+              store.markSLAPolicyReviewed(policy)
+            } onEvaluate: {
+              store.evaluateSLAPolicyPlaceholder(policy)
+            } onRemove: {
+              store.removeSLAPolicy(policy)
             }
           }
         }
@@ -87,8 +412,11 @@ struct NeedsReviewView: View {
 
 struct ReviewOrderRow: View {
   var order: TrackedOrder
+  var onSave: (TrackedOrder) -> Void
   var onClear: () -> Void
   var onDiscard: () -> Void
+  var onCreateTask: () -> Void = {}
+  @State private var isEditing = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -106,15 +434,24 @@ struct ReviewOrderRow: View {
         Badge(order.reviewState.rawValue, color: order.reviewState.color)
       }
       HStack {
+        Button("Edit", systemImage: "pencil", action: { isEditing = true })
+          .buttonStyle(.bordered)
         Button("Add to orders", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      OrderEditView(order: order) { updatedOrder in
+        onSave(updatedOrder)
+      }
+    }
   }
 }
 
@@ -122,6 +459,7 @@ struct ReviewMailEventRow: View {
   var event: MailEvent
   var onClear: () -> Void
   var onDiscard: () -> Void
+  var onCreateTask: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -141,6 +479,8 @@ struct ReviewMailEventRow: View {
         Button("Add to order", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }
