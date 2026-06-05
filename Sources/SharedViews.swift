@@ -2046,6 +2046,93 @@ struct SettingsPanel<Content: View>: View {
   }
 }
 
+struct MVPWorkflowGuide: View {
+  var title: String
+  var detail: String
+  var steps: [String]
+  var symbol: String = "point.3.connected.trianglepath.dotted"
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+          HStack(alignment: .top, spacing: 8) {
+            Text("\(index + 1)")
+              .font(.caption.weight(.bold))
+              .foregroundStyle(.white)
+              .frame(width: 20, height: 20)
+              .background(.teal)
+              .clipShape(Circle())
+            Text(step)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .padding(10)
+          .background(.quinary)
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct MVPEmptyState: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var actionTitle: String?
+  var action: (() -> Void)?
+
+  init(title: String, detail: String, symbol: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+    self.title = title
+    self.detail = detail
+    self.symbol = symbol
+    self.actionTitle = actionTitle
+    self.action = action
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Image(systemName: symbol)
+        .font(.title3)
+        .foregroundStyle(.teal)
+      Text(title)
+        .font(.headline)
+      Text(detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      if let actionTitle, let action {
+        Button(actionTitle, systemImage: "plus", action: action)
+          .buttonStyle(.borderedProminent)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct DetailCell: View {
   var title: String
   var value: String

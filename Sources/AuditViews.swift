@@ -20,20 +20,26 @@ struct AuditView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Audit trail")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local history for order, intake, and review actions.")
+          Text("Local history for order, intake, review, task, dispatch, and settings actions.")
             .foregroundStyle(.secondary)
         }
+
+        MVPWorkflowGuide(
+          title: "Audit workflow",
+          detail: "Use this screen to confirm that local actions are being captured while testing the MVP.",
+          steps: [
+            "Filter by action or record type when checking a workflow.",
+            "Open recent activity after creating, linking, accepting, or reviewing records.",
+            "Create a task from an audit event if the history reveals follow-up work."
+          ],
+          symbol: "list.clipboard.fill"
+        )
 
         filterBar
 
         SettingsPanel(title: "Recent activity", symbol: "list.clipboard.fill") {
           if filteredEvents.isEmpty {
-            Text("No audit events match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No audit events match this view", detail: "Clear filters or perform a local action such as creating a task, reviewing intake, or updating dispatch readiness.", symbol: "list.clipboard.fill")
           } else {
             ForEach(filteredEvents) { event in
               AuditEventRow(event: event) {

@@ -2,6 +2,7 @@ import Foundation
 
 enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
+  case mvpSetup
   case workbench
   case orders
   case mailbox
@@ -49,6 +50,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .dashboard: "Dashboard"
+    case .mvpSetup: "MVP Setup"
     case .workbench: "Operations Workbench"
     case .orders: "Orders"
     case .mailbox: "Mailbox Monitor"
@@ -96,6 +98,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var shortTitle: String {
     switch self {
     case .dashboard: "Dashboard"
+    case .mvpSetup: "Setup"
     case .workbench: "Workbench"
     case .orders: "Orders"
     case .mailbox: "Mailbox"
@@ -143,6 +146,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var symbol: String {
     switch self {
     case .dashboard: "rectangle.grid.2x2.fill"
+    case .mvpSetup: "checklist"
     case .workbench: "rectangle.stack.badge.person.crop.fill"
     case .orders: "shippingbox.fill"
     case .mailbox: "envelope.badge.fill"

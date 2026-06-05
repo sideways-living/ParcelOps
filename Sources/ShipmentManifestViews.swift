@@ -20,6 +20,17 @@ struct ShipmentManifestsView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        MVPWorkflowGuide(
+          title: "Manifest workflow",
+          detail: "Use manifests to bundle outbound work before checking readiness and handoff.",
+          steps: [
+            "Confirm included orders, shipment groups, labels, scans, and evidence.",
+            "Mark prepared when the batch is ready for dispatch checks.",
+            "Mark dispatched or handed off once the local handoff is complete.",
+            "Block the manifest if orders, scans, or locations are missing."
+          ],
+          symbol: "list.bullet.clipboard.fill"
+        )
         filterBar
 
         SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {
@@ -33,12 +44,7 @@ struct ShipmentManifestsView: View {
           }
 
           if filteredRecords.isEmpty {
-            Text("No shipment manifests match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No manifests match this view", detail: "Clear filters or add a placeholder manifest to test dispatch batching.", symbol: "list.bullet.clipboard.fill", actionTitle: "Add manifest", action: store.addShipmentManifestPlaceholder)
           } else {
             ForEach(filteredRecords) { record in
               ShipmentManifestRow(record: record, dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
@@ -75,7 +81,7 @@ struct ShipmentManifestsView: View {
       VStack(alignment: .leading, spacing: 6) {
         Text("Shipment Manifests")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local dispatch batches, courier handoffs, internal delivery runs, and outbound transfer groups.")
+        Text("Local dispatch batches for grouping orders before readiness checks and handoff.")
           .foregroundStyle(.secondary)
       }
       Spacer()

@@ -9,6 +9,24 @@ struct OrdersView: View {
 
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Orders")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Tracked local order records created manually or from accepted intake.")
+            .foregroundStyle(.secondary)
+        }
+
+        MVPWorkflowGuide(
+          title: "Order workflow",
+          detail: "Orders are the operational record you use after intake has been confirmed.",
+          steps: [
+            "Search by order number, tracking number, store, customer, or email.",
+            "Open an order to review destination, carrier, status, linked tasks, and dispatch context.",
+            "Create a task or draft from the order when follow-up is needed."
+          ],
+          symbol: "shippingbox.fill"
+        )
+
         HStack {
           if horizontalSizeClass == .compact {
             statusPicker
@@ -22,13 +40,17 @@ struct OrdersView: View {
             .buttonStyle(.bordered)
         }
 
-        ForEach(store.filteredOrders) { order in
-          NavigationLink {
-            OrderDetailView(order: order, store: store)
-          } label: {
-            OrderListRow(order: order)
+        if store.filteredOrders.isEmpty {
+          MVPEmptyState(title: "No orders match this view", detail: "Clear the status filter or search text, or add a manual order to test the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
+        } else {
+          ForEach(store.filteredOrders) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              OrderListRow(order: order)
+            }
+            .buttonStyle(.plain)
           }
-          .buttonStyle(.plain)
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)

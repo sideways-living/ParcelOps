@@ -16,6 +16,19 @@ struct DashboardView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
+        MVPWorkflowGuide(
+          title: "First run path",
+          detail: "Use these screens in order when testing the local-only app in Xcode.",
+          steps: [
+            "Review forwarded email and import intake.",
+            "Accept or link records into orders and shipment groups.",
+            "Work exceptions in the workbench and tasks.",
+            "Prepare manifests and dispatch readiness.",
+            "Check audit history and local-only settings."
+          ],
+          symbol: "map.fill"
+        )
+        MVPReadinessCallout(store: store)
 
         AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
           LazyVGrid(columns: metricColumns, spacing: 12) {
@@ -377,16 +390,49 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 6) {
         Text("Operations overview")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
-        Text("Current work across orders, intake, tracking, evidence, automation, and review.")
+        Text("Start with intake, review, orders, workbench, shipment manifests, dispatch readiness, tasks, and audit.")
           .foregroundStyle(.secondary)
       }
       HStack {
         Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
           .buttonStyle(.borderedProminent)
-        Button("Sync", systemImage: "arrow.clockwise", action: store.syncSources)
+        Button("Refresh local data", systemImage: "arrow.clockwise", action: store.syncSources)
           .buttonStyle(.bordered)
       }
     }
+  }
+}
+
+struct MVPReadinessCallout: View {
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "checklist")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("MVP readiness")
+            .font(.headline)
+          Text("ParcelOps is local-only right now. Use it to test order intake, exception review, dispatch preparation, tasks, and audit before connecting live services.")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge("Local prototype", color: .orange)
+      }
+
+      MetricStrip(items: [
+        ("Review queue", "\(store.reviewQueueCount)", .orange),
+        ("Open work", "\(store.openWorkbenchItems.count)", .blue),
+        ("Manifests", "\(store.shipmentManifestRecords.count)", .purple),
+        ("Readiness", "\(store.dispatchReadinessChecklists.count)", .teal)
+      ])
+    }
+    .padding(16)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

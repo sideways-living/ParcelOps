@@ -46,14 +46,18 @@ struct ParcelOpsRootView: View {
       } else {
         NavigationSplitView {
           List {
-            ForEach(ParcelSection.allCases) { section in
-              Button {
-                selection = section
-              } label: {
-                Label(section.title, systemImage: section.symbol)
-                  .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            ForEach(ParcelNavigationGroup.desktopGroups) { group in
+              Section(group.title) {
+                ForEach(group.sections) { section in
+                  Button {
+                    selection = section
+                  } label: {
+                    Label(section.title, systemImage: section.symbol)
+                      .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                  }
+                  .buttonStyle(.plain)
+                }
               }
-              .buttonStyle(.plain)
             }
           }
           .navigationTitle("ParcelOps")
@@ -83,6 +87,8 @@ struct ParcelOpsRootView: View {
     switch section {
     case .dashboard:
       DashboardView(store: store)
+    case .mvpSetup:
+      MVPSetupView(store: store)
     case .workbench:
       OperationsWorkbenchView(store: store)
     case .orders:
@@ -175,11 +181,11 @@ struct ExpandableBottomMenu: View {
   var onSelect: (ParcelSection) -> Void
 
   private var primaryItems: [ParcelSection] {
-    [.dashboard, .workbench, .orders, .review]
+    [.dashboard, .mvpSetup, .workbench, .orders]
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions, .shipmentManifests, .dispatchReadiness, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
+    ParcelNavigationGroup.mobileSecondarySections
   }
 
   var body: some View {
@@ -202,10 +208,12 @@ struct ExpandableBottomMenu: View {
       }
 
       if isExpanded {
-        HStack(spacing: 0) {
-          ForEach(secondaryItems) { section in
-            BottomMenuButton(title: section.shortTitle, symbol: section.symbol, isSelected: selection == section) {
-              onSelect(section)
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 0) {
+            ForEach(secondaryItems) { section in
+              BottomMenuButton(title: section.shortTitle, symbol: section.symbol, isSelected: selection == section) {
+                onSelect(section)
+              }
             }
           }
         }
@@ -216,6 +224,24 @@ struct ExpandableBottomMenu: View {
     .padding(.top, 10)
     .padding(.bottom, 8)
     .background(.bar)
+  }
+}
+
+struct ParcelNavigationGroup: Identifiable {
+  var title: String
+  var sections: [ParcelSection]
+  var id: String { title }
+
+  static let desktopGroups: [ParcelNavigationGroup] = [
+    ParcelNavigationGroup(title: "MVP Workflow", sections: [.dashboard, .mvpSetup, .workbench, .review, .orders, .mailbox, .importQueue, .acceptanceReview]),
+    ParcelNavigationGroup(title: "Dispatch Operations", sections: [.shipmentManifests, .dispatchReadiness, .tracking, .tasks, .audit, .settings]),
+    ParcelNavigationGroup(title: "Search & Review", sections: [.search, .timeline, .validation, .reconciliation, .evidence, .handoffNotes]),
+    ParcelNavigationGroup(title: "Supporting Records", sections: [.shipmentGroups, .packageContents, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
+    ParcelNavigationGroup(title: "Admin & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .costsBudgets, .accounts, .vendorProfiles, .wishlist])
+  ]
+
+  static var mobileSecondarySections: [ParcelSection] {
+    desktopGroups.flatMap(\.sections).filter { ![.dashboard, .mvpSetup, .workbench, .orders].contains($0) }
   }
 }
 

@@ -37,17 +37,34 @@ struct OperationsWorkbenchView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        MVPWorkflowGuide(
+          title: "How to use the workbench",
+          detail: "This is the daily triage surface for the local MVP. Start here when you want the most actionable work, not every record in the system.",
+          steps: [
+            "Start with Due or overdue, High priority, and Blocked sections.",
+            "Create a task when work needs ownership.",
+            "Create a draft when someone needs to be contacted.",
+            "Mark supported records reviewed after the local follow-up is complete."
+          ],
+          symbol: "rectangle.stack.badge.person.crop.fill"
+        )
         filters
 
-        ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
-          SettingsPanel(title: group.title, symbol: group.symbol) {
-            ForEach(group.items) { item in
-              WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), costRecords: store.suggestedCostRecords(for: item), returnClaims: store.suggestedReturnClaims(for: item), procurementRequests: store.suggestedProcurementRequests(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
-                store.createReviewTask(from: item)
-              } onCreateDraft: {
-                store.createDraftMessage(from: item)
-              } onReviewed: {
-                store.markWorkbenchItemReviewed(item)
+        if filteredItems.isEmpty {
+          SettingsPanel(title: "Workbench items", symbol: "rectangle.stack.badge.person.crop.fill") {
+            MVPEmptyState(title: "No workbench items match this view", detail: "Clear filters to see open local work, or create tasks from intake, orders, manifests, and dispatch readiness records.", symbol: "rectangle.stack.badge.person.crop.fill")
+          }
+        } else {
+          ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
+            SettingsPanel(title: "\(group.title) (\(group.items.count))", symbol: group.symbol) {
+              ForEach(group.items) { item in
+                WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), costRecords: store.suggestedCostRecords(for: item), returnClaims: store.suggestedReturnClaims(for: item), procurementRequests: store.suggestedProcurementRequests(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
+                  store.createReviewTask(from: item)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: item)
+                } onReviewed: {
+                  store.markWorkbenchItemReviewed(item)
+                }
               }
             }
           }
@@ -63,7 +80,7 @@ struct OperationsWorkbenchView: View {
       VStack(alignment: .leading, spacing: 6) {
         Text("Operations Workbench")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Actionable local work across tasks, handoffs, intake, import, acceptance, exceptions, validation, tracking, evidence, policies, drafts, contacts, accounts, and profiles.")
+        Text("A focused queue for the most actionable local work across intake, orders, dispatch, exceptions, tasks, and handoffs.")
           .foregroundStyle(.secondary)
       }
       Spacer()

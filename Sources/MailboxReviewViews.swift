@@ -14,42 +14,58 @@ struct MailboxView: View {
             .foregroundStyle(.secondary)
         }
 
+        MVPWorkflowGuide(
+          title: "What to do here",
+          detail: "Treat each forwarded email as a draft signal until a person confirms the detected order details.",
+          steps: [
+            "Check merchant, order number, tracking number, and destination.",
+            "Edit any wrong detected values before accepting.",
+            "Link to an existing order or create a new order.",
+            "Mark reviewed, ignore, or create a task when follow-up is needed."
+          ],
+          symbol: "envelope.open.fill"
+        )
+
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
-          ForEach(store.intakeEmails) { email in
-            IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
-              store.updateIntakeEmail(updatedEmail)
-            } onLinkOrder: { order in
-              store.linkIntakeEmail(email, to: order)
-            } onCreateOrder: {
-              store.createOrder(from: email)
-            } onReviewed: {
-              store.markIntakeEmailReviewed(email)
-            } onIgnore: {
-              store.ignoreIntakeEmail(email)
-            } onAddEvidence: {
-              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
-            } onReviewEvidence: { attachment in
-              store.markEvidenceReviewed(attachment)
-            } onRemoveEvidence: { attachment in
-              store.removeEvidence(attachment)
-            } onCreateTask: {
-              store.createReviewTask(from: email)
-            } onCreateDraft: {
-              store.createDraftMessage(from: email)
-            } onDraftFromContact: { contact in
-              store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
-            } onCreateAccount: {
-              store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
-            } onTaskFromAccount: { account in
-              store.createReviewTask(from: account)
-            } onDraftFromAccount: { account in
-              store.createDraftMessage(from: account)
-            } onCreateProfile: {
-              store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
-            } onTaskFromProfile: { profile in
-              store.createReviewTask(from: profile)
-            } onDraftFromProfile: { profile in
-              store.createDraftMessage(from: profile)
+          if store.intakeEmails.isEmpty {
+            MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
+          } else {
+            ForEach(store.intakeEmails) { email in
+              IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
+                store.updateIntakeEmail(updatedEmail)
+              } onLinkOrder: { order in
+                store.linkIntakeEmail(email, to: order)
+              } onCreateOrder: {
+                store.createOrder(from: email)
+              } onReviewed: {
+                store.markIntakeEmailReviewed(email)
+              } onIgnore: {
+                store.ignoreIntakeEmail(email)
+              } onAddEvidence: {
+                store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+              } onReviewEvidence: { attachment in
+                store.markEvidenceReviewed(attachment)
+              } onRemoveEvidence: { attachment in
+                store.removeEvidence(attachment)
+              } onCreateTask: {
+                store.createReviewTask(from: email)
+              } onCreateDraft: {
+                store.createDraftMessage(from: email)
+              } onDraftFromContact: { contact in
+                store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
+              } onCreateAccount: {
+                store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+              } onTaskFromAccount: { account in
+                store.createReviewTask(from: account)
+              } onDraftFromAccount: { account in
+                store.createDraftMessage(from: account)
+              } onCreateProfile: {
+                store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+              } onTaskFromProfile: { profile in
+                store.createReviewTask(from: profile)
+              } onDraftFromProfile: { profile in
+                store.createDraftMessage(from: profile)
+              }
             }
           }
         }

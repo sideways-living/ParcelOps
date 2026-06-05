@@ -22,32 +22,54 @@ struct ImportQueueView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        MVPWorkflowGuide(
+          title: "Import queue workflow",
+          detail: "Use this screen when order information is staged manually or captured from a local placeholder source.",
+          steps: [
+            "Review confidence and detected merchant/order/tracking fields.",
+            "Edit notes or detected values if the staged record is wrong.",
+            "Link to an order or shipment group, or create new local records.",
+            "Accept, ignore, or reopen the import item."
+          ],
+          symbol: "tray.and.arrow.down.fill"
+        )
         filters
 
         SettingsPanel(title: "Staged imports", symbol: "tray.and.arrow.down.fill") {
-          ForEach(filteredItems) { item in
-            ImportQueueItemRow(
-              item: item,
-              orders: store.orders,
-              shipmentGroups: store.shipmentGroups,
-              playbooks: store.suggestedPlaybooks(for: item),
-              handoffNotes: store.handoffNotes(for: item),
-              customerProfiles: store.suggestedCustomerProfiles(for: item),
-              destinationAddresses: store.suggestedDestinationAddresses(for: item),
-              deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
-              packageContents: store.suggestedPackageContents(for: item),
-              onSave: store.updateImportQueueItem,
-              onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
-              onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
-              onCreateOrder: { store.createOrder(from: item) },
-              onCreateShipmentGroup: { store.createShipmentGroup(from: item) },
-              onAccepted: { store.markImportQueueItemAccepted(item) },
-              onIgnored: { store.ignoreImportQueueItem(item) },
-              onReopen: { store.reopenImportQueueItem(item) },
-              onRemove: { store.removeImportQueueItem(item) },
-              onCreateTask: { store.createReviewTask(from: item) },
-              onCreateDraft: { store.createDraftMessage(from: item) }
-            )
+          HStack {
+            Text("\(filteredItems.count) visible import items")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Spacer()
+          }
+
+          if filteredItems.isEmpty {
+            MVPEmptyState(title: "No staged imports match this view", detail: "Clear filters or add a placeholder import item to test the local acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: "Add import item", action: store.addImportQueueItemPlaceholder)
+          } else {
+            ForEach(filteredItems) { item in
+              ImportQueueItemRow(
+                item: item,
+                orders: store.orders,
+                shipmentGroups: store.shipmentGroups,
+                playbooks: store.suggestedPlaybooks(for: item),
+                handoffNotes: store.handoffNotes(for: item),
+                customerProfiles: store.suggestedCustomerProfiles(for: item),
+                destinationAddresses: store.suggestedDestinationAddresses(for: item),
+                deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
+                packageContents: store.suggestedPackageContents(for: item),
+                onSave: store.updateImportQueueItem,
+                onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
+                onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
+                onCreateOrder: { store.createOrder(from: item) },
+                onCreateShipmentGroup: { store.createShipmentGroup(from: item) },
+                onAccepted: { store.markImportQueueItemAccepted(item) },
+                onIgnored: { store.ignoreImportQueueItem(item) },
+                onReopen: { store.reopenImportQueueItem(item) },
+                onRemove: { store.removeImportQueueItem(item) },
+                onCreateTask: { store.createReviewTask(from: item) },
+                onCreateDraft: { store.createDraftMessage(from: item) }
+              )
+            }
           }
         }
       }
