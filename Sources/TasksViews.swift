@@ -56,7 +56,7 @@ struct TasksView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType)) { updatedTask in
+              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -64,6 +64,10 @@ struct TasksView: View {
                 store.reopenReviewTask(task)
               } onReviewed: {
                 store.markReviewTaskReviewed(task)
+              } onCreateDraft: {
+                store.createDraftMessage(from: task)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
               } onRemove: {
                 store.removeReviewTask(task)
               }
@@ -134,10 +138,18 @@ struct TasksView: View {
 struct ReviewTaskRow: View {
   var task: ReviewTask
   var matchingPolicies: [SLAPolicy] = []
+  var shipmentGroups: [ShipmentGroup] = []
+  var handoffNotes: [HandoffNote] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (ReviewTask) -> Void
   var onComplete: () -> Void
   var onReopen: () -> Void
   var onReviewed: () -> Void
+  var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -186,6 +198,27 @@ struct ReviewTaskRow: View {
               .font(.caption)
               .foregroundStyle(policy.priority.color)
           }
+
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
+          }
+
+          if !handoffNotes.isEmpty {
+            HandoffNoteStrip(notes: handoffNotes)
+          }
+
+          if !customerProfiles.isEmpty {
+            CustomerProfileStrip(profiles: customerProfiles)
+          }
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
+          }
+          if !deliveryInstructions.isEmpty {
+            DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
+          }
         }
       }
 
@@ -200,6 +233,10 @@ struct ReviewTaskRow: View {
             .buttonStyle(.borderedProminent)
         }
         Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

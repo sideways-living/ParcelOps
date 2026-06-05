@@ -36,12 +36,16 @@ struct EvidenceView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAttachments) { attachment in
-              EvidenceAttachmentRow(attachment: attachment) {
+              EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                 store.markEvidenceReviewed(attachment)
               } onRemove: {
                 store.removeEvidence(attachment)
               } onCreateTask: {
                 store.createReviewTask(from: attachment)
+              } onCreateDraft: {
+                store.createDraftMessage(from: attachment)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
               }
             }
           }
@@ -82,9 +86,16 @@ struct EvidenceView: View {
 
 struct EvidenceAttachmentRow: View {
   var attachment: EvidenceAttachment
+  var shipmentGroups: [ShipmentGroup] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -120,6 +131,23 @@ struct EvidenceAttachmentRow: View {
               .lineLimit(1)
               .truncationMode(.middle)
           }
+
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
+          }
+
+          if !customerProfiles.isEmpty {
+            CustomerProfileStrip(profiles: customerProfiles)
+          }
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
+          }
+          if !deliveryInstructions.isEmpty {
+            DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
+          }
         }
       }
 
@@ -129,6 +157,10 @@ struct EvidenceAttachmentRow: View {
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
       }
     }

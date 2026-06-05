@@ -83,6 +83,8 @@ struct ParcelOpsRootView: View {
     switch section {
     case .dashboard:
       DashboardView(store: store)
+    case .workbench:
+      OperationsWorkbenchView(store: store)
     case .orders:
       OrdersView(store: store)
     case .mailbox:
@@ -101,8 +103,62 @@ struct ParcelOpsRootView: View {
       EvidenceView(store: store)
     case .tasks:
       TasksView(store: store)
+    case .handoffNotes:
+      HandoffNotesView(store: store)
     case .slaPolicies:
       SLAPoliciesView(store: store)
+    case .exceptionPlaybooks:
+      ExceptionPlaybooksView(store: store)
+    case .communication:
+      CommunicationView(store: store)
+    case .contacts:
+      ContactsView(store: store)
+    case .customerProfiles:
+      CustomerProfilesView(store: store)
+    case .destinationAddresses:
+      DestinationAddressesView(store: store)
+    case .deliveryInstructions:
+      DeliveryInstructionsView(store: store)
+    case .packageContents:
+      PackageContentsView(store: store)
+    case .costsBudgets:
+      CostsBudgetsView(store: store)
+    case .returnsClaims:
+      ReturnsClaimsView(store: store)
+    case .procurement:
+      ProcurementView(store: store)
+    case .receivingInspections:
+      ReceivingInspectionsView(store: store)
+    case .inventoryReceipts:
+      InventoryReceiptsView(store: store)
+    case .storageLocations:
+      StorageLocationsView(store: store)
+    case .custodyChain:
+      CustodyChainView(store: store)
+    case .labelReferences:
+      LabelReferencesView(store: store)
+    case .scanSessions:
+      ScanSessionsView(store: store)
+    case .shipmentManifests:
+      ShipmentManifestsView(store: store)
+    case .dispatchReadiness:
+      DispatchReadinessView(store: store)
+    case .accounts:
+      AccountsView(store: store)
+    case .vendorProfiles:
+      VendorProfilesView(store: store)
+    case .shipmentGroups:
+      ShipmentGroupsView(store: store)
+    case .importQueue:
+      ImportQueueView(store: store)
+    case .acceptanceReview:
+      AcceptanceReviewView(store: store)
+    case .reconciliation:
+      ReconciliationView(store: store)
+    case .timeline:
+      TimelineView(store: store)
+    case .validation:
+      ValidationView(store: store)
     case .search:
       SearchView(store: store)
     case .audit:
@@ -119,11 +175,11 @@ struct ExpandableBottomMenu: View {
   var onSelect: (ParcelSection) -> Void
 
   private var primaryItems: [ParcelSection] {
-    [.dashboard, .orders, .tasks, .review]
+    [.dashboard, .workbench, .orders, .review]
   }
 
   private var secondaryItems: [ParcelSection] {
-    [.wishlist, .mailbox, .search, .integrations, .tracking, .evidence, .slaPolicies, .automation, .audit, .settings]
+    [.wishlist, .mailbox, .importQueue, .acceptanceReview, .reconciliation, .shipmentGroups, .timeline, .validation, .search, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions, .shipmentManifests, .dispatchReadiness, .accounts, .vendorProfiles, .integrations, .tracking, .evidence, .tasks, .handoffNotes, .slaPolicies, .exceptionPlaybooks, .automation, .audit, .settings]
   }
 
   var body: some View {

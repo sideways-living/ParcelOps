@@ -25,7 +25,32 @@ final class ParcelOpsStore {
   var automationRules: [AutomationRule]
   var savedFilters: [SavedFilter]
   var reviewTasks: [ReviewTask]
+  var handoffNotes: [HandoffNote]
   var slaPolicies: [SLAPolicy]
+  var exceptionPlaybooks: [ExceptionPlaybook]
+  var communicationTemplates: [CommunicationTemplate]
+  var draftMessages: [DraftMessage]
+  var contactDirectoryEntries: [ContactDirectoryEntry]
+  var customerRecipientProfiles: [CustomerRecipientProfile]
+  var destinationAddresses: [DestinationAddressRecord]
+  var deliveryInstructions: [DeliveryInstructionRecord]
+  var packageContents: [PackageContentRecord]
+  var costRecords: [CostRecord]
+  var returnClaims: [ReturnClaimRecord]
+  var procurementRequests: [ProcurementRequest]
+  var receivingInspections: [ReceivingInspectionRecord]
+  var inventoryReceipts: [InventoryReceiptRecord]
+  var storageLocations: [StorageLocationRecord]
+  var custodyRecords: [CustodyRecord]
+  var labelReferenceRecords: [LabelReferenceRecord]
+  var scanSessionRecords: [ScanSessionRecord]
+  var shipmentManifestRecords: [ShipmentManifestRecord]
+  var dispatchReadinessChecklists: [DispatchReadinessChecklist]
+  var accountCredentialRecords: [AccountCredentialRecord]
+  var vendorProfiles: [VendorProfile]
+  var shipmentGroups: [ShipmentGroup]
+  var importQueueItems: [ImportQueueItem]
+  var acceptanceRecords: [AcceptanceRecord]
 
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
@@ -39,7 +64,31 @@ final class ParcelOpsStore {
   private let automationRuleRepository: AutomationRuleRepository
   private let savedFilterRepository: SavedFilterRepository
   private let reviewTaskRepository: ReviewTaskRepository
+  private let handoffNoteRepository: HandoffNoteRepository
   private let slaPolicyRepository: SLAPolicyRepository
+  private let exceptionPlaybookRepository: ExceptionPlaybookRepository
+  private let communicationRepository: CommunicationRepository
+  private let contactDirectoryRepository: ContactDirectoryRepository
+  private let customerRecipientProfileRepository: CustomerRecipientProfileRepository
+  private let destinationAddressRepository: DestinationAddressRepository
+  private let deliveryInstructionRepository: DeliveryInstructionRepository
+  private let packageContentRepository: PackageContentRepository
+  private let costRecordRepository: CostRecordRepository
+  private let returnClaimRepository: ReturnClaimRepository
+  private let procurementRequestRepository: ProcurementRequestRepository
+  private let receivingInspectionRepository: ReceivingInspectionRepository
+  private let inventoryReceiptRepository: InventoryReceiptRepository
+  private let storageLocationRepository: StorageLocationRepository
+  private let custodyRepository: CustodyRepository
+  private let labelReferenceRepository: LabelReferenceRepository
+  private let scanSessionRepository: ScanSessionRepository
+  private let shipmentManifestRepository: ShipmentManifestRepository
+  private let dispatchReadinessRepository: DispatchReadinessRepository
+  private let accountCredentialRepository: AccountCredentialRepository
+  private let vendorProfileRepository: VendorProfileRepository
+  private let shipmentGroupRepository: ShipmentGroupRepository
+  private let importQueueRepository: ImportQueueRepository
+  private let acceptanceRepository: AcceptanceRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
@@ -47,7 +96,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & SLAPolicyRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -70,7 +119,31 @@ final class ParcelOpsStore {
     self.automationRuleRepository = repository
     self.savedFilterRepository = repository
     self.reviewTaskRepository = repository
+    self.handoffNoteRepository = repository
     self.slaPolicyRepository = repository
+    self.exceptionPlaybookRepository = repository
+    self.communicationRepository = repository
+    self.contactDirectoryRepository = repository
+    self.customerRecipientProfileRepository = repository
+    self.destinationAddressRepository = repository
+    self.deliveryInstructionRepository = repository
+    self.packageContentRepository = repository
+    self.costRecordRepository = repository
+    self.returnClaimRepository = repository
+    self.procurementRequestRepository = repository
+    self.receivingInspectionRepository = repository
+    self.inventoryReceiptRepository = repository
+    self.storageLocationRepository = repository
+    self.custodyRepository = repository
+    self.labelReferenceRepository = repository
+    self.scanSessionRepository = repository
+    self.shipmentManifestRepository = repository
+    self.dispatchReadinessRepository = repository
+    self.accountCredentialRepository = repository
+    self.vendorProfileRepository = repository
+    self.shipmentGroupRepository = repository
+    self.importQueueRepository = repository
+    self.acceptanceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
@@ -93,7 +166,32 @@ final class ParcelOpsStore {
     self.automationRules = repository.loadAutomationRules()
     self.savedFilters = repository.loadSavedFilters()
     self.reviewTasks = repository.loadReviewTasks()
+    self.handoffNotes = repository.loadHandoffNotes()
     self.slaPolicies = repository.loadSLAPolicies()
+    self.exceptionPlaybooks = repository.loadExceptionPlaybooks()
+    self.communicationTemplates = repository.loadCommunicationTemplates()
+    self.draftMessages = repository.loadDraftMessages()
+    self.contactDirectoryEntries = repository.loadContactDirectoryEntries()
+    self.customerRecipientProfiles = repository.loadCustomerRecipientProfiles()
+    self.destinationAddresses = repository.loadDestinationAddresses()
+    self.deliveryInstructions = repository.loadDeliveryInstructions()
+    self.packageContents = repository.loadPackageContents()
+    self.costRecords = repository.loadCostRecords()
+    self.returnClaims = repository.loadReturnClaims()
+    self.procurementRequests = repository.loadProcurementRequests()
+    self.receivingInspections = repository.loadReceivingInspections()
+    self.inventoryReceipts = repository.loadInventoryReceipts()
+    self.storageLocations = repository.loadStorageLocations()
+    self.custodyRecords = repository.loadCustodyRecords()
+    self.labelReferenceRecords = repository.loadLabelReferenceRecords()
+    self.scanSessionRecords = repository.loadScanSessionRecords()
+    self.shipmentManifestRecords = repository.loadShipmentManifestRecords()
+    self.dispatchReadinessChecklists = repository.loadDispatchReadinessChecklists()
+    self.accountCredentialRecords = repository.loadAccountCredentialRecords()
+    self.vendorProfiles = repository.loadVendorProfiles()
+    self.shipmentGroups = repository.loadShipmentGroups()
+    self.importQueueItems = repository.loadImportQueueItems()
+    self.acceptanceRecords = repository.loadAcceptanceRecords()
   }
 
   var activeCount: Int {
@@ -121,7 +219,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + policiesNeedingReview.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -166,6 +264,26 @@ final class ParcelOpsStore {
     openReviewTasks.filter { $0.priority == .urgent }
   }
 
+  var openHandoffNotes: [HandoffNote] {
+    handoffNotes.filter { $0.status != .completed }
+  }
+
+  var overdueHandoffNotes: [HandoffNote] {
+    openHandoffNotes.filter(\.isLocallyOverdue)
+  }
+
+  var highPriorityHandoffNotes: [HandoffNote] {
+    openHandoffNotes.filter { $0.priority == .high || $0.priority == .urgent }
+  }
+
+  var handoffNotesNeedingReview: [HandoffNote] {
+    handoffNotes.filter { $0.reviewState != .accepted }
+  }
+
+  var handoffNotesNeedingAttention: [HandoffNote] {
+    Array(Set(overdueHandoffNotes + highPriorityHandoffNotes + handoffNotesNeedingReview + openHandoffNotes.filter { $0.status == .open }))
+  }
+
   var policiesNeedingReview: [SLAPolicy] {
     slaPolicies.filter { $0.reviewState != .accepted }
   }
@@ -184,6 +302,557 @@ final class ParcelOpsStore {
     }.prefix(5))
   }
 
+  var playbooksNeedingReview: [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledHighPriorityPlaybooks: [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.isEnabled && ($0.priority == .high || $0.priority == .urgent) }
+  }
+
+  var enabledPlaybookCount: Int {
+    exceptionPlaybooks.filter(\.isEnabled).count
+  }
+
+  var disabledPlaybookCount: Int {
+    exceptionPlaybooks.filter { !$0.isEnabled }.count
+  }
+
+  var enabledCommunicationTemplateCount: Int {
+    communicationTemplates.filter(\.isEnabled).count
+  }
+
+  var disabledCommunicationTemplateCount: Int {
+    communicationTemplates.filter { !$0.isEnabled }.count
+  }
+
+  var draftMessagesNeedingReview: [DraftMessage] {
+    draftMessages.filter { $0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened }
+  }
+
+  var enabledContactCount: Int {
+    contactDirectoryEntries.filter(\.isEnabled).count
+  }
+
+  var disabledContactCount: Int {
+    contactDirectoryEntries.filter { !$0.isEnabled }.count
+  }
+
+  var contactsNeedingReview: [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledCustomerProfileCount: Int {
+    customerRecipientProfiles.filter(\.isEnabled).count
+  }
+
+  var disabledCustomerProfileCount: Int {
+    customerRecipientProfiles.filter { !$0.isEnabled }.count
+  }
+
+  var customerProfilesNeedingReview: [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.reviewState != .accepted }
+  }
+
+  var enabledDestinationAddressCount: Int {
+    destinationAddresses.filter(\.isEnabled).count
+  }
+
+  var disabledDestinationAddressCount: Int {
+    destinationAddresses.filter { !$0.isEnabled }.count
+  }
+
+  var destinationAddressesNeedingReview: [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskDestinationAddresses: [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var enabledDeliveryInstructionCount: Int {
+    deliveryInstructions.filter(\.isEnabled).count
+  }
+
+  var disabledDeliveryInstructionCount: Int {
+    deliveryInstructions.filter { !$0.isEnabled }.count
+  }
+
+  var deliveryInstructionsNeedingReview: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskDeliveryInstructions: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var deliveryInstructionsWithAccessConstraints: [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { !$0.accessConstraintSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  var packageContentsNeedingReview: [PackageContentRecord] {
+    packageContents.filter { $0.reviewState != .accepted }
+  }
+
+  var unverifiedPackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.verificationStatus != .verified }
+  }
+
+  var packageContentDiscrepancies: [PackageContentRecord] {
+    packageContents.filter { $0.verificationStatus == .discrepancy || !$0.discrepancySummary.localizedCaseInsensitiveContains("no discrepancy") }
+  }
+
+  var highRiskPackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var highValuePackageContents: [PackageContentRecord] {
+    packageContents.filter { $0.valueBand == .high || $0.valueBand == .critical }
+  }
+
+  var costRecordsNeedingReview: [CostRecord] {
+    costRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var disputedCostRecords: [CostRecord] {
+    costRecords.filter { $0.reimbursementStatus == .disputed || $0.approvalStatus == .rejected }
+  }
+
+  var unreimbursedCostRecords: [CostRecord] {
+    costRecords.filter { $0.reimbursementStatus == .notSubmitted || $0.reimbursementStatus == .pending || $0.reimbursementStatus == .disputed }
+  }
+
+  var unapprovedCostRecords: [CostRecord] {
+    costRecords.filter { $0.approvalStatus != .approved }
+  }
+
+  var highRiskCostRecords: [CostRecord] {
+    costRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var missingBudgetCodeCostRecords: [CostRecord] {
+    costRecords.filter { cost in
+      let budget = cost.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+      return budget.isEmpty || budget.localizedCaseInsensitiveContains("missing") || budget.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
+  var returnClaimsNeedingReview: [ReturnClaimRecord] {
+    returnClaims.filter { $0.reviewState != .accepted }
+  }
+
+  var disputedReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.claimStatus == .disputed || $0.claimStatus == .blocked }
+  }
+
+  var unresolvedReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.claimStatus != .resolved && $0.claimStatus != .approved }
+  }
+
+  var overdueReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.dueDate.localizedCaseInsensitiveContains("overdue") || $0.dueDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var highRiskReturnClaims: [ReturnClaimRecord] {
+    returnClaims.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var returnClaimsMissingEvidence: [ReturnClaimRecord] {
+    returnClaims.filter { $0.evidenceAttachmentIDs.isEmpty }
+  }
+
+  var procurementRequestsNeedingReview: [ProcurementRequest] {
+    procurementRequests.filter { $0.reviewState != .accepted }
+  }
+
+  var unapprovedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.approvalStatus != .approved }
+  }
+
+  var rejectedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.approvalStatus == .rejected || $0.procurementStatus == .blocked }
+  }
+
+  var notYetOrderedProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.procurementStatus == .requested || $0.procurementStatus == .approvedToOrder || $0.procurementStatus == .blocked }
+  }
+
+  var overdueProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.neededByDate.localizedCaseInsensitiveContains("overdue") || $0.neededByDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var highRiskProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var missingBudgetCodeProcurementRequests: [ProcurementRequest] {
+    procurementRequests.filter { request in
+      let budget = request.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+      return budget.isEmpty || budget.localizedCaseInsensitiveContains("missing") || budget.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
+  var receivingInspectionsNeedingReview: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.reviewState != .accepted }
+  }
+
+  var blockedReceivingInspections: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.inspectionStatus == .blocked }
+  }
+
+  var unresolvedInspectionDiscrepancies: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.discrepancyType != .none && $0.inspectionStatus != .resolved }
+  }
+
+  var highRiskReceivingInspections: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var overdueReceivingInspections: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.dueDate.localizedCaseInsensitiveContains("overdue") || $0.dueDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var quantityMismatchReceivingInspections: [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.quantityExpected != $0.quantityReceived || $0.discrepancyType == .quantityMismatch }
+  }
+
+  var inventoryReceiptsNeedingReview: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.reviewState != .accepted }
+  }
+
+  var rejectedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.stockHandoffStatus == .rejected || $0.stockHandoffStatus == .needsReview }
+  }
+
+  var partiallyAcceptedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.stockHandoffStatus == .partiallyAccepted || $0.quantityRejected > 0 }
+  }
+
+  var highRiskInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var unassignedInventoryReceipts: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || $0.assignedOwnerTeam.localizedCaseInsensitiveContains("unassigned") }
+  }
+
+  var inventoryReceiptsMissingStorage: [InventoryReceiptRecord] {
+    inventoryReceipts.filter { receipt in
+      let location = receipt.storageLocationSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+      return location.isEmpty || location.localizedCaseInsensitiveContains("unassigned") || location.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
+  var storageLocationsNeedingReview: [StorageLocationRecord] {
+    storageLocations.filter { $0.reviewState != .accepted }
+  }
+
+  var disabledStorageLocations: [StorageLocationRecord] {
+    storageLocations.filter { !$0.isEnabled }
+  }
+
+  var highRiskStorageLocations: [StorageLocationRecord] {
+    storageLocations.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var storageLocationsMissingCodes: [StorageLocationRecord] {
+    storageLocations.filter { location in
+      let code = location.locationCode.trimmingCharacters(in: .whitespacesAndNewlines)
+      return code.isEmpty || code.localizedCaseInsensitiveContains("missing") || code.localizedCaseInsensitiveContains("confirm")
+    }
+  }
+
+  var storageLocationsWithAccessNotes: [StorageLocationRecord] {
+    storageLocations.filter { !$0.accessNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  var storageLocationsWithCapacityWarnings: [StorageLocationRecord] {
+    storageLocations.filter { location in
+      location.capacitySummary.localizedCaseInsensitiveContains("warning")
+        || location.currentUsageSummary.localizedCaseInsensitiveContains("warning")
+        || location.currentUsageSummary.localizedCaseInsensitiveContains("full")
+    }
+  }
+
+  var custodyRecordsNeedingReview: [CustodyRecord] {
+    custodyRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var disputedCustodyRecords: [CustodyRecord] {
+    custodyRecords.filter { $0.custodyStatus == .disputed || $0.custodyStatus == .needsReview }
+  }
+
+  var openCustodyTransfers: [CustodyRecord] {
+    custodyRecords.filter { $0.custodyStatus == .pendingTransfer || $0.custodyStatus == .transferred }
+  }
+
+  var overdueCustodyRecords: [CustodyRecord] {
+    custodyRecords.filter { $0.expectedReturnCloseDate.localizedCaseInsensitiveContains("overdue") || $0.expectedReturnCloseDate.localizedCaseInsensitiveContains("today") }
+  }
+
+  var highRiskCustodyRecords: [CustodyRecord] {
+    custodyRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var custodyRecordsMissingCustodians: [CustodyRecord] {
+    custodyRecords.filter { record in
+      let current = record.currentCustodianTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+      return current.isEmpty || current.localizedCaseInsensitiveContains("unassigned") || current.localizedCaseInsensitiveContains("unknown")
+    }
+  }
+
+  var custodyRecordsMissingLocations: [CustodyRecord] {
+    custodyRecords.filter { $0.sourceLocationID == nil || $0.destinationLocationID == nil }
+  }
+
+  var labelReferencesNeedingReview: [LabelReferenceRecord] {
+    labelReferenceRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var invalidLabelReferences: [LabelReferenceRecord] {
+    labelReferenceRecords.filter { $0.labelStatus == .invalidNeedsReview }
+  }
+
+  var unverifiedLabelReferences: [LabelReferenceRecord] {
+    labelReferenceRecords.filter { $0.labelStatus == .draft || $0.labelStatus == .printedLocally || $0.labelStatus == .missingValue }
+  }
+
+  var highRiskLabelReferences: [LabelReferenceRecord] {
+    labelReferenceRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var labelReferencesMissingValues: [LabelReferenceRecord] {
+    labelReferenceRecords.filter { record in
+      let value = record.labelValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+      return value.isEmpty || value.localizedCaseInsensitiveContains("to assign") || value.localizedCaseInsensitiveContains("missing")
+    }
+  }
+
+  var labelReferencesMissingLinkedRecords: [LabelReferenceRecord] {
+    labelReferenceRecords.filter {
+      $0.storageLocationID == nil
+        && $0.inventoryReceiptID == nil
+        && $0.custodyRecordID == nil
+        && $0.orderID == nil
+        && $0.shipmentGroupID == nil
+        && $0.packageContentID == nil
+        && $0.evidenceAttachmentIDs.isEmpty
+    }
+  }
+
+  var scanSessionsNeedingReview: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var mismatchScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.scanStatus == .mismatchNeedsReview }
+  }
+
+  var incompleteScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.scanStatus == .planned || $0.scanStatus == .reopened || $0.scanStatus == .blocked }
+  }
+
+  var highRiskScanSessions: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var scanSessionsMissingCapturedValues: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.capturedValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  var scanSessionsMissingLabelReferences: [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.linkedLabelReferenceID == nil }
+  }
+
+  var shipmentManifestsNeedingReview: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.reviewState != .accepted }
+  }
+
+  var blockedShipmentManifests: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.dispatchStatus == .blockedNeedsReview }
+  }
+
+  var undispatchedShipmentManifests: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.dispatchStatus == .draft || $0.dispatchStatus == .prepared || $0.dispatchStatus == .reopened }
+  }
+
+  var highRiskShipmentManifests: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var shipmentManifestsMissingIncludedOrders: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.includedOrderIDs.isEmpty }
+  }
+
+  var shipmentManifestsMissingHandoffLocation: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.handoffLocationStorageLocationID == nil }
+  }
+
+  var shipmentManifestsWithIncompleteScans: [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { manifest in
+      manifest.scanSessionIDs.contains { scanID in
+        scanSessionRecords.contains { $0.id == scanID && ($0.scanStatus == .planned || $0.scanStatus == .reopened || $0.scanStatus == .blocked || $0.scanStatus == .mismatchNeedsReview) }
+      }
+    }
+  }
+
+  var dispatchChecklistsNeedingReview: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.reviewState != .accepted }
+  }
+
+  var blockedDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.checklistStatus == .blockedNeedsReview }
+  }
+
+  var incompleteDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.checklistStatus == .draft || $0.checklistStatus == .ready || $0.checklistStatus == .reopened }
+  }
+
+  var highRiskDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var dispatchChecklistsMissingRequirements: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter {
+      !$0.missingRequirementsSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !$0.missingRequirementsSummary.localizedCaseInsensitiveContains("no missing")
+    }
+  }
+
+  var dispatchChecklistsLinkedToBlockedManifests: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { checklist in
+      guard let manifestID = checklist.shipmentManifestID else { return false }
+      return shipmentManifestRecords.contains { $0.id == manifestID && $0.dispatchStatus == .blockedNeedsReview }
+    }
+  }
+
+  var enabledAccountRecordCount: Int {
+    accountCredentialRecords.filter(\.isEnabled).count
+  }
+
+  var disabledAccountRecordCount: Int {
+    accountCredentialRecords.filter { !$0.isEnabled }.count
+  }
+
+  var accountRecordsNeedingReview: [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.reviewState != .accepted
+        || account.credentialStorageStatus == .needsSetup
+        || account.credentialStorageStatus == .accessPending
+        || account.mfaStatus == .needsReview
+        || account.mfaStatus == .notConfigured
+    }
+  }
+
+  var vendorProfilesNeedingReview: [VendorProfile] {
+    vendorProfiles.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskEnabledVendorProfiles: [VendorProfile] {
+    vendorProfiles.filter { $0.isEnabled && ($0.riskLevel == .high || $0.riskLevel == .critical) }
+  }
+
+  var shipmentGroupsNeedingReview: [ShipmentGroup] {
+    shipmentGroups.filter { $0.reviewState != .accepted }
+  }
+
+  var highRiskShipmentGroups: [ShipmentGroup] {
+    shipmentGroups.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var importQueueItemsNeedingReview: [ImportQueueItem] {
+    importQueueItems.filter { $0.reviewState != .accepted || $0.importStatus == .staged || $0.importStatus == .reopened }
+  }
+
+  var lowConfidenceImportQueueItems: [ImportQueueItem] {
+    importQueueItems.filter { $0.confidenceScore < 70 }
+  }
+
+  var blockedImportQueueItems: [ImportQueueItem] {
+    importQueueItems.filter { $0.importStatus == .blocked }
+  }
+
+  var acceptanceCandidates: [AcceptanceCandidate] {
+    let importCandidates = importQueueItems.map { item in
+      let record = acceptanceRecord(sourceType: .importQueueItem, sourceID: item.id)
+      return AcceptanceCandidate(
+        id: "import-\(item.id.uuidString)",
+        sourceType: .importQueueItem,
+        sourceID: item.id,
+        sourceLabel: item.sourceLabel,
+        capturedDate: item.capturedDate,
+        rawSummary: item.rawSummary,
+        detectedMerchant: item.detectedMerchant,
+        detectedOrderNumber: item.detectedOrderNumber,
+        detectedTrackingNumber: item.detectedTrackingNumber,
+        detectedDestinationAddress: item.detectedDestinationAddress,
+        suggestedLinkedOrderID: item.suggestedLinkedOrderID,
+        suggestedShipmentGroupID: item.suggestedShipmentGroupID,
+        confidenceScore: item.confidenceScore,
+        decision: record?.decision ?? item.importStatus.acceptanceDecision,
+        reviewState: record?.reviewState ?? item.reviewState,
+        notes: record?.notes ?? item.notes
+      )
+    }
+
+    let intakeCandidates = intakeEmails.map { email in
+      let record = acceptanceRecord(sourceType: .intakeEmail, sourceID: email.id)
+      let linkedGroup = shipmentGroups.first { $0.relatedIntakeEmailIDs.contains(email.id) }
+      return AcceptanceCandidate(
+        id: "intake-\(email.id.uuidString)",
+        sourceType: .intakeEmail,
+        sourceID: email.id,
+        sourceLabel: email.subject,
+        capturedDate: email.receivedDate,
+        rawSummary: email.rawBodyPreview,
+        detectedMerchant: email.detectedMerchant,
+        detectedOrderNumber: email.detectedOrderNumber,
+        detectedTrackingNumber: email.detectedTrackingNumber,
+        detectedDestinationAddress: email.detectedDestinationAddress,
+        suggestedLinkedOrderID: email.linkedOrderID,
+        suggestedShipmentGroupID: linkedGroup?.id,
+        confidenceScore: email.localAcceptanceConfidence,
+        decision: record?.decision ?? email.reviewState.acceptanceDecision,
+        reviewState: record?.reviewState ?? email.reviewState.searchReviewState,
+        notes: record?.notes ?? "Forwarded intake email awaiting local acceptance review."
+      )
+    }
+
+    return (importCandidates + intakeCandidates).sorted { lhs, rhs in
+      lhs.capturedDate > rhs.capturedDate
+    }
+  }
+
+  var acceptanceRecordsNeedingReview: [AcceptanceRecord] {
+    acceptanceRecords.filter { record in
+      record.reviewState != .accepted || record.decision == .ready || record.decision == .blocked || record.decision == .reopened
+    }
+  }
+
+  var acceptedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .accepted }
+  }
+
+  var blockedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .blocked }
+  }
+
+  var ignoredAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .ignored }
+  }
+
+  var reopenedAcceptanceRecords: [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.decision == .reopened }
+  }
+
+  var enabledVendorProfileCount: Int {
+    vendorProfiles.filter(\.isEnabled).count
+  }
+
+  var disabledVendorProfileCount: Int {
+    vendorProfiles.filter { !$0.isEnabled }.count
+  }
+
   var recentAuditEvents: [AuditEvent] {
     Array(auditEvents.prefix(5))
   }
@@ -196,6 +865,2631 @@ final class ParcelOpsStore {
 
   var newestIntakeEmails: [ForwardedEmailIntake] {
     Array(intakeEmails.prefix(5))
+  }
+
+  var timelineActivities: [TimelineActivity] {
+    orderTimelineActivities()
+      + intakeTimelineActivities()
+      + trackingTimelineActivities()
+      + evidenceTimelineActivities()
+      + taskTimelineActivities()
+      + slaTimelineActivities()
+      + communicationTimelineActivities()
+      + contactTimelineActivities()
+      + accountTimelineActivities()
+      + vendorProfileTimelineActivities()
+      + shipmentGroupTimelineActivities()
+      + importQueueTimelineActivities()
+      + acceptanceTimelineActivities()
+      + automationTimelineActivities()
+      + savedFilterTimelineActivities()
+      + auditTimelineActivities()
+  }
+
+  var timelineWatchlist: [TimelineActivity] {
+    timelineActivities.filter { activity in
+      activity.risk == .high
+        || activity.risk == .critical
+        || activity.reviewState == .needsReview
+        || activity.detail.localizedCaseInsensitiveContains("overdue")
+    }
+  }
+
+  var recentTimelineActivities: [TimelineActivity] {
+    Array(timelineActivities.prefix(6))
+  }
+
+  var workbenchItems: [WorkbenchItem] {
+    (reviewTaskWorkbenchItems()
+      + handoffNoteWorkbenchItems()
+      + intakeWorkbenchItems()
+      + importQueueWorkbenchItems()
+      + acceptanceWorkbenchItems()
+      + reconciliationWorkbenchItems()
+      + validationWorkbenchItems()
+      + shipmentGroupWorkbenchItems()
+      + trackingWorkbenchItems()
+      + evidenceWorkbenchItems()
+      + slaWorkbenchItems()
+      + exceptionPlaybookWorkbenchItems()
+      + draftMessageWorkbenchItems()
+      + contactWorkbenchItems()
+      + customerProfileWorkbenchItems()
+      + destinationAddressWorkbenchItems()
+      + deliveryInstructionWorkbenchItems()
+      + packageContentWorkbenchItems()
+      + costRecordWorkbenchItems()
+      + returnClaimWorkbenchItems()
+      + procurementRequestWorkbenchItems()
+      + receivingInspectionWorkbenchItems()
+      + inventoryReceiptWorkbenchItems()
+      + storageLocationWorkbenchItems()
+      + custodyRecordWorkbenchItems()
+      + labelReferenceWorkbenchItems()
+      + scanSessionWorkbenchItems()
+      + shipmentManifestWorkbenchItems()
+      + dispatchChecklistWorkbenchItems()
+      + accountWorkbenchItems()
+      + vendorProfileWorkbenchItems())
+      .sorted { lhs, rhs in
+        if lhs.rank == rhs.rank {
+          return lhs.reviewState == .needsReview && rhs.reviewState != .needsReview
+        }
+        return lhs.rank > rhs.rank
+      }
+  }
+
+  var openWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter { !$0.status.localizedCaseInsensitiveContains("complete") && !$0.status.localizedCaseInsensitiveContains("sent locally") }
+  }
+
+  var overdueWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter(\.isDueOrOverdue)
+  }
+
+  var blockedWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter(\.isBlocked)
+  }
+
+  var highPriorityWorkbenchItems: [WorkbenchItem] {
+    workbenchItems.filter { $0.rank >= 3 }
+  }
+
+  var workbenchItemsNeedingReview: [WorkbenchItem] {
+    workbenchItems.filter { $0.reviewState == .needsReview }
+  }
+
+  func filteredWorkbenchItems(
+    assignee: String?,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    prioritySeverity: String?,
+    status: String?,
+    reviewState: ReviewState?,
+    source: WorkbenchSource?
+  ) -> [WorkbenchItem] {
+    workbenchItems.filter { item in
+      let matchesAssignee = assignee == nil || item.assignee == assignee
+      let matchesEntity = linkedEntityType == nil || item.linkedEntityType == linkedEntityType
+      let matchesPriority = prioritySeverity == nil || item.prioritySeverity == prioritySeverity
+      let matchesStatus = status == nil || item.status == status
+      let matchesReview = reviewState == nil || item.reviewState == reviewState
+      let matchesSource = source == nil || item.source == source
+      return matchesAssignee && matchesEntity && matchesPriority && matchesStatus && matchesReview && matchesSource
+    }
+  }
+
+  func groupedWorkbenchItems(_ items: [WorkbenchItem]) -> [WorkbenchItemGroup] {
+    let due = items.filter(\.isDueOrOverdue)
+    let high = items.filter { $0.rank >= 3 && !due.contains($0) }
+    let review = items.filter { $0.reviewState == .needsReview && !due.contains($0) && !high.contains($0) }
+    let blocked = items.filter { $0.isBlocked && !due.contains($0) && !high.contains($0) && !review.contains($0) }
+    let awaiting = items.filter { $0.isAwaitingAcceptance && !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) }
+    let exceptions = items.filter { $0.isException && !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) && !awaiting.contains($0) }
+    let recent = items.filter { !due.contains($0) && !high.contains($0) && !review.contains($0) && !blocked.contains($0) && !awaiting.contains($0) && !exceptions.contains($0) }
+
+    return [
+      WorkbenchItemGroup(title: "Due or overdue", symbol: "calendar.badge.exclamationmark", items: due),
+      WorkbenchItemGroup(title: "High priority", symbol: "flame.fill", items: high),
+      WorkbenchItemGroup(title: "Needs review", symbol: "checkmark.shield.fill", items: review),
+      WorkbenchItemGroup(title: "Blocked", symbol: "hand.raised.fill", items: blocked),
+      WorkbenchItemGroup(title: "Awaiting acceptance", symbol: "checkmark.rectangle.stack.fill", items: awaiting),
+      WorkbenchItemGroup(title: "Exceptions", symbol: "exclamationmark.triangle.fill", items: exceptions),
+      WorkbenchItemGroup(title: "Recently updated", symbol: "clock.fill", items: recent)
+    ].filter { !$0.items.isEmpty }
+  }
+
+  func filteredTimelineActivities(
+    entityType: TimelineEntityType?,
+    risk: TimelineRiskLevel?,
+    reviewState: ReviewState?,
+    source: TimelineActivitySource?
+  ) -> [TimelineActivity] {
+    timelineActivities.filter { activity in
+      let matchesEntity = entityType == nil || activity.entityType == entityType
+      let matchesRisk = risk == nil || activity.risk == risk
+      let matchesReview = reviewState == nil || activity.reviewState == reviewState
+      let matchesSource = source == nil || activity.source == source
+      return matchesEntity && matchesRisk && matchesReview && matchesSource
+    }
+  }
+
+  func groupedTimelineActivities(_ activities: [TimelineActivity]) -> [TimelineActivityGroup] {
+    let watchlist = activities.filter { timelineWatchlist.contains($0) }
+    let today = activities.filter { activity in
+      activity.timestampText.localizedCaseInsensitiveContains("today") && !watchlist.contains(activity)
+    }
+    let earlier = activities.filter { activity in
+      !activity.timestampText.localizedCaseInsensitiveContains("today") && !watchlist.contains(activity)
+    }
+
+    return [
+      TimelineActivityGroup(title: "Watchlist", activities: watchlist),
+      TimelineActivityGroup(title: "Today", activities: today),
+      TimelineActivityGroup(title: "Earlier", activities: earlier)
+    ].filter { !$0.activities.isEmpty }
+  }
+
+  var validationIssues: [ValidationIssue] {
+    (orderValidationIssues()
+      + intakeValidationIssues()
+      + trackingNumberValidationIssues()
+      + destinationValidationIssues()
+      + vendorProfileMatchValidationIssues()
+      + accountPlaceholderValidationIssues()
+      + contactSuggestionValidationIssues())
+      .sorted { lhs, rhs in
+        if lhs.severity.rank == rhs.severity.rank {
+          return lhs.confidenceScore < rhs.confidenceScore
+        }
+        return lhs.severity.rank > rhs.severity.rank
+      }
+  }
+
+  var highSeverityValidationIssues: [ValidationIssue] {
+    validationIssues.filter { $0.severity == .high || $0.severity == .critical }
+  }
+
+  var validationNeedsCorrectionCount: Int {
+    validationIssues.filter { $0.status == .needsCorrection || $0.status == .conflict }.count
+  }
+
+  var lowConfidenceValidationCount: Int {
+    validationIssues.filter { $0.status == .lowConfidence }.count
+  }
+
+  var duplicateValidationCount: Int {
+    validationIssues.filter { $0.status == .duplicate }.count
+  }
+
+  var validationHealthScore: Int {
+    guard !validationIssues.isEmpty else { return 100 }
+    let averageConfidence = validationIssues.map(\.confidenceScore).reduce(0, +) / validationIssues.count
+    let severityPenalty = min(40, highSeverityValidationIssues.count * 5)
+    return max(0, averageConfidence - severityPenalty)
+  }
+
+  var reconciliationIssues: [ReconciliationIssue] {
+    (missingLinkReconciliationIssues()
+      + orderNumberConflictReconciliationIssues()
+      + trackingNumberConflictReconciliationIssues()
+      + destinationConflictReconciliationIssues()
+      + duplicateStagedRecordReconciliationIssues()
+      + acceptedWithoutOrderReconciliationIssues()
+      + shipmentGroupMissingPrimaryReconciliationIssues())
+      .sorted { lhs, rhs in
+        if lhs.severity.rank == rhs.severity.rank {
+          return lhs.createdDate > rhs.createdDate
+        }
+        return lhs.severity.rank > rhs.severity.rank
+      }
+  }
+
+  var unresolvedReconciliationIssues: [ReconciliationIssue] {
+    reconciliationIssues.filter { $0.reviewState != .accepted }
+  }
+
+  var highSeverityReconciliationIssues: [ReconciliationIssue] {
+    reconciliationIssues.filter { $0.severity == .high || $0.severity == .critical }
+  }
+
+  func filteredReconciliationIssues(
+    issueType: ReconciliationIssueType?,
+    severity: ValidationSeverity?,
+    sourceEntityType: ReconciliationEntityType?,
+    targetEntityType: ReconciliationEntityType?,
+    reviewState: ReviewState?
+  ) -> [ReconciliationIssue] {
+    reconciliationIssues.filter { issue in
+      let matchesIssue = issueType == nil || issue.issueType == issueType
+      let matchesSeverity = severity == nil || issue.severity == severity
+      let matchesSource = sourceEntityType == nil || issue.sourceEntityType == sourceEntityType
+      let matchesTarget = targetEntityType == nil || issue.targetEntityType == targetEntityType
+      let matchesReview = reviewState == nil || issue.reviewState == reviewState
+      return matchesIssue && matchesSeverity && matchesSource && matchesTarget && matchesReview
+    }
+  }
+
+  func groupedReconciliationIssues(_ issues: [ReconciliationIssue]) -> [ReconciliationIssueGroup] {
+    ReconciliationIssueType.allCases.compactMap { issueType in
+      let groupedIssues = issues.filter { $0.issueType == issueType }
+      guard !groupedIssues.isEmpty else { return nil }
+      return ReconciliationIssueGroup(issueType: issueType, issues: groupedIssues)
+    }
+  }
+
+  func filteredExceptionPlaybooks(
+    issueType: ReconciliationIssueType?,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    priority: TaskPriority?,
+    enabledState: Bool?,
+    reviewState: ReviewState?
+  ) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      let matchesIssue = issueType == nil || playbook.issueType == issueType
+      let matchesEntity = linkedEntityType == nil || playbook.linkedEntityType == linkedEntityType
+      let matchesPriority = priority == nil || playbook.priority == priority
+      let matchesEnabled = enabledState == nil || playbook.isEnabled == enabledState
+      let matchesReview = reviewState == nil || playbook.reviewState == reviewState
+      return matchesIssue && matchesEntity && matchesPriority && matchesEnabled && matchesReview
+    }
+  }
+
+  func filteredHandoffNotes(
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    priority: TaskPriority?,
+    assignee: String?,
+    status: TaskStatus?,
+    reviewState: ReviewState?
+  ) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      let matchesEntity = linkedEntityType == nil || note.linkedEntityType == linkedEntityType
+      let matchesPriority = priority == nil || note.priority == priority
+      let matchesAssignee = assignee == nil || note.assignee == assignee
+      let matchesStatus = status == nil || note.status == status
+      let matchesReview = reviewState == nil || note.reviewState == reviewState
+      return matchesEntity && matchesPriority && matchesAssignee && matchesStatus && matchesReview
+    }
+  }
+
+  func filteredValidationIssues(
+    entityType: ValidationEntityType?,
+    severity: ValidationSeverity?,
+    status: ValidationStatus?,
+    reviewState: ReviewState?
+  ) -> [ValidationIssue] {
+    validationIssues.filter { issue in
+      let matchesEntity = entityType == nil || issue.entityType == entityType
+      let matchesSeverity = severity == nil || issue.severity == severity
+      let matchesStatus = status == nil || issue.status == status
+      let matchesReview = reviewState == nil || issue.reviewState == reviewState
+      return matchesEntity && matchesSeverity && matchesStatus && matchesReview
+    }
+  }
+
+  func groupedValidationIssues(_ issues: [ValidationIssue]) -> [ValidationIssueGroup] {
+    ValidationSeverity.allCases.reversed().compactMap { severity in
+      let groupedIssues = issues.filter { $0.severity == severity }
+      guard !groupedIssues.isEmpty else { return nil }
+      return ValidationIssueGroup(severity: severity, issues: groupedIssues)
+    }
+  }
+
+  func filteredShipmentGroups(
+    riskLevel: ShipmentRiskLevel?,
+    status: String,
+    carrier: String,
+    reviewState: ReviewState?
+  ) -> [ShipmentGroup] {
+    let normalizedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedCarrier = carrier.trimmingCharacters(in: .whitespacesAndNewlines)
+    return shipmentGroups.filter { group in
+      let matchesRisk = riskLevel == nil || group.riskLevel == riskLevel
+      let matchesStatus = normalizedStatus.isEmpty || group.statusSummary.localizedCaseInsensitiveContains(normalizedStatus)
+      let matchesCarrier = normalizedCarrier.isEmpty || group.carrierSummary.localizedCaseInsensitiveContains(normalizedCarrier)
+      let matchesReview = reviewState == nil || group.reviewState == reviewState
+      return matchesRisk && matchesStatus && matchesCarrier && matchesReview
+    }
+  }
+
+  func filteredImportQueueItems(
+    sourceType: ImportSourceType?,
+    status: ImportStatus?,
+    confidenceRange: ImportConfidenceRange,
+    reviewState: ReviewState?
+  ) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      let matchesSource = sourceType == nil || item.sourceType == sourceType
+      let matchesStatus = status == nil || item.importStatus == status
+      let matchesConfidence = confidenceRange.contains(item.confidenceScore)
+      let matchesReview = reviewState == nil || item.reviewState == reviewState
+      return matchesSource && matchesStatus && matchesConfidence && matchesReview
+    }
+  }
+
+  func filteredAcceptanceCandidates(
+    sourceType: AcceptanceSourceType?,
+    decision: AcceptanceDecision?,
+    confidenceRange: ImportConfidenceRange,
+    reviewState: ReviewState?
+  ) -> [AcceptanceCandidate] {
+    acceptanceCandidates.filter { candidate in
+      let matchesSource = sourceType == nil || candidate.sourceType == sourceType
+      let matchesDecision = decision == nil || candidate.decision == decision
+      let matchesConfidence = confidenceRange.contains(candidate.confidenceScore)
+      let matchesReview = reviewState == nil || candidate.reviewState == reviewState
+      return matchesSource && matchesDecision && matchesConfidence && matchesReview
+    }
+  }
+
+  func groupedAcceptanceCandidates(_ candidates: [AcceptanceCandidate], by grouping: AcceptanceGrouping) -> [(title: String, candidates: [AcceptanceCandidate])] {
+    let grouped = Dictionary(grouping: candidates) { candidate in
+      switch grouping {
+      case .confidence:
+        if candidate.confidenceScore < 50 { return "Low confidence" }
+        if candidate.confidenceScore < 75 { return "Medium confidence" }
+        return "High confidence"
+      case .linkedOrder:
+        return candidate.suggestedLinkedOrderID.flatMap { orderLabel(for: $0) } ?? "No linked order"
+      case .shipmentGroup:
+        return candidate.suggestedShipmentGroupID.flatMap { shipmentGroupLabel(for: $0) } ?? "No shipment group"
+      case .reviewState:
+        return candidate.reviewState.rawValue
+      }
+    }
+
+    return grouped.keys.sorted().map { key in
+      (title: key, candidates: grouped[key] ?? [])
+    }
+  }
+
+  func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      item.suggestedLinkedOrderID == order.id
+        || item.detectedOrderNumber.localizedCaseInsensitiveContains(order.orderNumber)
+        || order.orderNumber.localizedCaseInsensitiveContains(item.detectedOrderNumber)
+        || item.detectedTrackingNumber.normalizedValidationKey == order.trackingNumber.normalizedValidationKey
+    }
+  }
+
+  func importQueueItems(for group: ShipmentGroup) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      item.suggestedShipmentGroupID == group.id
+        || item.suggestedLinkedOrderID.map { group.relatedOrderIDs.contains($0) || group.primaryOrderID == $0 } == true
+        || group.destinationSummary.localizedCaseInsensitiveContains(item.detectedDestinationAddress)
+        || item.detectedDestinationAddress.localizedCaseInsensitiveContains(group.destinationSummary)
+    }
+  }
+
+  func importQueueItems(for activity: TimelineActivity) -> [ImportQueueItem] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return importQueueItems.filter { item in
+      item.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID)
+    }
+  }
+
+  func importQueueItems(for issue: ValidationIssue) -> [ImportQueueItem] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return importQueueItems.filter { item in
+      item.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID)
+    }
+  }
+
+  func importQueueItems(for issue: ReconciliationIssue) -> [ImportQueueItem] {
+    importQueueItems.filter { item in
+      issue.matches(entityType: .importQueueItem, entityID: item.id.uuidString)
+        || item.suggestedLinkedOrderID?.uuidString == issue.sourceEntityID
+        || item.suggestedLinkedOrderID?.uuidString == issue.targetEntityID
+    }
+  }
+
+  func acceptanceRecords(for order: TrackedOrder) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.linkedOrderID == order.id }
+  }
+
+  func acceptanceRecords(for group: ShipmentGroup) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.linkedShipmentGroupID == group.id }
+  }
+
+  func acceptanceRecords(for activity: TimelineActivity) -> [AcceptanceRecord] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return acceptanceRecords.filter { $0.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID) }
+  }
+
+  func acceptanceRecords(for issue: ValidationIssue) -> [AcceptanceRecord] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return acceptanceRecords.filter { $0.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID) }
+  }
+
+  func acceptanceRecords(for issue: ReconciliationIssue) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { record in
+      issue.matches(entityType: .acceptanceRecord, entityID: record.id.uuidString)
+        || record.sourceID.uuidString == issue.sourceEntityID
+        || record.sourceID.uuidString == issue.targetEntityID
+        || record.linkedOrderID?.uuidString == issue.sourceEntityID
+        || record.linkedOrderID?.uuidString == issue.targetEntityID
+        || record.linkedShipmentGroupID?.uuidString == issue.sourceEntityID
+        || record.linkedShipmentGroupID?.uuidString == issue.targetEntityID
+    }
+  }
+
+  func acceptanceHistory(sourceType: AcceptanceSourceType, sourceID: UUID) -> [AcceptanceRecord] {
+    acceptanceRecords.filter { $0.sourceType == sourceType && $0.sourceID == sourceID }
+  }
+
+  func orderLabel(for id: UUID) -> String? {
+    orders.first { $0.id == id }.map { "\($0.store) \($0.orderNumber)" }
+  }
+
+  func shipmentGroupLabel(for id: UUID) -> String? {
+    shipmentGroups.first { $0.id == id }?.groupName
+  }
+
+  func handoffNotes(for linkedEntityType: ReviewTaskLinkedEntityType, linkedEntityID: String) -> [HandoffNote] {
+    handoffNotes.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
+  }
+
+  func handoffNotes(for order: TrackedOrder) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .order && note.linkedEntityID == order.id.uuidString
+    }
+  }
+
+  func handoffNotes(for group: ShipmentGroup) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .shipmentGroup && note.linkedEntityID == group.id.uuidString
+        || (note.linkedEntityType == .order && group.relatedOrderIDs.map(\.uuidString).contains(note.linkedEntityID))
+        || (note.linkedEntityType == .intakeEmail && group.relatedIntakeEmailIDs.map(\.uuidString).contains(note.linkedEntityID))
+    }
+  }
+
+  func handoffNotes(for issue: ReconciliationIssue) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .reconciliationIssue && note.linkedEntityID == issue.id
+        || note.linkedEntityID == issue.sourceEntityID
+        || note.linkedEntityID == issue.targetEntityID
+        || issue.sourceEntityType.reviewTaskLinkedEntityType.map { note.linkedEntityType == $0 } == true
+        || issue.targetEntityType?.reviewTaskLinkedEntityType.map { note.linkedEntityType == $0 } == true
+    }
+  }
+
+  func handoffNotes(for issue: ValidationIssue) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityID == issue.entityID
+        || note.linkedEntityType == issue.linkedEntityType
+    }
+  }
+
+  func handoffNotes(for item: ImportQueueItem) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .importQueueItem && note.linkedEntityID == item.id.uuidString
+        || item.suggestedLinkedOrderID?.uuidString == note.linkedEntityID
+        || item.suggestedShipmentGroupID?.uuidString == note.linkedEntityID
+    }
+  }
+
+  func handoffNotes(for candidate: AcceptanceCandidate) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == candidate.reviewTaskLinkedEntityType && note.linkedEntityID == candidate.sourceID.uuidString
+        || candidate.suggestedLinkedOrderID?.uuidString == note.linkedEntityID
+        || candidate.suggestedShipmentGroupID?.uuidString == note.linkedEntityID
+    }
+  }
+
+  func handoffNotes(for playbook: ExceptionPlaybook) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .exceptionPlaybook && note.linkedEntityID == playbook.id.uuidString
+        || note.linkedEntityType == playbook.linkedEntityType
+    }
+  }
+
+  func handoffNotes(for task: ReviewTask) -> [HandoffNote] {
+    handoffNotes.filter { note in
+      note.linkedEntityType == .reviewTask && note.linkedEntityID == task.id.uuidString
+        || note.linkedEntityType == task.linkedEntityType && note.linkedEntityID == task.linkedEntityID
+    }
+  }
+
+  func suggestedShipmentGroups(for order: TrackedOrder) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.primaryOrderID == order.id
+        || group.relatedOrderIDs.contains(order.id)
+        || group.destinationSummary.localizedCaseInsensitiveContains(order.destination)
+        || order.destination.localizedCaseInsensitiveContains(group.destinationSummary)
+        || group.carrierSummary.localizedCaseInsensitiveContains(order.carrier)
+        || group.recipientCustomerSummary.localizedCaseInsensitiveContains(order.customer)
+    }
+  }
+
+  func suggestedShipmentGroups(for email: ForwardedEmailIntake) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedIntakeEmailIDs.contains(email.id)
+        || email.linkedOrderID.map { group.relatedOrderIDs.contains($0) || group.primaryOrderID == $0 } == true
+        || group.destinationSummary.localizedCaseInsensitiveContains(email.detectedDestinationAddress)
+        || email.detectedDestinationAddress.localizedCaseInsensitiveContains(group.destinationSummary)
+    }
+  }
+
+  func suggestedShipmentGroups(for event: CarrierTrackingEvent) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedTrackingEventIDs.contains(event.id)
+        || group.relatedOrderIDs.contains(event.orderID)
+        || group.primaryOrderID == event.orderID
+        || group.carrierSummary.localizedCaseInsensitiveContains(event.carrier)
+    }
+  }
+
+  func suggestedShipmentGroups(for attachment: EvidenceAttachment) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.relatedEvidenceIDs.contains(attachment.id)
+        || (attachment.linkedEntityType == .order && group.relatedOrderIDs.contains(attachment.linkedEntityID))
+        || (attachment.linkedEntityType == .intakeEmail && group.relatedIntakeEmailIDs.contains(attachment.linkedEntityID))
+    }
+  }
+
+  func suggestedShipmentGroups(for task: ReviewTask) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      group.matches(linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+    }
+  }
+
+  func suggestedShipmentGroups(for activity: TimelineActivity) -> [ShipmentGroup] {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return [] }
+    return shipmentGroups.filter { group in
+      group.matches(linkedEntityType: linkedEntityType, linkedEntityID: activity.entityID)
+    }
+  }
+
+  func suggestedShipmentGroups(for issue: ValidationIssue) -> [ShipmentGroup] {
+    guard let linkedEntityType = issue.linkedEntityType else { return [] }
+    return shipmentGroups.filter { group in
+      group.matches(linkedEntityType: linkedEntityType, linkedEntityID: issue.entityID)
+    }
+  }
+
+  func suggestedShipmentGroups(for issue: ReconciliationIssue) -> [ShipmentGroup] {
+    shipmentGroups.filter { group in
+      issue.matches(entityType: .shipmentGroup, entityID: group.id.uuidString)
+        || group.primaryOrderID?.uuidString == issue.sourceEntityID
+        || group.primaryOrderID?.uuidString == issue.targetEntityID
+        || group.relatedOrderIDs.map(\.uuidString).contains(issue.sourceEntityID)
+        || group.relatedOrderIDs.map(\.uuidString).contains(issue.targetEntityID ?? "")
+        || group.relatedIntakeEmailIDs.map(\.uuidString).contains(issue.sourceEntityID)
+        || group.relatedIntakeEmailIDs.map(\.uuidString).contains(issue.targetEntityID ?? "")
+    }
+  }
+
+  func relatedValidationIssues(for issue: ReconciliationIssue) -> [ValidationIssue] {
+    validationIssues.filter { validationIssue in
+      validationIssue.entityID == issue.sourceEntityID
+        || validationIssue.entityID == issue.targetEntityID
+        || validationIssue.linkedEntityType?.rawValue == issue.sourceEntityType.rawValue
+    }
+  }
+
+  func createReviewTask(from issue: ValidationIssue) {
+    guard let linkedEntityType = issue.linkedEntityType else { return }
+    createReviewTask(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: issue.entityID,
+      label: issue.title,
+      summary: "Follow up validation issue: \(issue.detail)",
+      priority: issue.severity.taskPriority
+    )
+  }
+
+  func createDraftMessage(from issue: ValidationIssue) {
+    guard let linkedEntityType = issue.linkedEntityType else { return }
+    createDraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: issue.entityID,
+      label: issue.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  func markReconciliationIssueReviewed(_ issue: ReconciliationIssue) {
+    logAudit(
+      action: .reviewed,
+      entityType: .reconciliationIssue,
+      entityID: issue.id,
+      entityLabel: issue.title,
+      summary: "Reconciliation issue marked reviewed.",
+      afterDetail: issue.auditDetail
+    )
+  }
+
+  func createReviewTask(from issue: ReconciliationIssue) {
+    createReviewTask(
+      linkedEntityType: .reconciliationIssue,
+      linkedEntityID: issue.id,
+      label: issue.title,
+      summary: "Follow up reconciliation issue: \(issue.summary) Suggested resolution: \(issue.suggestedResolution)",
+      priority: issue.severity.taskPriority
+    )
+  }
+
+  func createDraftMessage(from issue: ReconciliationIssue) {
+    createDraftMessage(
+      linkedEntityType: .reconciliationIssue,
+      linkedEntityID: issue.id,
+      label: issue.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  private func missingLinkReconciliationIssues() -> [ReconciliationIssue] {
+    let intakeIssues = intakeEmails.compactMap { email -> ReconciliationIssue? in
+      let hasShipmentGroup = shipmentGroups.contains { $0.relatedIntakeEmailIDs.contains(email.id) }
+      guard email.linkedOrderID == nil || !hasShipmentGroup else { return nil }
+      return reconciliationIssue(
+        id: "recon-missing-intake-\(email.id.uuidString)",
+        issueType: .missingLink,
+        severity: email.linkedOrderID == nil ? .high : .warning,
+        sourceEntityType: .intakeEmail,
+        sourceEntityID: email.id.uuidString,
+        targetEntityType: email.linkedOrderID == nil ? .order : .shipmentGroup,
+        targetEntityID: email.linkedOrderID?.uuidString,
+        title: email.auditLabel,
+        summary: "Forwarded intake email is missing an order or shipment group link.",
+        detectedValue: "\(email.detectedMerchant) \(email.detectedOrderNumber)",
+        currentOperationalValue: "Order: \(email.linkedOrderID?.uuidString ?? "none"); shipment group: \(hasShipmentGroup ? "linked" : "none")",
+        suggestedResolution: "Link the intake email through Acceptance Review or create the missing local operational record.",
+        createdDate: email.receivedDate
+      )
+    }
+
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard item.suggestedLinkedOrderID == nil || item.suggestedShipmentGroupID == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-missing-import-\(item.id.uuidString)",
+        issueType: .missingLink,
+        severity: item.importStatus == .blocked ? .high : .warning,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: item.suggestedLinkedOrderID == nil ? .order : .shipmentGroup,
+        targetEntityID: item.suggestedLinkedOrderID?.uuidString ?? item.suggestedShipmentGroupID?.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue item is missing an order or shipment group decision.",
+        detectedValue: "\(item.detectedMerchant) \(item.detectedOrderNumber)",
+        currentOperationalValue: "Order: \(item.suggestedLinkedOrderID?.uuidString ?? "none"); shipment group: \(item.suggestedShipmentGroupID?.uuidString ?? "none")",
+        suggestedResolution: "Use Acceptance Review to link or create the missing order and shipment group context.",
+        createdDate: item.capturedDate
+      )
+    }
+
+    return intakeIssues + importIssues
+  }
+
+  private func orderNumberConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedOrderNumber.isPlaceholderValidationValue, item.detectedOrderNumber.normalizedValidationKey != order.orderNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-order-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .orderNumberConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue order number differs from the linked tracked order.",
+        detectedValue: item.detectedOrderNumber,
+        currentOperationalValue: order.orderNumber,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ReconciliationIssue? in
+      guard let orderID = email.linkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !email.detectedOrderNumber.isPlaceholderValidationValue, email.detectedOrderNumber.normalizedValidationKey != order.orderNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-order-intake-\(email.id.uuidString)-\(order.id.uuidString)",
+        issueType: .orderNumberConflict,
+        sourceEntityType: .intakeEmail,
+        sourceEntityID: email.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: email.auditLabel,
+        summary: "Forwarded intake order number differs from the linked tracked order.",
+        detectedValue: email.detectedOrderNumber,
+        currentOperationalValue: order.orderNumber,
+        createdDate: email.receivedDate
+      )
+    }
+
+    return importIssues + intakeIssues
+  }
+
+  private func trackingNumberConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedTrackingNumber.isPlaceholderValidationValue, item.detectedTrackingNumber.normalizedValidationKey != order.trackingNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-tracking-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .trackingNumberConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue tracking number differs from the linked tracked order.",
+        detectedValue: item.detectedTrackingNumber,
+        currentOperationalValue: order.trackingNumber,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let eventIssues = carrierTrackingEvents.compactMap { event -> ReconciliationIssue? in
+      guard let order = orders.first(where: { $0.id == event.orderID }) else { return nil }
+      guard event.trackingNumber.normalizedValidationKey != order.trackingNumber.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-tracking-event-\(event.id.uuidString)-\(order.id.uuidString)",
+        issueType: .trackingNumberConflict,
+        sourceEntityType: .trackingEvent,
+        sourceEntityID: event.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: event.trackingNumber,
+        summary: "Carrier tracking event number differs from the linked tracked order.",
+        detectedValue: event.trackingNumber,
+        currentOperationalValue: order.trackingNumber,
+        createdDate: event.eventTime
+      )
+    }
+
+    return importIssues + eventIssues
+  }
+
+  private func destinationConflictReconciliationIssues() -> [ReconciliationIssue] {
+    let importIssues = importQueueItems.compactMap { item -> ReconciliationIssue? in
+      guard let orderID = item.suggestedLinkedOrderID, let order = orders.first(where: { $0.id == orderID }) else { return nil }
+      guard !item.detectedDestinationAddress.isPlaceholderValidationValue, item.detectedDestinationAddress.normalizedValidationKey != order.destination.normalizedValidationKey else { return nil }
+      return reconciliationConflictIssue(
+        id: "recon-destination-import-\(item.id.uuidString)-\(order.id.uuidString)",
+        issueType: .destinationConflict,
+        sourceEntityType: .importQueueItem,
+        sourceEntityID: item.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: order.id.uuidString,
+        title: item.sourceLabel,
+        summary: "Import queue destination differs from the linked tracked order.",
+        detectedValue: item.detectedDestinationAddress,
+        currentOperationalValue: order.destination,
+        createdDate: item.capturedDate
+      )
+    }
+
+    let groupIssues = shipmentGroups.flatMap { group in
+      group.relatedOrderIDs.compactMap { orderID -> ReconciliationIssue? in
+        guard let order = orders.first(where: { $0.id == orderID }) else { return nil }
+        guard !group.destinationSummary.isPlaceholderValidationValue, group.destinationSummary.normalizedValidationKey != order.destination.normalizedValidationKey else { return nil }
+        return reconciliationConflictIssue(
+          id: "recon-destination-group-\(group.id.uuidString)-\(order.id.uuidString)",
+          issueType: .destinationConflict,
+          sourceEntityType: .shipmentGroup,
+          sourceEntityID: group.id.uuidString,
+          targetEntityType: .order,
+          targetEntityID: order.id.uuidString,
+          title: group.groupName,
+          summary: "Shipment group destination summary differs from a related tracked order.",
+          detectedValue: group.destinationSummary,
+          currentOperationalValue: order.destination,
+          createdDate: group.createdDate
+        )
+      }
+    }
+
+    return importIssues + groupIssues
+  }
+
+  private func duplicateStagedRecordReconciliationIssues() -> [ReconciliationIssue] {
+    importQueueItems.enumerated().flatMap { offset, item in
+      importQueueItems.dropFirst(offset + 1).compactMap { other -> ReconciliationIssue? in
+        let sameOrder = !item.detectedOrderNumber.isPlaceholderValidationValue && item.detectedOrderNumber.normalizedValidationKey == other.detectedOrderNumber.normalizedValidationKey
+        let sameTracking = !item.detectedTrackingNumber.isPlaceholderValidationValue && item.detectedTrackingNumber.normalizedValidationKey == other.detectedTrackingNumber.normalizedValidationKey
+        guard sameOrder || sameTracking else { return nil }
+        guard item.importStatus == .staged || other.importStatus == .staged || item.reviewState == .needsReview || other.reviewState == .needsReview else { return nil }
+        return reconciliationIssue(
+          id: "recon-duplicate-import-\(item.id.uuidString)-\(other.id.uuidString)",
+          issueType: .duplicateStagedRecord,
+          severity: .warning,
+          sourceEntityType: .importQueueItem,
+          sourceEntityID: item.id.uuidString,
+          targetEntityType: .importQueueItem,
+          targetEntityID: other.id.uuidString,
+          title: item.sourceLabel,
+          summary: "Two staged import records appear to describe the same order or tracking number.",
+          detectedValue: sameOrder ? item.detectedOrderNumber : item.detectedTrackingNumber,
+          currentOperationalValue: sameOrder ? other.detectedOrderNumber : other.detectedTrackingNumber,
+          suggestedResolution: "Compare the staged records and keep both as evidence, but accept only the correct operational link.",
+          createdDate: item.capturedDate
+        )
+      }
+    }
+  }
+
+  private func acceptedWithoutOrderReconciliationIssues() -> [ReconciliationIssue] {
+    acceptanceRecords.compactMap { record in
+      guard record.decision == .accepted, record.linkedOrderID == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-accepted-without-order-\(record.id.uuidString)",
+        issueType: .acceptedWithoutOrder,
+        severity: .high,
+        sourceEntityType: .acceptanceRecord,
+        sourceEntityID: record.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: nil,
+        title: record.sourceLabel,
+        summary: "Acceptance history says the record was accepted, but no tracked order is linked.",
+        detectedValue: record.decision.rawValue,
+        currentOperationalValue: "No linked order",
+        suggestedResolution: "Link the accepted source to an existing tracked order or create a new order from Acceptance Review.",
+        createdDate: record.decidedDate
+      )
+    }
+  }
+
+  private func shipmentGroupMissingPrimaryReconciliationIssues() -> [ReconciliationIssue] {
+    shipmentGroups.compactMap { group in
+      guard group.primaryOrderID == nil || group.primaryOrderID.flatMap({ id in orders.first { $0.id == id } }) == nil else { return nil }
+      return reconciliationIssue(
+        id: "recon-group-primary-\(group.id.uuidString)",
+        issueType: .shipmentGroupMissingPrimary,
+        severity: group.riskLevel == .critical || group.riskLevel == .high ? .high : .warning,
+        sourceEntityType: .shipmentGroup,
+        sourceEntityID: group.id.uuidString,
+        targetEntityType: .order,
+        targetEntityID: group.primaryOrderID?.uuidString,
+        title: group.groupName,
+        summary: "Shipment group has no valid primary tracked order.",
+        detectedValue: group.statusSummary,
+        currentOperationalValue: group.primaryOrderID?.uuidString ?? "No primary order",
+        suggestedResolution: "Select a primary order or create one from related intake/import context.",
+        createdDate: group.createdDate
+      )
+    }
+  }
+
+  private func reconciliationConflictIssue(
+    id: String,
+    issueType: ReconciliationIssueType,
+    sourceEntityType: ReconciliationEntityType,
+    sourceEntityID: String,
+    targetEntityType: ReconciliationEntityType,
+    targetEntityID: String,
+    title: String,
+    summary: String,
+    detectedValue: String,
+    currentOperationalValue: String,
+    createdDate: String
+  ) -> ReconciliationIssue {
+    reconciliationIssue(
+      id: id,
+      issueType: issueType,
+      severity: .high,
+      sourceEntityType: sourceEntityType,
+      sourceEntityID: sourceEntityID,
+      targetEntityType: targetEntityType,
+      targetEntityID: targetEntityID,
+      title: title,
+      summary: summary,
+      detectedValue: detectedValue,
+      currentOperationalValue: currentOperationalValue,
+      suggestedResolution: "Review the detected value against the operational value before changing order or shipment records.",
+      createdDate: createdDate
+    )
+  }
+
+  private func reconciliationIssue(
+    id: String,
+    issueType: ReconciliationIssueType,
+    severity: ValidationSeverity,
+    sourceEntityType: ReconciliationEntityType,
+    sourceEntityID: String,
+    targetEntityType: ReconciliationEntityType?,
+    targetEntityID: String?,
+    title: String,
+    summary: String,
+    detectedValue: String,
+    currentOperationalValue: String,
+    suggestedResolution: String,
+    createdDate: String
+  ) -> ReconciliationIssue {
+    ReconciliationIssue(
+      id: id,
+      issueType: issueType,
+      severity: severity,
+      sourceEntityType: sourceEntityType,
+      sourceEntityID: sourceEntityID,
+      targetEntityType: targetEntityType,
+      targetEntityID: targetEntityID,
+      title: title,
+      summary: summary,
+      detectedValue: detectedValue,
+      currentOperationalValue: currentOperationalValue,
+      suggestedResolution: suggestedResolution,
+      reviewState: isReconciliationIssueReviewed(id) ? .accepted : .needsReview,
+      createdDate: createdDate
+    )
+  }
+
+  private func isReconciliationIssueReviewed(_ issueID: String) -> Bool {
+    auditEvents.contains { event in
+      event.entityType == .reconciliationIssue && event.entityID == issueID && event.action == .reviewed
+    }
+  }
+
+  func addImportQueueItemPlaceholder() {
+    let item = ImportQueueItem(
+      sourceType: .manualEntry,
+      sourceLabel: "Manual import \(importQueueItems.count + 1)",
+      capturedDate: Self.auditTimestamp(),
+      rawSummary: "Manual placeholder import staged locally for review.",
+      detectedMerchant: "Pending merchant",
+      detectedOrderNumber: "Pending",
+      detectedTrackingNumber: "Pending",
+      detectedDestinationAddress: "Pending",
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 45,
+      importStatus: .staged,
+      reviewState: .needsReview,
+      notes: "Edit detected fields before accepting."
+    )
+    importQueueItems.insert(item, at: 0)
+    persistImportQueueItems()
+    logAudit(action: .created, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import queue item created.", afterDetail: item.auditDetail)
+  }
+
+  func updateImportQueueItem(_ item: ImportQueueItem) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index] = item
+    persistImportQueueItems()
+    logAudit(action: .edited, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import queue item updated.", beforeDetail: beforeDetail, afterDetail: item.auditDetail)
+  }
+
+  func linkImportQueueItem(_ item: ImportQueueItem, to order: TrackedOrder) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].suggestedLinkedOrderID = order.id
+    importQueueItems[index].importStatus = .linked
+    importQueueItems[index].reviewState = .monitor
+    persistImportQueueItems()
+    logAudit(action: .linked, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import item linked to tracked order \(order.orderNumber).", beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
+  }
+
+  func linkImportQueueItem(_ item: ImportQueueItem, to group: ShipmentGroup) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].suggestedShipmentGroupID = group.id
+    importQueueItems[index].importStatus = .linked
+    importQueueItems[index].reviewState = .monitor
+    persistImportQueueItems()
+    logAudit(action: .linked, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: "Import item linked to shipment group \(group.groupName).", beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
+  }
+
+  func createOrder(from item: ImportQueueItem) {
+    let order = TrackedOrder(
+      orderNumber: item.detectedOrderNumber.isPlaceholderValidationValue ? "IMP-\(1000 + orders.count + 1)" : item.detectedOrderNumber,
+      store: item.detectedMerchant.isPlaceholderValidationValue ? "Imported merchant" : item.detectedMerchant,
+      recipientEmail: "import-queue@parcelops.example",
+      checkedMailbox: "manual-import",
+      customer: "Operations",
+      fulfillment: .delivery,
+      carrier: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : "Imported carrier",
+      trackingNumber: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : item.detectedTrackingNumber,
+      destination: item.detectedDestinationAddress.isPlaceholderValidationValue ? "Pending" : item.detectedDestinationAddress,
+      eta: "Pending",
+      source: .manual,
+      status: .intake,
+      reviewState: .needsReview,
+      latestStatus: "Created from manual import queue item.",
+      timeline: [TimelineEvent(title: "Import accepted", detail: item.sourceLabel, time: "Now", symbol: "tray.and.arrow.down.fill")],
+      contactHistory: [ContactHistoryEvent(time: "Now", source: .manual, contactPoint: item.sourceLabel, summary: "Order created from import queue.", evidence: item.rawSummary, reviewState: .needsReview)]
+    )
+    orders.insert(order, at: 0)
+    persistOrders()
+    linkImportQueueItem(item, to: order)
+    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from import queue item.", afterDetail: order.auditDetail)
+  }
+
+  func createShipmentGroup(from item: ImportQueueItem) {
+    let group = ShipmentGroup(
+      groupName: item.detectedOrderNumber.isPlaceholderValidationValue ? "Imported shipment group" : "Import \(item.detectedOrderNumber)",
+      primaryOrderID: item.suggestedLinkedOrderID,
+      relatedOrderIDs: item.suggestedLinkedOrderID.map { [$0] } ?? [],
+      relatedIntakeEmailIDs: [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: item.detectedDestinationAddress,
+      recipientCustomerSummary: "Operations",
+      carrierSummary: item.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending carrier" : "Imported tracking \(item.detectedTrackingNumber)",
+      statusSummary: "Created from import queue",
+      riskLevel: item.confidenceScore < 50 ? .high : .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    linkImportQueueItem(item, to: group)
+    logAudit(action: .created, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Shipment group created from import queue item.", afterDetail: group.auditDetail)
+  }
+
+  func markImportQueueItemAccepted(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .accepted, reviewState: .accepted, action: .reviewed, summary: "Import queue item accepted.")
+  }
+
+  func ignoreImportQueueItem(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .ignored, reviewState: .monitor, action: .ignored, summary: "Import queue item ignored.")
+  }
+
+  func reopenImportQueueItem(_ item: ImportQueueItem) {
+    setImportQueueItem(item, status: .reopened, reviewState: .needsReview, action: .reopened, summary: "Import queue item reopened.")
+  }
+
+  func removeImportQueueItem(_ item: ImportQueueItem) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let removed = importQueueItems.remove(at: index)
+    persistImportQueueItems()
+    logAudit(action: .removed, entityType: .importQueueItem, entityID: removed.id.uuidString, entityLabel: removed.sourceLabel, summary: "Import queue item removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from item: ImportQueueItem) {
+    createReviewTask(linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString, label: item.sourceLabel, summary: "Review import queue item: \(item.rawSummary)", priority: item.importStatus == .blocked || item.confidenceScore < 50 ? .high : .normal)
+  }
+
+  func createDraftMessage(from item: ImportQueueItem) {
+    createDraftMessage(linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString, label: item.sourceLabel, recipient: "operations@parcelops.example")
+  }
+
+  func linkAcceptanceCandidate(_ candidate: AcceptanceCandidate, to order: TrackedOrder) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkImportQueueItem(item, to: order)
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkIntakeEmail(email, to: order)
+    }
+    upsertAcceptanceRecord(from: candidate, decision: .ready, reviewState: .monitor, linkedOrderID: order.id, linkedShipmentGroupID: candidate.suggestedShipmentGroupID, summary: "Acceptance candidate linked to tracked order \(order.orderNumber).", action: .linked)
+  }
+
+  func linkAcceptanceCandidate(_ candidate: AcceptanceCandidate, to group: ShipmentGroup) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      linkImportQueueItem(item, to: group)
+    case .intakeEmail:
+      linkIntakeEmail(candidate.sourceID, to: group)
+    }
+    upsertAcceptanceRecord(from: candidate, decision: .ready, reviewState: .monitor, linkedOrderID: candidate.suggestedLinkedOrderID, linkedShipmentGroupID: group.id, summary: "Acceptance candidate linked to shipment group \(group.groupName).", action: .linked)
+  }
+
+  func createOrder(from candidate: AcceptanceCandidate) {
+    let order = TrackedOrder(
+      orderNumber: candidate.detectedOrderNumber.isPlaceholderValidationValue ? "ACC-\(4000 + orders.count + 1)" : candidate.detectedOrderNumber,
+      store: candidate.detectedMerchant.isPlaceholderValidationValue ? "Accepted merchant" : candidate.detectedMerchant,
+      recipientEmail: candidate.sourceType == .intakeEmail ? "captured-from-forward@parcelops.example" : "import-queue@parcelops.example",
+      checkedMailbox: candidate.sourceType == .intakeEmail ? "tracking-intake@parcelops.example" : "manual-import",
+      customer: "Operations",
+      fulfillment: .delivery,
+      carrier: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : "Carrier pending",
+      trackingNumber: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : candidate.detectedTrackingNumber,
+      destination: candidate.detectedDestinationAddress.isPlaceholderValidationValue ? "Pending" : candidate.detectedDestinationAddress,
+      eta: "Pending",
+      source: candidate.sourceType == .intakeEmail ? .forwardedMailbox : .manual,
+      status: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? .intake : .shipped,
+      reviewState: .needsReview,
+      latestStatus: "Created from local acceptance review.",
+      timeline: [TimelineEvent(title: "Acceptance review", detail: candidate.sourceLabel, time: "Now", symbol: "checkmark.rectangle.stack.fill")],
+      contactHistory: [ContactHistoryEvent(time: "Now", source: candidate.sourceType == .intakeEmail ? .mailbox : .manual, contactPoint: "Acceptance Review", summary: "Order created from acceptance workflow.", evidence: candidate.rawSummary, reviewState: .needsReview)]
+    )
+    orders.insert(order, at: 0)
+    persistOrders()
+    linkAcceptanceCandidate(candidate, to: order)
+    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from acceptance review.", afterDetail: order.auditDetail)
+  }
+
+  func createShipmentGroup(from candidate: AcceptanceCandidate) {
+    let group = ShipmentGroup(
+      groupName: candidate.detectedOrderNumber.isPlaceholderValidationValue ? "Accepted shipment group" : "Acceptance \(candidate.detectedOrderNumber)",
+      primaryOrderID: candidate.suggestedLinkedOrderID,
+      relatedOrderIDs: candidate.suggestedLinkedOrderID.map { [$0] } ?? [],
+      relatedIntakeEmailIDs: candidate.sourceType == .intakeEmail ? [candidate.sourceID] : [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: candidate.detectedDestinationAddress,
+      recipientCustomerSummary: "Operations",
+      carrierSummary: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending carrier" : "Accepted tracking \(candidate.detectedTrackingNumber)",
+      statusSummary: "Created from acceptance review",
+      riskLevel: candidate.confidenceScore < 50 ? .high : .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    linkAcceptanceCandidate(candidate, to: group)
+    logAudit(action: .created, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Shipment group created from acceptance review.", afterDetail: group.auditDetail)
+  }
+
+  func acceptCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .accepted)
+    upsertAcceptanceRecord(from: candidate, decision: .accepted, reviewState: .accepted, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate accepted into operations.", action: .reviewed)
+  }
+
+  func ignoreCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .ignored)
+    upsertAcceptanceRecord(from: candidate, decision: .ignored, reviewState: .monitor, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate ignored locally.", action: .ignored)
+  }
+
+  func reopenCandidate(_ candidate: AcceptanceCandidate) {
+    setCandidateSourceState(candidate, decision: .reopened)
+    upsertAcceptanceRecord(from: candidate, decision: .reopened, reviewState: .needsReview, linkedOrderID: refreshedCandidate(for: candidate).suggestedLinkedOrderID, linkedShipmentGroupID: refreshedCandidate(for: candidate).suggestedShipmentGroupID, summary: "Acceptance candidate reopened for review.", action: .reopened)
+  }
+
+  func createReviewTask(from candidate: AcceptanceCandidate) {
+    createReviewTask(linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString, label: candidate.sourceLabel, summary: "Review acceptance candidate: \(candidate.rawSummary)", priority: candidate.decision == .blocked || candidate.confidenceScore < 50 ? .high : .normal)
+  }
+
+  func createDraftMessage(from candidate: AcceptanceCandidate) {
+    createDraftMessage(linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString, label: candidate.sourceLabel, recipient: "operations@parcelops.example")
+  }
+
+  private func linkIntakeEmail(_ emailID: UUID, to group: ShipmentGroup) {
+    guard let groupIndex = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[groupIndex].auditDetail
+    if !shipmentGroups[groupIndex].relatedIntakeEmailIDs.contains(emailID) {
+      shipmentGroups[groupIndex].relatedIntakeEmailIDs.append(emailID)
+    }
+    shipmentGroups[groupIndex].reviewState = .monitor
+    persistShipmentGroups()
+    logAudit(action: .linked, entityType: .shipmentGroup, entityID: group.id.uuidString, entityLabel: group.groupName, summary: "Forwarded intake email linked to shipment group.", beforeDetail: beforeDetail, afterDetail: shipmentGroups[groupIndex].auditDetail)
+  }
+
+  private func setCandidateSourceState(_ candidate: AcceptanceCandidate, decision: AcceptanceDecision) {
+    switch candidate.sourceType {
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else { return }
+      switch decision {
+      case .accepted:
+        markImportQueueItemAccepted(item)
+      case .ignored:
+        ignoreImportQueueItem(item)
+      case .reopened:
+        reopenImportQueueItem(item)
+      case .blocked:
+        setImportQueueItem(item, status: .blocked, reviewState: .monitor, action: .edited, summary: "Import queue item blocked in acceptance review.")
+      case .ready:
+        break
+      }
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else { return }
+      switch decision {
+      case .accepted:
+        markIntakeEmailReviewed(email)
+      case .ignored:
+        ignoreIntakeEmail(email)
+      case .reopened:
+        updateIntakeEmail(email, reviewState: .needsReview)
+      case .blocked, .ready:
+        break
+      }
+    }
+  }
+
+  private func refreshedCandidate(for candidate: AcceptanceCandidate) -> AcceptanceCandidate {
+    acceptanceCandidates.first { $0.sourceType == candidate.sourceType && $0.sourceID == candidate.sourceID } ?? candidate
+  }
+
+  private func acceptanceRecord(sourceType: AcceptanceSourceType, sourceID: UUID) -> AcceptanceRecord? {
+    acceptanceRecords.first { $0.sourceType == sourceType && $0.sourceID == sourceID }
+  }
+
+  private func upsertAcceptanceRecord(
+    from candidate: AcceptanceCandidate,
+    decision: AcceptanceDecision,
+    reviewState: ReviewState,
+    linkedOrderID: UUID?,
+    linkedShipmentGroupID: UUID?,
+    summary: String,
+    action: AuditAction
+  ) {
+    let updatedCandidate = refreshedCandidate(for: candidate)
+    let record = AcceptanceRecord(
+      id: acceptanceRecord(sourceType: candidate.sourceType, sourceID: candidate.sourceID)?.id ?? UUID(),
+      sourceType: candidate.sourceType,
+      sourceID: candidate.sourceID,
+      sourceLabel: updatedCandidate.sourceLabel,
+      decidedDate: Self.auditTimestamp(),
+      confidenceScore: updatedCandidate.confidenceScore,
+      linkedOrderID: linkedOrderID ?? updatedCandidate.suggestedLinkedOrderID,
+      linkedShipmentGroupID: linkedShipmentGroupID ?? updatedCandidate.suggestedShipmentGroupID,
+      decision: decision,
+      reviewState: reviewState,
+      summary: summary,
+      notes: updatedCandidate.notes
+    )
+
+    if let index = acceptanceRecords.firstIndex(where: { $0.sourceType == candidate.sourceType && $0.sourceID == candidate.sourceID }) {
+      let beforeDetail = acceptanceRecords[index].auditDetail
+      acceptanceRecords[index] = record
+      persistAcceptanceRecords()
+      logAudit(action: action, entityType: .acceptanceRecord, entityID: record.id.uuidString, entityLabel: record.sourceLabel, summary: summary, beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+    } else {
+      acceptanceRecords.insert(record, at: 0)
+      persistAcceptanceRecords()
+      logAudit(action: action, entityType: .acceptanceRecord, entityID: record.id.uuidString, entityLabel: record.sourceLabel, summary: summary, afterDetail: record.auditDetail)
+    }
+  }
+
+  private func setImportQueueItem(_ item: ImportQueueItem, status: ImportStatus, reviewState: ReviewState, action: AuditAction, summary: String) {
+    guard let index = importQueueItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = importQueueItems[index].auditDetail
+    importQueueItems[index].importStatus = status
+    importQueueItems[index].reviewState = reviewState
+    persistImportQueueItems()
+    logAudit(action: action, entityType: .importQueueItem, entityID: item.id.uuidString, entityLabel: item.sourceLabel, summary: summary, beforeDetail: beforeDetail, afterDetail: importQueueItems[index].auditDetail)
+  }
+
+  func addShipmentGroupPlaceholder() {
+    let primaryOrder = orders.first
+    let group = ShipmentGroup(
+      groupName: "New shipment group",
+      primaryOrderID: primaryOrder?.id,
+      relatedOrderIDs: primaryOrder.map { [$0.id] } ?? [],
+      relatedIntakeEmailIDs: [],
+      relatedTrackingEventIDs: [],
+      relatedEvidenceIDs: [],
+      destinationSummary: primaryOrder?.destination ?? "Pending destination",
+      recipientCustomerSummary: primaryOrder?.customer ?? "Unassigned",
+      carrierSummary: primaryOrder?.carrier ?? "Pending carrier",
+      statusSummary: "Manual grouping placeholder",
+      riskLevel: .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentGroups.insert(group, at: 0)
+    persistShipmentGroups()
+    logAudit(
+      action: .created,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group created locally.",
+      afterDetail: group.auditDetail
+    )
+  }
+
+  func updateShipmentGroup(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[index].auditDetail
+    shipmentGroups[index] = group
+    persistShipmentGroups()
+    logAudit(
+      action: .edited,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: group.auditDetail
+    )
+  }
+
+  func markShipmentGroupReviewed(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let beforeDetail = shipmentGroups[index].auditDetail
+    shipmentGroups[index].reviewState = .accepted
+    shipmentGroups[index].lastReviewedDate = Self.auditTimestamp()
+    persistShipmentGroups()
+    logAudit(
+      action: .reviewed,
+      entityType: .shipmentGroup,
+      entityID: group.id.uuidString,
+      entityLabel: group.groupName,
+      summary: "Shipment group marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: shipmentGroups[index].auditDetail
+    )
+  }
+
+  func removeShipmentGroup(_ group: ShipmentGroup) {
+    guard let index = shipmentGroups.firstIndex(where: { $0.id == group.id }) else { return }
+    let removed = shipmentGroups.remove(at: index)
+    persistShipmentGroups()
+    logAudit(
+      action: .removed,
+      entityType: .shipmentGroup,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.groupName,
+      summary: "Shipment group removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from group: ShipmentGroup) {
+    createReviewTask(
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: group.id.uuidString,
+      label: group.groupName,
+      summary: "Review shipment group: \(group.statusSummary). \(group.destinationSummary)",
+      priority: group.riskLevel == .critical ? .urgent : group.riskLevel == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from group: ShipmentGroup) {
+    createDraftMessage(
+      linkedEntityType: .shipmentGroup,
+      linkedEntityID: group.id.uuidString,
+      label: group.groupName,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  private func orderValidationIssues() -> [ValidationIssue] {
+    var issues: [ValidationIssue] = []
+    let orderNumberCounts = Dictionary(grouping: orders, by: { $0.orderNumber.normalizedValidationKey }).mapValues(\.count)
+    let trackingCounts = Dictionary(grouping: orders.filter { !$0.trackingNumber.isPlaceholderValidationValue }, by: { $0.trackingNumber.normalizedValidationKey }).mapValues(\.count)
+
+    for order in orders {
+      let missingFields = [
+        ("order number", order.orderNumber),
+        ("store", order.store),
+        ("recipient email", order.recipientEmail),
+        ("customer/team", order.customer),
+        ("carrier", order.carrier),
+        ("tracking number", order.trackingNumber),
+        ("destination", order.destination)
+      ].filter { $0.1.isPlaceholderValidationValue }.map(\.0)
+
+      if !missingFields.isEmpty {
+        issues.append(validationIssue(
+          id: "validation-order-missing-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: "\(order.store) \(order.orderNumber)",
+          subtitle: "Missing \(missingFields.joined(separator: ", "))",
+          detail: "Order has incomplete local fields: \(missingFields.joined(separator: ", ")).",
+          confidenceScore: max(35, 92 - missingFields.count * 12),
+          severity: missingFields.contains("tracking number") || missingFields.contains("destination") ? .high : .warning,
+          status: .incomplete,
+          reviewState: order.reviewState,
+          suggestedActionText: "Correct the tracked order fields."
+        ))
+      }
+
+      if orderNumberCounts[order.orderNumber.normalizedValidationKey, default: 0] > 1 {
+        issues.append(validationIssue(
+          id: "validation-order-duplicate-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.orderNumber,
+          subtitle: "\(order.store) duplicate order number",
+          detail: "More than one tracked order uses order number \(order.orderNumber).",
+          confidenceScore: 58,
+          severity: .high,
+          status: .duplicate,
+          reviewState: order.reviewState,
+          suggestedActionText: "Compare duplicate order records."
+        ))
+      }
+
+      if trackingCounts[order.trackingNumber.normalizedValidationKey, default: 0] > 1 {
+        issues.append(validationIssue(
+          id: "validation-order-tracking-duplicate-\(order.id.uuidString)",
+          entityType: .trackingNumber,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.trackingNumber,
+          subtitle: "\(order.orderNumber) duplicate tracking number",
+          detail: "More than one tracked order uses tracking number \(order.trackingNumber).",
+          confidenceScore: 55,
+          severity: .high,
+          status: .duplicate,
+          reviewState: order.reviewState,
+          suggestedActionText: "Verify whether this is a split shipment or duplicate order."
+        ))
+      }
+
+      if order.status == .exception && order.reviewState == .accepted {
+        issues.append(validationIssue(
+          id: "validation-order-stale-\(order.id.uuidString)",
+          entityType: .order,
+          entityID: order.id.uuidString,
+          linkedEntityType: .order,
+          title: order.orderNumber,
+          subtitle: "Exception marked accepted",
+          detail: "Order is still in exception status but its review state is accepted.",
+          confidenceScore: 62,
+          severity: .warning,
+          status: .staleReview,
+          reviewState: order.reviewState,
+          suggestedActionText: "Re-check review state after exception correction."
+        ))
+      }
+    }
+
+    return issues
+  }
+
+  private func reviewTaskWorkbenchItems() -> [WorkbenchItem] {
+    reviewTasks.filter { $0.status != .completed || $0.reviewState != .accepted }.map { task in
+      WorkbenchItem(
+        id: "task-\(task.id.uuidString)",
+        title: task.title,
+        summary: task.summary,
+        linkedEntityType: .reviewTask,
+        linkedEntityID: task.id.uuidString,
+        prioritySeverity: task.priority.rawValue,
+        status: task.status.rawValue,
+        assignee: task.assignee,
+        dueDateText: task.isLocallyOverdue ? "Overdue: \(task.dueDate)" : task.dueDate,
+        reviewState: task.reviewState,
+        source: .reviewTask,
+        suggestedNextAction: task.status == .completed ? "Mark reviewed" : "Complete or create draft"
+      )
+    }
+  }
+
+  private func handoffNoteWorkbenchItems() -> [WorkbenchItem] {
+    handoffNotes.filter { $0.status != .completed || $0.reviewState != .accepted }.map { note in
+      WorkbenchItem(
+        id: "handoff-\(note.id.uuidString)",
+        title: note.title,
+        summary: note.summary,
+        linkedEntityType: .handoffNote,
+        linkedEntityID: note.id.uuidString,
+        prioritySeverity: note.priority.rawValue,
+        status: note.status.rawValue,
+        assignee: note.assignee,
+        dueDateText: note.isLocallyOverdue ? "Overdue: \(note.dueDate)" : note.dueDate,
+        reviewState: note.reviewState,
+        source: .handoffNote,
+        suggestedNextAction: note.status == .open ? "Acknowledge handoff" : "Complete handoff"
+      )
+    }
+  }
+
+  private func intakeWorkbenchItems() -> [WorkbenchItem] {
+    reviewIntakeEmails.map { email in
+      WorkbenchItem(
+        id: "intake-\(email.id.uuidString)",
+        title: email.detectedOrderNumber,
+        summary: "\(email.detectedMerchant): \(email.subject)",
+        linkedEntityType: .intakeEmail,
+        linkedEntityID: email.id.uuidString,
+        prioritySeverity: "High",
+        status: email.reviewState.rawValue,
+        assignee: "Mailbox team",
+        dueDateText: email.receivedDate,
+        reviewState: .needsReview,
+        source: .intakeEmail,
+        suggestedNextAction: "Link or create order"
+      )
+    }
+  }
+
+  private func importQueueWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(blockedImportQueueItems + lowConfidenceImportQueueItems + importQueueItemsNeedingReview)).map { item in
+      WorkbenchItem(
+        id: "import-\(item.id.uuidString)",
+        title: item.sourceLabel,
+        summary: item.rawSummary,
+        linkedEntityType: .importQueueItem,
+        linkedEntityID: item.id.uuidString,
+        prioritySeverity: item.importStatus == .blocked ? "High" : item.confidenceScore < 55 ? "Medium" : "Normal",
+        status: item.importStatus.rawValue,
+        assignee: "Import team",
+        dueDateText: item.capturedDate,
+        reviewState: item.reviewState,
+        source: .importQueue,
+        suggestedNextAction: "Accept, link, or ignore import"
+      )
+    }
+  }
+
+  private func acceptanceWorkbenchItems() -> [WorkbenchItem] {
+    acceptanceCandidates.filter { $0.reviewState == .needsReview || $0.decision == .blocked || $0.decision == .ready || $0.decision == .reopened }.map { candidate in
+      WorkbenchItem(
+        id: "acceptance-\(candidate.id)",
+        title: candidate.sourceLabel,
+        summary: candidate.rawSummary,
+        linkedEntityType: candidate.reviewTaskLinkedEntityType,
+        linkedEntityID: candidate.sourceID.uuidString,
+        prioritySeverity: candidate.decision == .blocked ? "High" : "Normal",
+        status: candidate.decision.rawValue,
+        assignee: "Operations",
+        dueDateText: candidate.capturedDate,
+        reviewState: candidate.reviewState,
+        source: .acceptanceReview,
+        suggestedNextAction: "Confirm operational acceptance"
+      )
+    }
+  }
+
+  private func reconciliationWorkbenchItems() -> [WorkbenchItem] {
+    unresolvedReconciliationIssues.map { issue in
+      WorkbenchItem(
+        id: "reconciliation-\(issue.id)",
+        title: issue.title,
+        summary: issue.summary,
+        linkedEntityType: .reconciliationIssue,
+        linkedEntityID: issue.id,
+        prioritySeverity: issue.severity.rawValue,
+        status: issue.issueType.rawValue,
+        assignee: "Ops lead",
+        dueDateText: issue.createdDate,
+        reviewState: issue.reviewState,
+        source: .reconciliation,
+        suggestedNextAction: issue.suggestedResolution
+      )
+    }
+  }
+
+  private func validationWorkbenchItems() -> [WorkbenchItem] {
+    validationIssues.filter { $0.severity == .critical || $0.severity == .high || $0.status == .needsCorrection || $0.status == .conflict || $0.reviewState == .needsReview }.map { issue in
+      WorkbenchItem(
+        id: "validation-\(issue.id)",
+        title: issue.title,
+        summary: issue.detail,
+        linkedEntityType: issue.linkedEntityType ?? .auditEvent,
+        linkedEntityID: issue.entityID,
+        prioritySeverity: issue.severity.rawValue,
+        status: issue.status.rawValue,
+        assignee: "Quality team",
+        dueDateText: "\(issue.confidenceScore)% confidence",
+        reviewState: issue.reviewState,
+        source: .validation,
+        suggestedNextAction: issue.suggestedActionText
+      )
+    }
+  }
+
+  private func shipmentGroupWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(shipmentGroupsNeedingReview + highRiskShipmentGroups)).map { group in
+      WorkbenchItem(
+        id: "shipment-group-\(group.id.uuidString)",
+        title: group.groupName,
+        summary: "\(group.statusSummary) • \(group.destinationSummary)",
+        linkedEntityType: .shipmentGroup,
+        linkedEntityID: group.id.uuidString,
+        prioritySeverity: group.riskLevel.rawValue,
+        status: group.statusSummary,
+        assignee: group.recipientCustomerSummary,
+        dueDateText: group.lastReviewedDate,
+        reviewState: group.reviewState,
+        source: .shipmentGroup,
+        suggestedNextAction: "Review grouped shipment context"
+      )
+    }
+  }
+
+  private func trackingWorkbenchItems() -> [WorkbenchItem] {
+    reviewCarrierTrackingEvents.map { event in
+      WorkbenchItem(
+        id: "tracking-\(event.id.uuidString)",
+        title: event.trackingNumber,
+        summary: "\(event.carrier): \(event.detail)",
+        linkedEntityType: .trackingEvent,
+        linkedEntityID: event.id.uuidString,
+        prioritySeverity: event.severity.rawValue,
+        status: event.status,
+        assignee: "Carrier follow-up",
+        dueDateText: event.eventTime,
+        reviewState: event.reviewState,
+        source: .tracking,
+        suggestedNextAction: event.severity == .critical ? "Escalate carrier exception" : "Review tracking update"
+      )
+    }
+  }
+
+  private func evidenceWorkbenchItems() -> [WorkbenchItem] {
+    reviewEvidenceAttachments.map { attachment in
+      WorkbenchItem(
+        id: "evidence-\(attachment.id.uuidString)",
+        title: attachment.fileName,
+        summary: attachment.summary,
+        linkedEntityType: .evidence,
+        linkedEntityID: attachment.id.uuidString,
+        prioritySeverity: "Normal",
+        status: attachment.reviewState.rawValue,
+        assignee: "Evidence review",
+        dueDateText: attachment.addedDate,
+        reviewState: attachment.reviewState,
+        source: .evidence,
+        suggestedNextAction: "Review attachment evidence"
+      )
+    }
+  }
+
+  private func slaWorkbenchItems() -> [WorkbenchItem] {
+    policiesNeedingReview.map { policy in
+      WorkbenchItem(
+        id: "sla-\(policy.id.uuidString)",
+        title: policy.name,
+        summary: "\(policy.conditionSummary) • \(policy.resolutionTarget)",
+        linkedEntityType: .slaPolicy,
+        linkedEntityID: policy.id.uuidString,
+        prioritySeverity: policy.priority.rawValue,
+        status: policy.isEnabled ? "Enabled" : "Disabled",
+        assignee: "Ops lead",
+        dueDateText: policy.lastEvaluatedDate,
+        reviewState: policy.reviewState,
+        source: .slaPolicy,
+        suggestedNextAction: "Review policy target and matches"
+      )
+    }
+  }
+
+  private func exceptionPlaybookWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(playbooksNeedingReview + enabledHighPriorityPlaybooks)).map { playbook in
+      WorkbenchItem(
+        id: "playbook-\(playbook.id.uuidString)",
+        title: playbook.name,
+        summary: playbook.triggerSummary,
+        linkedEntityType: .exceptionPlaybook,
+        linkedEntityID: playbook.id.uuidString,
+        prioritySeverity: playbook.priority.rawValue,
+        status: playbook.isEnabled ? "Enabled" : "Disabled",
+        assignee: playbook.escalationContact,
+        dueDateText: playbook.lastReviewedDate,
+        reviewState: playbook.reviewState,
+        source: .exceptionPlaybook,
+        suggestedNextAction: "Use or review playbook"
+      )
+    }
+  }
+
+  private func draftMessageWorkbenchItems() -> [WorkbenchItem] {
+    draftMessages.filter { $0.reviewState == .needsReview || $0.status == .draft || $0.status == .reopened }.map { draft in
+      WorkbenchItem(
+        id: "draft-\(draft.id.uuidString)",
+        title: draft.subject,
+        summary: "To \(draft.recipient) via \(draft.channel.rawValue)",
+        linkedEntityType: .draftMessage,
+        linkedEntityID: draft.id.uuidString,
+        prioritySeverity: "Normal",
+        status: draft.status.rawValue,
+        assignee: draft.recipient,
+        dueDateText: draft.createdDate,
+        reviewState: draft.reviewState,
+        source: .draftMessage,
+        suggestedNextAction: "Ready or send locally"
+      )
+    }
+  }
+
+  private func contactWorkbenchItems() -> [WorkbenchItem] {
+    contactsNeedingReview.map { contact in
+      WorkbenchItem(
+        id: "contact-\(contact.id.uuidString)",
+        title: contact.name,
+        summary: "\(contact.organisation) • \(contact.role)",
+        linkedEntityType: .contact,
+        linkedEntityID: contact.id.uuidString,
+        prioritySeverity: "Normal",
+        status: contact.isEnabled ? "Enabled" : "Disabled",
+        assignee: contact.organisation,
+        dueDateText: contact.lastContactedDate,
+        reviewState: contact.reviewState,
+        source: .contact,
+        suggestedNextAction: "Review contact details"
+      )
+    }
+  }
+
+  private func customerProfileWorkbenchItems() -> [WorkbenchItem] {
+    customerRecipientProfiles.filter { $0.reviewState != .accepted || !$0.isEnabled }.map { profile in
+      WorkbenchItem(
+        id: "customer-profile-\(profile.id.uuidString)",
+        title: profile.displayName,
+        summary: "\(profile.organisationTeam) • \(profile.defaultDestinationAddress)",
+        linkedEntityType: .customerProfile,
+        linkedEntityID: profile.id.uuidString,
+        prioritySeverity: profile.isEnabled ? "Normal" : "High",
+        status: profile.isEnabled ? "Enabled" : "Disabled",
+        assignee: profile.organisationTeam,
+        dueDateText: profile.lastReviewedDate,
+        reviewState: profile.reviewState,
+        source: .customerProfile,
+        suggestedNextAction: profile.isEnabled ? "Review customer profile" : "Enable or confirm profile"
+      )
+    }
+  }
+
+  private func destinationAddressWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(destinationAddressesNeedingReview + destinationAddresses.filter { !$0.isEnabled } + highRiskDestinationAddresses)).map { address in
+      WorkbenchItem(
+        id: "destination-address-\(address.id.uuidString)",
+        title: address.label,
+        summary: "\(address.addressLineSummary), \(address.cityRegion) • \(address.deliveryInstructions)",
+        linkedEntityType: .destinationAddress,
+        linkedEntityID: address.id.uuidString,
+        prioritySeverity: address.isEnabled ? address.riskLevel.rawValue : "High",
+        status: address.isEnabled ? "Enabled" : "Disabled",
+        assignee: address.organisationTeam,
+        dueDateText: address.lastReviewedDate,
+        reviewState: address.reviewState,
+        source: .destinationAddress,
+        suggestedNextAction: address.isEnabled ? "Review address risk and instructions" : "Enable or confirm destination"
+      )
+    }
+  }
+
+  private func deliveryInstructionWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(deliveryInstructionsNeedingReview + deliveryInstructions.filter { !$0.isEnabled } + highRiskDeliveryInstructions + deliveryInstructionsWithAccessConstraints.filter { $0.reviewState != .accepted })).map { instruction in
+      WorkbenchItem(
+        id: "delivery-instruction-\(instruction.id.uuidString)",
+        title: instruction.title,
+        summary: "\(instruction.instructionType.rawValue) • \(instruction.instructionSummary)",
+        linkedEntityType: .deliveryInstruction,
+        linkedEntityID: instruction.id.uuidString,
+        prioritySeverity: instruction.isEnabled ? instruction.riskLevel.rawValue : "High",
+        status: instruction.isEnabled ? "Enabled" : "Disabled",
+        assignee: instruction.preferredDeliveryWindow,
+        dueDateText: instruction.lastReviewedDate,
+        reviewState: instruction.reviewState,
+        source: .deliveryInstruction,
+        suggestedNextAction: instruction.accessConstraintSummary.isEmpty ? "Review delivery instruction" : "Confirm access constraints"
+      )
+    }
+  }
+
+  private func packageContentWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(packageContentsNeedingReview + unverifiedPackageContents + packageContentDiscrepancies + highRiskPackageContents + highValuePackageContents)).map { content in
+      WorkbenchItem(
+        id: "package-content-\(content.id.uuidString)",
+        title: content.title,
+        summary: "\(content.itemSummary) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
+        linkedEntityType: .packageContent,
+        linkedEntityID: content.id.uuidString,
+        prioritySeverity: content.verificationStatus == .discrepancy ? "High" : content.riskLevel.rawValue,
+        status: content.verificationStatus.rawValue,
+        assignee: content.itemCategory.rawValue,
+        dueDateText: content.lastReviewedDate,
+        reviewState: content.reviewState,
+        source: .packageContent,
+        suggestedNextAction: content.verificationStatus == .verified ? "Review package contents" : "Verify package contents"
+      )
+    }
+  }
+
+  private func costRecordWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(costRecordsNeedingReview + disputedCostRecords + unreimbursedCostRecords + unapprovedCostRecords + highRiskCostRecords + missingBudgetCodeCostRecords)).map { cost in
+      WorkbenchItem(
+        id: "cost-\(cost.id.uuidString)",
+        title: cost.title,
+        summary: "\(cost.amountText) \(cost.currency) • \(cost.costCategory.rawValue) • \(cost.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Missing budget" : cost.budgetCode)",
+        linkedEntityType: .costRecord,
+        linkedEntityID: cost.id.uuidString,
+        prioritySeverity: cost.approvalStatus == .rejected || cost.reimbursementStatus == .disputed ? "High" : cost.riskLevel.rawValue,
+        status: "\(cost.approvalStatus.rawValue) / \(cost.reimbursementStatus.rawValue)",
+        assignee: cost.costOwnerTeam,
+        dueDateText: cost.lastReviewedDate,
+        reviewState: cost.reviewState,
+        source: .costRecord,
+        suggestedNextAction: cost.approvalStatus == .approved ? "Review reimbursement status" : "Approve or dispute cost"
+      )
+    }
+  }
+
+  private func returnClaimWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(returnClaimsNeedingReview + disputedReturnClaims + unresolvedReturnClaims + overdueReturnClaims + highRiskReturnClaims + returnClaimsMissingEvidence)).map { claim in
+      WorkbenchItem(
+        id: "return-claim-\(claim.id.uuidString)",
+        title: claim.title,
+        summary: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue) • \(claim.refundReplacementAmountText) \(claim.currency)",
+        linkedEntityType: .returnClaim,
+        linkedEntityID: claim.id.uuidString,
+        prioritySeverity: claim.claimStatus == .disputed || claim.claimStatus == .blocked ? "High" : claim.riskLevel.rawValue,
+        status: claim.claimStatus.rawValue,
+        assignee: claim.assignedOwnerTeam,
+        dueDateText: claim.dueDate,
+        reviewState: claim.reviewState,
+        source: .returnClaim,
+        suggestedNextAction: claim.claimStatus == .resolved ? "Review resolved claim" : "Submit, resolve, or dispute claim"
+      )
+    }
+  }
+
+  private func procurementRequestWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(procurementRequestsNeedingReview + unapprovedProcurementRequests + rejectedProcurementRequests + notYetOrderedProcurementRequests + overdueProcurementRequests + highRiskProcurementRequests + missingBudgetCodeProcurementRequests)).map { request in
+      WorkbenchItem(
+        id: "procurement-\(request.id.uuidString)",
+        title: request.title,
+        summary: "\(request.requestedItemsSummary) • \(request.estimatedCostText) \(request.currency)",
+        linkedEntityType: .procurementRequest,
+        linkedEntityID: request.id.uuidString,
+        prioritySeverity: request.approvalStatus == .rejected || request.procurementStatus == .blocked ? "High" : request.riskLevel.rawValue,
+        status: "\(request.approvalStatus.rawValue) / \(request.procurementStatus.rawValue)",
+        assignee: request.assignedBuyerTeam,
+        dueDateText: request.neededByDate,
+        reviewState: request.reviewState,
+        source: .procurementRequest,
+        suggestedNextAction: request.procurementStatus == .received ? "Review received procurement" : "Approve, order, or unblock procurement"
+      )
+    }
+  }
+
+  private func receivingInspectionWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(receivingInspectionsNeedingReview + blockedReceivingInspections + unresolvedInspectionDiscrepancies + highRiskReceivingInspections + overdueReceivingInspections + quantityMismatchReceivingInspections)).map { inspection in
+      WorkbenchItem(
+        id: "receiving-inspection-\(inspection.id.uuidString)",
+        title: inspection.title,
+        summary: "\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received • \(inspection.discrepancyType.rawValue)",
+        linkedEntityType: .receivingInspection,
+        linkedEntityID: inspection.id.uuidString,
+        prioritySeverity: inspection.inspectionStatus == .blocked || inspection.riskLevel == .critical ? "High" : inspection.riskLevel.rawValue,
+        status: inspection.inspectionStatus.rawValue,
+        assignee: inspection.assignedInspectorTeam,
+        dueDateText: inspection.dueDate,
+        reviewState: inspection.reviewState,
+        source: .receivingInspection,
+        suggestedNextAction: inspection.inspectionStatus == .resolved ? "Review resolved inspection" : "Inspect, resolve, or block discrepancy"
+      )
+    }
+  }
+
+  private func inventoryReceiptWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(inventoryReceiptsNeedingReview + rejectedInventoryReceipts + partiallyAcceptedInventoryReceipts + highRiskInventoryReceipts + unassignedInventoryReceipts + inventoryReceiptsMissingStorage)).map { receipt in
+      WorkbenchItem(
+        id: "inventory-receipt-\(receipt.id.uuidString)",
+        title: receipt.title,
+        summary: "\(receipt.receiptType.rawValue) • \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
+        linkedEntityType: .inventoryReceipt,
+        linkedEntityID: receipt.id.uuidString,
+        prioritySeverity: receipt.stockHandoffStatus == .rejected || receipt.riskLevel == .critical ? "High" : receipt.riskLevel.rawValue,
+        status: receipt.stockHandoffStatus.rawValue,
+        assignee: receipt.assignedOwnerTeam,
+        dueDateText: receipt.handoffDate,
+        reviewState: receipt.reviewState,
+        source: .inventoryReceipt,
+        suggestedNextAction: receipt.stockHandoffStatus == .stocked || receipt.stockHandoffStatus == .handedOff ? "Review completed stock handoff" : "Stock, hand off, or reject receipt"
+      )
+    }
+  }
+
+  private func storageLocationWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(storageLocationsNeedingReview + disabledStorageLocations + highRiskStorageLocations + storageLocationsMissingCodes + storageLocationsWithAccessNotes + storageLocationsWithCapacityWarnings)).map { location in
+      WorkbenchItem(
+        id: "storage-location-\(location.id.uuidString)",
+        title: location.title,
+        summary: "\(location.locationType.rawValue) • \(location.locationCode) • \(location.currentUsageSummary)",
+        linkedEntityType: .storageLocation,
+        linkedEntityID: location.id.uuidString,
+        prioritySeverity: !location.isEnabled || location.riskLevel == .critical ? "High" : location.riskLevel.rawValue,
+        status: location.isEnabled ? "Enabled" : "Disabled",
+        assignee: location.assignedOwnerTeam,
+        dueDateText: location.lastReviewedDate,
+        reviewState: location.reviewState,
+        source: .storageLocation,
+        suggestedNextAction: location.isEnabled ? "Review capacity, access, and location code" : "Enable or replace disabled location"
+      )
+    }
+  }
+
+  private func custodyRecordWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(custodyRecordsNeedingReview + disputedCustodyRecords + openCustodyTransfers + overdueCustodyRecords + highRiskCustodyRecords + custodyRecordsMissingCustodians + custodyRecordsMissingLocations)).map { record in
+      WorkbenchItem(
+        id: "custody-\(record.id.uuidString)",
+        title: record.title,
+        summary: "\(record.custodyStatus.rawValue) • \(record.currentCustodianTeam) • \(record.custodyReason)",
+        linkedEntityType: .custodyRecord,
+        linkedEntityID: record.id.uuidString,
+        prioritySeverity: record.custodyStatus == .disputed || record.riskLevel == .critical ? "High" : record.riskLevel.rawValue,
+        status: record.custodyStatus.rawValue,
+        assignee: record.assignedOwnerTeam,
+        dueDateText: record.expectedReturnCloseDate,
+        reviewState: record.reviewState,
+        source: .custodyRecord,
+        suggestedNextAction: record.custodyStatus == .returnedClosed ? "Review closed custody" : "Transfer, receive, or resolve custody"
+      )
+    }
+  }
+
+  private func labelReferenceWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(labelReferencesNeedingReview + invalidLabelReferences + unverifiedLabelReferences + highRiskLabelReferences + labelReferencesMissingValues + labelReferencesMissingLinkedRecords)).map { record in
+      WorkbenchItem(
+        id: "label-reference-\(record.id.uuidString)",
+        title: record.title,
+        summary: "\(record.labelType.rawValue) • \(record.labelValuePlaceholder) • \(record.associatedCarrier)",
+        linkedEntityType: .labelReference,
+        linkedEntityID: record.id.uuidString,
+        prioritySeverity: record.labelStatus == .invalidNeedsReview || record.riskLevel == .critical ? "High" : record.riskLevel.rawValue,
+        status: record.labelStatus.rawValue,
+        assignee: record.assignedOwnerTeam,
+        dueDateText: record.lastReviewedDate,
+        reviewState: record.reviewState,
+        source: .labelReference,
+        suggestedNextAction: record.labelStatus == .scannedVerified ? "Review verified label reference" : "Verify, correct, or invalidate local label"
+      )
+    }
+  }
+
+  private func scanSessionWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(scanSessionsNeedingReview + mismatchScanSessions + incompleteScanSessions + highRiskScanSessions + scanSessionsMissingCapturedValues + scanSessionsMissingLabelReferences)).map { record in
+      WorkbenchItem(
+        id: "scan-session-\(record.id.uuidString)",
+        title: record.title,
+        summary: "\(record.scanPurpose.rawValue) • \(record.expectedLabelReferenceValue) • captured \(record.capturedValuePlaceholder.isEmpty ? "missing" : record.capturedValuePlaceholder)",
+        linkedEntityType: .scanSession,
+        linkedEntityID: record.id.uuidString,
+        prioritySeverity: record.scanStatus == .mismatchNeedsReview || record.riskLevel == .critical ? "High" : record.riskLevel.rawValue,
+        status: record.scanStatus.rawValue,
+        assignee: record.assignedOperatorTeam,
+        dueDateText: record.completedDate,
+        reviewState: record.reviewState,
+        source: .scanSession,
+        suggestedNextAction: record.scanStatus == .completed ? "Review completed scan" : "Match, resolve mismatch, or complete scan"
+      )
+    }
+  }
+
+  private func shipmentManifestWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(shipmentManifestsNeedingReview + blockedShipmentManifests + undispatchedShipmentManifests + highRiskShipmentManifests + shipmentManifestsMissingIncludedOrders + shipmentManifestsMissingHandoffLocation + shipmentManifestsWithIncompleteScans)).map { record in
+      WorkbenchItem(
+        id: "shipment-manifest-\(record.id.uuidString)",
+        title: record.title,
+        summary: "\(record.manifestType.rawValue) • \(record.carrierCourier) • \(record.destinationSummary)",
+        linkedEntityType: .shipmentManifest,
+        linkedEntityID: record.id.uuidString,
+        prioritySeverity: record.dispatchStatus == .blockedNeedsReview || record.riskLevel == .critical ? "High" : record.riskLevel.rawValue,
+        status: record.dispatchStatus.rawValue,
+        assignee: record.assignedOwnerTeam,
+        dueDateText: record.plannedDispatchDate,
+        reviewState: record.reviewState,
+        source: .shipmentManifest,
+        suggestedNextAction: record.dispatchStatus == .handedOff ? "Review completed handoff" : "Prepare, dispatch, hand off, or unblock manifest"
+      )
+    }
+  }
+
+  private func dispatchChecklistWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(dispatchChecklistsNeedingReview + blockedDispatchChecklists + incompleteDispatchChecklists + highRiskDispatchChecklists + dispatchChecklistsMissingRequirements + dispatchChecklistsLinkedToBlockedManifests)).map { checklist in
+      WorkbenchItem(
+        id: "dispatch-checklist-\(checklist.id.uuidString)",
+        title: checklist.title,
+        summary: "\(checklist.checklistType.rawValue) • \(checklist.requiredChecksSummary)",
+        linkedEntityType: .dispatchChecklist,
+        linkedEntityID: checklist.id.uuidString,
+        prioritySeverity: checklist.checklistStatus == .blockedNeedsReview || checklist.riskLevel == .critical ? "High" : checklist.riskLevel.rawValue,
+        status: checklist.checklistStatus.rawValue,
+        assignee: checklist.assignedOwnerTeam,
+        dueDateText: checklist.plannedDispatchDate,
+        reviewState: checklist.reviewState,
+        source: .dispatchChecklist,
+        suggestedNextAction: checklist.checklistStatus == .completed ? "Review completed readiness checklist" : "Clear missing requirements or complete readiness check"
+      )
+    }
+  }
+
+  private func accountWorkbenchItems() -> [WorkbenchItem] {
+    accountRecordsNeedingReview.map { account in
+      WorkbenchItem(
+        id: "account-\(account.id.uuidString)",
+        title: account.accountName,
+        summary: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        linkedEntityType: .account,
+        linkedEntityID: account.id.uuidString,
+        prioritySeverity: account.mfaStatus == .needsReview ? "High" : "Normal",
+        status: account.isEnabled ? account.mfaStatus.rawValue : "Disabled",
+        assignee: account.organisation,
+        dueDateText: account.renewalReviewDate,
+        reviewState: account.reviewState,
+        source: .account,
+        suggestedNextAction: "Review account placeholder"
+      )
+    }
+  }
+
+  private func vendorProfileWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(vendorProfilesNeedingReview + highRiskEnabledVendorProfiles)).map { profile in
+      WorkbenchItem(
+        id: "vendor-profile-\(profile.id.uuidString)",
+        title: profile.name,
+        summary: "\(profile.profileType.rawValue) • \(profile.serviceLevelNotes)",
+        linkedEntityType: .vendorProfile,
+        linkedEntityID: profile.id.uuidString,
+        prioritySeverity: profile.riskLevel.rawValue,
+        status: profile.isEnabled ? "Enabled" : "Disabled",
+        assignee: profile.primaryOrganisation,
+        dueDateText: profile.lastReviewedDate,
+        reviewState: profile.reviewState,
+        source: .vendorProfile,
+        suggestedNextAction: "Review vendor risk and contacts"
+      )
+    }
+  }
+
+  private func intakeValidationIssues() -> [ValidationIssue] {
+    intakeEmails.flatMap { email -> [ValidationIssue] in
+      var issues: [ValidationIssue] = []
+      let missingFields = [
+        ("merchant", email.detectedMerchant),
+        ("order number", email.detectedOrderNumber),
+        ("tracking number", email.detectedTrackingNumber),
+        ("destination address", email.detectedDestinationAddress)
+      ].filter { $0.1.isPlaceholderValidationValue }.map(\.0)
+      let score = intakeConfidenceScore(for: email, missingCount: missingFields.count)
+
+      if !missingFields.isEmpty || score < 70 {
+        issues.append(validationIssue(
+          id: "validation-intake-confidence-\(email.id.uuidString)",
+          entityType: .intakeEmail,
+          entityID: email.id.uuidString,
+          linkedEntityType: .intakeEmail,
+          title: email.subject,
+          subtitle: "\(email.sender) confidence \(score)%",
+          detail: missingFields.isEmpty ? "Detected fields are present but local confidence is below threshold." : "Forwarded intake email is missing \(missingFields.joined(separator: ", ")).",
+          confidenceScore: score,
+          severity: score < 45 ? .high : .warning,
+          status: missingFields.isEmpty ? .lowConfidence : .incomplete,
+          reviewState: email.reviewState.searchReviewState,
+          suggestedActionText: "Correct detected intake fields before accepting."
+        ))
+      }
+
+      if let linkedOrderID = email.linkedOrderID, let order = orders.first(where: { $0.id == linkedOrderID }) {
+        var conflicts: [String] = []
+        if !email.detectedOrderNumber.isPlaceholderValidationValue && !order.orderNumber.isPlaceholderValidationValue && !order.orderNumber.localizedCaseInsensitiveContains(email.detectedOrderNumber) && !email.detectedOrderNumber.localizedCaseInsensitiveContains(order.orderNumber) {
+          conflicts.append("order number")
+        }
+        if !email.detectedTrackingNumber.isPlaceholderValidationValue && !order.trackingNumber.isPlaceholderValidationValue && order.trackingNumber.normalizedValidationKey != email.detectedTrackingNumber.normalizedValidationKey {
+          conflicts.append("tracking number")
+        }
+        if !email.detectedDestinationAddress.isPlaceholderValidationValue && !order.destination.isPlaceholderValidationValue && !order.destination.localizedCaseInsensitiveContains(email.detectedDestinationAddress) && !email.detectedDestinationAddress.localizedCaseInsensitiveContains(order.destination) {
+          conflicts.append("destination")
+        }
+
+        if !conflicts.isEmpty {
+          issues.append(validationIssue(
+            id: "validation-intake-conflict-\(email.id.uuidString)",
+            entityType: .intakeEmail,
+            entityID: email.id.uuidString,
+            linkedEntityType: .intakeEmail,
+            title: email.detectedOrderNumber,
+            subtitle: "Conflicts with linked order \(order.orderNumber)",
+            detail: "Detected intake fields conflict with linked order for \(conflicts.joined(separator: ", ")).",
+            confidenceScore: 42,
+            severity: .critical,
+            status: .conflict,
+            reviewState: email.reviewState.searchReviewState,
+            suggestedActionText: "Review the intake link before creating or updating the order."
+          ))
+        }
+      }
+
+      if email.reviewState == .reviewed && email.linkedOrderID == nil {
+        issues.append(validationIssue(
+          id: "validation-intake-stale-\(email.id.uuidString)",
+          entityType: .intakeEmail,
+          entityID: email.id.uuidString,
+          linkedEntityType: .intakeEmail,
+          title: email.subject,
+          subtitle: "Reviewed without linked order",
+          detail: "Forwarded intake email is reviewed but has not been linked to an order.",
+          confidenceScore: 66,
+          severity: .warning,
+          status: .staleReview,
+          reviewState: email.reviewState.searchReviewState,
+          suggestedActionText: "Link the email to an order or mark it ignored."
+        ))
+      }
+
+      return issues
+    }
+  }
+
+  private func trackingNumberValidationIssues() -> [ValidationIssue] {
+    carrierTrackingEvents.compactMap { event in
+      guard let order = orders.first(where: { $0.id == event.orderID }) else {
+        return validationIssue(
+          id: "validation-tracking-unlinked-\(event.id.uuidString)",
+          entityType: .trackingNumber,
+          entityID: event.id.uuidString,
+          linkedEntityType: .trackingEvent,
+          title: event.trackingNumber,
+          subtitle: "Tracking event has no local order",
+          detail: "Carrier tracking event references an order ID that is not present locally.",
+          confidenceScore: 35,
+          severity: .critical,
+          status: .needsCorrection,
+          reviewState: event.reviewState,
+          suggestedActionText: "Create a task to repair the tracking link."
+        )
+      }
+
+      guard order.trackingNumber.normalizedValidationKey != event.trackingNumber.normalizedValidationKey else { return nil }
+      return validationIssue(
+        id: "validation-tracking-conflict-\(event.id.uuidString)",
+        entityType: .trackingNumber,
+        entityID: event.id.uuidString,
+        linkedEntityType: .trackingEvent,
+        title: event.trackingNumber,
+        subtitle: "Does not match order \(order.orderNumber)",
+        detail: "Tracking event number \(event.trackingNumber) differs from order tracking number \(order.trackingNumber).",
+        confidenceScore: 46,
+        severity: .critical,
+        status: .conflict,
+        reviewState: event.reviewState,
+        suggestedActionText: "Verify the carrier tracking number."
+      )
+    }
+  }
+
+  private func destinationValidationIssues() -> [ValidationIssue] {
+    orders.compactMap { order in
+      let normalizedDestination = order.destination.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard normalizedDestination.isPlaceholderValidationValue || normalizedDestination.count < 8 else { return nil }
+      return validationIssue(
+        id: "validation-destination-\(order.id.uuidString)",
+        entityType: .destinationAddress,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.destination,
+        subtitle: "\(order.orderNumber) destination needs validation",
+        detail: "Destination address is missing, placeholder-like, or too short for reliable local tracking.",
+        confidenceScore: 40,
+        severity: .high,
+        status: .needsCorrection,
+        reviewState: order.reviewState,
+        suggestedActionText: "Correct destination before shipment follow-up."
+      )
+    }
+  }
+
+  private func vendorProfileMatchValidationIssues() -> [ValidationIssue] {
+    let orderIssues = orders.compactMap { order -> ValidationIssue? in
+      let matches = suggestedVendorProfiles(for: order)
+      guard matches.isEmpty || order.reviewState != .accepted else { return nil }
+      return validationIssue(
+        id: "validation-profile-order-\(order.id.uuidString)",
+        entityType: .vendorProfileMatch,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.store,
+        subtitle: matches.isEmpty ? "No vendor profile match" : "\(matches.count) profile candidates need review",
+        detail: "Order vendor/profile match confidence is \(matches.isEmpty ? "low" : "not yet accepted").",
+        confidenceScore: matches.isEmpty ? 48 : 70,
+        severity: matches.isEmpty ? .warning : .info,
+        status: matches.isEmpty ? .lowConfidence : .staleReview,
+        reviewState: order.reviewState,
+        suggestedActionText: "Review or create a vendor profile link."
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ValidationIssue? in
+      let matches = suggestedVendorProfiles(for: email)
+      guard email.reviewState == .needsReview || matches.isEmpty else { return nil }
+      return validationIssue(
+        id: "validation-profile-intake-\(email.id.uuidString)",
+        entityType: .vendorProfileMatch,
+        entityID: email.id.uuidString,
+        linkedEntityType: .intakeEmail,
+        title: email.detectedMerchant,
+        subtitle: matches.isEmpty ? "No vendor profile match" : "\(matches.count) profile candidates",
+        detail: "Forwarded email merchant profile match needs user confirmation.",
+        confidenceScore: matches.isEmpty ? 45 : 68,
+        severity: matches.isEmpty ? .warning : .info,
+        status: matches.isEmpty ? .lowConfidence : .staleReview,
+        reviewState: email.reviewState.searchReviewState,
+        suggestedActionText: "Confirm merchant profile before accepting intake."
+      )
+    }
+
+    return orderIssues + intakeIssues
+  }
+
+  private func accountPlaceholderValidationIssues() -> [ValidationIssue] {
+    accountCredentialRecords.compactMap { account in
+      guard account.reviewState != .accepted || !account.isEnabled || account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending || account.mfaStatus == .needsReview || account.mfaStatus == .notConfigured else { return nil }
+      let status: ValidationStatus = account.credentialStorageStatus == .needsSetup || account.mfaStatus == .notConfigured ? .incomplete : account.reviewState == .needsReview ? .staleReview : .needsCorrection
+      return validationIssue(
+        id: "validation-account-\(account.id.uuidString)",
+        entityType: .accountPlaceholder,
+        entityID: account.id.uuidString,
+        linkedEntityType: .account,
+        title: account.accountName,
+        subtitle: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        detail: "Account placeholder has MFA \(account.mfaStatus.rawValue), enabled \(account.isEnabled ? "yes" : "no"), review \(account.reviewState.rawValue).",
+        confidenceScore: account.mfaStatus == .needsReview || account.credentialStorageStatus == .needsSetup ? 50 : 72,
+        severity: account.mfaStatus == .needsReview || account.credentialStorageStatus == .needsSetup ? .high : .warning,
+        status: status,
+        reviewState: account.reviewState,
+        suggestedActionText: "Review account placeholder readiness."
+      )
+    }
+  }
+
+  private func contactSuggestionValidationIssues() -> [ValidationIssue] {
+    let orderIssues = orders.compactMap { order -> ValidationIssue? in
+      let contacts = suggestedContacts(for: order)
+      guard contacts.isEmpty && order.reviewState != .accepted else { return nil }
+      return validationIssue(
+        id: "validation-contact-order-\(order.id.uuidString)",
+        entityType: .contactSuggestion,
+        entityID: order.id.uuidString,
+        linkedEntityType: .order,
+        title: order.store,
+        subtitle: "No suggested contact for order",
+        detail: "Order has no local enabled contact suggestion for its store or carrier.",
+        confidenceScore: 52,
+        severity: .warning,
+        status: .lowConfidence,
+        reviewState: order.reviewState,
+        suggestedActionText: "Create or select a contact before follow-up."
+      )
+    }
+
+    let intakeIssues = intakeEmails.compactMap { email -> ValidationIssue? in
+      let contacts = suggestedContacts(for: email)
+      guard contacts.isEmpty && email.reviewState == .needsReview else { return nil }
+      return validationIssue(
+        id: "validation-contact-intake-\(email.id.uuidString)",
+        entityType: .contactSuggestion,
+        entityID: email.id.uuidString,
+        linkedEntityType: .intakeEmail,
+        title: email.detectedMerchant,
+        subtitle: "No suggested contact for intake",
+        detail: "Forwarded email has no local enabled contact suggestion from merchant or sender.",
+        confidenceScore: 50,
+        severity: .warning,
+        status: .lowConfidence,
+        reviewState: email.reviewState.searchReviewState,
+        suggestedActionText: "Create or select a contact before draft follow-up."
+      )
+    }
+
+    return orderIssues + intakeIssues
+  }
+
+  private func intakeConfidenceScore(for email: ForwardedEmailIntake, missingCount: Int) -> Int {
+    var score = 95 - missingCount * 14
+    if email.reviewState == .needsReview { score -= 10 }
+    if email.linkedOrderID == nil { score -= 8 }
+    if email.rawBodyPreview.count < 40 { score -= 8 }
+    if !email.sender.contains("@") { score -= 10 }
+    return max(10, min(100, score))
+  }
+
+  private func validationIssue(
+    id: String,
+    entityType: ValidationEntityType,
+    entityID: String,
+    linkedEntityType: ReviewTaskLinkedEntityType?,
+    title: String,
+    subtitle: String,
+    detail: String,
+    confidenceScore: Int,
+    severity: ValidationSeverity,
+    status: ValidationStatus,
+    reviewState: ReviewState?,
+    suggestedActionText: String
+  ) -> ValidationIssue {
+    ValidationIssue(
+      id: id,
+      entityType: entityType,
+      entityID: entityID,
+      title: title,
+      subtitle: subtitle,
+      detail: detail,
+      confidenceScore: confidenceScore,
+      severity: severity,
+      status: status,
+      reviewState: reviewState,
+      linkedEntityType: linkedEntityType,
+      suggestedActionText: suggestedActionText
+    )
+  }
+
+  private func orderTimelineActivities() -> [TimelineActivity] {
+    orders.map { order in
+      TimelineActivity(
+        id: "timeline-order-\(order.id.uuidString)",
+        timestampText: order.timeline.first?.time ?? order.eta,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        title: "\(order.store) \(order.orderNumber)",
+        subtitle: "\(order.status.rawValue) to \(order.destination)",
+        detail: order.latestStatus,
+        risk: order.status == .exception ? .critical : order.reviewState == .needsReview ? .watch : .normal,
+        reviewState: order.reviewState,
+        source: .order,
+        suggestedActionText: order.status == .exception ? "Create exception follow-up" : "Review order context"
+      )
+    }
+  }
+
+  private func intakeTimelineActivities() -> [TimelineActivity] {
+    intakeEmails.map { email in
+      TimelineActivity(
+        id: "timeline-intake-\(email.id.uuidString)",
+        timestampText: email.receivedDate,
+        entityType: .intakeEmail,
+        entityID: email.id.uuidString,
+        title: email.subject,
+        subtitle: "\(email.detectedMerchant) • \(email.detectedOrderNumber)",
+        detail: email.rawBodyPreview,
+        risk: email.reviewState == .needsReview ? .watch : .normal,
+        reviewState: email.reviewState.searchReviewState,
+        source: .mailbox,
+        suggestedActionText: "Review forwarded email"
+      )
+    }
+  }
+
+  private func trackingTimelineActivities() -> [TimelineActivity] {
+    carrierTrackingEvents.map { event in
+      TimelineActivity(
+        id: "timeline-tracking-\(event.id.uuidString)",
+        timestampText: event.eventTime,
+        entityType: .trackingEvent,
+        entityID: event.id.uuidString,
+        title: event.status,
+        subtitle: "\(event.carrier) • \(event.trackingNumber)",
+        detail: "\(event.location): \(event.detail)",
+        risk: event.severity.timelineRisk,
+        reviewState: event.reviewState,
+        source: .carrier,
+        suggestedActionText: event.severity == .critical ? "Escalate carrier event" : "Review tracking update"
+      )
+    }
+  }
+
+  private func evidenceTimelineActivities() -> [TimelineActivity] {
+    evidenceAttachments.map { attachment in
+      TimelineActivity(
+        id: "timeline-evidence-\(attachment.id.uuidString)",
+        timestampText: attachment.addedDate,
+        entityType: .evidence,
+        entityID: attachment.id.uuidString,
+        title: attachment.fileName,
+        subtitle: "\(attachment.fileType) • \(attachment.source.rawValue)",
+        detail: attachment.summary,
+        risk: attachment.reviewState == .needsReview ? .watch : .normal,
+        reviewState: attachment.reviewState,
+        source: .evidence,
+        suggestedActionText: "Review evidence"
+      )
+    }
+  }
+
+  private func taskTimelineActivities() -> [TimelineActivity] {
+    reviewTasks.map { task in
+      TimelineActivity(
+        id: "timeline-task-\(task.id.uuidString)",
+        timestampText: task.createdDate,
+        entityType: .reviewTask,
+        entityID: task.id.uuidString,
+        title: task.title,
+        subtitle: "\(task.assignee) • due \(task.dueDate)",
+        detail: task.isLocallyOverdue ? "Overdue: \(task.summary)" : task.summary,
+        risk: task.isLocallyOverdue || task.priority == .urgent ? .critical : task.priority == .high ? .high : task.reviewState == .needsReview ? .watch : .normal,
+        reviewState: task.reviewState,
+        source: .task,
+        suggestedActionText: task.status == .completed ? "Review completed task" : "Follow up task"
+      )
+    }
+  }
+
+  private func slaTimelineActivities() -> [TimelineActivity] {
+    slaPolicies.map { policy in
+      TimelineActivity(
+        id: "timeline-sla-\(policy.id.uuidString)",
+        timestampText: policy.lastEvaluatedDate,
+        entityType: .slaPolicy,
+        entityID: policy.id.uuidString,
+        title: policy.name,
+        subtitle: "\(policy.priority.rawValue) • \(policy.matchCount) matches",
+        detail: "\(policy.responseTarget); \(policy.resolutionTarget)",
+        risk: policy.priority == .urgent ? .critical : policy.priority == .high ? .high : policy.reviewState == .needsReview ? .watch : .normal,
+        reviewState: policy.reviewState,
+        source: .sla,
+        suggestedActionText: "Review SLA context"
+      )
+    }
+  }
+
+  private func communicationTimelineActivities() -> [TimelineActivity] {
+    let templates = communicationTemplates.map { template in
+      TimelineActivity(
+        id: "timeline-template-\(template.id.uuidString)",
+        timestampText: template.lastUsedDate,
+        entityType: .communicationTemplate,
+        entityID: template.id.uuidString,
+        title: template.name,
+        subtitle: "\(template.channel.rawValue) • \(template.usageCount) uses",
+        detail: template.subjectTemplate,
+        risk: template.reviewState == .needsReview ? .watch : .normal,
+        reviewState: template.reviewState,
+        source: .communication,
+        suggestedActionText: "Review template"
+      )
+    }
+    let drafts = draftMessages.map { draft in
+      TimelineActivity(
+        id: "timeline-draft-\(draft.id.uuidString)",
+        timestampText: draft.createdDate,
+        entityType: .draftMessage,
+        entityID: draft.id.uuidString,
+        title: draft.subject,
+        subtitle: "\(draft.recipient) • \(draft.status.rawValue)",
+        detail: draft.body,
+        risk: draft.status == .draft || draft.status == .reopened || draft.reviewState == .needsReview ? .watch : .normal,
+        reviewState: draft.reviewState,
+        source: .communication,
+        suggestedActionText: "Review draft message"
+      )
+    }
+    return templates + drafts
+  }
+
+  private func contactTimelineActivities() -> [TimelineActivity] {
+    contactDirectoryEntries.map { contact in
+      TimelineActivity(
+        id: "timeline-contact-\(contact.id.uuidString)",
+        timestampText: contact.lastContactedDate,
+        entityType: .contact,
+        entityID: contact.id.uuidString,
+        title: contact.name,
+        subtitle: "\(contact.organisation) • \(contact.role)",
+        detail: contact.notes,
+        risk: contact.reviewState == .needsReview ? .watch : .normal,
+        reviewState: contact.reviewState,
+        source: .directory,
+        suggestedActionText: "Review contact"
+      )
+    }
+  }
+
+  private func accountTimelineActivities() -> [TimelineActivity] {
+    accountCredentialRecords.map { account in
+      TimelineActivity(
+        id: "timeline-account-\(account.id.uuidString)",
+        timestampText: account.lastCheckedDate,
+        entityType: .account,
+        entityID: account.id.uuidString,
+        title: account.accountName,
+        subtitle: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+        detail: "MFA: \(account.mfaStatus.rawValue). \(account.notes)",
+        risk: account.mfaStatus == .needsReview || account.reviewState == .needsReview ? .high : account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending ? .watch : .normal,
+        reviewState: account.reviewState,
+        source: .account,
+        suggestedActionText: "Review account placeholder"
+      )
+    }
+  }
+
+  private func vendorProfileTimelineActivities() -> [TimelineActivity] {
+    vendorProfiles.map { profile in
+      TimelineActivity(
+        id: "timeline-profile-\(profile.id.uuidString)",
+        timestampText: profile.lastReviewedDate,
+        entityType: .vendorProfile,
+        entityID: profile.id.uuidString,
+        title: profile.name,
+        subtitle: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
+        detail: profile.serviceLevelNotes,
+        risk: profile.riskLevel.timelineRisk,
+        reviewState: profile.reviewState,
+        source: .vendorProfile,
+        suggestedActionText: "Review vendor profile"
+      )
+    }
+  }
+
+  private func shipmentGroupTimelineActivities() -> [TimelineActivity] {
+    shipmentGroups.map { group in
+      TimelineActivity(
+        id: "timeline-shipment-group-\(group.id.uuidString)",
+        timestampText: group.lastReviewedDate,
+        entityType: .shipmentGroup,
+        entityID: group.id.uuidString,
+        title: group.groupName,
+        subtitle: "\(group.carrierSummary) • \(group.statusSummary)",
+        detail: "\(group.destinationSummary). \(group.recipientCustomerSummary)",
+        risk: group.riskLevel.timelineRisk,
+        reviewState: group.reviewState,
+        source: .shipmentGroup,
+        suggestedActionText: "Review shipment group context"
+      )
+    }
+  }
+
+  private func importQueueTimelineActivities() -> [TimelineActivity] {
+    importQueueItems.map { item in
+      TimelineActivity(
+        id: "timeline-import-\(item.id.uuidString)",
+        timestampText: item.capturedDate,
+        entityType: .importQueueItem,
+        entityID: item.id.uuidString,
+        title: item.sourceLabel,
+        subtitle: "\(item.sourceType.rawValue) • \(item.importStatus.rawValue)",
+        detail: item.rawSummary,
+        risk: item.importStatus == .blocked ? .high : item.confidenceScore < 50 ? .high : item.reviewState == .needsReview ? .watch : .normal,
+        reviewState: item.reviewState,
+        source: .importQueue,
+        suggestedActionText: "Review staged import"
+      )
+    }
+  }
+
+  private func acceptanceTimelineActivities() -> [TimelineActivity] {
+    acceptanceRecords.map { record in
+      TimelineActivity(
+        id: "timeline-acceptance-\(record.id.uuidString)",
+        timestampText: record.decidedDate,
+        entityType: .acceptanceRecord,
+        entityID: record.id.uuidString,
+        title: record.sourceLabel,
+        subtitle: "\(record.sourceType.rawValue) • \(record.decision.rawValue)",
+        detail: record.summary,
+        risk: record.decision == .blocked ? .high : record.decision == .reopened || record.reviewState == .needsReview ? .watch : .normal,
+        reviewState: record.reviewState,
+        source: .acceptance,
+        suggestedActionText: "Review acceptance history"
+      )
+    }
+  }
+
+  private func automationTimelineActivities() -> [TimelineActivity] {
+    automationRules.map { rule in
+      TimelineActivity(
+        id: "timeline-automation-\(rule.id.uuidString)",
+        timestampText: rule.lastRunDate,
+        entityType: .automationRule,
+        entityID: rule.id.uuidString,
+        title: rule.name,
+        subtitle: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
+        detail: "\(rule.conditionSummary) \(rule.actionSummary)",
+        risk: rule.reviewState == .needsReview ? .watch : .normal,
+        reviewState: rule.reviewState,
+        source: .automation,
+        suggestedActionText: "Review automation rule"
+      )
+    }
+  }
+
+  private func savedFilterTimelineActivities() -> [TimelineActivity] {
+    savedFilters.map { filter in
+      TimelineActivity(
+        id: "timeline-filter-\(filter.id.uuidString)",
+        timestampText: filter.createdDate,
+        entityType: .savedFilter,
+        entityID: filter.id.uuidString,
+        title: filter.name,
+        subtitle: filter.isPinned ? "Pinned filter" : "Saved filter",
+        detail: filter.queryText.isEmpty ? "No query text" : filter.queryText,
+        risk: filter.reviewStateFilter == .needsReview ? .watch : .normal,
+        reviewState: filter.reviewStateFilter,
+        source: .search,
+        suggestedActionText: "Review saved filter"
+      )
+    }
+  }
+
+  private func auditTimelineActivities() -> [TimelineActivity] {
+    auditEvents.map { event in
+      TimelineActivity(
+        id: "timeline-audit-\(event.id.uuidString)",
+        timestampText: event.timestamp,
+        entityType: .auditEvent,
+        entityID: event.id.uuidString,
+        title: event.summary,
+        subtitle: "\(event.entityType.rawValue) • \(event.action.rawValue)",
+        detail: event.entityLabel,
+        risk: event.action == .removed || event.action == .ignored ? .watch : .normal,
+        reviewState: nil,
+        source: .audit,
+        suggestedActionText: "Review audit entry"
+      )
+    }
   }
 
   var filteredOrders: [TrackedOrder] {
@@ -1007,6 +4301,77 @@ final class ParcelOpsStore {
     reviewTasks.filter { $0.linkedEntityType == linkedEntityType && $0.linkedEntityID == linkedEntityID }
   }
 
+  func addHandoffNotePlaceholder() {
+    let note = HandoffNote(
+      title: "New handoff note \(handoffNotes.count + 1)",
+      summary: "Describe what the next team or shift needs to know.",
+      linkedEntityType: .order,
+      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      priority: .normal,
+      assignee: "Operations",
+      createdDate: Self.auditTimestamp(),
+      dueDate: "Tomorrow",
+      status: .open,
+      reviewState: .needsReview,
+      notes: "Add local-only handoff details."
+    )
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(action: .created, entityType: .handoffNote, entityID: note.id.uuidString, entityLabel: note.title, summary: "Handoff note placeholder added.", afterDetail: note.auditDetail)
+  }
+
+  func updateHandoffNote(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index] = note
+    persistHandoffNotes()
+    logAudit(action: .edited, entityType: .handoffNote, entityID: note.id.uuidString, entityLabel: note.title, summary: "Handoff note details updated.", beforeDetail: beforeDetail, afterDetail: note.auditDetail)
+  }
+
+  func acknowledgeHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .inProgress, reviewState: .monitor, action: .acknowledged, summary: "Handoff note acknowledged.")
+  }
+
+  func completeHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .completed, reviewState: .accepted, action: .completed, summary: "Handoff note completed.")
+  }
+
+  func reopenHandoffNote(_ note: HandoffNote) {
+    updateHandoffNoteState(note, status: .open, reviewState: .needsReview, action: .reopened, summary: "Handoff note reopened.")
+  }
+
+  func markHandoffNoteReviewed(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index].reviewState = .accepted
+    persistHandoffNotes()
+    logAudit(action: .reviewed, entityType: .handoffNote, entityID: handoffNotes[index].id.uuidString, entityLabel: handoffNotes[index].title, summary: "Handoff note marked reviewed.", beforeDetail: beforeDetail, afterDetail: handoffNotes[index].auditDetail)
+  }
+
+  func removeHandoffNote(_ note: HandoffNote) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let removed = handoffNotes.remove(at: index)
+    persistHandoffNotes()
+    logAudit(action: .removed, entityType: .handoffNote, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Handoff note removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from note: HandoffNote) {
+    createReviewTask(linkedEntityType: .handoffNote, linkedEntityID: note.id.uuidString, label: note.title, summary: "Follow up handoff note: \(note.summary)", priority: note.priority)
+  }
+
+  func createDraftMessage(from note: HandoffNote) {
+    createDraftMessage(linkedEntityType: .handoffNote, linkedEntityID: note.id.uuidString, label: note.title, recipient: "operations@parcelops.example")
+  }
+
+  private func updateHandoffNoteState(_ note: HandoffNote, status: TaskStatus, reviewState: ReviewState, action: AuditAction, summary: String) {
+    guard let index = handoffNotes.firstIndex(where: { $0.id == note.id }) else { return }
+    let beforeDetail = handoffNotes[index].auditDetail
+    handoffNotes[index].status = status
+    handoffNotes[index].reviewState = reviewState
+    persistHandoffNotes()
+    logAudit(action: action, entityType: .handoffNote, entityID: handoffNotes[index].id.uuidString, entityLabel: handoffNotes[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: handoffNotes[index].auditDetail)
+  }
+
   func policies(for linkedEntityType: ReviewTaskLinkedEntityType) -> [SLAPolicy] {
     slaPolicies.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
   }
@@ -1114,6 +4479,3078 @@ final class ParcelOpsStore {
       summary: "SLA policy removed.",
       beforeDetail: removed.auditDetail
     )
+  }
+
+  func playbooks(for linkedEntityType: ReviewTaskLinkedEntityType) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { $0.linkedEntityType == linkedEntityType && $0.isEnabled }
+  }
+
+  func suggestedPlaybooks(for issue: ReconciliationIssue) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.issueType == issue.issueType
+          || issue.sourceEntityType.reviewTaskLinkedEntityType.map { playbook.linkedEntityType == $0 } == true
+          || issue.targetEntityType?.reviewTaskLinkedEntityType.map { playbook.linkedEntityType == $0 } == true)
+    }
+  }
+
+  func suggestedPlaybooks(for issue: ValidationIssue) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == issue.linkedEntityType
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(issue.status.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(issue.entityType.rawValue))
+    }
+  }
+
+  func suggestedPlaybooks(for item: ImportQueueItem) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .importQueueItem
+          || (item.importStatus == .blocked && playbook.priority == .high)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(item.importStatus.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(item.detectedTrackingNumber))
+    }
+  }
+
+  func suggestedPlaybooks(for candidate: AcceptanceCandidate) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == candidate.reviewTaskLinkedEntityType
+          || (candidate.decision == .accepted && candidate.suggestedLinkedOrderID == nil && playbook.issueType == .acceptedWithoutOrder)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(candidate.decision.rawValue))
+    }
+  }
+
+  func suggestedPlaybooks(for group: ShipmentGroup) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .shipmentGroup
+          || (group.primaryOrderID == nil && playbook.issueType == .shipmentGroupMissingPrimary)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(group.statusSummary))
+    }
+  }
+
+  func suggestedPlaybooks(for order: TrackedOrder) -> [ExceptionPlaybook] {
+    exceptionPlaybooks.filter { playbook in
+      playbook.isEnabled
+        && (playbook.linkedEntityType == .order
+          || (order.trackingNumber.isPlaceholderValidationValue && playbook.issueType == .missingLink)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(order.status.rawValue)
+          || playbook.triggerSummary.localizedCaseInsensitiveContains(order.latestStatus))
+    }
+  }
+
+  func addExceptionPlaybookPlaceholder() {
+    let playbook = ExceptionPlaybook(
+      name: "New exception playbook \(exceptionPlaybooks.count + 1)",
+      issueType: .missingLink,
+      linkedEntityType: .order,
+      triggerSummary: "Define the local exception trigger.",
+      recommendedSteps: "Add the local review steps staff should follow before changing operational records.",
+      escalationContact: "Operations",
+      priority: .normal,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+    exceptionPlaybooks.insert(playbook, at: 0)
+    persistExceptionPlaybooks()
+    logAudit(action: .created, entityType: .exceptionPlaybook, entityID: playbook.id.uuidString, entityLabel: playbook.name, summary: "Exception playbook placeholder added.", afterDetail: playbook.auditDetail)
+  }
+
+  func updateExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index] = playbook
+    persistExceptionPlaybooks()
+    logAudit(action: .edited, entityType: .exceptionPlaybook, entityID: playbook.id.uuidString, entityLabel: playbook.name, summary: "Exception playbook details updated.", beforeDetail: beforeDetail, afterDetail: playbook.auditDetail)
+  }
+
+  func toggleExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index].isEnabled.toggle()
+    persistExceptionPlaybooks()
+    logAudit(action: exceptionPlaybooks[index].isEnabled ? .enabled : .disabled, entityType: .exceptionPlaybook, entityID: exceptionPlaybooks[index].id.uuidString, entityLabel: exceptionPlaybooks[index].name, summary: exceptionPlaybooks[index].isEnabled ? "Exception playbook enabled." : "Exception playbook disabled.", beforeDetail: beforeDetail, afterDetail: exceptionPlaybooks[index].auditDetail)
+  }
+
+  func markExceptionPlaybookReviewed(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let beforeDetail = exceptionPlaybooks[index].auditDetail
+    exceptionPlaybooks[index].reviewState = .accepted
+    exceptionPlaybooks[index].lastReviewedDate = Self.auditTimestamp()
+    persistExceptionPlaybooks()
+    logAudit(action: .reviewed, entityType: .exceptionPlaybook, entityID: exceptionPlaybooks[index].id.uuidString, entityLabel: exceptionPlaybooks[index].name, summary: "Exception playbook marked reviewed.", beforeDetail: beforeDetail, afterDetail: exceptionPlaybooks[index].auditDetail)
+  }
+
+  func removeExceptionPlaybook(_ playbook: ExceptionPlaybook) {
+    guard let index = exceptionPlaybooks.firstIndex(where: { $0.id == playbook.id }) else { return }
+    let removed = exceptionPlaybooks.remove(at: index)
+    persistExceptionPlaybooks()
+    logAudit(action: .removed, entityType: .exceptionPlaybook, entityID: removed.id.uuidString, entityLabel: removed.name, summary: "Exception playbook removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from playbook: ExceptionPlaybook) {
+    createReviewTask(linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString, label: playbook.name, summary: "Review exception playbook: \(playbook.triggerSummary)", priority: playbook.priority)
+  }
+
+  func createDraftMessage(from playbook: ExceptionPlaybook) {
+    createDraftMessage(linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString, label: playbook.name, recipient: "operations@parcelops.example")
+  }
+
+  func addCommunicationTemplatePlaceholder() {
+    let template = CommunicationTemplate(
+      name: "New communication template \(communicationTemplates.count + 1)",
+      linkedEntityType: .order,
+      subjectTemplate: "Update for {{record}}",
+      bodyTemplate: "Hi team,\n\nPlease review the latest ParcelOps update for {{record}}.\n\nThanks.",
+      channel: .email,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastUsedDate: "Never",
+      usageCount: 0,
+      reviewState: .needsReview
+    )
+    communicationTemplates.insert(template, at: 0)
+    persistCommunicationTemplates()
+    logAudit(
+      action: .created,
+      entityType: .communicationTemplate,
+      entityID: template.id.uuidString,
+      entityLabel: template.name,
+      summary: "Communication template placeholder added.",
+      afterDetail: template.auditDetail
+    )
+  }
+
+  func updateCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index] = template
+    persistCommunicationTemplates()
+    logAudit(
+      action: .edited,
+      entityType: .communicationTemplate,
+      entityID: template.id.uuidString,
+      entityLabel: template.name,
+      summary: "Communication template details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: template.auditDetail
+    )
+  }
+
+  func toggleCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index].isEnabled.toggle()
+    persistCommunicationTemplates()
+    logAudit(
+      action: communicationTemplates[index].isEnabled ? .enabled : .disabled,
+      entityType: .communicationTemplate,
+      entityID: communicationTemplates[index].id.uuidString,
+      entityLabel: communicationTemplates[index].name,
+      summary: communicationTemplates[index].isEnabled ? "Communication template enabled." : "Communication template disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: communicationTemplates[index].auditDetail
+    )
+  }
+
+  func markCommunicationTemplateReviewed(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let beforeDetail = communicationTemplates[index].auditDetail
+    communicationTemplates[index].reviewState = .accepted
+    persistCommunicationTemplates()
+    logAudit(
+      action: .reviewed,
+      entityType: .communicationTemplate,
+      entityID: communicationTemplates[index].id.uuidString,
+      entityLabel: communicationTemplates[index].name,
+      summary: "Communication template marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: communicationTemplates[index].auditDetail
+    )
+  }
+
+  func removeCommunicationTemplate(_ template: CommunicationTemplate) {
+    guard let index = communicationTemplates.firstIndex(where: { $0.id == template.id }) else { return }
+    let removed = communicationTemplates.remove(at: index)
+    persistCommunicationTemplates()
+    logAudit(
+      action: .removed,
+      entityType: .communicationTemplate,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Communication template removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addDraftMessagePlaceholder() {
+    let template = communicationTemplates.first
+    createDraftMessage(
+      linkedEntityType: template?.linkedEntityType ?? .order,
+      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      label: orders.first?.orderNumber ?? "Manual draft",
+      recipient: "operations@parcelops.example",
+      template: template
+    )
+  }
+
+  func createDraftMessage(
+    linkedEntityType: ReviewTaskLinkedEntityType,
+    linkedEntityID: String,
+    label: String,
+    recipient: String,
+    template: CommunicationTemplate? = nil
+  ) {
+    let selectedTemplate = template ?? communicationTemplates.first { $0.linkedEntityType == linkedEntityType && $0.isEnabled } ?? communicationTemplates.first
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
+    let body = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let draft = DraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      templateID: selectedTemplate?.id,
+      recipient: recipient,
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message created locally.",
+      afterDetail: draft.auditDetail
+    )
+  }
+
+  func createDraftMessage(from order: TrackedOrder) {
+    createDraftMessage(linkedEntityType: .order, linkedEntityID: order.id.uuidString, label: order.orderNumber, recipient: order.recipientEmail)
+  }
+
+  func createDraftMessage(from email: ForwardedEmailIntake) {
+    createDraftMessage(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.auditLabel, recipient: email.sender)
+  }
+
+  func createDraftMessage(from event: CarrierTrackingEvent) {
+    createDraftMessage(linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber, recipient: "carrier-support@parcelops.example")
+  }
+
+  func createDraftMessage(from attachment: EvidenceAttachment) {
+    createDraftMessage(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName, recipient: "records@parcelops.example")
+  }
+
+  func createDraftMessage(from task: ReviewTask) {
+    createDraftMessage(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title, recipient: task.assignee)
+  }
+
+  func createDraftMessage(from policy: SLAPolicy) {
+    createDraftMessage(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name, recipient: "operations@parcelops.example")
+  }
+
+  func updateDraftMessage(_ draft: DraftMessage) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let beforeDetail = draftMessages[index].auditDetail
+    draftMessages[index] = draft
+    persistDraftMessages()
+    logAudit(
+      action: .edited,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: draft.auditDetail
+    )
+  }
+
+  func markDraftMessageReady(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .ready, reviewState: .accepted, action: .reviewed, summary: "Draft message marked ready.")
+  }
+
+  func markDraftMessageSentLocally(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .sentLocally, reviewState: .accepted, action: .completed, summary: "Draft message marked sent locally.")
+  }
+
+  func reopenDraftMessage(_ draft: DraftMessage) {
+    updateDraftMessageState(draft, status: .reopened, reviewState: .needsReview, action: .reopened, summary: "Draft message reopened.")
+  }
+
+  func removeDraftMessage(_ draft: DraftMessage) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let removed = draftMessages.remove(at: index)
+    persistDraftMessages()
+    logAudit(
+      action: .removed,
+      entityType: .draftMessage,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.subject,
+      summary: "Draft message removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func addContactDirectoryEntryPlaceholder() {
+    let contact = ContactDirectoryEntry(
+      name: "New contact \(contactDirectoryEntries.count + 1)",
+      organisation: "Unassigned organisation",
+      role: "Operations contact",
+      email: "contact@parcelops.example",
+      phone: "Not recorded",
+      channelPreference: .email,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Unlinked",
+      notes: "Local placeholder contact awaiting review.",
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastContactedDate: "Never",
+      reviewState: .needsReview
+    )
+    contactDirectoryEntries.insert(contact, at: 0)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .created,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry placeholder added.",
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func addContactDirectoryEntry(linkedEntityType: ContactLinkedEntityType, linkedEntityID: String, label: String) {
+    let contact = ContactDirectoryEntry(
+      name: "\(label) contact",
+      organisation: label,
+      role: "Follow-up contact",
+      email: "contact@parcelops.example",
+      phone: "Not recorded",
+      channelPreference: .email,
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      notes: "Local contact created from \(linkedEntityType.rawValue.lowercased()) workflow.",
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastContactedDate: "Never",
+      reviewState: .needsReview
+    )
+    contactDirectoryEntries.insert(contact, at: 0)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .created,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry created from workflow.",
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func updateContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index] = contact
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .edited,
+      entityType: .contactDirectoryEntry,
+      entityID: contact.id.uuidString,
+      entityLabel: contact.name,
+      summary: "Contact directory entry details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: contact.auditDetail
+    )
+  }
+
+  func toggleContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index].isEnabled.toggle()
+    persistContactDirectoryEntries()
+    logAudit(
+      action: contactDirectoryEntries[index].isEnabled ? .enabled : .disabled,
+      entityType: .contactDirectoryEntry,
+      entityID: contactDirectoryEntries[index].id.uuidString,
+      entityLabel: contactDirectoryEntries[index].name,
+      summary: contactDirectoryEntries[index].isEnabled ? "Contact enabled." : "Contact disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: contactDirectoryEntries[index].auditDetail
+    )
+  }
+
+  func markContactDirectoryEntryReviewed(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let beforeDetail = contactDirectoryEntries[index].auditDetail
+    contactDirectoryEntries[index].reviewState = .accepted
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .reviewed,
+      entityType: .contactDirectoryEntry,
+      entityID: contactDirectoryEntries[index].id.uuidString,
+      entityLabel: contactDirectoryEntries[index].name,
+      summary: "Contact directory entry marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: contactDirectoryEntries[index].auditDetail
+    )
+  }
+
+  func removeContactDirectoryEntry(_ contact: ContactDirectoryEntry) {
+    guard let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) else { return }
+    let removed = contactDirectoryEntries.remove(at: index)
+    persistContactDirectoryEntries()
+    logAudit(
+      action: .removed,
+      entityType: .contactDirectoryEntry,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Contact directory entry removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createDraftMessage(from contact: ContactDirectoryEntry, linkedEntityType: ReviewTaskLinkedEntityType? = nil, linkedEntityID: String? = nil, label: String? = nil) {
+    createDraftMessage(
+      linkedEntityType: linkedEntityType ?? .draftMessage,
+      linkedEntityID: linkedEntityID ?? contact.id.uuidString,
+      label: label ?? contact.organisation,
+      recipient: contact.channelPreference == .phoneScript ? contact.phone : contact.email
+    )
+    if let index = contactDirectoryEntries.firstIndex(where: { $0.id == contact.id }) {
+      let beforeDetail = contactDirectoryEntries[index].auditDetail
+      contactDirectoryEntries[index].lastContactedDate = Self.auditTimestamp()
+      persistContactDirectoryEntries()
+      logAudit(
+        action: .created,
+        entityType: .contactDirectoryEntry,
+        entityID: contactDirectoryEntries[index].id.uuidString,
+        entityLabel: contactDirectoryEntries[index].name,
+        summary: "Draft message created from contact.",
+        beforeDetail: beforeDetail,
+        afterDetail: contactDirectoryEntries[index].auditDetail
+      )
+    }
+  }
+
+  func suggestedContacts(for order: TrackedOrder) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == order.id.uuidString
+          || contact.organisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(contact.organisation)
+          || contact.organisation.localizedCaseInsensitiveContains(order.carrier)
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
+  func suggestedContacts(for email: ForwardedEmailIntake) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == email.id.uuidString
+          || contact.email.localizedCaseInsensitiveContains(email.sender)
+          || email.sender.localizedCaseInsensitiveContains(contact.email)
+          || contact.organisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
+  func suggestedContacts(for event: CarrierTrackingEvent) -> [ContactDirectoryEntry] {
+    contactDirectoryEntries.filter { contact in
+      contact.isEnabled
+        && (contact.linkedEntityID == event.id.uuidString
+          || contact.organisation.localizedCaseInsensitiveContains(event.carrier)
+          || contact.linkedEntityType == .carrier
+          || contact.linkedEntityType == .internalTeam)
+    }
+  }
+
+  func filteredCustomerRecipientProfiles(profileType: CustomerProfileType?, organisationTeam: String?, isEnabled: Bool?, deliveryPreference: DeliveryPreference?, reviewState: ReviewState?) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { profile in
+      let matchesType = profileType == nil || profile.profileType == profileType
+      let matchesOrganisation = organisationTeam == nil || profile.organisationTeam == organisationTeam
+      let matchesEnabled = isEnabled == nil || profile.isEnabled == isEnabled
+      let matchesDelivery = deliveryPreference == nil || profile.deliveryPreference == deliveryPreference
+      let matchesReview = reviewState == nil || profile.reviewState == reviewState
+      return matchesType && matchesOrganisation && matchesEnabled && matchesDelivery && matchesReview
+    }
+  }
+
+  func addCustomerRecipientProfilePlaceholder() {
+    let profile = CustomerRecipientProfile(displayName: "New customer profile \(customerRecipientProfiles.count + 1)", profileType: .recipient, organisationTeam: "Unassigned team", primaryEmail: "recipient@example.com", phone: "Not recorded", defaultDestinationAddress: "Address to confirm", deliveryPreference: .noPreference, notes: "Define recipient, team, destination, and delivery preferences.", isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    customerRecipientProfiles.insert(profile, at: 0)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile placeholder added.", afterDetail: profile.auditDetail)
+  }
+
+  func addCustomerRecipientProfile(displayName: String, organisationTeam: String, email: String, destination: String, profileType: CustomerProfileType = .recipient) {
+    let profile = CustomerRecipientProfile(displayName: displayName, profileType: profileType, organisationTeam: organisationTeam, primaryEmail: email, phone: "Not recorded", defaultDestinationAddress: destination, deliveryPreference: .delivery, notes: "Local profile created from workflow.", isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    customerRecipientProfiles.insert(profile, at: 0)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile created from workflow.", afterDetail: profile.auditDetail)
+  }
+
+  func updateCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index] = profile
+    persistCustomerRecipientProfiles()
+    logAudit(action: .edited, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Customer profile details updated.", beforeDetail: beforeDetail, afterDetail: profile.auditDetail)
+  }
+
+  func toggleCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index].isEnabled.toggle()
+    persistCustomerRecipientProfiles()
+    logAudit(action: customerRecipientProfiles[index].isEnabled ? .enabled : .disabled, entityType: .customerRecipientProfile, entityID: customerRecipientProfiles[index].id.uuidString, entityLabel: customerRecipientProfiles[index].displayName, summary: customerRecipientProfiles[index].isEnabled ? "Customer profile enabled." : "Customer profile disabled.", beforeDetail: beforeDetail, afterDetail: customerRecipientProfiles[index].auditDetail)
+  }
+
+  func markCustomerRecipientProfileReviewed(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = customerRecipientProfiles[index].auditDetail
+    customerRecipientProfiles[index].reviewState = .accepted
+    customerRecipientProfiles[index].lastReviewedDate = Self.auditTimestamp()
+    persistCustomerRecipientProfiles()
+    logAudit(action: .reviewed, entityType: .customerRecipientProfile, entityID: customerRecipientProfiles[index].id.uuidString, entityLabel: customerRecipientProfiles[index].displayName, summary: "Customer profile marked reviewed.", beforeDetail: beforeDetail, afterDetail: customerRecipientProfiles[index].auditDetail)
+  }
+
+  func removeCustomerRecipientProfile(_ profile: CustomerRecipientProfile) {
+    guard let index = customerRecipientProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let removed = customerRecipientProfiles.remove(at: index)
+    persistCustomerRecipientProfiles()
+    logAudit(action: .removed, entityType: .customerRecipientProfile, entityID: removed.id.uuidString, entityLabel: removed.displayName, summary: "Customer profile removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from profile: CustomerRecipientProfile) {
+    createReviewTask(linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString, label: profile.displayName, summary: "Review customer profile for \(profile.organisationTeam). Destination: \(profile.defaultDestinationAddress). \(profile.notes)", priority: profile.isEnabled ? .normal : .high, assignee: profile.organisationTeam)
+  }
+
+  func createDraftMessage(from profile: CustomerRecipientProfile) {
+    createDraftMessage(linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString, label: profile.displayName, recipient: profile.primaryEmail)
+    logAudit(action: .created, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Draft message created from customer profile.", afterDetail: profile.auditDetail)
+  }
+
+  func suggestedCustomerProfiles(for order: TrackedOrder) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: order.recipientEmail, team: order.customer, destination: order.destination, linkedEntityType: .order, linkedEntityID: order.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for email: ForwardedEmailIntake) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: email.sender, team: email.detectedMerchant, destination: email.detectedDestinationAddress, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for item: ImportQueueItem) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: item.detectedMerchant, destination: item.detectedDestinationAddress, linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for candidate: AcceptanceCandidate) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: candidate.detectedMerchant, destination: candidate.detectedDestinationAddress, linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for group: ShipmentGroup) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: group.recipientCustomerSummary, destination: group.destinationSummary, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for task: ReviewTask) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: task.assignee, destination: task.summary, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for note: HandoffNote) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: note.assignee, destination: note.summary, linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for event: CarrierTrackingEvent) -> [CustomerRecipientProfile] {
+    let order = orders.first { $0.id == event.orderID }
+    return customerRecipientProfiles.filter { $0.matches(email: order?.recipientEmail ?? "", team: order?.customer ?? event.carrier, destination: order?.destination ?? event.location, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for attachment: EvidenceAttachment) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: attachment.summary, destination: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for issue: ValidationIssue) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: issue.subtitle, destination: issue.detail, linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID) }
+  }
+
+  func suggestedCustomerProfiles(for issue: ReconciliationIssue) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: issue.summary, destination: issue.detectedValue, linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id) }
+  }
+
+  func suggestedCustomerProfiles(for draft: DraftMessage) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: draft.recipient, team: draft.subject, destination: draft.body, linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID) }
+  }
+
+  func suggestedCustomerProfiles(for contact: ContactDirectoryEntry) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: contact.email, team: contact.organisation, destination: contact.notes, linkedEntityType: .contact, linkedEntityID: contact.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for account: AccountCredentialRecord) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: account.organisation, destination: account.notes, linkedEntityType: .account, linkedEntityID: account.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for profile: VendorProfile) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: profile.primaryOrganisation, destination: profile.serviceLevelNotes, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for policy: SLAPolicy) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: policy.name, destination: policy.conditionSummary, linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for playbook: ExceptionPlaybook) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: playbook.escalationContact, destination: playbook.triggerSummary, linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString) }
+  }
+
+  func suggestedCustomerProfiles(for item: WorkbenchItem) -> [CustomerRecipientProfile] {
+    customerRecipientProfiles.filter { $0.matches(email: "", team: item.assignee, destination: item.summary, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID) }
+  }
+
+  func filteredDestinationAddresses(organisationTeam: String?, preferredCarrier: String?, riskLevel: ShipmentRiskLevel?, isEnabled: Bool?, reviewState: ReviewState?) -> [DestinationAddressRecord] {
+    destinationAddresses.filter { address in
+      let matchesTeam = organisationTeam == nil || address.organisationTeam == organisationTeam
+      let matchesCarrier = preferredCarrier == nil || address.preferredCarrier == preferredCarrier
+      let matchesRisk = riskLevel == nil || address.riskLevel == riskLevel
+      let matchesEnabled = isEnabled == nil || address.isEnabled == isEnabled
+      let matchesReview = reviewState == nil || address.reviewState == reviewState
+      return matchesTeam && matchesCarrier && matchesRisk && matchesEnabled && matchesReview
+    }
+  }
+
+  func addDestinationAddressPlaceholder() {
+    let address = DestinationAddressRecord(label: "New destination \(destinationAddresses.count + 1)", customerProfileID: customerRecipientProfiles.first?.id, organisationTeam: customerRecipientProfiles.first?.organisationTeam ?? "Unassigned team", addressLineSummary: "Address to confirm", cityRegion: "City/region", country: "Australia", deliveryInstructions: "Add local delivery instructions.", accessNotes: "Add access notes.", preferredCarrier: "Any carrier", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    destinationAddresses.insert(address, at: 0)
+    persistDestinationAddresses()
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address placeholder added.", afterDetail: address.auditDetail)
+  }
+
+  func addDestinationAddress(label: String, customerProfileID: UUID?, organisationTeam: String, addressSummary: String, cityRegion: String, preferredCarrier: String) {
+    let address = DestinationAddressRecord(label: label, customerProfileID: customerProfileID, organisationTeam: organisationTeam, addressLineSummary: addressSummary, cityRegion: cityRegion, country: "Australia", deliveryInstructions: "Local address created from workflow.", accessNotes: "Access notes to confirm.", preferredCarrier: preferredCarrier, riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    destinationAddresses.insert(address, at: 0)
+    persistDestinationAddresses()
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address created from workflow.", afterDetail: address.auditDetail)
+  }
+
+  func updateDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index] = address
+    persistDestinationAddresses()
+    logAudit(action: .edited, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Destination address details updated.", beforeDetail: beforeDetail, afterDetail: address.auditDetail)
+  }
+
+  func toggleDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index].isEnabled.toggle()
+    persistDestinationAddresses()
+    logAudit(action: destinationAddresses[index].isEnabled ? .enabled : .disabled, entityType: .destinationAddress, entityID: destinationAddresses[index].id.uuidString, entityLabel: destinationAddresses[index].label, summary: destinationAddresses[index].isEnabled ? "Destination address enabled." : "Destination address disabled.", beforeDetail: beforeDetail, afterDetail: destinationAddresses[index].auditDetail)
+  }
+
+  func markDestinationAddressReviewed(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let beforeDetail = destinationAddresses[index].auditDetail
+    destinationAddresses[index].reviewState = .accepted
+    destinationAddresses[index].lastReviewedDate = Self.auditTimestamp()
+    persistDestinationAddresses()
+    logAudit(action: .reviewed, entityType: .destinationAddress, entityID: destinationAddresses[index].id.uuidString, entityLabel: destinationAddresses[index].label, summary: "Destination address marked reviewed.", beforeDetail: beforeDetail, afterDetail: destinationAddresses[index].auditDetail)
+  }
+
+  func removeDestinationAddress(_ address: DestinationAddressRecord) {
+    guard let index = destinationAddresses.firstIndex(where: { $0.id == address.id }) else { return }
+    let removed = destinationAddresses.remove(at: index)
+    persistDestinationAddresses()
+    logAudit(action: .removed, entityType: .destinationAddress, entityID: removed.id.uuidString, entityLabel: removed.label, summary: "Destination address removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from address: DestinationAddressRecord) {
+    createReviewTask(linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString, label: address.label, summary: "Review destination address for \(address.organisationTeam). Risk: \(address.riskLevel.rawValue). \(address.deliveryInstructions)", priority: address.riskLevel == .critical ? .urgent : address.riskLevel == .high ? .high : .normal, assignee: address.organisationTeam)
+  }
+
+  func createDraftMessage(from address: DestinationAddressRecord) {
+    let recipient = address.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString, label: address.label, recipient: recipient)
+    logAudit(action: .created, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Draft message created from destination address.", afterDetail: address.auditDetail)
+  }
+
+  private func suggestedDestinationAddresses(profileID: UUID?, destination: String, team: String, carrier: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DestinationAddressRecord] {
+    destinationAddresses.filter { $0.matches(profileID: profileID, destination: destination, team: team, carrier: carrier, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDestinationAddresses(for profile: CustomerRecipientProfile) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: profile.id, destination: profile.defaultDestinationAddress, team: profile.organisationTeam, carrier: "", linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for order: TrackedOrder) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: order.destination, team: order.customer, carrier: order.carrier, linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for email: ForwardedEmailIntake) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: email.detectedDestinationAddress, team: email.detectedMerchant, carrier: "", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for item: ImportQueueItem) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: item.detectedDestinationAddress, team: item.detectedMerchant, carrier: "", linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for candidate: AcceptanceCandidate) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: candidate.detectedDestinationAddress, team: candidate.detectedMerchant, carrier: "", linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for group: ShipmentGroup) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: group.destinationSummary, team: group.recipientCustomerSummary, carrier: group.carrierSummary, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for task: ReviewTask) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: task.summary, team: task.assignee, carrier: "", linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for note: HandoffNote) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: note.summary, team: note.assignee, carrier: "", linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for event: CarrierTrackingEvent) -> [DestinationAddressRecord] {
+    let order = orders.first { $0.id == event.orderID }
+    return suggestedDestinationAddresses(profileID: nil, destination: order?.destination ?? event.location, team: order?.customer ?? "", carrier: event.carrier, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for attachment: EvidenceAttachment) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: attachment.summary, team: attachment.summary, carrier: "", linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for issue: ValidationIssue) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: issue.detail, team: issue.subtitle, carrier: "", linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedDestinationAddresses(for issue: ReconciliationIssue) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: issue.detectedValue, team: issue.summary, carrier: "", linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedDestinationAddresses(for draft: DraftMessage) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: draft.body, team: draft.subject, carrier: "", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedDestinationAddresses(for contact: ContactDirectoryEntry) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: contact.notes, team: contact.organisation, carrier: "", linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for account: AccountCredentialRecord) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: account.notes, team: account.organisation, carrier: "", linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for profile: VendorProfile) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: profile.serviceLevelNotes, team: profile.primaryOrganisation, carrier: profile.primaryOrganisation, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for policy: SLAPolicy) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: policy.conditionSummary, team: policy.name, carrier: "", linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for playbook: ExceptionPlaybook) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: playbook.triggerSummary, team: playbook.escalationContact, carrier: "", linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedDestinationAddresses(for item: WorkbenchItem) -> [DestinationAddressRecord] {
+    suggestedDestinationAddresses(profileID: nil, destination: item.summary, team: item.assignee, carrier: "", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredDeliveryInstructions(instructionType: DeliveryInstructionType?, profileID: UUID?, carrierContext: String?, riskLevel: ShipmentRiskLevel?, isEnabled: Bool?, reviewState: ReviewState?) -> [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { instruction in
+      let matchesType = instructionType == nil || instruction.instructionType == instructionType
+      let matchesProfile = profileID == nil || instruction.customerProfileID == profileID
+      let matchesCarrier = carrierContext == nil || instruction.carrierNotes.localizedCaseInsensitiveContains(carrierContext ?? "") || instruction.instructionSummary.localizedCaseInsensitiveContains(carrierContext ?? "")
+      let matchesRisk = riskLevel == nil || instruction.riskLevel == riskLevel
+      let matchesEnabled = isEnabled == nil || instruction.isEnabled == isEnabled
+      let matchesReview = reviewState == nil || instruction.reviewState == reviewState
+      return matchesType && matchesProfile && matchesCarrier && matchesRisk && matchesEnabled && matchesReview
+    }
+  }
+
+  func addDeliveryInstructionPlaceholder() {
+    let address = destinationAddresses.first
+    let instruction = DeliveryInstructionRecord(title: "New instruction \(deliveryInstructions.count + 1)", destinationAddressID: address?.id, customerProfileID: address?.customerProfileID ?? customerRecipientProfiles.first?.id, linkedEntityType: .destinationAddress, linkedEntityID: address?.id.uuidString ?? "Unlinked", instructionType: .accessConstraint, instructionSummary: "Add local delivery instruction summary.", accessConstraintSummary: "Add access constraints to review.", preferredDeliveryWindow: "To confirm", restrictedDeliveryWindow: "To confirm", carrierNotes: "Carrier notes to confirm.", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    deliveryInstructions.insert(instruction, at: 0)
+    persistDeliveryInstructions()
+    logAudit(action: .created, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Delivery instruction placeholder added.", afterDetail: instruction.auditDetail)
+  }
+
+  func updateDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index] = instruction
+    persistDeliveryInstructions()
+    logAudit(action: .edited, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Delivery instruction details updated.", beforeDetail: beforeDetail, afterDetail: instruction.auditDetail)
+  }
+
+  func toggleDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index].isEnabled.toggle()
+    persistDeliveryInstructions()
+    logAudit(action: deliveryInstructions[index].isEnabled ? .enabled : .disabled, entityType: .deliveryInstruction, entityID: deliveryInstructions[index].id.uuidString, entityLabel: deliveryInstructions[index].title, summary: deliveryInstructions[index].isEnabled ? "Delivery instruction enabled." : "Delivery instruction disabled.", beforeDetail: beforeDetail, afterDetail: deliveryInstructions[index].auditDetail)
+  }
+
+  func markDeliveryInstructionReviewed(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let beforeDetail = deliveryInstructions[index].auditDetail
+    deliveryInstructions[index].reviewState = .accepted
+    deliveryInstructions[index].lastReviewedDate = Self.auditTimestamp()
+    persistDeliveryInstructions()
+    logAudit(action: .reviewed, entityType: .deliveryInstruction, entityID: deliveryInstructions[index].id.uuidString, entityLabel: deliveryInstructions[index].title, summary: "Delivery instruction marked reviewed.", beforeDetail: beforeDetail, afterDetail: deliveryInstructions[index].auditDetail)
+  }
+
+  func removeDeliveryInstruction(_ instruction: DeliveryInstructionRecord) {
+    guard let index = deliveryInstructions.firstIndex(where: { $0.id == instruction.id }) else { return }
+    let removed = deliveryInstructions.remove(at: index)
+    persistDeliveryInstructions()
+    logAudit(action: .removed, entityType: .deliveryInstruction, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Delivery instruction removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from instruction: DeliveryInstructionRecord) {
+    let assignee = instruction.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.organisationTeam } ?? "Operations"
+    createReviewTask(linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString, label: instruction.title, summary: "Review \(instruction.instructionType.rawValue.lowercased()) instruction. \(instruction.instructionSummary) \(instruction.accessConstraintSummary)", priority: instruction.riskLevel == .critical ? .urgent : instruction.riskLevel == .high ? .high : .normal, assignee: assignee)
+  }
+
+  func createDraftMessage(from instruction: DeliveryInstructionRecord) {
+    let recipient = instruction.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString, label: instruction.title, recipient: recipient)
+    logAudit(action: .created, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Draft message created from delivery instruction.", afterDetail: instruction.auditDetail)
+  }
+
+  private func suggestedDeliveryInstructions(destinationAddressID: UUID?, profileID: UUID?, context: String, carrier: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DeliveryInstructionRecord] {
+    deliveryInstructions.filter { $0.matches(destinationAddressID: destinationAddressID, profileID: profileID, context: context, carrier: carrier, riskLevel: riskLevel, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDeliveryInstructions(for address: DestinationAddressRecord) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: address.id, profileID: address.customerProfileID, context: "\(address.addressLineSummary) \(address.deliveryInstructions) \(address.accessNotes)", carrier: address.preferredCarrier, riskLevel: address.riskLevel, linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for profile: CustomerRecipientProfile) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: profile.id, context: "\(profile.defaultDestinationAddress) \(profile.deliveryPreference.rawValue) \(profile.notes)", carrier: "", riskLevel: nil, linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for order: TrackedOrder) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: order).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(order.destination) \(order.customer)", carrier: order.carrier, riskLevel: nil, linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for email: ForwardedEmailIntake) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: email).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(email.detectedDestinationAddress) \(email.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for item: ImportQueueItem) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: item).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(item.detectedDestinationAddress) \(item.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for candidate: AcceptanceCandidate) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: candidate).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(candidate.detectedDestinationAddress) \(candidate.detectedMerchant)", carrier: "", riskLevel: nil, linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for group: ShipmentGroup) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: group).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(group.destinationSummary) \(group.recipientCustomerSummary)", carrier: group.carrierSummary, riskLevel: group.riskLevel, linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for task: ReviewTask) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: task.summary, carrier: "", riskLevel: nil, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for note: HandoffNote) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(note.summary) \(note.notes)", carrier: "", riskLevel: nil, linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for event: CarrierTrackingEvent) -> [DeliveryInstructionRecord] {
+    let address = suggestedDestinationAddresses(for: event).first
+    return suggestedDeliveryInstructions(destinationAddressID: address?.id, profileID: address?.customerProfileID, context: "\(event.location) \(event.detail)", carrier: event.carrier, riskLevel: nil, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for attachment: EvidenceAttachment) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: attachment.summary, carrier: "", riskLevel: nil, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for issue: ValidationIssue) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(issue.subtitle) \(issue.detail)", carrier: "", riskLevel: issue.severity.shipmentRiskLevel, linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedDeliveryInstructions(for issue: ReconciliationIssue) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(issue.summary) \(issue.detectedValue) \(issue.currentOperationalValue)", carrier: "", riskLevel: issue.severity.shipmentRiskLevel, linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedDeliveryInstructions(for draft: DraftMessage) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(draft.subject) \(draft.body)", carrier: "", riskLevel: nil, linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedDeliveryInstructions(for contact: ContactDirectoryEntry) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(contact.organisation) \(contact.notes)", carrier: "", riskLevel: nil, linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for account: AccountCredentialRecord) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(account.organisation) \(account.notes)", carrier: "", riskLevel: nil, linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for profile: VendorProfile) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(profile.primaryOrganisation) \(profile.serviceLevelNotes)", carrier: profile.primaryOrganisation, riskLevel: profile.riskLevel.shipmentRiskLevel, linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for policy: SLAPolicy) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(policy.name) \(policy.conditionSummary)", carrier: "", riskLevel: nil, linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for playbook: ExceptionPlaybook) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(playbook.triggerSummary) \(playbook.recommendedSteps)", carrier: "", riskLevel: nil, linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedDeliveryInstructions(for item: WorkbenchItem) -> [DeliveryInstructionRecord] {
+    suggestedDeliveryInstructions(destinationAddressID: nil, profileID: nil, context: "\(item.summary) \(item.suggestedNextAction)", carrier: "", riskLevel: item.shipmentRiskLevel, linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredPackageContents(itemCategory: PackageItemCategory?, valueBand: PackageValueBand?, verificationStatus: PackageVerificationStatus?, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [PackageContentRecord] {
+    packageContents.filter { content in
+      let matchesCategory = itemCategory == nil || content.itemCategory == itemCategory
+      let matchesValue = valueBand == nil || content.valueBand == valueBand
+      let matchesVerification = verificationStatus == nil || content.verificationStatus == verificationStatus
+      let matchesRisk = riskLevel == nil || content.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || content.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || content.reviewState == reviewState
+      return matchesCategory && matchesValue && matchesVerification && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addPackageContentPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let address = destinationAddresses.first
+    let instruction = deliveryInstructions.first
+    let content = PackageContentRecord(title: "New package content \(packageContents.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", orderID: order?.id, shipmentGroupID: group?.id, destinationAddressID: address?.id, deliveryInstructionID: instruction?.id, customerProfileID: address?.customerProfileID ?? customerRecipientProfiles.first?.id, itemSummary: "Items to verify locally.", expectedQuantity: 1, verifiedQuantity: 0, itemCategory: .other, valueBand: .unknown, verificationStatus: .notVerified, discrepancySummary: "No discrepancy recorded yet.", evidenceAttachmentIDs: [], riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    packageContents.insert(content, at: 0)
+    persistPackageContents()
+    logAudit(action: .created, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Package content placeholder added.", afterDetail: content.auditDetail)
+  }
+
+  func updatePackageContent(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index] = content
+    persistPackageContents()
+    logAudit(action: .edited, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Package content details updated.", beforeDetail: beforeDetail, afterDetail: content.auditDetail)
+  }
+
+  func markPackageContentVerified(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].verifiedQuantity = packageContents[index].expectedQuantity
+    packageContents[index].verificationStatus = .verified
+    packageContents[index].discrepancySummary = "No discrepancy recorded."
+    packageContents[index].reviewState = .accepted
+    packageContents[index].lastReviewedDate = Self.auditTimestamp()
+    persistPackageContents()
+    logAudit(action: .completed, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content verified locally.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func markPackageContentDiscrepancy(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].verificationStatus = .discrepancy
+    packageContents[index].reviewState = .needsReview
+    packageContents[index].discrepancySummary = packageContents[index].discrepancySummary.localizedCaseInsensitiveContains("no discrepancy") ? "Quantity or item details need manual verification." : packageContents[index].discrepancySummary
+    persistPackageContents()
+    logAudit(action: .edited, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content discrepancy marked.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func markPackageContentReviewed(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let beforeDetail = packageContents[index].auditDetail
+    packageContents[index].reviewState = .accepted
+    packageContents[index].lastReviewedDate = Self.auditTimestamp()
+    persistPackageContents()
+    logAudit(action: .reviewed, entityType: .packageContent, entityID: packageContents[index].id.uuidString, entityLabel: packageContents[index].title, summary: "Package content marked reviewed.", beforeDetail: beforeDetail, afterDetail: packageContents[index].auditDetail)
+  }
+
+  func removePackageContent(_ content: PackageContentRecord) {
+    guard let index = packageContents.firstIndex(where: { $0.id == content.id }) else { return }
+    let removed = packageContents.remove(at: index)
+    persistPackageContents()
+    logAudit(action: .removed, entityType: .packageContent, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Package content removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from content: PackageContentRecord) {
+    createReviewTask(linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString, label: content.title, summary: "Verify package contents: \(content.itemSummary). \(content.discrepancySummary)", priority: content.riskLevel == .critical ? .urgent : content.riskLevel == .high ? .high : .normal, assignee: content.itemCategory.rawValue)
+  }
+
+  func createDraftMessage(from content: PackageContentRecord) {
+    let recipient = content.customerProfileID.flatMap { id in customerRecipientProfiles.first { $0.id == id }?.primaryEmail } ?? "operations@parcelops.example"
+    createDraftMessage(linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString, label: content.title, recipient: recipient)
+    logAudit(action: .created, entityType: .packageContent, entityID: content.id.uuidString, entityLabel: content.title, summary: "Draft message created from package content.", afterDetail: content.auditDetail)
+  }
+
+  private func suggestedPackageContents(orderID: UUID?, shipmentGroupID: UUID?, destinationAddressID: UUID?, deliveryInstructionID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [PackageContentRecord] {
+    packageContents.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, destinationAddressID: destinationAddressID, deliveryInstructionID: deliveryInstructionID, customerProfileID: customerProfileID, evidenceID: evidenceID, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedPackageContents(for order: TrackedOrder) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: order.id, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, evidenceID: nil, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedPackageContents(for email: ForwardedEmailIntake) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: email.linkedOrderID, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: email).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: email).first?.id, customerProfileID: suggestedCustomerProfiles(for: email).first?.id, evidenceID: nil, context: "\(email.detectedMerchant) \(email.detectedOrderNumber) \(email.detectedDestinationAddress)", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedPackageContents(for item: ImportQueueItem) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: item.suggestedLinkedOrderID, shipmentGroupID: item.suggestedShipmentGroupID, destinationAddressID: suggestedDestinationAddresses(for: item).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: item).first?.id, customerProfileID: suggestedCustomerProfiles(for: item).first?.id, evidenceID: nil, context: "\(item.rawSummary) \(item.detectedMerchant) \(item.detectedDestinationAddress)", linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedPackageContents(for candidate: AcceptanceCandidate) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: candidate.suggestedLinkedOrderID, shipmentGroupID: candidate.suggestedShipmentGroupID, destinationAddressID: suggestedDestinationAddresses(for: candidate).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: candidate).first?.id, customerProfileID: suggestedCustomerProfiles(for: candidate).first?.id, evidenceID: nil, context: "\(candidate.detectedMerchant) \(candidate.detectedDestinationAddress)", linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedPackageContents(for group: ShipmentGroup) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: group.primaryOrderID, shipmentGroupID: group.id, destinationAddressID: suggestedDestinationAddresses(for: group).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: group).first?.id, customerProfileID: suggestedCustomerProfiles(for: group).first?.id, evidenceID: group.relatedEvidenceIDs.first, context: "\(group.groupName) \(group.destinationSummary) \(group.statusSummary)", linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedPackageContents(for attachment: EvidenceAttachment) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: attachment).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, evidenceID: attachment.id, context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedPackageContents(for address: DestinationAddressRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: address.id, deliveryInstructionID: nil, customerProfileID: address.customerProfileID, evidenceID: nil, context: "\(address.label) \(address.deliveryInstructions)", linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString)
+  }
+
+  func suggestedPackageContents(for instruction: DeliveryInstructionRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: instruction.destinationAddressID, deliveryInstructionID: instruction.id, customerProfileID: instruction.customerProfileID, evidenceID: nil, context: "\(instruction.title) \(instruction.instructionSummary)", linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString)
+  }
+
+  func suggestedPackageContents(for profile: CustomerRecipientProfile) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: profile).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: profile).first?.id, customerProfileID: profile.id, evidenceID: nil, context: "\(profile.displayName) \(profile.defaultDestinationAddress)", linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedPackageContents(for task: ReviewTask) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: task.summary, linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for note: HandoffNote) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(note.summary) \(note.notes)", linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for event: CarrierTrackingEvent) -> [PackageContentRecord] {
+    let order = orders.first { $0.id == event.orderID }
+    return suggestedPackageContents(orderID: event.orderID, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: event).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: event).first?.id, customerProfileID: order.flatMap { suggestedCustomerProfiles(for: $0).first?.id }, evidenceID: nil, context: "\(event.trackingNumber) \(event.detail)", linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedPackageContents(for issue: ValidationIssue) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(issue.title) \(issue.detail)", linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedPackageContents(for issue: ReconciliationIssue) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(issue.title) \(issue.summary) \(issue.detectedValue)", linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedPackageContents(for draft: DraftMessage) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(draft.subject) \(draft.body)", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedPackageContents(for contact: ContactDirectoryEntry) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: contact).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: contact).first?.id, customerProfileID: suggestedCustomerProfiles(for: contact).first?.id, evidenceID: nil, context: "\(contact.organisation) \(contact.notes)", linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedPackageContents(for account: AccountCredentialRecord) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: account).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: account).first?.id, customerProfileID: suggestedCustomerProfiles(for: account).first?.id, evidenceID: nil, context: "\(account.organisation) \(account.notes)", linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedPackageContents(for profile: VendorProfile) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: suggestedDestinationAddresses(for: profile).first?.id, deliveryInstructionID: suggestedDeliveryInstructions(for: profile).first?.id, customerProfileID: suggestedCustomerProfiles(for: profile).first?.id, evidenceID: nil, context: "\(profile.primaryOrganisation) \(profile.serviceLevelNotes)", linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedPackageContents(for policy: SLAPolicy) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(policy.name) \(policy.conditionSummary)", linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedPackageContents(for playbook: ExceptionPlaybook) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(playbook.name) \(playbook.triggerSummary)", linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedPackageContents(for item: WorkbenchItem) -> [PackageContentRecord] {
+    suggestedPackageContents(orderID: nil, shipmentGroupID: nil, destinationAddressID: nil, deliveryInstructionID: nil, customerProfileID: nil, evidenceID: nil, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredCostRecords(costCategory: CostCategory?, reimbursementStatus: ReimbursementStatus?, approvalStatus: CostApprovalStatus?, budgetCode: String, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [CostRecord] {
+    costRecords.filter { cost in
+      let matchesCategory = costCategory == nil || cost.costCategory == costCategory
+      let matchesReimbursement = reimbursementStatus == nil || cost.reimbursementStatus == reimbursementStatus
+      let matchesApproval = approvalStatus == nil || cost.approvalStatus == approvalStatus
+      let matchesBudget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cost.budgetCode.localizedCaseInsensitiveContains(budgetCode)
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cost.costOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || cost.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || cost.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || cost.reviewState == reviewState
+      return matchesCategory && matchesReimbursement && matchesApproval && matchesBudget && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addCostRecordPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let content = packageContents.first
+    let customerProfileID = order.flatMap { suggestedCustomerProfiles(for: $0).first?.id } ?? customerRecipientProfiles.first?.id
+    let cost = CostRecord(title: "New cost record \(costRecords.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", orderID: order?.id, shipmentGroupID: group?.id, packageContentID: content?.id, customerProfileID: customerProfileID, vendorProfileID: nil, accountID: nil, costCategory: .other, amountText: "0.00", currency: "AUD", taxGSTText: "GST to confirm", reimbursementStatus: .notSubmitted, approvalStatus: .draft, budgetCode: "To confirm", costOwnerTeam: order?.customer ?? "Operations", evidenceAttachmentIDs: [], notes: "Local placeholder for budget, approval, and reimbursement review.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    costRecords.insert(cost, at: 0)
+    persistCostRecords()
+    logAudit(action: .created, entityType: .costRecord, entityID: cost.id.uuidString, entityLabel: cost.title, summary: "Cost record placeholder added.", afterDetail: cost.auditDetail)
+  }
+
+  func updateCostRecord(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let beforeDetail = costRecords[index].auditDetail
+    costRecords[index] = cost
+    persistCostRecords()
+    logAudit(action: .edited, entityType: .costRecord, entityID: cost.id.uuidString, entityLabel: cost.title, summary: "Cost record details updated.", beforeDetail: beforeDetail, afterDetail: cost.auditDetail)
+  }
+
+  func markCostRecordApproved(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let beforeDetail = costRecords[index].auditDetail
+    costRecords[index].approvalStatus = .approved
+    costRecords[index].reviewState = .accepted
+    costRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistCostRecords()
+    logAudit(action: .completed, entityType: .costRecord, entityID: costRecords[index].id.uuidString, entityLabel: costRecords[index].title, summary: "Cost approved locally.", beforeDetail: beforeDetail, afterDetail: costRecords[index].auditDetail)
+  }
+
+  func markCostRecordReimbursed(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let beforeDetail = costRecords[index].auditDetail
+    costRecords[index].reimbursementStatus = .reimbursed
+    costRecords[index].reviewState = .accepted
+    costRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistCostRecords()
+    logAudit(action: .completed, entityType: .costRecord, entityID: costRecords[index].id.uuidString, entityLabel: costRecords[index].title, summary: "Cost marked reimbursed locally.", beforeDetail: beforeDetail, afterDetail: costRecords[index].auditDetail)
+  }
+
+  func markCostRecordDisputed(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let beforeDetail = costRecords[index].auditDetail
+    costRecords[index].reimbursementStatus = .disputed
+    costRecords[index].approvalStatus = .needsReview
+    costRecords[index].reviewState = .needsReview
+    costRecords[index].riskLevel = costRecords[index].riskLevel == .critical ? .critical : .high
+    persistCostRecords()
+    logAudit(action: .edited, entityType: .costRecord, entityID: costRecords[index].id.uuidString, entityLabel: costRecords[index].title, summary: "Cost marked disputed and needs review.", beforeDetail: beforeDetail, afterDetail: costRecords[index].auditDetail)
+  }
+
+  func markCostRecordReviewed(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let beforeDetail = costRecords[index].auditDetail
+    costRecords[index].reviewState = .accepted
+    costRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistCostRecords()
+    logAudit(action: .reviewed, entityType: .costRecord, entityID: costRecords[index].id.uuidString, entityLabel: costRecords[index].title, summary: "Cost record marked reviewed.", beforeDetail: beforeDetail, afterDetail: costRecords[index].auditDetail)
+  }
+
+  func removeCostRecord(_ cost: CostRecord) {
+    guard let index = costRecords.firstIndex(where: { $0.id == cost.id }) else { return }
+    let removed = costRecords.remove(at: index)
+    persistCostRecords()
+    logAudit(action: .removed, entityType: .costRecord, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Cost record removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from cost: CostRecord) {
+    createReviewTask(linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString, label: cost.title, summary: "Review cost: \(cost.amountText) \(cost.currency), \(cost.costCategory.rawValue), budget \(cost.budgetCode). \(cost.notes)", priority: cost.riskLevel == .critical ? .urgent : cost.riskLevel == .high ? .high : .normal, assignee: cost.costOwnerTeam)
+  }
+
+  func createDraftMessage(from cost: CostRecord) {
+    createDraftMessage(linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString, label: cost.title, recipient: cost.costOwnerTeam)
+    logAudit(action: .created, entityType: .costRecord, entityID: cost.id.uuidString, entityLabel: cost.title, summary: "Draft message created from cost record.", afterDetail: cost.auditDetail)
+  }
+
+  private func suggestedCostRecords(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, budgetCode: String, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [CostRecord] {
+    costRecords.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, customerProfileID: customerProfileID, vendorProfileID: vendorProfileID, accountID: accountID, evidenceID: evidenceID, budgetCode: budgetCode, ownerTeam: ownerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedCostRecords(for order: TrackedOrder) -> [CostRecord] {
+    suggestedCostRecords(orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, vendorProfileID: suggestedVendorProfiles(for: order).first?.id, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: order.customer, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedCostRecords(for email: ForwardedEmailIntake) -> [CostRecord] {
+    suggestedCostRecords(orderID: email.linkedOrderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: email).first?.id, customerProfileID: suggestedCustomerProfiles(for: email).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(email.detectedMerchant) \(email.detectedOrderNumber) \(email.detectedDestinationAddress)", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedCostRecords(for item: ImportQueueItem) -> [CostRecord] {
+    suggestedCostRecords(orderID: item.suggestedLinkedOrderID, shipmentGroupID: item.suggestedShipmentGroupID, packageContentID: suggestedPackageContents(for: item).first?.id, customerProfileID: suggestedCustomerProfiles(for: item).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(item.rawSummary) \(item.notes)", linkedEntityType: .importQueueItem, linkedEntityID: item.id.uuidString)
+  }
+
+  func suggestedCostRecords(for candidate: AcceptanceCandidate) -> [CostRecord] {
+    suggestedCostRecords(orderID: candidate.suggestedLinkedOrderID, shipmentGroupID: candidate.suggestedShipmentGroupID, packageContentID: suggestedPackageContents(for: candidate).first?.id, customerProfileID: suggestedCustomerProfiles(for: candidate).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(candidate.detectedMerchant) \(candidate.detectedDestinationAddress)", linkedEntityType: candidate.reviewTaskLinkedEntityType, linkedEntityID: candidate.sourceID.uuidString)
+  }
+
+  func suggestedCostRecords(for group: ShipmentGroup) -> [CostRecord] {
+    suggestedCostRecords(orderID: group.primaryOrderID, shipmentGroupID: group.id, packageContentID: suggestedPackageContents(for: group).first?.id, customerProfileID: suggestedCustomerProfiles(for: group).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: group.relatedEvidenceIDs.first, budgetCode: "", ownerTeam: group.recipientCustomerSummary, context: "\(group.groupName) \(group.destinationSummary) \(group.statusSummary)", linkedEntityType: .shipmentGroup, linkedEntityID: group.id.uuidString)
+  }
+
+  func suggestedCostRecords(for event: CarrierTrackingEvent) -> [CostRecord] {
+    suggestedCostRecords(orderID: event.orderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: event).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(event.carrier) \(event.trackingNumber) \(event.detail)", linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedCostRecords(for attachment: EvidenceAttachment) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: attachment.id, budgetCode: "", ownerTeam: "", context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func suggestedCostRecords(for task: ReviewTask) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: task).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: task.assignee, context: "\(task.title) \(task.summary)", linkedEntityType: task.linkedEntityType, linkedEntityID: task.linkedEntityID)
+  }
+
+  func suggestedCostRecords(for note: HandoffNote) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: note).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: note.assignee, context: "\(note.title) \(note.summary) \(note.notes)", linkedEntityType: note.linkedEntityType, linkedEntityID: note.linkedEntityID)
+  }
+
+  func suggestedCostRecords(for issue: ValidationIssue) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: issue).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(issue.title) \(issue.detail)", linkedEntityType: issue.linkedEntityType, linkedEntityID: issue.entityID)
+  }
+
+  func suggestedCostRecords(for issue: ReconciliationIssue) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: issue).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(issue.title) \(issue.summary) \(issue.detectedValue)", linkedEntityType: .reconciliationIssue, linkedEntityID: issue.id)
+  }
+
+  func suggestedCostRecords(for address: DestinationAddressRecord) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: address).first?.id, customerProfileID: address.customerProfileID, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: address.organisationTeam, context: "\(address.label) \(address.addressLineSummary)", linkedEntityType: .destinationAddress, linkedEntityID: address.id.uuidString)
+  }
+
+  func suggestedCostRecords(for instruction: DeliveryInstructionRecord) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: instruction).first?.id, customerProfileID: instruction.customerProfileID, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(instruction.title) \(instruction.instructionSummary)", linkedEntityType: .deliveryInstruction, linkedEntityID: instruction.id.uuidString)
+  }
+
+  func suggestedCostRecords(for content: PackageContentRecord) -> [CostRecord] {
+    suggestedCostRecords(orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, customerProfileID: content.customerProfileID, vendorProfileID: nil, accountID: nil, evidenceID: content.evidenceAttachmentIDs.first, budgetCode: "", ownerTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedCostRecords(for profile: CustomerRecipientProfile) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: profile).first?.id, customerProfileID: profile.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: profile.organisationTeam, context: "\(profile.displayName) \(profile.organisationTeam)", linkedEntityType: .customerProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedCostRecords(for contact: ContactDirectoryEntry) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: contact).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: contact.organisation, context: "\(contact.organisation) \(contact.notes)", linkedEntityType: .contact, linkedEntityID: contact.id.uuidString)
+  }
+
+  func suggestedCostRecords(for account: AccountCredentialRecord) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: account).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: account.id, evidenceID: nil, budgetCode: "", ownerTeam: account.organisation, context: "\(account.accountName) \(account.organisation) \(account.notes)", linkedEntityType: .account, linkedEntityID: account.id.uuidString)
+  }
+
+  func suggestedCostRecords(for profile: VendorProfile) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: profile).first?.id, customerProfileID: nil, vendorProfileID: profile.id, accountID: profile.defaultAccountID, evidenceID: nil, budgetCode: "", ownerTeam: profile.primaryOrganisation, context: "\(profile.name) \(profile.primaryOrganisation) \(profile.serviceLevelNotes)", linkedEntityType: .vendorProfile, linkedEntityID: profile.id.uuidString)
+  }
+
+  func suggestedCostRecords(for policy: SLAPolicy) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: policy).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: "", context: "\(policy.name) \(policy.conditionSummary)", linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString)
+  }
+
+  func suggestedCostRecords(for playbook: ExceptionPlaybook) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: playbook).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: playbook.escalationContact, context: "\(playbook.name) \(playbook.triggerSummary)", linkedEntityType: .exceptionPlaybook, linkedEntityID: playbook.id.uuidString)
+  }
+
+  func suggestedCostRecords(for draft: DraftMessage) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: draft).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: draft.recipient, context: "\(draft.subject) \(draft.body)", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
+  }
+
+  func suggestedCostRecords(for item: WorkbenchItem) -> [CostRecord] {
+    suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredReturnClaims(claimType: ReturnClaimType?, claimStatus: ReturnClaimStatus?, requestedOutcome: ReturnClaimOutcome?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ReturnClaimRecord] {
+    returnClaims.filter { claim in
+      let matchesType = claimType == nil || claim.claimType == claimType
+      let matchesStatus = claimStatus == nil || claim.claimStatus == claimStatus
+      let matchesOutcome = requestedOutcome == nil || claim.requestedOutcome == requestedOutcome
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || claim.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || claim.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || claim.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || claim.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOutcome && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addReturnClaimPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let content = packageContents.first
+    let cost = costRecords.first
+    let claim = ReturnClaimRecord(title: "New return or claim \(returnClaims.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", orderID: order?.id, shipmentGroupID: group?.id, packageContentID: content?.id, costRecordID: cost?.id, customerProfileID: order.flatMap { suggestedCustomerProfiles(for: $0).first?.id } ?? customerRecipientProfiles.first?.id, vendorProfileID: nil, accountID: nil, claimType: .returnRequest, reasonSummary: "Local placeholder for return, exchange, refund, or claim review.", requestedOutcome: .replacement, claimStatus: .draft, refundReplacementAmountText: "0.00", currency: "AUD", evidenceAttachmentIDs: [], carrierTrackingEventIDs: [], assignedOwnerTeam: order?.customer ?? "Operations", dueDate: "To schedule", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    returnClaims.insert(claim, at: 0)
+    persistReturnClaims()
+    logAudit(action: .created, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Return or claim placeholder added.", afterDetail: claim.auditDetail)
+  }
+
+  func updateReturnClaim(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index] = claim
+    persistReturnClaims()
+    logAudit(action: .edited, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Return or claim details updated.", beforeDetail: beforeDetail, afterDetail: claim.auditDetail)
+  }
+
+  func markReturnClaimSubmitted(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .submitted, reviewState: .monitor, summary: "Return or claim submitted locally.", action: .created)
+  }
+
+  func markReturnClaimApproved(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .approved, reviewState: .accepted, summary: "Return or claim approved locally.", action: .completed)
+  }
+
+  func markReturnClaimResolved(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .resolved, reviewState: .accepted, summary: "Return or claim resolved locally.", action: .completed)
+  }
+
+  func markReturnClaimDisputed(_ claim: ReturnClaimRecord) {
+    updateReturnClaimStatus(claim, status: .disputed, reviewState: .needsReview, summary: "Return or claim marked disputed.", action: .edited, forceHighRisk: true)
+  }
+
+  func markReturnClaimReviewed(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index].reviewState = .accepted
+    returnClaims[index].lastReviewedDate = Self.auditTimestamp()
+    persistReturnClaims()
+    logAudit(action: .reviewed, entityType: .returnClaim, entityID: returnClaims[index].id.uuidString, entityLabel: returnClaims[index].title, summary: "Return or claim marked reviewed.", beforeDetail: beforeDetail, afterDetail: returnClaims[index].auditDetail)
+  }
+
+  func removeReturnClaim(_ claim: ReturnClaimRecord) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let removed = returnClaims.remove(at: index)
+    persistReturnClaims()
+    logAudit(action: .removed, entityType: .returnClaim, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Return or claim removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from claim: ReturnClaimRecord) {
+    createReviewTask(linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString, label: claim.title, summary: "Review \(claim.claimType.rawValue): \(claim.reasonSummary). Requested outcome: \(claim.requestedOutcome.rawValue).", priority: claim.riskLevel == .critical ? .urgent : claim.riskLevel == .high ? .high : .normal, assignee: claim.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from claim: ReturnClaimRecord) {
+    createDraftMessage(linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString, label: claim.title, recipient: claim.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .returnClaim, entityID: claim.id.uuidString, entityLabel: claim.title, summary: "Draft message created from return or claim.", afterDetail: claim.auditDetail)
+  }
+
+  private func updateReturnClaimStatus(_ claim: ReturnClaimRecord, status: ReturnClaimStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = returnClaims.firstIndex(where: { $0.id == claim.id }) else { return }
+    let beforeDetail = returnClaims[index].auditDetail
+    returnClaims[index].claimStatus = status
+    returnClaims[index].reviewState = reviewState
+    returnClaims[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      returnClaims[index].riskLevel = returnClaims[index].riskLevel == .critical ? .critical : .high
+    }
+    persistReturnClaims()
+    logAudit(action: action, entityType: .returnClaim, entityID: returnClaims[index].id.uuidString, entityLabel: returnClaims[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: returnClaims[index].auditDetail)
+  }
+
+  private func suggestedReturnClaims(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, costRecordID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ReturnClaimRecord] {
+    returnClaims.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, costRecordID: costRecordID, customerProfileID: customerProfileID, vendorProfileID: vendorProfileID, accountID: accountID, evidenceID: evidenceID, trackingEventID: trackingEventID, ownerTeam: ownerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedReturnClaims(for order: TrackedOrder) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, costRecordID: suggestedCostRecords(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, vendorProfileID: suggestedVendorProfiles(for: order).first?.id, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: order.customer, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for content: PackageContentRecord) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, costRecordID: suggestedCostRecords(for: content).first?.id, customerProfileID: content.customerProfileID, vendorProfileID: nil, accountID: nil, evidenceID: content.evidenceAttachmentIDs.first, trackingEventID: nil, ownerTeam: "", context: "\(content.title) \(content.itemSummary) \(content.discrepancySummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for cost: CostRecord) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: cost.orderID, shipmentGroupID: cost.shipmentGroupID, packageContentID: cost.packageContentID, costRecordID: cost.id, customerProfileID: cost.customerProfileID, vendorProfileID: cost.vendorProfileID, accountID: cost.accountID, evidenceID: cost.evidenceAttachmentIDs.first, trackingEventID: nil, ownerTeam: cost.costOwnerTeam, context: "\(cost.title) \(cost.notes)", linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for item: WorkbenchItem) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, costRecordID: suggestedCostRecords(for: item).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func suggestedReturnClaims(for email: ForwardedEmailIntake) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: email.linkedOrderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: email).first?.id, costRecordID: suggestedCostRecords(for: email).first?.id, customerProfileID: suggestedCustomerProfiles(for: email).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: nil, ownerTeam: "", context: "\(email.detectedMerchant) \(email.detectedOrderNumber) \(email.rawBodyPreview)", linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for event: CarrierTrackingEvent) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: event.orderID, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: event).first?.id, costRecordID: suggestedCostRecords(for: event).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, trackingEventID: event.id, ownerTeam: "", context: "\(event.carrier) \(event.trackingNumber) \(event.detail)", linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString)
+  }
+
+  func suggestedReturnClaims(for attachment: EvidenceAttachment) -> [ReturnClaimRecord] {
+    suggestedReturnClaims(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: attachment).first?.id, costRecordID: suggestedCostRecords(for: attachment).first?.id, customerProfileID: suggestedCustomerProfiles(for: attachment).first?.id, vendorProfileID: nil, accountID: nil, evidenceID: attachment.id, trackingEventID: nil, ownerTeam: "", context: attachment.summary, linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString)
+  }
+
+  func filteredProcurementRequests(approvalStatus: ProcurementApprovalStatus?, procurementStatus: ProcurementStatus?, requesterTeam: String, assignedBuyerTeam: String, budgetCode: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ProcurementRequest] {
+    procurementRequests.filter { request in
+      let matchesApproval = approvalStatus == nil || request.approvalStatus == approvalStatus
+      let matchesStatus = procurementStatus == nil || request.procurementStatus == procurementStatus
+      let matchesRequester = requesterTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.requesterTeam.localizedCaseInsensitiveContains(requesterTeam)
+      let matchesBuyer = assignedBuyerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.assignedBuyerTeam.localizedCaseInsensitiveContains(assignedBuyerTeam)
+      let matchesBudget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || request.budgetCode.localizedCaseInsensitiveContains(budgetCode)
+      let matchesRisk = riskLevel == nil || request.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || request.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || request.reviewState == reviewState
+      return matchesApproval && matchesStatus && matchesRequester && matchesBuyer && matchesBudget && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addProcurementRequestPlaceholder() {
+    let content = packageContents.first
+    let cost = costRecords.first
+    let claim = returnClaims.first
+    let request = ProcurementRequest(title: "New procurement request \(procurementRequests.count + 1)", linkedEntityType: .packageContent, linkedEntityID: content?.id.uuidString ?? "Unlinked", requesterTeam: "Operations", requestedDate: Self.auditTimestamp(), neededByDate: "To schedule", vendorProfileID: vendorProfiles.first?.id, accountID: accountCredentialRecords.first?.id, customerProfileID: customerRecipientProfiles.first?.id, destinationAddressID: destinationAddresses.first?.id, packageContentID: content?.id, costRecordID: cost?.id, returnClaimID: claim?.id, requestedItemsSummary: "Items to procure locally.", estimatedCostText: "0.00", currency: "AUD", budgetCode: "To confirm", approvalStatus: .draft, procurementStatus: .requested, assignedBuyerTeam: "Procurement Desk", evidenceAttachmentIDs: [], notes: "Local procurement placeholder. No purchasing or supplier system actions are performed.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    procurementRequests.insert(request, at: 0)
+    persistProcurementRequests()
+    logAudit(action: .created, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Procurement request placeholder added.", afterDetail: request.auditDetail)
+  }
+
+  func updateProcurementRequest(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index] = request
+    persistProcurementRequests()
+    logAudit(action: .edited, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Procurement request details updated.", beforeDetail: beforeDetail, afterDetail: request.auditDetail)
+  }
+
+  func markProcurementRequestApproved(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .approvedToOrder, reviewState: .accepted, summary: "Procurement request approved locally.", action: .completed)
+  }
+
+  func markProcurementRequestOrdered(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .ordered, reviewState: .monitor, summary: "Procurement request marked ordered locally.", action: .created)
+  }
+
+  func markProcurementRequestReceived(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .approved, procurementStatus: .received, reviewState: .accepted, summary: "Procurement request marked received locally.", action: .completed)
+  }
+
+  func markProcurementRequestRejected(_ request: ProcurementRequest) {
+    updateProcurementRequestState(request, approvalStatus: .rejected, procurementStatus: .blocked, reviewState: .needsReview, summary: "Procurement request rejected and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markProcurementRequestReviewed(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index].reviewState = .accepted
+    procurementRequests[index].lastReviewedDate = Self.auditTimestamp()
+    persistProcurementRequests()
+    logAudit(action: .reviewed, entityType: .procurementRequest, entityID: procurementRequests[index].id.uuidString, entityLabel: procurementRequests[index].title, summary: "Procurement request marked reviewed.", beforeDetail: beforeDetail, afterDetail: procurementRequests[index].auditDetail)
+  }
+
+  func removeProcurementRequest(_ request: ProcurementRequest) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let removed = procurementRequests.remove(at: index)
+    persistProcurementRequests()
+    logAudit(action: .removed, entityType: .procurementRequest, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Procurement request removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from request: ProcurementRequest) {
+    createReviewTask(linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString, label: request.title, summary: "Review procurement: \(request.requestedItemsSummary). Budget \(request.budgetCode).", priority: request.riskLevel == .critical ? .urgent : request.riskLevel == .high ? .high : .normal, assignee: request.assignedBuyerTeam)
+  }
+
+  func createDraftMessage(from request: ProcurementRequest) {
+    createDraftMessage(linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString, label: request.title, recipient: request.assignedBuyerTeam)
+    logAudit(action: .created, entityType: .procurementRequest, entityID: request.id.uuidString, entityLabel: request.title, summary: "Draft message created from procurement request.", afterDetail: request.auditDetail)
+  }
+
+  private func updateProcurementRequestState(_ request: ProcurementRequest, approvalStatus: ProcurementApprovalStatus, procurementStatus: ProcurementStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = procurementRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = procurementRequests[index].auditDetail
+    procurementRequests[index].approvalStatus = approvalStatus
+    procurementRequests[index].procurementStatus = procurementStatus
+    procurementRequests[index].reviewState = reviewState
+    procurementRequests[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      procurementRequests[index].riskLevel = procurementRequests[index].riskLevel == .critical ? .critical : .high
+    }
+    persistProcurementRequests()
+    logAudit(action: action, entityType: .procurementRequest, entityID: procurementRequests[index].id.uuidString, entityLabel: procurementRequests[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: procurementRequests[index].auditDetail)
+  }
+
+  private func suggestedProcurementRequests(vendorProfileID: UUID?, accountID: UUID?, customerProfileID: UUID?, destinationAddressID: UUID?, packageContentID: UUID?, costRecordID: UUID?, returnClaimID: UUID?, evidenceID: UUID?, budgetCode: String, requesterTeam: String, buyerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ProcurementRequest] {
+    procurementRequests.filter { $0.matches(vendorProfileID: vendorProfileID, accountID: accountID, customerProfileID: customerProfileID, destinationAddressID: destinationAddressID, packageContentID: packageContentID, costRecordID: costRecordID, returnClaimID: returnClaimID, evidenceID: evidenceID, budgetCode: budgetCode, requesterTeam: requesterTeam, buyerTeam: buyerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedProcurementRequests(for order: TrackedOrder) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: suggestedVendorProfiles(for: order).first?.id, accountID: nil, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, costRecordID: suggestedCostRecords(for: order).first?.id, returnClaimID: suggestedReturnClaims(for: order).first?.id, evidenceID: nil, budgetCode: "", requesterTeam: order.customer, buyerTeam: "", context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for content: PackageContentRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: nil, accountID: nil, customerProfileID: content.customerProfileID, destinationAddressID: content.destinationAddressID, packageContentID: content.id, costRecordID: suggestedCostRecords(for: content).first?.id, returnClaimID: suggestedReturnClaims(for: content).first?.id, evidenceID: content.evidenceAttachmentIDs.first, budgetCode: "", requesterTeam: "", buyerTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for cost: CostRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: cost.vendorProfileID, accountID: cost.accountID, customerProfileID: cost.customerProfileID, destinationAddressID: nil, packageContentID: cost.packageContentID, costRecordID: cost.id, returnClaimID: suggestedReturnClaims(for: cost).first?.id, evidenceID: cost.evidenceAttachmentIDs.first, budgetCode: cost.budgetCode, requesterTeam: cost.costOwnerTeam, buyerTeam: "", context: "\(cost.title) \(cost.notes)", linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for claim: ReturnClaimRecord) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: claim.vendorProfileID, accountID: claim.accountID, customerProfileID: claim.customerProfileID, destinationAddressID: nil, packageContentID: claim.packageContentID, costRecordID: claim.costRecordID, returnClaimID: claim.id, evidenceID: claim.evidenceAttachmentIDs.first, budgetCode: "", requesterTeam: claim.assignedOwnerTeam, buyerTeam: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedProcurementRequests(for item: WorkbenchItem) -> [ProcurementRequest] {
+    suggestedProcurementRequests(vendorProfileID: nil, accountID: nil, customerProfileID: nil, destinationAddressID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, costRecordID: suggestedCostRecords(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, evidenceID: nil, budgetCode: "", requesterTeam: item.assignee, buyerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredReceivingInspections(inspectionType: ReceivingInspectionType?, inspectionStatus: ReceivingInspectionStatus?, discrepancyType: ReceivingDiscrepancyType?, inspectorTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ReceivingInspectionRecord] {
+    receivingInspections.filter { inspection in
+      let matchesType = inspectionType == nil || inspection.inspectionType == inspectionType
+      let matchesStatus = inspectionStatus == nil || inspection.inspectionStatus == inspectionStatus
+      let matchesDiscrepancy = discrepancyType == nil || inspection.discrepancyType == discrepancyType
+      let matchesInspector = inspectorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || inspection.assignedInspectorTeam.localizedCaseInsensitiveContains(inspectorTeam)
+      let matchesRisk = riskLevel == nil || inspection.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || inspection.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || inspection.reviewState == reviewState
+      return matchesType && matchesStatus && matchesDiscrepancy && matchesInspector && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addReceivingInspectionPlaceholder() {
+    let content = packageContents.first
+    let request = procurementRequests.first
+    let claim = returnClaims.first
+    let inspection = ReceivingInspectionRecord(title: "New receiving inspection \(receivingInspections.count + 1)", linkedEntityType: .packageContent, linkedEntityID: content?.id.uuidString ?? "Unlinked", orderID: content?.orderID, shipmentGroupID: content?.shipmentGroupID, packageContentID: content?.id, procurementRequestID: request?.id, returnClaimID: claim?.id, destinationAddressID: content?.destinationAddressID, customerProfileID: content?.customerProfileID, carrierTrackingEventIDs: [], evidenceAttachmentIDs: [], inspectionType: .inbound, inspectionStatus: .pending, expectedItemSummary: content?.itemSummary ?? "Expected items to inspect locally.", receivedItemSummary: "Received items not inspected yet.", quantityExpected: content?.expectedQuantity ?? 1, quantityReceived: 0, conditionSummary: "Condition not inspected yet.", discrepancyType: .none, discrepancySummary: "No discrepancy recorded yet.", assignedInspectorTeam: "Receiving Desk", inspectionDate: "Not inspected", dueDate: "To schedule", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    receivingInspections.insert(inspection, at: 0)
+    persistReceivingInspections()
+    logAudit(action: .created, entityType: .receivingInspection, entityID: inspection.id.uuidString, entityLabel: inspection.title, summary: "Receiving inspection placeholder added.", afterDetail: inspection.auditDetail)
+  }
+
+  func updateReceivingInspection(_ inspection: ReceivingInspectionRecord) {
+    guard let index = receivingInspections.firstIndex(where: { $0.id == inspection.id }) else { return }
+    let beforeDetail = receivingInspections[index].auditDetail
+    receivingInspections[index] = inspection
+    persistReceivingInspections()
+    logAudit(action: .edited, entityType: .receivingInspection, entityID: inspection.id.uuidString, entityLabel: inspection.title, summary: "Receiving inspection details updated.", beforeDetail: beforeDetail, afterDetail: inspection.auditDetail)
+  }
+
+  func markReceivingInspectionInspected(_ inspection: ReceivingInspectionRecord) {
+    updateReceivingInspectionStatus(inspection, status: .inspected, discrepancyType: .none, reviewState: .accepted, summary: "Receiving inspection marked inspected locally.", action: .completed)
+  }
+
+  func markReceivingInspectionDiscrepancy(_ inspection: ReceivingInspectionRecord) {
+    updateReceivingInspectionStatus(inspection, status: .discrepancy, discrepancyType: inspection.discrepancyType == .none ? .quantityMismatch : inspection.discrepancyType, reviewState: .needsReview, summary: "Receiving inspection discrepancy marked.", action: .edited, forceHighRisk: true)
+  }
+
+  func markReceivingInspectionResolved(_ inspection: ReceivingInspectionRecord) {
+    updateReceivingInspectionStatus(inspection, status: .resolved, discrepancyType: inspection.discrepancyType, reviewState: .accepted, summary: "Receiving inspection resolved locally.", action: .completed)
+  }
+
+  func markReceivingInspectionBlocked(_ inspection: ReceivingInspectionRecord) {
+    updateReceivingInspectionStatus(inspection, status: .blocked, discrepancyType: inspection.discrepancyType == .none ? .other : inspection.discrepancyType, reviewState: .needsReview, summary: "Receiving inspection blocked and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markReceivingInspectionReviewed(_ inspection: ReceivingInspectionRecord) {
+    guard let index = receivingInspections.firstIndex(where: { $0.id == inspection.id }) else { return }
+    let beforeDetail = receivingInspections[index].auditDetail
+    receivingInspections[index].reviewState = .accepted
+    receivingInspections[index].lastReviewedDate = Self.auditTimestamp()
+    persistReceivingInspections()
+    logAudit(action: .reviewed, entityType: .receivingInspection, entityID: receivingInspections[index].id.uuidString, entityLabel: receivingInspections[index].title, summary: "Receiving inspection marked reviewed.", beforeDetail: beforeDetail, afterDetail: receivingInspections[index].auditDetail)
+  }
+
+  func removeReceivingInspection(_ inspection: ReceivingInspectionRecord) {
+    guard let index = receivingInspections.firstIndex(where: { $0.id == inspection.id }) else { return }
+    let removed = receivingInspections.remove(at: index)
+    persistReceivingInspections()
+    logAudit(action: .removed, entityType: .receivingInspection, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Receiving inspection removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from inspection: ReceivingInspectionRecord) {
+    createReviewTask(linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString, label: inspection.title, summary: "Review receiving inspection: \(inspection.discrepancySummary). Quantity \(inspection.quantityReceived)/\(inspection.quantityExpected).", priority: inspection.riskLevel == .critical ? .urgent : inspection.riskLevel == .high ? .high : .normal, assignee: inspection.assignedInspectorTeam)
+  }
+
+  func createDraftMessage(from inspection: ReceivingInspectionRecord) {
+    createDraftMessage(linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString, label: inspection.title, recipient: inspection.assignedInspectorTeam)
+    logAudit(action: .created, entityType: .receivingInspection, entityID: inspection.id.uuidString, entityLabel: inspection.title, summary: "Draft message created from receiving inspection.", afterDetail: inspection.auditDetail)
+  }
+
+  private func updateReceivingInspectionStatus(_ inspection: ReceivingInspectionRecord, status: ReceivingInspectionStatus, discrepancyType: ReceivingDiscrepancyType, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = receivingInspections.firstIndex(where: { $0.id == inspection.id }) else { return }
+    let beforeDetail = receivingInspections[index].auditDetail
+    receivingInspections[index].inspectionStatus = status
+    receivingInspections[index].discrepancyType = discrepancyType
+    receivingInspections[index].reviewState = reviewState
+    receivingInspections[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      receivingInspections[index].riskLevel = receivingInspections[index].riskLevel == .critical ? .critical : .high
+    }
+    persistReceivingInspections()
+    logAudit(action: action, entityType: .receivingInspection, entityID: receivingInspections[index].id.uuidString, entityLabel: receivingInspections[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: receivingInspections[index].auditDetail)
+  }
+
+  private func suggestedReceivingInspections(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, inspectorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ReceivingInspectionRecord] {
+    receivingInspections.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, procurementRequestID: procurementRequestID, returnClaimID: returnClaimID, destinationAddressID: destinationAddressID, customerProfileID: customerProfileID, evidenceID: evidenceID, trackingEventID: trackingEventID, inspectorTeam: inspectorTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedReceivingInspections(for order: TrackedOrder) -> [ReceivingInspectionRecord] {
+    suggestedReceivingInspections(orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, procurementRequestID: suggestedProcurementRequests(for: order).first?.id, returnClaimID: suggestedReturnClaims(for: order).first?.id, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, evidenceID: nil, trackingEventID: nil, inspectorTeam: "", context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedReceivingInspections(for content: PackageContentRecord) -> [ReceivingInspectionRecord] {
+    suggestedReceivingInspections(orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, procurementRequestID: suggestedProcurementRequests(for: content).first?.id, returnClaimID: suggestedReturnClaims(for: content).first?.id, destinationAddressID: content.destinationAddressID, customerProfileID: content.customerProfileID, evidenceID: content.evidenceAttachmentIDs.first, trackingEventID: nil, inspectorTeam: "", context: "\(content.title) \(content.itemSummary) \(content.discrepancySummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedReceivingInspections(for request: ProcurementRequest) -> [ReceivingInspectionRecord] {
+    suggestedReceivingInspections(orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, procurementRequestID: request.id, returnClaimID: request.returnClaimID, destinationAddressID: request.destinationAddressID, customerProfileID: request.customerProfileID, evidenceID: request.evidenceAttachmentIDs.first, trackingEventID: nil, inspectorTeam: request.assignedBuyerTeam, context: "\(request.title) \(request.requestedItemsSummary) \(request.notes)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedReceivingInspections(for claim: ReturnClaimRecord) -> [ReceivingInspectionRecord] {
+    suggestedReceivingInspections(orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, procurementRequestID: suggestedProcurementRequests(for: claim).first?.id, returnClaimID: claim.id, destinationAddressID: nil, customerProfileID: claim.customerProfileID, evidenceID: claim.evidenceAttachmentIDs.first, trackingEventID: claim.carrierTrackingEventIDs.first, inspectorTeam: claim.assignedOwnerTeam, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedReceivingInspections(for item: WorkbenchItem) -> [ReceivingInspectionRecord] {
+    suggestedReceivingInspections(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, procurementRequestID: suggestedProcurementRequests(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, destinationAddressID: nil, customerProfileID: nil, evidenceID: nil, trackingEventID: nil, inspectorTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredInventoryReceipts(receiptType: InventoryReceiptType?, stockHandoffStatus: InventoryStockHandoffStatus?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [InventoryReceiptRecord] {
+    inventoryReceipts.filter { receipt in
+      let matchesType = receiptType == nil || receipt.receiptType == receiptType
+      let matchesStatus = stockHandoffStatus == nil || receipt.stockHandoffStatus == stockHandoffStatus
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || receipt.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || receipt.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || receipt.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addInventoryReceiptPlaceholder() {
+    let inspection = receivingInspections.first
+    let content = packageContents.first
+    let receipt = InventoryReceiptRecord(title: "New inventory receipt \(inventoryReceipts.count + 1)", linkedEntityType: .receivingInspection, linkedEntityID: inspection?.id.uuidString ?? "Unlinked", receivingInspectionID: inspection?.id, orderID: inspection?.orderID ?? content?.orderID, shipmentGroupID: inspection?.shipmentGroupID ?? content?.shipmentGroupID, packageContentID: inspection?.packageContentID ?? content?.id, procurementRequestID: inspection?.procurementRequestID, returnClaimID: inspection?.returnClaimID, destinationAddressID: inspection?.destinationAddressID ?? content?.destinationAddressID, customerProfileID: inspection?.customerProfileID ?? content?.customerProfileID, evidenceAttachmentIDs: inspection?.evidenceAttachmentIDs ?? [], receiptType: .stockReceipt, stockHandoffStatus: .pending, itemSummary: inspection?.receivedItemSummary ?? content?.itemSummary ?? "Items to stock or hand off locally.", quantityReceived: inspection?.quantityReceived ?? 0, quantityAccepted: 0, quantityRejected: 0, storageLocationSummary: "To assign", assignedOwnerTeam: inspection?.assignedInspectorTeam ?? "Receiving Desk", receivedDate: "Not received", handoffDate: "To schedule", discrepancySummary: "No inventory receipt discrepancy recorded yet.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    inventoryReceipts.insert(receipt, at: 0)
+    persistInventoryReceipts()
+    logAudit(action: .created, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Inventory receipt placeholder added.", afterDetail: receipt.auditDetail)
+  }
+
+  func updateInventoryReceipt(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index] = receipt
+    persistInventoryReceipts()
+    logAudit(action: .edited, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Inventory receipt details updated.", beforeDetail: beforeDetail, afterDetail: receipt.auditDetail)
+  }
+
+  func markInventoryReceiptStocked(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .stocked, reviewState: .accepted, summary: "Inventory receipt marked stocked locally.", action: .completed)
+  }
+
+  func markInventoryReceiptHandedOff(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .handedOff, reviewState: .accepted, summary: "Inventory receipt marked handed off locally.", action: .completed)
+  }
+
+  func markInventoryReceiptPartiallyAccepted(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .partiallyAccepted, reviewState: .needsReview, summary: "Inventory receipt marked partially accepted.", action: .edited, forceHighRisk: true)
+  }
+
+  func markInventoryReceiptRejected(_ receipt: InventoryReceiptRecord) {
+    updateInventoryReceiptStatus(receipt, status: .rejected, reviewState: .needsReview, summary: "Inventory receipt rejected and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markInventoryReceiptReviewed(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index].reviewState = .accepted
+    inventoryReceipts[index].lastReviewedDate = Self.auditTimestamp()
+    persistInventoryReceipts()
+    logAudit(action: .reviewed, entityType: .inventoryReceipt, entityID: inventoryReceipts[index].id.uuidString, entityLabel: inventoryReceipts[index].title, summary: "Inventory receipt marked reviewed.", beforeDetail: beforeDetail, afterDetail: inventoryReceipts[index].auditDetail)
+  }
+
+  func removeInventoryReceipt(_ receipt: InventoryReceiptRecord) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let removed = inventoryReceipts.remove(at: index)
+    persistInventoryReceipts()
+    logAudit(action: .removed, entityType: .inventoryReceipt, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Inventory receipt removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from receipt: InventoryReceiptRecord) {
+    createReviewTask(linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString, label: receipt.title, summary: "Review inventory receipt: \(receipt.itemSummary). \(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted.", priority: receipt.riskLevel == .critical ? .urgent : receipt.riskLevel == .high ? .high : .normal, assignee: receipt.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from receipt: InventoryReceiptRecord) {
+    createDraftMessage(linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString, label: receipt.title, recipient: receipt.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .inventoryReceipt, entityID: receipt.id.uuidString, entityLabel: receipt.title, summary: "Draft message created from inventory receipt.", afterDetail: receipt.auditDetail)
+  }
+
+  private func updateInventoryReceiptStatus(_ receipt: InventoryReceiptRecord, status: InventoryStockHandoffStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = inventoryReceipts.firstIndex(where: { $0.id == receipt.id }) else { return }
+    let beforeDetail = inventoryReceipts[index].auditDetail
+    inventoryReceipts[index].stockHandoffStatus = status
+    inventoryReceipts[index].reviewState = reviewState
+    inventoryReceipts[index].lastReviewedDate = Self.auditTimestamp()
+    if status == .stocked || status == .handedOff {
+      inventoryReceipts[index].quantityAccepted = max(inventoryReceipts[index].quantityAccepted, inventoryReceipts[index].quantityReceived - inventoryReceipts[index].quantityRejected)
+    }
+    if forceHighRisk {
+      inventoryReceipts[index].riskLevel = inventoryReceipts[index].riskLevel == .critical ? .critical : .high
+    }
+    persistInventoryReceipts()
+    logAudit(action: action, entityType: .inventoryReceipt, entityID: inventoryReceipts[index].id.uuidString, entityLabel: inventoryReceipts[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: inventoryReceipts[index].auditDetail)
+  }
+
+  private func suggestedInventoryReceipts(receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [InventoryReceiptRecord] {
+    inventoryReceipts.filter { $0.matches(receivingInspectionID: receivingInspectionID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, procurementRequestID: procurementRequestID, returnClaimID: returnClaimID, destinationAddressID: destinationAddressID, customerProfileID: customerProfileID, evidenceID: evidenceID, ownerTeam: ownerTeam, locationText: locationText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedInventoryReceipts(for inspection: ReceivingInspectionRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: inspection.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, procurementRequestID: inspection.procurementRequestID, returnClaimID: inspection.returnClaimID, destinationAddressID: inspection.destinationAddressID, customerProfileID: inspection.customerProfileID, evidenceID: inspection.evidenceAttachmentIDs.first, ownerTeam: inspection.assignedInspectorTeam, locationText: "", context: "\(inspection.title) \(inspection.receivedItemSummary) \(inspection.discrepancySummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for order: TrackedOrder) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, procurementRequestID: suggestedProcurementRequests(for: order).first?.id, returnClaimID: suggestedReturnClaims(for: order).first?.id, destinationAddressID: suggestedDestinationAddresses(for: order).first?.id, customerProfileID: suggestedCustomerProfiles(for: order).first?.id, evidenceID: nil, ownerTeam: order.customer, locationText: order.destination, context: "\(order.store) \(order.orderNumber) \(order.customer) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for content: PackageContentRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, procurementRequestID: suggestedProcurementRequests(for: content).first?.id, returnClaimID: suggestedReturnClaims(for: content).first?.id, destinationAddressID: content.destinationAddressID, customerProfileID: content.customerProfileID, evidenceID: content.evidenceAttachmentIDs.first, ownerTeam: "", locationText: "", context: "\(content.title) \(content.itemSummary) \(content.discrepancySummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for request: ProcurementRequest) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, procurementRequestID: request.id, returnClaimID: request.returnClaimID, destinationAddressID: request.destinationAddressID, customerProfileID: request.customerProfileID, evidenceID: request.evidenceAttachmentIDs.first, ownerTeam: request.assignedBuyerTeam, locationText: "", context: "\(request.title) \(request.requestedItemsSummary) \(request.notes)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for claim: ReturnClaimRecord) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, procurementRequestID: suggestedProcurementRequests(for: claim).first?.id, returnClaimID: claim.id, destinationAddressID: nil, customerProfileID: claim.customerProfileID, evidenceID: claim.evidenceAttachmentIDs.first, ownerTeam: claim.assignedOwnerTeam, locationText: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedInventoryReceipts(for item: WorkbenchItem) -> [InventoryReceiptRecord] {
+    suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, procurementRequestID: suggestedProcurementRequests(for: item).first?.id, returnClaimID: suggestedReturnClaims(for: item).first?.id, destinationAddressID: nil, customerProfileID: nil, evidenceID: nil, ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredStorageLocations(locationType: StorageLocationType?, areaZone: String, ownerTeam: String, riskLevel: ShipmentRiskLevel?, enabledState: Bool?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [StorageLocationRecord] {
+    storageLocations.filter { location in
+      let matchesType = locationType == nil || location.locationType == locationType
+      let matchesArea = areaZone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || location.areaZone.localizedCaseInsensitiveContains(areaZone)
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || location.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || location.riskLevel == riskLevel
+      let matchesEnabled = enabledState == nil || location.isEnabled == enabledState
+      let matchesLinked = linkedEntityType == nil || location.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || location.reviewState == reviewState
+      return matchesType && matchesArea && matchesOwner && matchesRisk && matchesEnabled && matchesLinked && matchesReview
+    }
+  }
+
+  func addStorageLocationPlaceholder() {
+    let receipt = inventoryReceipts.first
+    let inspection = receivingInspections.first
+    let location = StorageLocationRecord(title: "New storage location \(storageLocations.count + 1)", locationType: .bin, locationCode: "To assign", areaZone: "Unassigned", capacitySummary: "Capacity to confirm", currentUsageSummary: "No usage recorded yet.", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt?.id.uuidString ?? "Unlinked", inventoryReceiptIDs: receipt.map { [$0.id] } ?? [], receivingInspectionIDs: inspection.map { [$0.id] } ?? [], packageContentIDs: receipt?.packageContentID.map { [$0] } ?? [], orderIDs: receipt?.orderID.map { [$0] } ?? [], shipmentGroupIDs: receipt?.shipmentGroupID.map { [$0] } ?? [], assignedOwnerTeam: receipt?.assignedOwnerTeam ?? "Receiving Desk", accessNotes: "Local placeholder. No access control or warehouse system action is performed.", riskLevel: .medium, isEnabled: true, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    storageLocations.insert(location, at: 0)
+    persistStorageLocations()
+    logAudit(action: .created, entityType: .storageLocation, entityID: location.id.uuidString, entityLabel: location.title, summary: "Storage location placeholder added.", afterDetail: location.auditDetail)
+  }
+
+  func updateStorageLocation(_ location: StorageLocationRecord) {
+    guard let index = storageLocations.firstIndex(where: { $0.id == location.id }) else { return }
+    let beforeDetail = storageLocations[index].auditDetail
+    storageLocations[index] = location
+    persistStorageLocations()
+    logAudit(action: .edited, entityType: .storageLocation, entityID: location.id.uuidString, entityLabel: location.title, summary: "Storage location details updated.", beforeDetail: beforeDetail, afterDetail: location.auditDetail)
+  }
+
+  func toggleStorageLocation(_ location: StorageLocationRecord) {
+    guard let index = storageLocations.firstIndex(where: { $0.id == location.id }) else { return }
+    let beforeDetail = storageLocations[index].auditDetail
+    storageLocations[index].isEnabled.toggle()
+    storageLocations[index].reviewState = storageLocations[index].isEnabled ? .monitor : .needsReview
+    storageLocations[index].lastReviewedDate = Self.auditTimestamp()
+    persistStorageLocations()
+    logAudit(action: storageLocations[index].isEnabled ? .enabled : .disabled, entityType: .storageLocation, entityID: storageLocations[index].id.uuidString, entityLabel: storageLocations[index].title, summary: storageLocations[index].isEnabled ? "Storage location enabled." : "Storage location disabled.", beforeDetail: beforeDetail, afterDetail: storageLocations[index].auditDetail)
+  }
+
+  func markStorageLocationReviewed(_ location: StorageLocationRecord) {
+    guard let index = storageLocations.firstIndex(where: { $0.id == location.id }) else { return }
+    let beforeDetail = storageLocations[index].auditDetail
+    storageLocations[index].reviewState = .accepted
+    storageLocations[index].lastReviewedDate = Self.auditTimestamp()
+    persistStorageLocations()
+    logAudit(action: .reviewed, entityType: .storageLocation, entityID: storageLocations[index].id.uuidString, entityLabel: storageLocations[index].title, summary: "Storage location marked reviewed.", beforeDetail: beforeDetail, afterDetail: storageLocations[index].auditDetail)
+  }
+
+  func removeStorageLocation(_ location: StorageLocationRecord) {
+    guard let index = storageLocations.firstIndex(where: { $0.id == location.id }) else { return }
+    let removed = storageLocations.remove(at: index)
+    persistStorageLocations()
+    logAudit(action: .removed, entityType: .storageLocation, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Storage location removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from location: StorageLocationRecord) {
+    createReviewTask(linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString, label: location.title, summary: "Review storage location \(location.locationCode): \(location.currentUsageSummary).", priority: location.riskLevel == .critical ? .urgent : location.riskLevel == .high ? .high : .normal, assignee: location.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from location: StorageLocationRecord) {
+    createDraftMessage(linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString, label: location.title, recipient: location.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .storageLocation, entityID: location.id.uuidString, entityLabel: location.title, summary: "Draft message created from storage location.", afterDetail: location.auditDetail)
+  }
+
+  private func suggestedStorageLocations(inventoryReceiptID: UUID?, receivingInspectionID: UUID?, packageContentID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, ownerTeam: String, areaZone: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [StorageLocationRecord] {
+    storageLocations.filter { $0.matches(inventoryReceiptID: inventoryReceiptID, receivingInspectionID: receivingInspectionID, packageContentID: packageContentID, orderID: orderID, shipmentGroupID: shipmentGroupID, ownerTeam: ownerTeam, areaZone: areaZone, locationText: locationText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedStorageLocations(for receipt: InventoryReceiptRecord) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: receipt.id, receivingInspectionID: receipt.receivingInspectionID, packageContentID: receipt.packageContentID, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, ownerTeam: receipt.assignedOwnerTeam, areaZone: "", locationText: receipt.storageLocationSummary, context: "\(receipt.title) \(receipt.itemSummary) \(receipt.storageLocationSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for inspection: ReceivingInspectionRecord) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, receivingInspectionID: inspection.id, packageContentID: inspection.packageContentID, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, ownerTeam: inspection.assignedInspectorTeam, areaZone: "", locationText: "", context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for order: TrackedOrder) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, receivingInspectionID: suggestedReceivingInspections(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, ownerTeam: order.customer, areaZone: "", locationText: order.destination, context: "\(order.store) \(order.orderNumber) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for content: PackageContentRecord) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, receivingInspectionID: suggestedReceivingInspections(for: content).first?.id, packageContentID: content.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, ownerTeam: "", areaZone: "", locationText: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for request: ProcurementRequest) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, receivingInspectionID: suggestedReceivingInspections(for: request).first?.id, packageContentID: request.packageContentID, orderID: nil, shipmentGroupID: nil, ownerTeam: request.assignedBuyerTeam, areaZone: "", locationText: "", context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for claim: ReturnClaimRecord) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, receivingInspectionID: suggestedReceivingInspections(for: claim).first?.id, packageContentID: claim.packageContentID, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, ownerTeam: claim.assignedOwnerTeam, areaZone: "", locationText: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedStorageLocations(for item: WorkbenchItem) -> [StorageLocationRecord] {
+    suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, receivingInspectionID: suggestedReceivingInspections(for: item).first?.id, packageContentID: suggestedPackageContents(for: item).first?.id, orderID: nil, shipmentGroupID: nil, ownerTeam: item.assignee, areaZone: "", locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredCustodyRecords(custodyStatus: CustodyStatus?, custodianTeam: String, ownerTeam: String, handoffMethod: CustodyHandoffMethod?, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [CustodyRecord] {
+    custodyRecords.filter { record in
+      let matchesStatus = custodyStatus == nil || record.custodyStatus == custodyStatus
+      let matchesCustodian = custodianTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.currentCustodianTeam.localizedCaseInsensitiveContains(custodianTeam) || record.previousCustodianTeam.localizedCaseInsensitiveContains(custodianTeam)
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesMethod = handoffMethod == nil || record.handoffMethod == handoffMethod
+      let matchesRisk = riskLevel == nil || record.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || record.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || record.reviewState == reviewState
+      return matchesStatus && matchesCustodian && matchesOwner && matchesMethod && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addCustodyRecordPlaceholder() {
+    let receipt = inventoryReceipts.first
+    let location = storageLocations.first
+    let record = CustodyRecord(title: "New custody record \(custodyRecords.count + 1)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt?.id.uuidString ?? "Unlinked", currentCustodianTeam: receipt?.assignedOwnerTeam ?? "Receiving Desk", previousCustodianTeam: "Unassigned", custodyStatus: .pendingTransfer, custodyReason: "Local custody placeholder for review.", handoffMethod: .manualUpdate, sourceLocationID: nil, destinationLocationID: location?.id, inventoryReceiptID: receipt?.id, storageLocationID: location?.id, receivingInspectionID: receipt?.receivingInspectionID, orderID: receipt?.orderID, shipmentGroupID: receipt?.shipmentGroupID, packageContentID: receipt?.packageContentID, evidenceAttachmentIDs: receipt?.evidenceAttachmentIDs ?? [], assignedOwnerTeam: receipt?.assignedOwnerTeam ?? "Receiving Desk", transferDate: "To schedule", expectedReturnCloseDate: "To schedule", notes: "Local placeholder only. No signature capture or access control actions are performed.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    custodyRecords.insert(record, at: 0)
+    persistCustodyRecords()
+    logAudit(action: .created, entityType: .custodyRecord, entityID: record.id.uuidString, entityLabel: record.title, summary: "Custody record placeholder added.", afterDetail: record.auditDetail)
+  }
+
+  func updateCustodyRecord(_ record: CustodyRecord) {
+    guard let index = custodyRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = custodyRecords[index].auditDetail
+    custodyRecords[index] = record
+    persistCustodyRecords()
+    logAudit(action: .edited, entityType: .custodyRecord, entityID: record.id.uuidString, entityLabel: record.title, summary: "Custody record details updated.", beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+  }
+
+  func markCustodyRecordTransferred(_ record: CustodyRecord) {
+    updateCustodyRecordStatus(record, status: .transferred, reviewState: .monitor, summary: "Custody marked transferred locally.", action: .created)
+  }
+
+  func markCustodyRecordReceived(_ record: CustodyRecord) {
+    updateCustodyRecordStatus(record, status: .received, reviewState: .accepted, summary: "Custody marked received locally.", action: .completed)
+  }
+
+  func markCustodyRecordReturnedClosed(_ record: CustodyRecord) {
+    updateCustodyRecordStatus(record, status: .returnedClosed, reviewState: .accepted, summary: "Custody returned or closed locally.", action: .completed)
+  }
+
+  func markCustodyRecordDisputed(_ record: CustodyRecord) {
+    updateCustodyRecordStatus(record, status: .disputed, reviewState: .needsReview, summary: "Custody disputed and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markCustodyRecordReviewed(_ record: CustodyRecord) {
+    guard let index = custodyRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = custodyRecords[index].auditDetail
+    custodyRecords[index].reviewState = .accepted
+    custodyRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistCustodyRecords()
+    logAudit(action: .reviewed, entityType: .custodyRecord, entityID: custodyRecords[index].id.uuidString, entityLabel: custodyRecords[index].title, summary: "Custody record marked reviewed.", beforeDetail: beforeDetail, afterDetail: custodyRecords[index].auditDetail)
+  }
+
+  func removeCustodyRecord(_ record: CustodyRecord) {
+    guard let index = custodyRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = custodyRecords.remove(at: index)
+    persistCustodyRecords()
+    logAudit(action: .removed, entityType: .custodyRecord, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Custody record removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from record: CustodyRecord) {
+    createReviewTask(linkedEntityType: .custodyRecord, linkedEntityID: record.id.uuidString, label: record.title, summary: "Review custody: \(record.custodyReason). Current custodian \(record.currentCustodianTeam).", priority: record.riskLevel == .critical ? .urgent : record.riskLevel == .high ? .high : .normal, assignee: record.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from record: CustodyRecord) {
+    createDraftMessage(linkedEntityType: .custodyRecord, linkedEntityID: record.id.uuidString, label: record.title, recipient: record.currentCustodianTeam)
+    logAudit(action: .created, entityType: .custodyRecord, entityID: record.id.uuidString, entityLabel: record.title, summary: "Draft message created from custody record.", afterDetail: record.auditDetail)
+  }
+
+  private func updateCustodyRecordStatus(_ record: CustodyRecord, status: CustodyStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = custodyRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = custodyRecords[index].auditDetail
+    custodyRecords[index].custodyStatus = status
+    custodyRecords[index].reviewState = reviewState
+    custodyRecords[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      custodyRecords[index].riskLevel = custodyRecords[index].riskLevel == .critical ? .critical : .high
+    }
+    persistCustodyRecords()
+    logAudit(action: action, entityType: .custodyRecord, entityID: custodyRecords[index].id.uuidString, entityLabel: custodyRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: custodyRecords[index].auditDetail)
+  }
+
+  private func suggestedCustodyRecords(sourceLocationID: UUID?, destinationLocationID: UUID?, inventoryReceiptID: UUID?, storageLocationID: UUID?, receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, custodianTeam: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [CustodyRecord] {
+    custodyRecords.filter { $0.matches(sourceLocationID: sourceLocationID, destinationLocationID: destinationLocationID, inventoryReceiptID: inventoryReceiptID, storageLocationID: storageLocationID, receivingInspectionID: receivingInspectionID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, evidenceID: evidenceID, custodianTeam: custodianTeam, ownerTeam: ownerTeam, locationText: locationText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedCustodyRecords(for location: StorageLocationRecord) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: location.id, destinationLocationID: location.id, inventoryReceiptID: location.inventoryReceiptIDs.first, storageLocationID: location.id, receivingInspectionID: location.receivingInspectionIDs.first, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, packageContentID: location.packageContentIDs.first, evidenceID: nil, custodianTeam: location.assignedOwnerTeam, ownerTeam: location.assignedOwnerTeam, locationText: "\(location.locationCode) \(location.areaZone)", context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for receipt: InventoryReceiptRecord) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: receipt).first?.id, inventoryReceiptID: receipt.id, storageLocationID: suggestedStorageLocations(for: receipt).first?.id, receivingInspectionID: receipt.receivingInspectionID, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, packageContentID: receipt.packageContentID, evidenceID: receipt.evidenceAttachmentIDs.first, custodianTeam: receipt.assignedOwnerTeam, ownerTeam: receipt.assignedOwnerTeam, locationText: receipt.storageLocationSummary, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for inspection: ReceivingInspectionRecord) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: inspection).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, storageLocationID: suggestedStorageLocations(for: inspection).first?.id, receivingInspectionID: inspection.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, evidenceID: inspection.evidenceAttachmentIDs.first, custodianTeam: inspection.assignedInspectorTeam, ownerTeam: inspection.assignedInspectorTeam, locationText: "", context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for order: TrackedOrder) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: order).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, storageLocationID: suggestedStorageLocations(for: order).first?.id, receivingInspectionID: suggestedReceivingInspections(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, evidenceID: nil, custodianTeam: order.customer, ownerTeam: order.customer, locationText: order.destination, context: "\(order.store) \(order.orderNumber) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for content: PackageContentRecord) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: content).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, storageLocationID: suggestedStorageLocations(for: content).first?.id, receivingInspectionID: suggestedReceivingInspections(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, evidenceID: content.evidenceAttachmentIDs.first, custodianTeam: "", ownerTeam: "", locationText: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for request: ProcurementRequest) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: request).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, storageLocationID: suggestedStorageLocations(for: request).first?.id, receivingInspectionID: suggestedReceivingInspections(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, evidenceID: request.evidenceAttachmentIDs.first, custodianTeam: request.assignedBuyerTeam, ownerTeam: request.assignedBuyerTeam, locationText: request.requestedItemsSummary, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for claim: ReturnClaimRecord) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: claim).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, storageLocationID: suggestedStorageLocations(for: claim).first?.id, receivingInspectionID: suggestedReceivingInspections(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, evidenceID: claim.evidenceAttachmentIDs.first, custodianTeam: claim.assignedOwnerTeam, ownerTeam: claim.assignedOwnerTeam, locationText: claim.reasonSummary, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedCustodyRecords(for item: WorkbenchItem) -> [CustodyRecord] {
+    suggestedCustodyRecords(sourceLocationID: nil, destinationLocationID: suggestedStorageLocations(for: item).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, storageLocationID: suggestedStorageLocations(for: item).first?.id, receivingInspectionID: suggestedReceivingInspections(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, evidenceID: nil, custodianTeam: item.assignee, ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredScanSessionRecords(scanPurpose: ScanPurpose?, scanMethod: ScanMethodPlaceholder?, scanStatus: ScanSessionStatus?, operatorTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ScanSessionRecord] {
+    scanSessionRecords.filter { record in
+      let matchesPurpose = scanPurpose == nil || record.scanPurpose == scanPurpose
+      let matchesMethod = scanMethod == nil || record.scanMethodPlaceholder == scanMethod
+      let matchesStatus = scanStatus == nil || record.scanStatus == scanStatus
+      let matchesOperator = operatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.assignedOperatorTeam.localizedCaseInsensitiveContains(operatorTeam)
+      let matchesRisk = riskLevel == nil || record.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || record.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || record.reviewState == reviewState
+      return matchesPurpose && matchesMethod && matchesStatus && matchesOperator && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addScanSessionPlaceholder() {
+    let label = labelReferenceRecords.first
+    let record = ScanSessionRecord(title: "New scan session \(scanSessionRecords.count + 1)", linkedEntityType: .labelReference, linkedEntityID: label?.id.uuidString ?? "Unlinked", scanPurpose: .labelVerification, scanMethodPlaceholder: .manualEntry, expectedLabelReferenceValue: label?.labelValuePlaceholder ?? "To assign", capturedValuePlaceholder: "", linkedLabelReferenceID: label?.id, scanStatus: .planned, mismatchSummary: "No mismatch checked yet.", assignedOperatorTeam: label?.assignedOwnerTeam ?? "ParcelOps Operations", scanLocationStorageLocationID: label?.storageLocationID ?? storageLocations.first?.id, custodyRecordID: label?.custodyRecordID ?? custodyRecords.first?.id, inventoryReceiptID: label?.inventoryReceiptID ?? inventoryReceipts.first?.id, orderID: label?.orderID ?? orders.first?.id, shipmentGroupID: label?.shipmentGroupID ?? shipmentGroups.first?.id, packageContentID: label?.packageContentID ?? packageContents.first?.id, evidenceAttachmentIDs: label?.evidenceAttachmentIDs ?? [], createdDate: Self.auditTimestamp(), completedDate: "Not completed", notes: "Local placeholder only. No scanner hardware, camera access, or barcode scanning is performed.", riskLevel: .medium, reviewState: .needsReview)
+    scanSessionRecords.insert(record, at: 0)
+    persistScanSessionRecords()
+    logAudit(action: .created, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Scan session placeholder added.", afterDetail: record.auditDetail)
+  }
+
+  func updateScanSessionRecord(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index] = record
+    persistScanSessionRecords()
+    logAudit(action: .edited, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Scan session details updated.", beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+  }
+
+  func markScanSessionMatched(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .matched, reviewState: .monitor, summary: "Scan session marked matched locally.", action: .edited)
+  }
+
+  func markScanSessionMismatch(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .mismatchNeedsReview, reviewState: .needsReview, summary: "Scan session marked mismatch and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markScanSessionCompleted(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .completed, reviewState: .accepted, summary: "Scan session completed locally.", action: .completed, completedDate: Self.auditTimestamp())
+  }
+
+  func reopenScanSession(_ record: ScanSessionRecord) {
+    updateScanSessionStatus(record, status: .reopened, reviewState: .needsReview, summary: "Scan session reopened.", action: .reopened)
+  }
+
+  func markScanSessionReviewed(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index].reviewState = .accepted
+    persistScanSessionRecords()
+    logAudit(action: .reviewed, entityType: .scanSession, entityID: scanSessionRecords[index].id.uuidString, entityLabel: scanSessionRecords[index].title, summary: "Scan session marked reviewed.", beforeDetail: beforeDetail, afterDetail: scanSessionRecords[index].auditDetail)
+  }
+
+  func removeScanSessionRecord(_ record: ScanSessionRecord) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = scanSessionRecords.remove(at: index)
+    persistScanSessionRecords()
+    logAudit(action: .removed, entityType: .scanSession, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Scan session removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from record: ScanSessionRecord) {
+    createReviewTask(linkedEntityType: .scanSession, linkedEntityID: record.id.uuidString, label: record.title, summary: "Review scan session: expected \(record.expectedLabelReferenceValue), captured \(record.capturedValuePlaceholder.isEmpty ? "missing" : record.capturedValuePlaceholder).", priority: record.riskLevel == .critical ? .urgent : record.riskLevel == .high ? .high : .normal, assignee: record.assignedOperatorTeam)
+  }
+
+  func createDraftMessage(from record: ScanSessionRecord) {
+    createDraftMessage(linkedEntityType: .scanSession, linkedEntityID: record.id.uuidString, label: record.title, recipient: record.assignedOperatorTeam)
+    logAudit(action: .created, entityType: .scanSession, entityID: record.id.uuidString, entityLabel: record.title, summary: "Draft message created from scan session.", afterDetail: record.auditDetail)
+  }
+
+  private func updateScanSessionStatus(_ record: ScanSessionRecord, status: ScanSessionStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false, completedDate: String? = nil) {
+    guard let index = scanSessionRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = scanSessionRecords[index].auditDetail
+    scanSessionRecords[index].scanStatus = status
+    scanSessionRecords[index].reviewState = reviewState
+    if let completedDate { scanSessionRecords[index].completedDate = completedDate }
+    if forceHighRisk {
+      scanSessionRecords[index].riskLevel = scanSessionRecords[index].riskLevel == .critical ? .critical : .high
+    }
+    persistScanSessionRecords()
+    logAudit(action: action, entityType: .scanSession, entityID: scanSessionRecords[index].id.uuidString, entityLabel: scanSessionRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: scanSessionRecords[index].auditDetail)
+  }
+
+  private func suggestedScanSessionRecords(labelReferenceID: UUID?, storageLocationID: UUID?, custodyRecordID: UUID?, inventoryReceiptID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, operatorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ScanSessionRecord] {
+    scanSessionRecords.filter { $0.matches(labelReferenceID: labelReferenceID, storageLocationID: storageLocationID, custodyRecordID: custodyRecordID, inventoryReceiptID: inventoryReceiptID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, evidenceID: evidenceID, labelValue: labelValue, operatorTeam: operatorTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedScanSessionRecords(for label: LabelReferenceRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: label.id, storageLocationID: label.storageLocationID, custodyRecordID: label.custodyRecordID, inventoryReceiptID: label.inventoryReceiptID, orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, packageContentID: label.packageContentID, evidenceID: label.evidenceAttachmentIDs.first, labelValue: label.labelValuePlaceholder, operatorTeam: label.assignedOwnerTeam, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for location: StorageLocationRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, storageLocationID: location.id, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, inventoryReceiptID: location.inventoryReceiptIDs.first, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, packageContentID: location.packageContentIDs.first, evidenceID: nil, labelValue: location.locationCode, operatorTeam: location.assignedOwnerTeam, context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for custody: CustodyRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: custody).first?.id, storageLocationID: custody.storageLocationID ?? custody.destinationLocationID ?? custody.sourceLocationID, custodyRecordID: custody.id, inventoryReceiptID: custody.inventoryReceiptID, orderID: custody.orderID, shipmentGroupID: custody.shipmentGroupID, packageContentID: custody.packageContentID, evidenceID: custody.evidenceAttachmentIDs.first, labelValue: "", operatorTeam: custody.assignedOwnerTeam, context: "\(custody.title) \(custody.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: custody.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for receipt: InventoryReceiptRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: receipt).first?.id, storageLocationID: suggestedStorageLocations(for: receipt).first?.id, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, inventoryReceiptID: receipt.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, packageContentID: receipt.packageContentID, evidenceID: receipt.evidenceAttachmentIDs.first, labelValue: receipt.storageLocationSummary, operatorTeam: receipt.assignedOwnerTeam, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for inspection: ReceivingInspectionRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: inspection).first?.id, storageLocationID: suggestedStorageLocations(for: inspection).first?.id, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, evidenceID: inspection.evidenceAttachmentIDs.first, labelValue: "", operatorTeam: inspection.assignedInspectorTeam, context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for order: TrackedOrder) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: order).first?.id, storageLocationID: suggestedStorageLocations(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, evidenceID: nil, labelValue: "\(order.trackingNumber) \(order.orderNumber)", operatorTeam: order.customer, context: "\(order.store) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for content: PackageContentRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: content).first?.id, storageLocationID: suggestedStorageLocations(for: content).first?.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, evidenceID: content.evidenceAttachmentIDs.first, labelValue: content.itemSummary, operatorTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for request: ProcurementRequest) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: request).first?.id, storageLocationID: suggestedStorageLocations(for: request).first?.id, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, evidenceID: request.evidenceAttachmentIDs.first, labelValue: request.requestedItemsSummary, operatorTeam: request.assignedBuyerTeam, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for claim: ReturnClaimRecord) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: claim).first?.id, storageLocationID: suggestedStorageLocations(for: claim).first?.id, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, evidenceID: claim.evidenceAttachmentIDs.first, labelValue: claim.reasonSummary, operatorTeam: claim.assignedOwnerTeam, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedScanSessionRecords(for item: WorkbenchItem) -> [ScanSessionRecord] {
+    suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, storageLocationID: suggestedStorageLocations(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, evidenceID: nil, labelValue: item.summary, operatorTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredShipmentManifestRecords(manifestType: ShipmentManifestType?, carrierCourier: String, dispatchStatus: ShipmentManifestDispatchStatus?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { record in
+      let matchesType = manifestType == nil || record.manifestType == manifestType
+      let matchesCarrier = carrierCourier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.carrierCourier.localizedCaseInsensitiveContains(carrierCourier)
+      let matchesStatus = dispatchStatus == nil || record.dispatchStatus == dispatchStatus
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || record.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || record.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || record.reviewState == reviewState
+      return matchesType && matchesCarrier && matchesStatus && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addShipmentManifestPlaceholder() {
+    let order = orders.first
+    let group = shipmentGroups.first
+    let receipt = inventoryReceipts.first
+    let content = packageContents.first
+    let custody = custodyRecords.first
+    let label = labelReferenceRecords.first
+    let scan = scanSessionRecords.first
+    let location = storageLocations.first
+    let record = ShipmentManifestRecord(title: "New shipment manifest \(shipmentManifestRecords.count + 1)", manifestType: .dispatchBatch, linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", carrierCourier: order?.carrier ?? "Unassigned courier", destinationSummary: order?.destination ?? location?.areaZone ?? "Destination to assign", includedOrderIDs: order.map { [$0.id] } ?? [], shipmentGroupIDs: group.map { [$0.id] } ?? [], inventoryReceiptIDs: receipt.map { [$0.id] } ?? [], packageContentIDs: content.map { [$0.id] } ?? [], custodyRecordIDs: custody.map { [$0.id] } ?? [], labelReferenceIDs: label.map { [$0.id] } ?? [], scanSessionIDs: scan.map { [$0.id] } ?? [], evidenceAttachmentIDs: evidenceAttachments.prefix(1).map(\.id), assignedOwnerTeam: "ParcelOps Operations", dispatchStatus: .draft, plannedDispatchDate: "To schedule", actualDispatchDate: "Not dispatched", handoffLocationStorageLocationID: location?.id, manifestReferencePlaceholder: "MNF-\(shipmentManifestRecords.count + 1)", notes: "Local placeholder only. No carrier booking, label printing, or external dispatch integration is performed.", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    shipmentManifestRecords.insert(record, at: 0)
+    persistShipmentManifestRecords()
+    logAudit(action: .created, entityType: .shipmentManifest, entityID: record.id.uuidString, entityLabel: record.title, summary: "Shipment manifest placeholder added.", afterDetail: record.auditDetail)
+  }
+
+  func updateShipmentManifestRecord(_ record: ShipmentManifestRecord) {
+    guard let index = shipmentManifestRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = shipmentManifestRecords[index].auditDetail
+    shipmentManifestRecords[index] = record
+    persistShipmentManifestRecords()
+    logAudit(action: .edited, entityType: .shipmentManifest, entityID: record.id.uuidString, entityLabel: record.title, summary: "Shipment manifest details updated.", beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+  }
+
+  func markShipmentManifestPrepared(_ record: ShipmentManifestRecord) {
+    updateShipmentManifestStatus(record, status: .prepared, reviewState: .monitor, summary: "Shipment manifest marked prepared locally.", action: .edited)
+  }
+
+  func markShipmentManifestDispatched(_ record: ShipmentManifestRecord) {
+    updateShipmentManifestStatus(record, status: .dispatched, reviewState: .monitor, summary: "Shipment manifest marked dispatched locally.", action: .edited, actualDispatchDate: Self.auditTimestamp())
+  }
+
+  func markShipmentManifestHandedOff(_ record: ShipmentManifestRecord) {
+    updateShipmentManifestStatus(record, status: .handedOff, reviewState: .accepted, summary: "Shipment manifest marked handed off locally.", action: .completed, actualDispatchDate: Self.auditTimestamp())
+  }
+
+  func markShipmentManifestBlocked(_ record: ShipmentManifestRecord) {
+    updateShipmentManifestStatus(record, status: .blockedNeedsReview, reviewState: .needsReview, summary: "Shipment manifest blocked and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func reopenShipmentManifest(_ record: ShipmentManifestRecord) {
+    updateShipmentManifestStatus(record, status: .reopened, reviewState: .needsReview, summary: "Shipment manifest reopened.", action: .reopened)
+  }
+
+  func markShipmentManifestReviewed(_ record: ShipmentManifestRecord) {
+    guard let index = shipmentManifestRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = shipmentManifestRecords[index].auditDetail
+    shipmentManifestRecords[index].reviewState = .accepted
+    shipmentManifestRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistShipmentManifestRecords()
+    logAudit(action: .reviewed, entityType: .shipmentManifest, entityID: shipmentManifestRecords[index].id.uuidString, entityLabel: shipmentManifestRecords[index].title, summary: "Shipment manifest marked reviewed.", beforeDetail: beforeDetail, afterDetail: shipmentManifestRecords[index].auditDetail)
+  }
+
+  func removeShipmentManifestRecord(_ record: ShipmentManifestRecord) {
+    guard let index = shipmentManifestRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = shipmentManifestRecords.remove(at: index)
+    persistShipmentManifestRecords()
+    logAudit(action: .removed, entityType: .shipmentManifest, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Shipment manifest removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from record: ShipmentManifestRecord) {
+    createReviewTask(linkedEntityType: .shipmentManifest, linkedEntityID: record.id.uuidString, label: record.title, summary: "Review manifest: \(record.manifestType.rawValue) for \(record.carrierCourier), status \(record.dispatchStatus.rawValue).", priority: record.riskLevel == .critical ? .urgent : record.riskLevel == .high ? .high : .normal, assignee: record.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from record: ShipmentManifestRecord) {
+    createDraftMessage(linkedEntityType: .shipmentManifest, linkedEntityID: record.id.uuidString, label: record.title, recipient: record.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .shipmentManifest, entityID: record.id.uuidString, entityLabel: record.title, summary: "Draft message created from shipment manifest.", afterDetail: record.auditDetail)
+  }
+
+  private func updateShipmentManifestStatus(_ record: ShipmentManifestRecord, status: ShipmentManifestDispatchStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false, actualDispatchDate: String? = nil) {
+    guard let index = shipmentManifestRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = shipmentManifestRecords[index].auditDetail
+    shipmentManifestRecords[index].dispatchStatus = status
+    shipmentManifestRecords[index].reviewState = reviewState
+    shipmentManifestRecords[index].lastReviewedDate = Self.auditTimestamp()
+    if let actualDispatchDate { shipmentManifestRecords[index].actualDispatchDate = actualDispatchDate }
+    if forceHighRisk {
+      shipmentManifestRecords[index].riskLevel = shipmentManifestRecords[index].riskLevel == .critical ? .critical : .high
+    }
+    persistShipmentManifestRecords()
+    logAudit(action: action, entityType: .shipmentManifest, entityID: shipmentManifestRecords[index].id.uuidString, entityLabel: shipmentManifestRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: shipmentManifestRecords[index].auditDetail)
+  }
+
+  private func suggestedShipmentManifestRecords(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ShipmentManifestRecord] {
+    shipmentManifestRecords.filter { $0.matches(orderID: orderID, shipmentGroupID: shipmentGroupID, inventoryReceiptID: inventoryReceiptID, packageContentID: packageContentID, custodyRecordID: custodyRecordID, labelReferenceID: labelReferenceID, scanSessionID: scanSessionID, evidenceID: evidenceID, storageLocationID: storageLocationID, carrierCourier: carrierCourier, ownerTeam: ownerTeam, locationText: locationText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedShipmentManifestRecords(for scan: ScanSessionRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: scan.orderID, shipmentGroupID: scan.shipmentGroupID, inventoryReceiptID: scan.inventoryReceiptID, packageContentID: scan.packageContentID, custodyRecordID: scan.custodyRecordID, labelReferenceID: scan.linkedLabelReferenceID, scanSessionID: scan.id, evidenceID: scan.evidenceAttachmentIDs.first, storageLocationID: scan.scanLocationStorageLocationID, carrierCourier: "", ownerTeam: scan.assignedOperatorTeam, locationText: scan.expectedLabelReferenceValue, context: "\(scan.title) \(scan.notes)", linkedEntityType: .scanSession, linkedEntityID: scan.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for label: LabelReferenceRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, inventoryReceiptID: label.inventoryReceiptID, packageContentID: label.packageContentID, custodyRecordID: label.custodyRecordID, labelReferenceID: label.id, scanSessionID: suggestedScanSessionRecords(for: label).first?.id, evidenceID: label.evidenceAttachmentIDs.first, storageLocationID: label.storageLocationID, carrierCourier: label.associatedCarrier, ownerTeam: label.assignedOwnerTeam, locationText: label.labelValuePlaceholder, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for location: StorageLocationRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, inventoryReceiptID: location.inventoryReceiptIDs.first, packageContentID: location.packageContentIDs.first, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, scanSessionID: suggestedScanSessionRecords(for: location).first?.id, evidenceID: nil, storageLocationID: location.id, carrierCourier: "", ownerTeam: location.assignedOwnerTeam, locationText: "\(location.locationCode) \(location.areaZone)", context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for custody: CustodyRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: custody.orderID, shipmentGroupID: custody.shipmentGroupID, inventoryReceiptID: custody.inventoryReceiptID, packageContentID: custody.packageContentID, custodyRecordID: custody.id, labelReferenceID: suggestedLabelReferenceRecords(for: custody).first?.id, scanSessionID: suggestedScanSessionRecords(for: custody).first?.id, evidenceID: custody.evidenceAttachmentIDs.first, storageLocationID: custody.storageLocationID ?? custody.destinationLocationID ?? custody.sourceLocationID, carrierCourier: "", ownerTeam: custody.assignedOwnerTeam, locationText: custody.handoffMethod.rawValue, context: "\(custody.title) \(custody.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: custody.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for receipt: InventoryReceiptRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, inventoryReceiptID: receipt.id, packageContentID: receipt.packageContentID, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: receipt).first?.id, scanSessionID: suggestedScanSessionRecords(for: receipt).first?.id, evidenceID: receipt.evidenceAttachmentIDs.first, storageLocationID: suggestedStorageLocations(for: receipt).first?.id, carrierCourier: "", ownerTeam: receipt.assignedOwnerTeam, locationText: receipt.storageLocationSummary, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for inspection: ReceivingInspectionRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, packageContentID: inspection.packageContentID, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: inspection).first?.id, scanSessionID: suggestedScanSessionRecords(for: inspection).first?.id, evidenceID: inspection.evidenceAttachmentIDs.first, storageLocationID: suggestedStorageLocations(for: inspection).first?.id, carrierCourier: "", ownerTeam: inspection.assignedInspectorTeam, locationText: inspection.discrepancySummary, context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for order: TrackedOrder) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: order.id, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: order).first?.id, scanSessionID: suggestedScanSessionRecords(for: order).first?.id, evidenceID: nil, storageLocationID: suggestedStorageLocations(for: order).first?.id, carrierCourier: order.carrier, ownerTeam: order.customer, locationText: order.destination, context: "\(order.store) \(order.orderNumber) \(order.trackingNumber)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for content: PackageContentRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, packageContentID: content.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: content).first?.id, scanSessionID: suggestedScanSessionRecords(for: content).first?.id, evidenceID: content.evidenceAttachmentIDs.first, storageLocationID: suggestedStorageLocations(for: content).first?.id, carrierCourier: "", ownerTeam: "", locationText: content.itemSummary, context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for request: ProcurementRequest) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, packageContentID: request.packageContentID, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: request).first?.id, scanSessionID: suggestedScanSessionRecords(for: request).first?.id, evidenceID: request.evidenceAttachmentIDs.first, storageLocationID: suggestedStorageLocations(for: request).first?.id, carrierCourier: "", ownerTeam: request.assignedBuyerTeam, locationText: request.requestedItemsSummary, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for claim: ReturnClaimRecord) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, packageContentID: claim.packageContentID, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: claim).first?.id, scanSessionID: suggestedScanSessionRecords(for: claim).first?.id, evidenceID: claim.evidenceAttachmentIDs.first, storageLocationID: suggestedStorageLocations(for: claim).first?.id, carrierCourier: "", ownerTeam: claim.assignedOwnerTeam, locationText: claim.reasonSummary, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedShipmentManifestRecords(for item: WorkbenchItem) -> [ShipmentManifestRecord] {
+    suggestedShipmentManifestRecords(orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, packageContentID: suggestedPackageContents(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, scanSessionID: suggestedScanSessionRecords(for: item).first?.id, evidenceID: nil, storageLocationID: suggestedStorageLocations(for: item).first?.id, carrierCourier: "", ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredDispatchReadinessChecklists(checklistType: DispatchChecklistType?, checklistStatus: DispatchChecklistStatus?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { checklist in
+      let matchesType = checklistType == nil || checklist.checklistType == checklistType
+      let matchesStatus = checklistStatus == nil || checklist.checklistStatus == checklistStatus
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checklist.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || checklist.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || checklist.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || checklist.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addDispatchReadinessChecklistPlaceholder() {
+    let manifest = shipmentManifestRecords.first
+    let checklist = DispatchReadinessChecklist(title: "New dispatch checklist \(dispatchReadinessChecklists.count + 1)", linkedEntityType: .shipmentManifest, linkedEntityID: manifest?.id.uuidString ?? "Unlinked", shipmentManifestID: manifest?.id, orderIDs: manifest?.includedOrderIDs ?? orders.prefix(1).map(\.id), shipmentGroupIDs: manifest?.shipmentGroupIDs ?? shipmentGroups.prefix(1).map(\.id), inventoryReceiptIDs: manifest?.inventoryReceiptIDs ?? inventoryReceipts.prefix(1).map(\.id), packageContentIDs: manifest?.packageContentIDs ?? packageContents.prefix(1).map(\.id), custodyRecordIDs: manifest?.custodyRecordIDs ?? custodyRecords.prefix(1).map(\.id), labelReferenceIDs: manifest?.labelReferenceIDs ?? labelReferenceRecords.prefix(1).map(\.id), scanSessionIDs: manifest?.scanSessionIDs ?? scanSessionRecords.prefix(1).map(\.id), evidenceAttachmentIDs: manifest?.evidenceAttachmentIDs ?? evidenceAttachments.prefix(1).map(\.id), checklistType: .manifestReadiness, checklistStatus: .draft, requiredChecksSummary: "Confirm manifest, labels, scans, custody, destination, and evidence before dispatch.", completedChecksSummary: "No readiness checks completed yet.", missingRequirementsSummary: "Readiness checks still need completion.", assignedOwnerTeam: manifest?.assignedOwnerTeam ?? "ParcelOps Operations", plannedDispatchDate: manifest?.plannedDispatchDate ?? "To schedule", completedDate: "Not completed", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    dispatchReadinessChecklists.insert(checklist, at: 0)
+    persistDispatchReadinessChecklists()
+    logAudit(action: .created, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Dispatch readiness checklist placeholder added.", afterDetail: checklist.auditDetail)
+  }
+
+  func updateDispatchReadinessChecklist(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index] = checklist
+    persistDispatchReadinessChecklists()
+    logAudit(action: .edited, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Dispatch readiness checklist details updated.", beforeDetail: beforeDetail, afterDetail: checklist.auditDetail)
+  }
+
+  func markDispatchChecklistReady(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .ready, reviewState: .monitor, summary: "Dispatch readiness checklist marked ready locally.", action: .edited)
+  }
+
+  func markDispatchChecklistBlocked(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .blockedNeedsReview, reviewState: .needsReview, summary: "Dispatch readiness checklist blocked and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markDispatchChecklistCompleted(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .completed, reviewState: .accepted, summary: "Dispatch readiness checklist completed locally.", action: .completed, completedDate: Self.auditTimestamp())
+  }
+
+  func reopenDispatchChecklist(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .reopened, reviewState: .needsReview, summary: "Dispatch readiness checklist reopened.", action: .reopened)
+  }
+
+  func markDispatchChecklistReviewed(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index].reviewState = .accepted
+    dispatchReadinessChecklists[index].lastReviewedDate = Self.auditTimestamp()
+    persistDispatchReadinessChecklists()
+    logAudit(action: .reviewed, entityType: .dispatchChecklist, entityID: dispatchReadinessChecklists[index].id.uuidString, entityLabel: dispatchReadinessChecklists[index].title, summary: "Dispatch readiness checklist marked reviewed.", beforeDetail: beforeDetail, afterDetail: dispatchReadinessChecklists[index].auditDetail)
+  }
+
+  func removeDispatchReadinessChecklist(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let removed = dispatchReadinessChecklists.remove(at: index)
+    persistDispatchReadinessChecklists()
+    logAudit(action: .removed, entityType: .dispatchChecklist, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Dispatch readiness checklist removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from checklist: DispatchReadinessChecklist) {
+    createReviewTask(linkedEntityType: .dispatchChecklist, linkedEntityID: checklist.id.uuidString, label: checklist.title, summary: "Review dispatch readiness: \(checklist.missingRequirementsSummary).", priority: checklist.riskLevel == .critical ? .urgent : checklist.riskLevel == .high ? .high : .normal, assignee: checklist.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from checklist: DispatchReadinessChecklist) {
+    createDraftMessage(linkedEntityType: .dispatchChecklist, linkedEntityID: checklist.id.uuidString, label: checklist.title, recipient: checklist.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Draft message created from dispatch readiness checklist.", afterDetail: checklist.auditDetail)
+  }
+
+  private func updateDispatchChecklistStatus(_ checklist: DispatchReadinessChecklist, status: DispatchChecklistStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false, completedDate: String? = nil) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index].checklistStatus = status
+    dispatchReadinessChecklists[index].reviewState = reviewState
+    dispatchReadinessChecklists[index].lastReviewedDate = Self.auditTimestamp()
+    if let completedDate { dispatchReadinessChecklists[index].completedDate = completedDate }
+    if forceHighRisk {
+      dispatchReadinessChecklists[index].riskLevel = dispatchReadinessChecklists[index].riskLevel == .critical ? .critical : .high
+    }
+    persistDispatchReadinessChecklists()
+    logAudit(action: action, entityType: .dispatchChecklist, entityID: dispatchReadinessChecklists[index].id.uuidString, entityLabel: dispatchReadinessChecklists[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: dispatchReadinessChecklists[index].auditDetail)
+  }
+
+  private func suggestedDispatchReadinessChecklists(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.matches(shipmentManifestID: shipmentManifestID, orderID: orderID, shipmentGroupID: shipmentGroupID, inventoryReceiptID: inventoryReceiptID, packageContentID: packageContentID, custodyRecordID: custodyRecordID, labelReferenceID: labelReferenceID, scanSessionID: scanSessionID, evidenceID: evidenceID, ownerTeam: ownerTeam, dateText: dateText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDispatchReadinessChecklists(for manifest: ShipmentManifestRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: manifest.id, orderID: manifest.includedOrderIDs.first, shipmentGroupID: manifest.shipmentGroupIDs.first, inventoryReceiptID: manifest.inventoryReceiptIDs.first, packageContentID: manifest.packageContentIDs.first, custodyRecordID: manifest.custodyRecordIDs.first, labelReferenceID: manifest.labelReferenceIDs.first, scanSessionID: manifest.scanSessionIDs.first, evidenceID: manifest.evidenceAttachmentIDs.first, ownerTeam: manifest.assignedOwnerTeam, dateText: manifest.plannedDispatchDate, context: "\(manifest.title) \(manifest.notes)", linkedEntityType: .shipmentManifest, linkedEntityID: manifest.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for scan: ScanSessionRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: scan).first?.id, orderID: scan.orderID, shipmentGroupID: scan.shipmentGroupID, inventoryReceiptID: scan.inventoryReceiptID, packageContentID: scan.packageContentID, custodyRecordID: scan.custodyRecordID, labelReferenceID: scan.linkedLabelReferenceID, scanSessionID: scan.id, evidenceID: scan.evidenceAttachmentIDs.first, ownerTeam: scan.assignedOperatorTeam, dateText: scan.completedDate, context: "\(scan.title) \(scan.notes)", linkedEntityType: .scanSession, linkedEntityID: scan.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for label: LabelReferenceRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: label).first?.id, orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, inventoryReceiptID: label.inventoryReceiptID, packageContentID: label.packageContentID, custodyRecordID: label.custodyRecordID, labelReferenceID: label.id, scanSessionID: suggestedScanSessionRecords(for: label).first?.id, evidenceID: label.evidenceAttachmentIDs.first, ownerTeam: label.assignedOwnerTeam, dateText: label.lastReviewedDate, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for order: TrackedOrder) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: order).first?.id, scanSessionID: suggestedScanSessionRecords(for: order).first?.id, evidenceID: nil, ownerTeam: order.customer, dateText: "", context: "\(order.store) \(order.orderNumber) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for location: StorageLocationRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: location).first?.id, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, inventoryReceiptID: location.inventoryReceiptIDs.first, packageContentID: location.packageContentIDs.first, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, scanSessionID: suggestedScanSessionRecords(for: location).first?.id, evidenceID: nil, ownerTeam: location.assignedOwnerTeam, dateText: "", context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for custody: CustodyRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: custody).first?.id, orderID: custody.orderID, shipmentGroupID: custody.shipmentGroupID, inventoryReceiptID: custody.inventoryReceiptID, packageContentID: custody.packageContentID, custodyRecordID: custody.id, labelReferenceID: suggestedLabelReferenceRecords(for: custody).first?.id, scanSessionID: suggestedScanSessionRecords(for: custody).first?.id, evidenceID: custody.evidenceAttachmentIDs.first, ownerTeam: custody.assignedOwnerTeam, dateText: custody.expectedReturnCloseDate, context: "\(custody.title) \(custody.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: custody.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for receipt: InventoryReceiptRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: receipt).first?.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, inventoryReceiptID: receipt.id, packageContentID: receipt.packageContentID, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: receipt).first?.id, scanSessionID: suggestedScanSessionRecords(for: receipt).first?.id, evidenceID: receipt.evidenceAttachmentIDs.first, ownerTeam: receipt.assignedOwnerTeam, dateText: receipt.handoffDate, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for inspection: ReceivingInspectionRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: inspection).first?.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, packageContentID: inspection.packageContentID, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: inspection).first?.id, scanSessionID: suggestedScanSessionRecords(for: inspection).first?.id, evidenceID: inspection.evidenceAttachmentIDs.first, ownerTeam: inspection.assignedInspectorTeam, dateText: inspection.dueDate, context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for content: PackageContentRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, packageContentID: content.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: content).first?.id, scanSessionID: suggestedScanSessionRecords(for: content).first?.id, evidenceID: content.evidenceAttachmentIDs.first, ownerTeam: "", dateText: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for request: ProcurementRequest) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: request).first?.id, orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, packageContentID: request.packageContentID, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: request).first?.id, scanSessionID: suggestedScanSessionRecords(for: request).first?.id, evidenceID: request.evidenceAttachmentIDs.first, ownerTeam: request.assignedBuyerTeam, dateText: request.neededByDate, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for claim: ReturnClaimRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, packageContentID: claim.packageContentID, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: claim).first?.id, scanSessionID: suggestedScanSessionRecords(for: claim).first?.id, evidenceID: claim.evidenceAttachmentIDs.first, ownerTeam: claim.assignedOwnerTeam, dateText: claim.dueDate, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for item: WorkbenchItem) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: item).first?.id, orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, packageContentID: suggestedPackageContents(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, scanSessionID: suggestedScanSessionRecords(for: item).first?.id, evidenceID: nil, ownerTeam: item.assignee, dateText: item.dueDateText, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func filteredLabelReferenceRecords(labelType: LabelReferenceType?, labelStatus: LabelReferenceStatus?, labelSource: LabelReferenceSource?, carrier: String, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [LabelReferenceRecord] {
+    labelReferenceRecords.filter { record in
+      let matchesType = labelType == nil || record.labelType == labelType
+      let matchesStatus = labelStatus == nil || record.labelStatus == labelStatus
+      let matchesSource = labelSource == nil || record.labelSource == labelSource
+      let matchesCarrier = carrier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.associatedCarrier.localizedCaseInsensitiveContains(carrier)
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || record.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || record.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || record.reviewState == reviewState
+      return matchesType && matchesStatus && matchesSource && matchesCarrier && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addLabelReferencePlaceholder() {
+    let order = orders.first
+    let location = storageLocations.first
+    let record = LabelReferenceRecord(title: "New label reference \(labelReferenceRecords.count + 1)", linkedEntityType: .order, linkedEntityID: order?.id.uuidString ?? "Unlinked", labelType: .trackingLabel, labelValuePlaceholder: order?.trackingNumber ?? "To assign", labelSource: .manualPlaceholder, labelStatus: .draft, associatedCarrier: order?.carrier ?? "Unassigned", storageLocationID: location?.id, inventoryReceiptID: inventoryReceipts.first?.id, custodyRecordID: custodyRecords.first?.id, orderID: order?.id, shipmentGroupID: shipmentGroups.first?.id, packageContentID: packageContents.first?.id, evidenceAttachmentIDs: evidenceAttachments.prefix(1).map(\.id), assignedOwnerTeam: "ParcelOps Operations", createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", notes: "Local placeholder only. No barcode scanning, QR generation, or label printing is performed.", riskLevel: .medium, reviewState: .needsReview)
+    labelReferenceRecords.insert(record, at: 0)
+    persistLabelReferenceRecords()
+    logAudit(action: .created, entityType: .labelReference, entityID: record.id.uuidString, entityLabel: record.title, summary: "Label reference placeholder added.", afterDetail: record.auditDetail)
+  }
+
+  func updateLabelReferenceRecord(_ record: LabelReferenceRecord) {
+    guard let index = labelReferenceRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = labelReferenceRecords[index].auditDetail
+    labelReferenceRecords[index] = record
+    persistLabelReferenceRecords()
+    logAudit(action: .edited, entityType: .labelReference, entityID: record.id.uuidString, entityLabel: record.title, summary: "Label reference details updated.", beforeDetail: beforeDetail, afterDetail: record.auditDetail)
+  }
+
+  func markLabelReferencePrinted(_ record: LabelReferenceRecord) {
+    updateLabelReferenceStatus(record, status: .printedLocally, reviewState: .monitor, summary: "Label reference marked printed locally.", action: .edited)
+  }
+
+  func markLabelReferenceVerified(_ record: LabelReferenceRecord) {
+    updateLabelReferenceStatus(record, status: .scannedVerified, reviewState: .accepted, summary: "Label reference marked scanned or verified locally.", action: .completed)
+  }
+
+  func markLabelReferenceInvalid(_ record: LabelReferenceRecord) {
+    updateLabelReferenceStatus(record, status: .invalidNeedsReview, reviewState: .needsReview, summary: "Label reference marked invalid and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markLabelReferenceReviewed(_ record: LabelReferenceRecord) {
+    guard let index = labelReferenceRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = labelReferenceRecords[index].auditDetail
+    labelReferenceRecords[index].reviewState = .accepted
+    labelReferenceRecords[index].lastReviewedDate = Self.auditTimestamp()
+    persistLabelReferenceRecords()
+    logAudit(action: .reviewed, entityType: .labelReference, entityID: labelReferenceRecords[index].id.uuidString, entityLabel: labelReferenceRecords[index].title, summary: "Label reference marked reviewed.", beforeDetail: beforeDetail, afterDetail: labelReferenceRecords[index].auditDetail)
+  }
+
+  func removeLabelReferenceRecord(_ record: LabelReferenceRecord) {
+    guard let index = labelReferenceRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = labelReferenceRecords.remove(at: index)
+    persistLabelReferenceRecords()
+    logAudit(action: .removed, entityType: .labelReference, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Label reference removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from record: LabelReferenceRecord) {
+    createReviewTask(linkedEntityType: .labelReference, linkedEntityID: record.id.uuidString, label: record.title, summary: "Review label reference: \(record.labelType.rawValue), value \(record.labelValuePlaceholder), status \(record.labelStatus.rawValue).", priority: record.riskLevel == .critical ? .urgent : record.riskLevel == .high ? .high : .normal, assignee: record.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from record: LabelReferenceRecord) {
+    createDraftMessage(linkedEntityType: .labelReference, linkedEntityID: record.id.uuidString, label: record.title, recipient: record.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .labelReference, entityID: record.id.uuidString, entityLabel: record.title, summary: "Draft message created from label reference.", afterDetail: record.auditDetail)
+  }
+
+  private func updateLabelReferenceStatus(_ record: LabelReferenceRecord, status: LabelReferenceStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false) {
+    guard let index = labelReferenceRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = labelReferenceRecords[index].auditDetail
+    labelReferenceRecords[index].labelStatus = status
+    labelReferenceRecords[index].reviewState = reviewState
+    labelReferenceRecords[index].lastReviewedDate = Self.auditTimestamp()
+    if forceHighRisk {
+      labelReferenceRecords[index].riskLevel = labelReferenceRecords[index].riskLevel == .critical ? .critical : .high
+    }
+    persistLabelReferenceRecords()
+    logAudit(action: action, entityType: .labelReference, entityID: labelReferenceRecords[index].id.uuidString, entityLabel: labelReferenceRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: labelReferenceRecords[index].auditDetail)
+  }
+
+  private func suggestedLabelReferenceRecords(storageLocationID: UUID?, inventoryReceiptID: UUID?, custodyRecordID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, carrier: String, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [LabelReferenceRecord] {
+    labelReferenceRecords.filter { $0.matches(storageLocationID: storageLocationID, inventoryReceiptID: inventoryReceiptID, custodyRecordID: custodyRecordID, orderID: orderID, shipmentGroupID: shipmentGroupID, packageContentID: packageContentID, evidenceID: evidenceID, labelValue: labelValue, carrier: carrier, ownerTeam: ownerTeam, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedLabelReferenceRecords(for location: StorageLocationRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: location.id, inventoryReceiptID: location.inventoryReceiptIDs.first, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, packageContentID: location.packageContentIDs.first, evidenceID: nil, labelValue: location.locationCode, carrier: "", ownerTeam: location.assignedOwnerTeam, context: "\(location.title) \(location.areaZone) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for record: CustodyRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: record.storageLocationID ?? record.destinationLocationID ?? record.sourceLocationID, inventoryReceiptID: record.inventoryReceiptID, custodyRecordID: record.id, orderID: record.orderID, shipmentGroupID: record.shipmentGroupID, packageContentID: record.packageContentID, evidenceID: record.evidenceAttachmentIDs.first, labelValue: "", carrier: "", ownerTeam: record.assignedOwnerTeam, context: "\(record.title) \(record.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: record.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for receipt: InventoryReceiptRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: receipt).first?.id, inventoryReceiptID: receipt.id, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, packageContentID: receipt.packageContentID, evidenceID: receipt.evidenceAttachmentIDs.first, labelValue: receipt.storageLocationSummary, carrier: "", ownerTeam: receipt.assignedOwnerTeam, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for inspection: ReceivingInspectionRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: inspection).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, packageContentID: inspection.packageContentID, evidenceID: inspection.evidenceAttachmentIDs.first, labelValue: "", carrier: "", ownerTeam: inspection.assignedInspectorTeam, context: "\(inspection.title) \(inspection.expectedItemSummary) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for order: TrackedOrder) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: order).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: order).first?.id, evidenceID: nil, labelValue: "\(order.trackingNumber) \(order.orderNumber)", carrier: order.carrier, ownerTeam: order.customer, context: "\(order.store) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for content: PackageContentRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: content).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, packageContentID: content.id, evidenceID: content.evidenceAttachmentIDs.first, labelValue: content.itemSummary, carrier: "", ownerTeam: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for request: ProcurementRequest) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: request).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, evidenceID: request.evidenceAttachmentIDs.first, labelValue: request.requestedItemsSummary, carrier: "", ownerTeam: request.assignedBuyerTeam, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for claim: ReturnClaimRecord) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: claim).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, evidenceID: claim.evidenceAttachmentIDs.first, labelValue: claim.reasonSummary, carrier: "", ownerTeam: claim.assignedOwnerTeam, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedLabelReferenceRecords(for item: WorkbenchItem) -> [LabelReferenceRecord] {
+    suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: item).first?.id, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, evidenceID: nil, labelValue: item.summary, carrier: "", ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
+  func addAccountCredentialRecordPlaceholder() {
+    let account = AccountCredentialRecord(
+      accountName: "New account \(accountCredentialRecords.count + 1)",
+      organisation: "Unassigned organisation",
+      linkedContactID: nil,
+      linkedEntityType: .supplier,
+      linkedEntityID: "Unlinked",
+      loginURL: "https://example.com/login",
+      usernameLabel: "Username held outside ParcelOps",
+      credentialStorageStatus: .needsSetup,
+      mfaStatus: .unknown,
+      renewalReviewDate: "Next month",
+      isEnabled: false,
+      notes: "Local placeholder only. Do not store passwords, tokens, or API keys here.",
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: "Never",
+      reviewState: .needsReview
+    )
+    accountCredentialRecords.insert(account, at: 0)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder added.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func addAccountCredentialRecord(linkedEntityType: AccountLinkedEntityType, linkedEntityID: String, organisation: String, label: String, linkedContactID: UUID? = nil) {
+    let account = AccountCredentialRecord(
+      accountName: "\(label) account",
+      organisation: organisation,
+      linkedContactID: linkedContactID,
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: linkedEntityID,
+      loginURL: "https://example.com/login",
+      usernameLabel: "External vault username reference",
+      credentialStorageStatus: .needsSetup,
+      mfaStatus: .unknown,
+      renewalReviewDate: "Next month",
+      isEnabled: false,
+      notes: "Local account record created from workflow. No secrets are stored in ParcelOps.",
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: "Never",
+      reviewState: .needsReview
+    )
+    accountCredentialRecords.insert(account, at: 0)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder created from workflow.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func updateAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index] = account
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .edited,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Account credential placeholder details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func toggleAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].isEnabled.toggle()
+    persistAccountCredentialRecords()
+    logAudit(
+      action: accountCredentialRecords[index].isEnabled ? .enabled : .disabled,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: accountCredentialRecords[index].isEnabled ? "Account placeholder enabled." : "Account placeholder disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func markAccountCredentialRecordReviewed(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].reviewState = .accepted
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .reviewed,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: "Account placeholder marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func markAccountCredentialRecordChecked(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let beforeDetail = accountCredentialRecords[index].auditDetail
+    accountCredentialRecords[index].lastCheckedDate = Self.auditTimestamp()
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .evaluated,
+      entityType: .accountCredentialRecord,
+      entityID: accountCredentialRecords[index].id.uuidString,
+      entityLabel: accountCredentialRecords[index].accountName,
+      summary: "Account placeholder checked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: accountCredentialRecords[index].auditDetail
+    )
+  }
+
+  func removeAccountCredentialRecord(_ account: AccountCredentialRecord) {
+    guard let index = accountCredentialRecords.firstIndex(where: { $0.id == account.id }) else { return }
+    let removed = accountCredentialRecords.remove(at: index)
+    persistAccountCredentialRecords()
+    logAudit(
+      action: .removed,
+      entityType: .accountCredentialRecord,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.accountName,
+      summary: "Account credential placeholder removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from account: AccountCredentialRecord) {
+    createReviewTask(
+      linkedEntityType: .account,
+      linkedEntityID: account.id.uuidString,
+      label: account.accountName,
+      summary: "Review local account placeholder for \(account.organisation). Credential status: \(account.credentialStorageStatus.rawValue). MFA: \(account.mfaStatus.rawValue).",
+      priority: account.reviewState == .needsReview || account.mfaStatus == .needsReview ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from account: AccountCredentialRecord) {
+    let recipient = account.linkedContactID.flatMap { contactID in
+      contactDirectoryEntries.first { $0.id == contactID }?.email
+    } ?? "operations@parcelops.example"
+    createDraftMessage(
+      linkedEntityType: .account,
+      linkedEntityID: account.id.uuidString,
+      label: account.accountName,
+      recipient: recipient
+    )
+    logAudit(
+      action: .created,
+      entityType: .accountCredentialRecord,
+      entityID: account.id.uuidString,
+      entityLabel: account.accountName,
+      summary: "Draft message created from account placeholder.",
+      afterDetail: account.auditDetail
+    )
+  }
+
+  func suggestedAccounts(for order: TrackedOrder) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.isEnabled
+        && (account.linkedEntityID == order.id.uuidString
+          || account.organisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(account.organisation))
+    }
+  }
+
+  func suggestedAccounts(for email: ForwardedEmailIntake) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.isEnabled
+        && (account.linkedEntityID == email.id.uuidString
+          || account.organisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || email.detectedMerchant.localizedCaseInsensitiveContains(account.organisation))
+    }
+  }
+
+  func suggestedAccounts(for contact: ContactDirectoryEntry) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedContactID == contact.id
+        || account.linkedEntityID == contact.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(contact.organisation)
+        || contact.organisation.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
+  func suggestedAccounts(for connection: ShopifyConnection) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedEntityID == connection.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(connection.storeName)
+        || connection.storeName.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
+  func suggestedAccounts(for connection: SourceConnection) -> [AccountCredentialRecord] {
+    accountCredentialRecords.filter { account in
+      account.linkedEntityID == connection.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(connection.name)
+        || connection.name.localizedCaseInsensitiveContains(account.organisation)
+    }
+  }
+
+  func addVendorProfilePlaceholder() {
+    let profile = VendorProfile(
+      name: "New vendor profile \(vendorProfiles.count + 1)",
+      profileType: .supplier,
+      primaryOrganisation: "Unassigned organisation",
+      website: "https://example.com",
+      supportURL: "https://example.com/support",
+      defaultContactID: nil,
+      defaultAccountID: nil,
+      preferredChannel: .email,
+      serviceLevelNotes: "Define local service expectations and escalation notes.",
+      riskLevel: .medium,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    vendorProfiles.insert(profile, at: 0)
+    persistVendorProfiles()
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile placeholder added.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func addVendorProfile(profileType: VendorProfileType, organisation: String, label: String, defaultContactID: UUID? = nil, defaultAccountID: UUID? = nil) {
+    let profile = VendorProfile(
+      name: "\(label) profile",
+      profileType: profileType,
+      primaryOrganisation: organisation,
+      website: "https://example.com",
+      supportURL: "https://example.com/support",
+      defaultContactID: defaultContactID,
+      defaultAccountID: defaultAccountID,
+      preferredChannel: .email,
+      serviceLevelNotes: "Local profile created from workflow.",
+      riskLevel: .medium,
+      isEnabled: false,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    vendorProfiles.insert(profile, at: 0)
+    persistVendorProfiles()
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile created from workflow.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func updateVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index] = profile
+    persistVendorProfiles()
+    logAudit(
+      action: .edited,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Vendor profile details updated.",
+      beforeDetail: beforeDetail,
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func toggleVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index].isEnabled.toggle()
+    persistVendorProfiles()
+    logAudit(
+      action: vendorProfiles[index].isEnabled ? .enabled : .disabled,
+      entityType: .vendorProfile,
+      entityID: vendorProfiles[index].id.uuidString,
+      entityLabel: vendorProfiles[index].name,
+      summary: vendorProfiles[index].isEnabled ? "Vendor profile enabled." : "Vendor profile disabled.",
+      beforeDetail: beforeDetail,
+      afterDetail: vendorProfiles[index].auditDetail
+    )
+  }
+
+  func markVendorProfileReviewed(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let beforeDetail = vendorProfiles[index].auditDetail
+    vendorProfiles[index].reviewState = .accepted
+    vendorProfiles[index].lastReviewedDate = Self.auditTimestamp()
+    persistVendorProfiles()
+    logAudit(
+      action: .reviewed,
+      entityType: .vendorProfile,
+      entityID: vendorProfiles[index].id.uuidString,
+      entityLabel: vendorProfiles[index].name,
+      summary: "Vendor profile marked reviewed.",
+      beforeDetail: beforeDetail,
+      afterDetail: vendorProfiles[index].auditDetail
+    )
+  }
+
+  func removeVendorProfile(_ profile: VendorProfile) {
+    guard let index = vendorProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+    let removed = vendorProfiles.remove(at: index)
+    persistVendorProfiles()
+    logAudit(
+      action: .removed,
+      entityType: .vendorProfile,
+      entityID: removed.id.uuidString,
+      entityLabel: removed.name,
+      summary: "Vendor profile removed.",
+      beforeDetail: removed.auditDetail
+    )
+  }
+
+  func createReviewTask(from profile: VendorProfile) {
+    createReviewTask(
+      linkedEntityType: .vendorProfile,
+      linkedEntityID: profile.id.uuidString,
+      label: profile.name,
+      summary: "Review vendor profile for \(profile.primaryOrganisation). Risk: \(profile.riskLevel.rawValue). \(profile.serviceLevelNotes)",
+      priority: profile.riskLevel == .critical ? .urgent : profile.riskLevel == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from profile: VendorProfile) {
+    let recipient = profile.defaultContactID.flatMap { contactID in
+      contactDirectoryEntries.first { $0.id == contactID }?.email
+    } ?? "operations@parcelops.example"
+    createDraftMessage(
+      linkedEntityType: .vendorProfile,
+      linkedEntityID: profile.id.uuidString,
+      label: profile.name,
+      recipient: recipient
+    )
+    logAudit(
+      action: .created,
+      entityType: .vendorProfile,
+      entityID: profile.id.uuidString,
+      entityLabel: profile.name,
+      summary: "Draft message created from vendor profile.",
+      afterDetail: profile.auditDetail
+    )
+  }
+
+  func createReviewTask(from activity: TimelineActivity) {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return }
+    createReviewTask(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: activity.entityID,
+      label: activity.title,
+      summary: "Follow up timeline activity: \(activity.detail)",
+      priority: activity.risk == .critical ? .urgent : activity.risk == .high ? .high : .normal
+    )
+  }
+
+  func createDraftMessage(from activity: TimelineActivity) {
+    guard let linkedEntityType = activity.reviewTaskLinkedEntityType else { return }
+    createDraftMessage(
+      linkedEntityType: linkedEntityType,
+      linkedEntityID: activity.entityID,
+      label: activity.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  func createReviewTask(from item: WorkbenchItem) {
+    createReviewTask(
+      linkedEntityType: item.linkedEntityType,
+      linkedEntityID: item.linkedEntityID,
+      label: item.title,
+      summary: "Follow up workbench item from \(item.source.rawValue): \(item.summary) Next action: \(item.suggestedNextAction)",
+      priority: item.rank >= 4 ? .urgent : item.rank >= 3 ? .high : .normal,
+      assignee: item.assignee.isEmpty ? "Operations" : item.assignee
+    )
+  }
+
+  func createDraftMessage(from item: WorkbenchItem) {
+    createDraftMessage(
+      linkedEntityType: item.linkedEntityType,
+      linkedEntityID: item.linkedEntityID,
+      label: item.title,
+      recipient: "operations@parcelops.example"
+    )
+  }
+
+  func markWorkbenchItemReviewed(_ item: WorkbenchItem) {
+    switch item.source {
+    case .reviewTask:
+      if let task = reviewTasks.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markReviewTaskReviewed(task)
+      }
+    case .handoffNote:
+      if let note = handoffNotes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markHandoffNoteReviewed(note)
+      }
+    case .intakeEmail:
+      if let email = intakeEmails.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markIntakeEmailReviewed(email)
+      }
+    case .reconciliation:
+      if let issue = reconciliationIssues.first(where: { $0.id == item.linkedEntityID }) {
+        markReconciliationIssueReviewed(issue)
+      }
+    case .shipmentGroup:
+      if let group = shipmentGroups.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markShipmentGroupReviewed(group)
+      }
+    case .tracking:
+      if let event = carrierTrackingEvents.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markTrackingEventReviewed(event)
+      }
+    case .evidence:
+      if let attachment = evidenceAttachments.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markEvidenceReviewed(attachment)
+      }
+    case .slaPolicy:
+      if let policy = slaPolicies.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markSLAPolicyReviewed(policy)
+      }
+    case .exceptionPlaybook:
+      if let playbook = exceptionPlaybooks.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markExceptionPlaybookReviewed(playbook)
+      }
+    case .draftMessage:
+      if let draft = draftMessages.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        var updatedDraft = draft
+        updatedDraft.reviewState = .accepted
+        updateDraftMessage(updatedDraft)
+      }
+    case .contact:
+      if let contact = contactDirectoryEntries.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markContactDirectoryEntryReviewed(contact)
+      }
+    case .customerProfile:
+      if let profile = customerRecipientProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markCustomerRecipientProfileReviewed(profile)
+      }
+    case .destinationAddress:
+      if let address = destinationAddresses.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDestinationAddressReviewed(address)
+      }
+    case .deliveryInstruction:
+      if let instruction = deliveryInstructions.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDeliveryInstructionReviewed(instruction)
+      }
+    case .packageContent:
+      if let content = packageContents.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markPackageContentReviewed(content)
+      }
+    case .costRecord:
+      if let cost = costRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markCostRecordReviewed(cost)
+      }
+    case .returnClaim:
+      if let claim = returnClaims.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markReturnClaimReviewed(claim)
+      }
+    case .procurementRequest:
+      if let request = procurementRequests.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markProcurementRequestReviewed(request)
+      }
+    case .receivingInspection:
+      if let inspection = receivingInspections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markReceivingInspectionReviewed(inspection)
+      }
+    case .inventoryReceipt:
+      if let receipt = inventoryReceipts.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markInventoryReceiptReviewed(receipt)
+      }
+    case .storageLocation:
+      if let location = storageLocations.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markStorageLocationReviewed(location)
+      }
+    case .custodyRecord:
+      if let record = custodyRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markCustodyRecordReviewed(record)
+      }
+    case .labelReference:
+      if let record = labelReferenceRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markLabelReferenceReviewed(record)
+      }
+    case .scanSession:
+      if let record = scanSessionRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markScanSessionReviewed(record)
+      }
+    case .shipmentManifest:
+      if let record = shipmentManifestRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markShipmentManifestReviewed(record)
+      }
+    case .dispatchChecklist:
+      if let checklist = dispatchReadinessChecklists.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDispatchChecklistReviewed(checklist)
+      }
+    case .account:
+      if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markAccountCredentialRecordReviewed(account)
+      }
+    case .vendorProfile:
+      if let profile = vendorProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markVendorProfileReviewed(profile)
+      }
+    case .importQueue, .acceptanceReview, .validation:
+      logAudit(
+        action: .reviewed,
+        entityType: .auditEvent,
+        entityID: item.id,
+        entityLabel: item.title,
+        summary: "Workbench item marked reviewed locally.",
+        afterDetail: "\(item.source.rawValue): \(item.summary)"
+      )
+    }
+  }
+
+  func suggestedVendorProfiles(for order: TrackedOrder) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(order.store)
+          || order.store.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+          || profile.primaryOrganisation.localizedCaseInsensitiveContains(order.carrier)
+          || order.carrier.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for email: ForwardedEmailIntake) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(email.detectedMerchant)
+          || email.detectedMerchant.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+          || email.sender.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for event: CarrierTrackingEvent) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.isEnabled
+        && (profile.profileType == .carrier
+          || profile.primaryOrganisation.localizedCaseInsensitiveContains(event.carrier)
+          || event.carrier.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for contact: ContactDirectoryEntry) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.defaultContactID == contact.id
+        || profile.primaryOrganisation.localizedCaseInsensitiveContains(contact.organisation)
+        || contact.organisation.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
+  }
+
+  func suggestedVendorProfiles(for account: AccountCredentialRecord) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.defaultAccountID == account.id
+        || profile.primaryOrganisation.localizedCaseInsensitiveContains(account.organisation)
+        || account.organisation.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
+  }
+
+  func suggestedVendorProfiles(for connection: ShopifyConnection) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.profileType == .shopifyStore
+        && (profile.primaryOrganisation.localizedCaseInsensitiveContains(connection.storeName)
+          || connection.storeName.localizedCaseInsensitiveContains(profile.primaryOrganisation))
+    }
+  }
+
+  func suggestedVendorProfiles(for connection: SourceConnection) -> [VendorProfile] {
+    vendorProfiles.filter { profile in
+      profile.primaryOrganisation.localizedCaseInsensitiveContains(connection.name)
+        || connection.name.localizedCaseInsensitiveContains(profile.primaryOrganisation)
+    }
   }
 
   func exportToParcel(order: TrackedOrder) {
@@ -1265,8 +7702,108 @@ final class ParcelOpsStore {
     reviewTaskRepository.saveReviewTasks(reviewTasks)
   }
 
+  private func persistHandoffNotes() {
+    handoffNoteRepository.saveHandoffNotes(handoffNotes)
+  }
+
   private func persistSLAPolicies() {
     slaPolicyRepository.saveSLAPolicies(slaPolicies)
+  }
+
+  private func persistExceptionPlaybooks() {
+    exceptionPlaybookRepository.saveExceptionPlaybooks(exceptionPlaybooks)
+  }
+
+  private func persistCommunicationTemplates() {
+    communicationRepository.saveCommunicationTemplates(communicationTemplates)
+  }
+
+  private func persistDraftMessages() {
+    communicationRepository.saveDraftMessages(draftMessages)
+  }
+
+  private func persistContactDirectoryEntries() {
+    contactDirectoryRepository.saveContactDirectoryEntries(contactDirectoryEntries)
+  }
+
+  private func persistCustomerRecipientProfiles() {
+    customerRecipientProfileRepository.saveCustomerRecipientProfiles(customerRecipientProfiles)
+  }
+
+  private func persistDestinationAddresses() {
+    destinationAddressRepository.saveDestinationAddresses(destinationAddresses)
+  }
+
+  private func persistDeliveryInstructions() {
+    deliveryInstructionRepository.saveDeliveryInstructions(deliveryInstructions)
+  }
+
+  private func persistPackageContents() {
+    packageContentRepository.savePackageContents(packageContents)
+  }
+
+  private func persistCostRecords() {
+    costRecordRepository.saveCostRecords(costRecords)
+  }
+
+  private func persistReturnClaims() {
+    returnClaimRepository.saveReturnClaims(returnClaims)
+  }
+
+  private func persistProcurementRequests() {
+    procurementRequestRepository.saveProcurementRequests(procurementRequests)
+  }
+
+  private func persistReceivingInspections() {
+    receivingInspectionRepository.saveReceivingInspections(receivingInspections)
+  }
+
+  private func persistInventoryReceipts() {
+    inventoryReceiptRepository.saveInventoryReceipts(inventoryReceipts)
+  }
+
+  private func persistStorageLocations() {
+    storageLocationRepository.saveStorageLocations(storageLocations)
+  }
+
+  private func persistCustodyRecords() {
+    custodyRepository.saveCustodyRecords(custodyRecords)
+  }
+
+  private func persistLabelReferenceRecords() {
+    labelReferenceRepository.saveLabelReferenceRecords(labelReferenceRecords)
+  }
+
+  private func persistScanSessionRecords() {
+    scanSessionRepository.saveScanSessionRecords(scanSessionRecords)
+  }
+
+  private func persistShipmentManifestRecords() {
+    shipmentManifestRepository.saveShipmentManifestRecords(shipmentManifestRecords)
+  }
+
+  private func persistDispatchReadinessChecklists() {
+    dispatchReadinessRepository.saveDispatchReadinessChecklists(dispatchReadinessChecklists)
+  }
+
+  private func persistAccountCredentialRecords() {
+    accountCredentialRepository.saveAccountCredentialRecords(accountCredentialRecords)
+  }
+
+  private func persistVendorProfiles() {
+    vendorProfileRepository.saveVendorProfiles(vendorProfiles)
+  }
+
+  private func persistShipmentGroups() {
+    shipmentGroupRepository.saveShipmentGroups(shipmentGroups)
+  }
+
+  private func persistImportQueueItems() {
+    importQueueRepository.saveImportQueueItems(importQueueItems)
+  }
+
+  private func persistAcceptanceRecords() {
+    acceptanceRepository.saveAcceptanceRecords(acceptanceRecords)
   }
 
   private func addReviewTask(_ task: ReviewTask, summary: String) {
@@ -1279,6 +7816,29 @@ final class ParcelOpsStore {
       entityLabel: task.title,
       summary: summary,
       afterDetail: task.auditDetail
+    )
+  }
+
+  private func updateDraftMessageState(
+    _ draft: DraftMessage,
+    status: DraftMessageStatus,
+    reviewState: ReviewState,
+    action: AuditAction,
+    summary: String
+  ) {
+    guard let index = draftMessages.firstIndex(where: { $0.id == draft.id }) else { return }
+    let beforeDetail = draftMessages[index].auditDetail
+    draftMessages[index].status = status
+    draftMessages[index].reviewState = reviewState
+    persistDraftMessages()
+    logAudit(
+      action: action,
+      entityType: .draftMessage,
+      entityID: draftMessages[index].id.uuidString,
+      entityLabel: draftMessages[index].subject,
+      summary: summary,
+      beforeDetail: beforeDetail,
+      afterDetail: draftMessages[index].auditDetail
     )
   }
 
@@ -1353,6 +7913,39 @@ private extension IntakeEmailReviewState {
     case .ignored: .monitor
     }
   }
+
+  var acceptanceDecision: AcceptanceDecision {
+    switch self {
+    case .needsReview: .ready
+    case .reviewed: .accepted
+    case .ignored: .ignored
+    }
+  }
+}
+
+private extension ImportStatus {
+  var acceptanceDecision: AcceptanceDecision {
+    switch self {
+    case .staged, .linked: .ready
+    case .accepted: .accepted
+    case .ignored: .ignored
+    case .blocked: .blocked
+    case .reopened: .reopened
+    }
+  }
+}
+
+private extension ForwardedEmailIntake {
+  var localAcceptanceConfidence: Int {
+    var score = 90
+    if detectedMerchant.isPlaceholder { score -= 18 }
+    if detectedOrderNumber.isPlaceholder { score -= 18 }
+    if detectedTrackingNumber.isPlaceholder { score -= 12 }
+    if detectedDestinationAddress.isPlaceholder { score -= 16 }
+    if linkedOrderID == nil { score -= 8 }
+    if reviewState == .needsReview { score -= 6 }
+    return max(10, min(100, score))
+  }
 }
 
 private extension SearchResult {
@@ -1407,8 +8000,573 @@ private extension ReviewTask {
   }
 }
 
+private extension HandoffNote {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); assignee: \(assignee); created: \(createdDate); due: \(dueDate); status: \(status.rawValue); review: \(reviewState.rawValue); summary: \(summary); notes: \(notes)."
+  }
+}
+
 private extension SLAPolicy {
   var auditDetail: String {
     "Name: \(name); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); response: \(responseTarget); resolution: \(resolutionTarget); review: \(reviewState.rawValue); created: \(createdDate); last evaluated: \(lastEvaluatedDate); matches: \(matchCount); condition: \(conditionSummary)."
+  }
+}
+
+private extension ExceptionPlaybook {
+  var auditDetail: String {
+    "Name: \(name); issue: \(issueType.rawValue); linked: \(linkedEntityType.rawValue); priority: \(priority.rawValue); enabled: \(isEnabled ? "yes" : "no"); escalation: \(escalationContact); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); usage: \(usageCount); trigger: \(triggerSummary); steps: \(recommendedSteps)."
+  }
+}
+
+private extension CommunicationTemplate {
+  var auditDetail: String {
+    "Name: \(name); linked: \(linkedEntityType.rawValue); channel: \(channel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last used: \(lastUsedDate); uses: \(usageCount); subject: \(subjectTemplate)."
+  }
+}
+
+private extension DraftMessage {
+  var auditDetail: String {
+    "Subject: \(subject); recipient: \(recipient); channel: \(channel.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); template: \(templateID?.uuidString ?? "none"); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate)."
+  }
+}
+
+private extension ContactDirectoryEntry {
+  var auditDetail: String {
+    "Name: \(name); organisation: \(organisation); role: \(role); email: \(email); phone: \(phone); channel: \(channelPreference.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last contacted: \(lastContactedDate); notes: \(notes)."
+  }
+}
+
+private extension CustomerRecipientProfile {
+  var auditDetail: String {
+    "Name: \(displayName); type: \(profileType.rawValue); organisation/team: \(organisationTeam); email: \(primaryEmail); phone: \(phone); destination: \(defaultDestinationAddress); preference: \(deliveryPreference.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(email: String, team: String, destination: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let emailMatch = !email.isEmpty && (primaryEmail.localizedCaseInsensitiveContains(email) || email.localizedCaseInsensitiveContains(primaryEmail))
+    let teamMatch = !team.isEmpty && (organisationTeam.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(organisationTeam) || displayName.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(displayName))
+    let destinationMatch = !destination.isEmpty && (defaultDestinationAddress.localizedCaseInsensitiveContains(destination) || destination.localizedCaseInsensitiveContains(defaultDestinationAddress))
+    let linkedMatch = linkedEntityType == .customerProfile && id.uuidString == linkedEntityID
+    return emailMatch || teamMatch || destinationMatch || linkedMatch
+  }
+}
+
+private extension DestinationAddressRecord {
+  var auditDetail: String {
+    "Label: \(label); customer profile: \(customerProfileID?.uuidString ?? "none"); organisation/team: \(organisationTeam); address: \(addressLineSummary); city/region: \(cityRegion); country: \(country); preferred carrier: \(preferredCarrier); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); instructions: \(deliveryInstructions); access: \(accessNotes)."
+  }
+
+  func matches(profileID: UUID?, destination: String, team: String, carrier: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let profileMatch = profileID != nil && customerProfileID == profileID
+    let destinationMatch = !destination.isEmpty && (addressLineSummary.localizedCaseInsensitiveContains(destination) || cityRegion.localizedCaseInsensitiveContains(destination) || destination.localizedCaseInsensitiveContains(addressLineSummary) || destination.localizedCaseInsensitiveContains(cityRegion))
+    let teamMatch = !team.isEmpty && (organisationTeam.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(organisationTeam) || label.localizedCaseInsensitiveContains(team) || team.localizedCaseInsensitiveContains(label))
+    let carrierMatch = !carrier.isEmpty && (preferredCarrier.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(preferredCarrier))
+    let linkedMatch = linkedEntityType == .destinationAddress && id.uuidString == linkedEntityID
+    return profileMatch || destinationMatch || teamMatch || carrierMatch || linkedMatch
+  }
+}
+
+private extension DeliveryInstructionRecord {
+  var auditDetail: String {
+    "Title: \(title); destination address: \(destinationAddressID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); linked: \(linkedEntityType.rawValue) \(linkedEntityID); type: \(instructionType.rawValue); preferred window: \(preferredDeliveryWindow); restricted window: \(restrictedDeliveryWindow); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); instruction: \(instructionSummary); access: \(accessConstraintSummary); carrier notes: \(carrierNotes)."
+  }
+
+  func matches(destinationAddressID: UUID?, profileID: UUID?, context: String, carrier: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let addressMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let profileMatch = profileID != nil && customerProfileID == profileID
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || instructionSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(instructionSummary)
+      || accessConstraintSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(accessConstraintSummary)
+    )
+    let carrierMatch = !carrier.isEmpty && (carrierNotes.localizedCaseInsensitiveContains(carrier) || carrier.localizedCaseInsensitiveContains(carrierNotes))
+    let riskMatch = riskLevel != nil && self.riskLevel == riskLevel
+    return addressMatch || profileMatch || linkedMatch || contextMatch || carrierMatch || riskMatch
+  }
+}
+
+private extension PackageContentRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); instruction: \(deliveryInstructionID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); category: \(itemCategory.rawValue); value: \(valueBand.rawValue); quantity: \(verifiedQuantity)/\(expectedQuantity); verification: \(verificationStatus.rawValue); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(itemSummary); discrepancy: \(discrepancySummary)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, destinationAddressID: UUID?, deliveryInstructionID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let instructionMatch = deliveryInstructionID != nil && self.deliveryInstructionID == deliveryInstructionID
+    let profileMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || itemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(itemSummary)
+      || discrepancySummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(discrepancySummary)
+    )
+    return orderMatch || groupMatch || destinationMatch || instructionMatch || profileMatch || evidenceMatch || linkedMatch || contextMatch
+  }
+}
+
+private extension CostRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); vendor profile: \(vendorProfileID?.uuidString ?? "none"); account: \(accountID?.uuidString ?? "none"); category: \(costCategory.rawValue); amount: \(amountText) \(currency); tax/GST: \(taxGSTText); reimbursement: \(reimbursementStatus.rawValue); approval: \(approvalStatus.rawValue); budget: \(budgetCode); owner: \(costOwnerTeam); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, budgetCode: String, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
+    let accountMatch = accountID != nil && self.accountID == accountID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let budget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+    let budgetMatch = !budget.isEmpty && (self.budgetCode.localizedCaseInsensitiveContains(budget) || budget.localizedCaseInsensitiveContains(self.budgetCode))
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (costOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(costOwnerTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || notes.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(notes)
+      || amountText.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(amountText)
+      || costCategory.rawValue.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(costCategory.rawValue)
+    )
+    return orderMatch || groupMatch || contentMatch || customerMatch || vendorMatch || accountMatch || evidenceMatch || linkedMatch || budgetMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ReturnClaimRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); cost: \(costRecordID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); vendor profile: \(vendorProfileID?.uuidString ?? "none"); account: \(accountID?.uuidString ?? "none"); type: \(claimType.rawValue); outcome: \(requestedOutcome.rawValue); status: \(claimStatus.rawValue); amount: \(refundReplacementAmountText) \(currency); owner: \(assignedOwnerTeam); due: \(dueDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); reason: \(reasonSummary)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, costRecordID: UUID?, customerProfileID: UUID?, vendorProfileID: UUID?, accountID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let costMatch = costRecordID != nil && self.costRecordID == costRecordID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
+    let accountMatch = accountID != nil && self.accountID == accountID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let trackingMatch = trackingEventID != nil && carrierTrackingEventIDs.contains(trackingEventID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || reasonSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(reasonSummary)
+      || claimType.rawValue.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(claimType.rawValue)
+      || requestedOutcome.rawValue.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(requestedOutcome.rawValue)
+    )
+    return orderMatch || groupMatch || contentMatch || costMatch || customerMatch || vendorMatch || accountMatch || evidenceMatch || trackingMatch || linkedMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ProcurementRequest {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); requester: \(requesterTeam); requested: \(requestedDate); needed by: \(neededByDate); vendor profile: \(vendorProfileID?.uuidString ?? "none"); account: \(accountID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); cost: \(costRecordID?.uuidString ?? "none"); return claim: \(returnClaimID?.uuidString ?? "none"); estimated cost: \(estimatedCostText) \(currency); budget: \(budgetCode); approval: \(approvalStatus.rawValue); procurement: \(procurementStatus.rawValue); buyer: \(assignedBuyerTeam); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(requestedItemsSummary); notes: \(notes)."
+  }
+
+  func matches(vendorProfileID: UUID?, accountID: UUID?, customerProfileID: UUID?, destinationAddressID: UUID?, packageContentID: UUID?, costRecordID: UUID?, returnClaimID: UUID?, evidenceID: UUID?, budgetCode: String, requesterTeam: String, buyerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
+    let accountMatch = accountID != nil && self.accountID == accountID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let costMatch = costRecordID != nil && self.costRecordID == costRecordID
+    let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let budget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
+    let budgetMatch = !budget.isEmpty && (self.budgetCode.localizedCaseInsensitiveContains(budget) || budget.localizedCaseInsensitiveContains(self.budgetCode))
+    let requester = requesterTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let requesterMatch = !requester.isEmpty && (self.requesterTeam.localizedCaseInsensitiveContains(requester) || requester.localizedCaseInsensitiveContains(self.requesterTeam))
+    let buyer = buyerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let buyerMatch = !buyer.isEmpty && (assignedBuyerTeam.localizedCaseInsensitiveContains(buyer) || buyer.localizedCaseInsensitiveContains(assignedBuyerTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || requestedItemsSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(requestedItemsSummary)
+      || notes.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(notes)
+    )
+    return vendorMatch || accountMatch || customerMatch || destinationMatch || contentMatch || costMatch || claimMatch || evidenceMatch || linkedMatch || budgetMatch || requesterMatch || buyerMatch || contextMatch
+  }
+}
+
+private extension ReceivingInspectionRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); procurement: \(procurementRequestID?.uuidString ?? "none"); return claim: \(returnClaimID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); type: \(inspectionType.rawValue); status: \(inspectionStatus.rawValue); quantity: \(quantityReceived)/\(quantityExpected); discrepancy: \(discrepancyType.rawValue); inspector: \(assignedInspectorTeam); inspection date: \(inspectionDate); due: \(dueDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); expected: \(expectedItemSummary); received: \(receivedItemSummary); condition: \(conditionSummary); discrepancy summary: \(discrepancySummary)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, trackingEventID: UUID?, inspectorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let procurementMatch = procurementRequestID != nil && self.procurementRequestID == procurementRequestID
+    let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let trackingMatch = trackingEventID != nil && carrierTrackingEventIDs.contains(trackingEventID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let inspector = inspectorTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let inspectorMatch = !inspector.isEmpty && (assignedInspectorTeam.localizedCaseInsensitiveContains(inspector) || inspector.localizedCaseInsensitiveContains(assignedInspectorTeam))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || expectedItemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(expectedItemSummary)
+      || receivedItemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(receivedItemSummary)
+      || discrepancySummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(discrepancySummary)
+    )
+    return orderMatch || groupMatch || contentMatch || procurementMatch || claimMatch || destinationMatch || customerMatch || evidenceMatch || trackingMatch || linkedMatch || inspectorMatch || contextMatch
+  }
+}
+
+private extension InventoryReceiptRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); inspection: \(receivingInspectionID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); procurement: \(procurementRequestID?.uuidString ?? "none"); return claim: \(returnClaimID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); type: \(receiptType.rawValue); status: \(stockHandoffStatus.rawValue); quantity: received \(quantityReceived), accepted \(quantityAccepted), rejected \(quantityRejected); location: \(storageLocationSummary); owner: \(assignedOwnerTeam); received: \(receivedDate); handoff: \(handoffDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(itemSummary); discrepancy: \(discrepancySummary)."
+  }
+
+  func matches(receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, procurementRequestID: UUID?, returnClaimID: UUID?, destinationAddressID: UUID?, customerProfileID: UUID?, evidenceID: UUID?, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let inspectionMatch = receivingInspectionID != nil && self.receivingInspectionID == receivingInspectionID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let procurementMatch = procurementRequestID != nil && self.procurementRequestID == procurementRequestID
+    let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
+    let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
+    let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let location = locationText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let locationMatch = !location.isEmpty && (storageLocationSummary.localizedCaseInsensitiveContains(location) || location.localizedCaseInsensitiveContains(storageLocationSummary))
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(title)
+      || itemSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(itemSummary)
+      || discrepancySummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(discrepancySummary)
+      || storageLocationSummary.localizedCaseInsensitiveContains(context)
+      || context.localizedCaseInsensitiveContains(storageLocationSummary)
+    )
+    return inspectionMatch || orderMatch || groupMatch || contentMatch || procurementMatch || claimMatch || destinationMatch || customerMatch || evidenceMatch || linkedMatch || ownerMatch || locationMatch || contextMatch
+  }
+}
+
+private extension StorageLocationRecord {
+  var auditDetail: String {
+    "Title: \(title); type: \(locationType.rawValue); code: \(locationCode); area: \(areaZone); linked: \(linkedEntityType.rawValue) \(linkedEntityID); inventory receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); inspections: \(receivingInspectionIDs.map(\.uuidString).joined(separator: ",")); package contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); orders: \(orderIDs.map(\.uuidString).joined(separator: ",")); shipment groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); capacity: \(capacitySummary); usage: \(currentUsageSummary); access: \(accessNotes)."
+  }
+
+  func matches(inventoryReceiptID: UUID?, receivingInspectionID: UUID?, packageContentID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, ownerTeam: String, areaZone: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
+    let inspectionMatch = receivingInspectionID != nil && receivingInspectionIDs.contains(receivingInspectionID!)
+    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
+    let orderMatch = orderID != nil && orderIDs.contains(orderID!)
+    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let area = areaZone.trimmingCharacters(in: .whitespacesAndNewlines)
+    let areaMatch = !area.isEmpty && (self.areaZone.localizedCaseInsensitiveContains(area) || area.localizedCaseInsensitiveContains(self.areaZone))
+    let location = locationText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let locationMatch = !location.isEmpty && (
+      title.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(title)
+        || locationCode.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(locationCode)
+        || self.areaZone.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(self.areaZone)
+    )
+    let contextMatch = !context.isEmpty && (
+      title.localizedCaseInsensitiveContains(context)
+        || context.localizedCaseInsensitiveContains(title)
+        || locationCode.localizedCaseInsensitiveContains(context)
+        || context.localizedCaseInsensitiveContains(locationCode)
+        || capacitySummary.localizedCaseInsensitiveContains(context)
+        || context.localizedCaseInsensitiveContains(capacitySummary)
+        || currentUsageSummary.localizedCaseInsensitiveContains(context)
+        || context.localizedCaseInsensitiveContains(currentUsageSummary)
+    )
+    return receiptMatch || inspectionMatch || contentMatch || orderMatch || groupMatch || linkedMatch || ownerMatch || areaMatch || locationMatch || contextMatch
+  }
+}
+
+private extension CustodyRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); current custodian: \(currentCustodianTeam); previous custodian: \(previousCustodianTeam); status: \(custodyStatus.rawValue); reason: \(custodyReason); method: \(handoffMethod.rawValue); source location: \(sourceLocationID?.uuidString ?? "none"); destination location: \(destinationLocationID?.uuidString ?? "none"); inventory receipt: \(inventoryReceiptID?.uuidString ?? "none"); storage location: \(storageLocationID?.uuidString ?? "none"); receiving inspection: \(receivingInspectionID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); transfer: \(transferDate); expected close: \(expectedReturnCloseDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(sourceLocationID: UUID?, destinationLocationID: UUID?, inventoryReceiptID: UUID?, storageLocationID: UUID?, receivingInspectionID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, custodianTeam: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let sourceMatch = sourceLocationID != nil && self.sourceLocationID == sourceLocationID
+    let destinationMatch = destinationLocationID != nil && self.destinationLocationID == destinationLocationID
+    let storageMatch = storageLocationID != nil && self.storageLocationID == storageLocationID
+    let receiptMatch = inventoryReceiptID != nil && self.inventoryReceiptID == inventoryReceiptID
+    let inspectionMatch = receivingInspectionID != nil && self.receivingInspectionID == receivingInspectionID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let custodian = custodianTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let custodianMatch = !custodian.isEmpty && (currentCustodianTeam.localizedCaseInsensitiveContains(custodian) || previousCustodianTeam.localizedCaseInsensitiveContains(custodian) || custodian.localizedCaseInsensitiveContains(currentCustodianTeam))
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let location = locationText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let locationMatch = !location.isEmpty && (
+      notes.localizedCaseInsensitiveContains(location)
+        || custodyReason.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(notes)
+        || location.localizedCaseInsensitiveContains(custodyReason)
+    )
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || custodyReason.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(custodyReason)
+        || notes.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(notes)
+    )
+    return sourceMatch || destinationMatch || storageMatch || receiptMatch || inspectionMatch || orderMatch || groupMatch || contentMatch || evidenceMatch || linkedMatch || custodianMatch || ownerMatch || locationMatch || contextMatch
+  }
+}
+
+private extension LabelReferenceRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); type: \(labelType.rawValue); value: \(labelValuePlaceholder); source: \(labelSource.rawValue); status: \(labelStatus.rawValue); carrier: \(associatedCarrier); storage location: \(storageLocationID?.uuidString ?? "none"); inventory receipt: \(inventoryReceiptID?.uuidString ?? "none"); custody record: \(custodyRecordID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(storageLocationID: UUID?, inventoryReceiptID: UUID?, custodyRecordID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, carrier: String, ownerTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let storageMatch = storageLocationID != nil && self.storageLocationID == storageLocationID
+    let receiptMatch = inventoryReceiptID != nil && self.inventoryReceiptID == inventoryReceiptID
+    let custodyMatch = custodyRecordID != nil && self.custodyRecordID == custodyRecordID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let value = labelValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    let valueMatch = !value.isEmpty && (labelValuePlaceholder.localizedCaseInsensitiveContains(value) || value.localizedCaseInsensitiveContains(labelValuePlaceholder))
+    let carrierText = carrier.trimmingCharacters(in: .whitespacesAndNewlines)
+    let carrierMatch = !carrierText.isEmpty && (associatedCarrier.localizedCaseInsensitiveContains(carrierText) || carrierText.localizedCaseInsensitiveContains(associatedCarrier))
+    let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || notes.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(notes)
+        || labelType.rawValue.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(labelType.rawValue)
+    )
+    return storageMatch || receiptMatch || custodyMatch || orderMatch || groupMatch || contentMatch || evidenceMatch || linkedMatch || valueMatch || carrierMatch || ownerMatch || contextMatch
+  }
+}
+
+private extension ScanSessionRecord {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); purpose: \(scanPurpose.rawValue); method: \(scanMethodPlaceholder.rawValue); expected: \(expectedLabelReferenceValue); captured: \(capturedValuePlaceholder); label reference: \(linkedLabelReferenceID?.uuidString ?? "none"); status: \(scanStatus.rawValue); mismatch: \(mismatchSummary); operator: \(assignedOperatorTeam); scan location: \(scanLocationStorageLocationID?.uuidString ?? "none"); custody: \(custodyRecordID?.uuidString ?? "none"); inventory receipt: \(inventoryReceiptID?.uuidString ?? "none"); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); package content: \(packageContentID?.uuidString ?? "none"); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate); notes: \(notes)."
+  }
+
+  func matches(labelReferenceID: UUID?, storageLocationID: UUID?, custodyRecordID: UUID?, inventoryReceiptID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, packageContentID: UUID?, evidenceID: UUID?, labelValue: String, operatorTeam: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let labelMatch = labelReferenceID != nil && linkedLabelReferenceID == labelReferenceID
+    let storageMatch = storageLocationID != nil && scanLocationStorageLocationID == storageLocationID
+    let custodyMatch = custodyRecordID != nil && self.custodyRecordID == custodyRecordID
+    let receiptMatch = inventoryReceiptID != nil && self.inventoryReceiptID == inventoryReceiptID
+    let orderMatch = orderID != nil && self.orderID == orderID
+    let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
+    let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let value = labelValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    let valueMatch = !value.isEmpty && (
+      expectedLabelReferenceValue.localizedCaseInsensitiveContains(value)
+        || capturedValuePlaceholder.localizedCaseInsensitiveContains(value)
+        || value.localizedCaseInsensitiveContains(expectedLabelReferenceValue)
+        || value.localizedCaseInsensitiveContains(capturedValuePlaceholder)
+    )
+    let operatorText = operatorTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let operatorMatch = !operatorText.isEmpty && (assignedOperatorTeam.localizedCaseInsensitiveContains(operatorText) || operatorText.localizedCaseInsensitiveContains(assignedOperatorTeam))
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || notes.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(notes)
+        || mismatchSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(mismatchSummary)
+    )
+    return labelMatch || storageMatch || custodyMatch || receiptMatch || orderMatch || groupMatch || contentMatch || evidenceMatch || linkedMatch || valueMatch || operatorMatch || contextMatch
+  }
+}
+
+private extension ShipmentManifestRecord {
+  var auditDetail: String {
+    "Title: \(title); type: \(manifestType.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); carrier: \(carrierCourier); destination: \(destinationSummary); orders: \(includedOrderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); status: \(dispatchStatus.rawValue); planned: \(plannedDispatchDate); actual: \(actualDispatchDate); handoff location: \(handoffLocationStorageLocationID?.uuidString ?? "none"); reference: \(manifestReferencePlaceholder); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate); notes: \(notes)."
+  }
+
+  func matches(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let orderMatch = orderID != nil && includedOrderIDs.contains(orderID!)
+    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
+    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
+    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
+    let custodyMatch = custodyRecordID != nil && custodyRecordIDs.contains(custodyRecordID!)
+    let labelMatch = labelReferenceID != nil && labelReferenceIDs.contains(labelReferenceID!)
+    let scanMatch = scanSessionID != nil && scanSessionIDs.contains(scanSessionID!)
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let locationMatch = storageLocationID != nil && handoffLocationStorageLocationID == storageLocationID
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let carrierText = carrierCourier.trimmingCharacters(in: .whitespacesAndNewlines)
+    let carrierMatch = !carrierText.isEmpty && (self.carrierCourier.localizedCaseInsensitiveContains(carrierText) || carrierText.localizedCaseInsensitiveContains(self.carrierCourier))
+    let ownerText = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !ownerText.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(ownerText) || ownerText.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let location = locationText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let locationTextMatch = !location.isEmpty && (
+      destinationSummary.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(destinationSummary)
+        || manifestReferencePlaceholder.localizedCaseInsensitiveContains(location)
+        || location.localizedCaseInsensitiveContains(manifestReferencePlaceholder)
+    )
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || notes.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(notes)
+        || manifestType.rawValue.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(manifestType.rawValue)
+    )
+    return orderMatch || groupMatch || receiptMatch || contentMatch || custodyMatch || labelMatch || scanMatch || evidenceMatch || locationMatch || linkedMatch || carrierMatch || ownerMatch || locationTextMatch || contextMatch
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); manifest: \(shipmentManifestID?.uuidString ?? "none"); orders: \(orderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); type: \(checklistType.rawValue); status: \(checklistStatus.rawValue); required: \(requiredChecksSummary); completed: \(completedChecksSummary); missing: \(missingRequirementsSummary); owner: \(assignedOwnerTeam); planned: \(plannedDispatchDate); completed date: \(completedDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate)."
+  }
+
+  func matches(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let manifestMatch = shipmentManifestID != nil && self.shipmentManifestID == shipmentManifestID
+    let orderMatch = orderID != nil && orderIDs.contains(orderID!)
+    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
+    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
+    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
+    let custodyMatch = custodyRecordID != nil && custodyRecordIDs.contains(custodyRecordID!)
+    let labelMatch = labelReferenceID != nil && labelReferenceIDs.contains(labelReferenceID!)
+    let scanMatch = scanSessionID != nil && scanSessionIDs.contains(scanSessionID!)
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let ownerText = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !ownerText.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(ownerText) || ownerText.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let date = dateText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let dateMatch = !date.isEmpty && (plannedDispatchDate.localizedCaseInsensitiveContains(date) || date.localizedCaseInsensitiveContains(plannedDispatchDate))
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || requiredChecksSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(requiredChecksSummary)
+        || completedChecksSummary.localizedCaseInsensitiveContains(contextText)
+        || missingRequirementsSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(missingRequirementsSummary)
+        || checklistType.rawValue.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(checklistType.rawValue)
+    )
+    return manifestMatch || orderMatch || groupMatch || receiptMatch || contentMatch || custodyMatch || labelMatch || scanMatch || evidenceMatch || linkedMatch || ownerMatch || dateMatch || contextMatch
+  }
+}
+
+private extension ValidationSeverity {
+  var shipmentRiskLevel: ShipmentRiskLevel? {
+    switch self {
+    case .info: .low
+    case .warning: .medium
+    case .high: .high
+    case .critical: .critical
+    }
+  }
+}
+
+private extension VendorRiskLevel {
+  var shipmentRiskLevel: ShipmentRiskLevel {
+    switch self {
+    case .low: .low
+    case .medium: .medium
+    case .high: .high
+    case .critical: .critical
+    }
+  }
+}
+
+private extension WorkbenchItem {
+  var shipmentRiskLevel: ShipmentRiskLevel? {
+    switch prioritySeverity {
+    case "Low": .low
+    case "Medium", "Normal": .medium
+    case "High": .high
+    case "Critical", "Urgent": .critical
+    default: nil
+    }
+  }
+}
+
+private extension AccountCredentialRecord {
+  var auditDetail: String {
+    "Account: \(accountName); organisation: \(organisation); contact: \(linkedContactID?.uuidString ?? "none"); linked: \(linkedEntityType.rawValue) \(linkedEntityID); login URL: \(loginURL); username label: \(usernameLabel); credential status: \(credentialStorageStatus.rawValue); MFA: \(mfaStatus.rawValue); renewal review: \(renewalReviewDate); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last checked: \(lastCheckedDate); notes: \(notes)."
+  }
+}
+
+private extension VendorProfile {
+  var auditDetail: String {
+    "Name: \(name); type: \(profileType.rawValue); organisation: \(primaryOrganisation); website: \(website); support: \(supportURL); default contact: \(defaultContactID?.uuidString ?? "none"); default account: \(defaultAccountID?.uuidString ?? "none"); channel: \(preferredChannel.rawValue); risk: \(riskLevel.rawValue); enabled: \(isEnabled ? "yes" : "no"); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); service notes: \(serviceLevelNotes)."
+  }
+}
+
+private extension ShipmentGroup {
+  var auditDetail: String {
+    "Name: \(groupName); primary order: \(primaryOrderID?.uuidString ?? "none"); orders: \(relatedOrderIDs.map(\.uuidString).joined(separator: ", ")); intake: \(relatedIntakeEmailIDs.map(\.uuidString).joined(separator: ", ")); tracking: \(relatedTrackingEventIDs.map(\.uuidString).joined(separator: ", ")); evidence: \(relatedEvidenceIDs.map(\.uuidString).joined(separator: ", ")); destination: \(destinationSummary); recipient/customer: \(recipientCustomerSummary); carrier: \(carrierSummary); status: \(statusSummary); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate)."
+  }
+}
+
+private extension ImportQueueItem {
+  var auditDetail: String {
+    "Source: \(sourceType.rawValue) \(sourceLabel); captured: \(capturedDate); merchant: \(detectedMerchant); order: \(detectedOrderNumber); tracking: \(detectedTrackingNumber); destination: \(detectedDestinationAddress); linked order: \(suggestedLinkedOrderID?.uuidString ?? "none"); shipment group: \(suggestedShipmentGroupID?.uuidString ?? "none"); confidence: \(confidenceScore); status: \(importStatus.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(rawSummary)."
+  }
+}
+
+private extension AcceptanceRecord {
+  var auditDetail: String {
+    "Source: \(sourceType.rawValue) \(sourceLabel) \(sourceID.uuidString); decided: \(decidedDate); confidence: \(confidenceScore); linked order: \(linkedOrderID?.uuidString ?? "none"); shipment group: \(linkedShipmentGroupID?.uuidString ?? "none"); decision: \(decision.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(summary)."
+  }
+}
+
+private extension ReconciliationIssue {
+  var auditDetail: String {
+    "Type: \(issueType.rawValue); severity: \(severity.rawValue); source: \(sourceEntityType.rawValue) \(sourceEntityID); target: \(targetEntityType?.rawValue ?? "none") \(targetEntityID ?? "none"); detected: \(detectedValue); operational: \(currentOperationalValue); review: \(reviewState.rawValue); created: \(createdDate); summary: \(summary); suggested: \(suggestedResolution)."
   }
 }

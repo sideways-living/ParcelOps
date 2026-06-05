@@ -50,7 +50,7 @@ struct SLAPoliciesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredPolicies) { policy in
-              SLAPolicyRow(policy: policy) { updatedPolicy in
+              SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
                 store.updateSLAPolicy(updatedPolicy)
               } onToggle: {
                 store.toggleSLAPolicy(policy)
@@ -58,6 +58,10 @@ struct SLAPoliciesView: View {
                 store.markSLAPolicyReviewed(policy)
               } onEvaluate: {
                 store.evaluateSLAPolicyPlaceholder(policy)
+              } onCreateDraft: {
+                store.createDraftMessage(from: policy)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
               } onRemove: {
                 store.removeSLAPolicy(policy)
               }
@@ -117,10 +121,15 @@ struct SLAPoliciesView: View {
 
 struct SLAPolicyRow: View {
   var policy: SLAPolicy
+  var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
   var onSave: (SLAPolicy) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
   var onEvaluate: () -> Void
+  var onCreateDraft: () -> Void = {}
+  var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
 
@@ -161,6 +170,16 @@ struct SLAPolicyRow: View {
           Text("\(policy.matchCount) local matches")
             .font(.caption)
             .foregroundStyle(.secondary)
+
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
+          }
+          if !deliveryInstructions.isEmpty {
+            DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
+          }
         }
       }
 
@@ -172,6 +191,10 @@ struct SLAPolicyRow: View {
         Button("Evaluate", systemImage: "timer", action: onEvaluate)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

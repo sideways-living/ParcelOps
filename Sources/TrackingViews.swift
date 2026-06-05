@@ -43,12 +43,22 @@ struct TrackingView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredEvents) { event in
-              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }) {
+              TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {
                 store.removeTrackingEvent(event)
               } onCreateTask: {
                 store.createReviewTask(from: event)
+              } onCreateDraft: {
+                store.createDraftMessage(from: event)
+              } onDraftFromContact: { contact in
+                store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+              } onCreateProfile: {
+                store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+              } onTaskFromProfile: { profile in
+                store.createReviewTask(from: profile)
+              } onDraftFromProfile: { profile in
+                store.createDraftMessage(from: profile)
               } relatedTasks: {
                 store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
               }
@@ -101,9 +111,21 @@ struct TrackingView: View {
 struct TrackingEventRow: View {
   var event: CarrierTrackingEvent
   var order: TrackedOrder?
+  var suggestedContacts: [ContactDirectoryEntry] = []
+  var suggestedProfiles: [VendorProfile] = []
+  var customerProfiles: [CustomerRecipientProfile] = []
+  var destinationAddresses: [DestinationAddressRecord] = []
+  var deliveryInstructions: [DeliveryInstructionRecord] = []
+  var packageContents: [PackageContentRecord] = []
+  var shipmentGroups: [ShipmentGroup] = []
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  var onCreateDraft: () -> Void = {}
+  var onDraftFromContact: (ContactDirectoryEntry) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var relatedTasks: () -> [ReviewTask] = { [] }
 
   var body: some View {
@@ -146,6 +168,20 @@ struct TrackingEventRow: View {
               .foregroundStyle(.secondary)
           }
 
+          if !shipmentGroups.isEmpty {
+            ShipmentGroupContextStrip(groups: shipmentGroups)
+          }
+
+          if !destinationAddresses.isEmpty {
+            DestinationAddressStrip(addresses: destinationAddresses)
+          }
+          if !deliveryInstructions.isEmpty {
+            DeliveryInstructionStrip(instructions: deliveryInstructions)
+          }
+          if !packageContents.isEmpty {
+            PackageContentStrip(contents: packageContents)
+          }
+
           ForEach(relatedTasks()) { task in
             HStack(spacing: 8) {
               Badge(task.isLocallyOverdue ? "Overdue" : task.priority.rawValue, color: task.isLocallyOverdue ? .red : task.priority.color)
@@ -154,7 +190,25 @@ struct TrackingEventRow: View {
                 .foregroundStyle(.secondary)
             }
           }
+
+          ForEach(suggestedContacts) { contact in
+            ContactSuggestionRow(contact: contact) {
+              onDraftFromContact(contact)
+            }
+          }
+
+          ForEach(suggestedProfiles) { profile in
+            VendorProfileSuggestionRow(profile: profile) {
+              onTaskFromProfile(profile)
+            } onCreateDraft: {
+              onDraftFromProfile(profile)
         }
+      }
+
+      if !customerProfiles.isEmpty {
+        CustomerProfileStrip(profiles: customerProfiles)
+      }
+    }
       }
 
       HStack {
@@ -163,6 +217,10 @@ struct TrackingEventRow: View {
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+          .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
           .buttonStyle(.bordered)
       }
     }

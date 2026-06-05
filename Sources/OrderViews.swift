@@ -118,6 +118,10 @@ struct OrderDetailView: View {
             store.createReviewTask(from: order)
           }
           .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: order)
+          }
+          .buttonStyle(.bordered)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -131,6 +135,305 @@ struct OrderDetailView: View {
           DetailCell(order.fulfillment == .delivery ? "Delivery ETA" : "Pickup window", order.eta, symbol: "calendar")
           DetailCell("Source", order.source.rawValue, symbol: order.source.symbol)
           DetailCell("Latest status", order.latestStatus, symbol: "waveform.path.ecg")
+        }
+
+        Panel(title: "Suggested contacts", symbol: "person.crop.circle.badge.checkmark") {
+          let contacts = store.suggestedContacts(for: order)
+
+          if contacts.isEmpty {
+            Text("No local contacts matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            VStack(spacing: 10) {
+              ForEach(contacts) { contact in
+                ContactSuggestionRow(contact: contact) {
+                  store.createDraftMessage(from: contact, linkedEntityType: .order, linkedEntityID: order.id.uuidString, label: order.orderNumber)
+                }
+              }
+            }
+          }
+        }
+
+        Panel(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
+          let profiles = store.suggestedCustomerProfiles(for: order)
+
+          if profiles.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local customer profiles matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create profile", systemImage: "person.badge.plus") {
+                store.addCustomerRecipientProfile(displayName: order.customer, organisationTeam: order.customer, email: order.recipientEmail, destination: order.destination, profileType: .recipient)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            CustomerProfileStrip(profiles: profiles)
+          }
+        }
+
+        Panel(title: "Destination addresses", symbol: "mappin.and.ellipse") {
+          let addresses = store.suggestedDestinationAddresses(for: order)
+
+          if addresses.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local destination addresses matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create address", systemImage: "mappin.and.ellipse") {
+                store.addDestinationAddress(label: "\(order.customer) destination", customerProfileID: store.suggestedCustomerProfiles(for: order).first?.id, organisationTeam: order.customer, addressSummary: order.destination, cityRegion: order.destination, preferredCarrier: order.carrier)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            DestinationAddressStrip(addresses: addresses)
+          }
+        }
+
+        Panel(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
+          let instructions = store.suggestedDeliveryInstructions(for: order)
+
+          if instructions.isEmpty {
+            Text("No local delivery instructions matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            DeliveryInstructionStrip(instructions: instructions)
+          }
+        }
+
+        Panel(title: "Package contents", symbol: "shippingbox.circle.fill") {
+          let contents = store.suggestedPackageContents(for: order)
+
+          if contents.isEmpty {
+            Text("No local package contents matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            PackageContentStrip(contents: contents)
+          }
+        }
+
+        Panel(title: "Costs & budgets", symbol: "creditcard.and.123") {
+          let costs = store.suggestedCostRecords(for: order)
+
+          if costs.isEmpty {
+            Text("No local cost records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            CostRecordStrip(costs: costs)
+          }
+        }
+
+        Panel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
+          let claims = store.suggestedReturnClaims(for: order)
+
+          if claims.isEmpty {
+            Text("No local returns or claims matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ReturnClaimStrip(claims: claims)
+          }
+        }
+
+        Panel(title: "Procurement", symbol: "cart.badge.plus") {
+          let requests = store.suggestedProcurementRequests(for: order)
+
+          if requests.isEmpty {
+            Text("No local procurement requests matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ProcurementRequestStrip(requests: requests)
+          }
+        }
+
+        Panel(title: "Receiving inspections", symbol: "checklist.checked") {
+          let inspections = store.suggestedReceivingInspections(for: order)
+
+          if inspections.isEmpty {
+            Text("No local receiving inspections matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ReceivingInspectionStrip(inspections: inspections)
+          }
+        }
+
+        Panel(title: "Inventory receipts", symbol: "archivebox.fill") {
+          let receipts = store.suggestedInventoryReceipts(for: order)
+
+          if receipts.isEmpty {
+            Text("No local inventory receipts matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            InventoryReceiptStrip(receipts: receipts)
+          }
+        }
+
+        Panel(title: "Storage locations", symbol: "cabinet.fill") {
+          let locations = store.suggestedStorageLocations(for: order)
+
+          if locations.isEmpty {
+            Text("No local storage locations matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            StorageLocationStrip(locations: locations)
+          }
+        }
+
+        Panel(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
+          let records = store.suggestedCustodyRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local custody records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            CustodyRecordStrip(records: records)
+          }
+        }
+
+        Panel(title: "Label references", symbol: "barcode.viewfinder") {
+          let records = store.suggestedLabelReferenceRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local label references matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            LabelReferenceStrip(records: records)
+          }
+        }
+
+        Panel(title: "Scan sessions", symbol: "qrcode.viewfinder") {
+          let records = store.suggestedScanSessionRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local scan sessions matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ScanSessionStrip(records: records)
+          }
+        }
+
+        Panel(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
+          let records = store.suggestedShipmentManifestRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local shipment manifests matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ShipmentManifestStrip(records: records)
+          }
+        }
+
+        Panel(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
+          let checklists = store.suggestedDispatchReadinessChecklists(for: order)
+
+          if checklists.isEmpty {
+            Text("No local dispatch readiness checklists matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            DispatchReadinessStrip(checklists: checklists)
+          }
+        }
+
+        Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
+          let accounts = store.suggestedAccounts(for: order)
+
+          if accounts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local account placeholders matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create account", systemImage: "key.badge.plus") {
+                store.addAccountCredentialRecord(linkedEntityType: .order, linkedEntityID: order.id.uuidString, organisation: order.store, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            VStack(spacing: 10) {
+              ForEach(accounts) { account in
+                AccountSuggestionRow(account: account) {
+                  store.createReviewTask(from: account)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: account)
+                }
+              }
+            }
+          }
+        }
+
+        Panel(title: "Suggested vendor profiles", symbol: "building.2.crop.circle.fill") {
+          let profiles = store.suggestedVendorProfiles(for: order)
+
+          if profiles.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("No local vendor profiles matched this order.")
+                .foregroundStyle(.secondary)
+              Button("Create profile", systemImage: "building.2.crop.circle") {
+                store.addVendorProfile(profileType: order.fulfillment == .delivery ? .carrier : .store, organisation: order.store, label: order.orderNumber)
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            VStack(spacing: 10) {
+              ForEach(profiles) { profile in
+                VendorProfileSuggestionRow(profile: profile) {
+                  store.createReviewTask(from: profile)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: profile)
+                }
+              }
+            }
+          }
+        }
+
+        Panel(title: "Shipment group context", symbol: "shippingbox.and.arrow.backward.fill") {
+          let groups = store.suggestedShipmentGroups(for: order)
+
+          if groups.isEmpty {
+            Text("No local shipment groups matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ShipmentGroupContextStrip(groups: groups)
+          }
+        }
+
+        Panel(title: "Import queue context", symbol: "tray.and.arrow.down.fill") {
+          let items = store.importQueueItems(for: order)
+
+          if items.isEmpty {
+            Text("No local import queue items matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ImportQueueContextStrip(items: items)
+          }
+        }
+
+        Panel(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
+          let records = store.acceptanceRecords(for: order)
+
+          if records.isEmpty {
+            Text("No local acceptance records matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            AcceptanceHistoryStrip(records: records)
+          }
+        }
+
+        Panel(title: "Exception playbooks", symbol: "book.closed.fill") {
+          let playbooks = store.suggestedPlaybooks(for: order)
+
+          if playbooks.isEmpty {
+            Text("No local exception playbooks matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            ExceptionPlaybookStrip(playbooks: playbooks)
+          }
+        }
+
+        Panel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+          let notes = store.handoffNotes(for: order)
+
+          if notes.isEmpty {
+            Text("No local handoff notes matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            HandoffNoteStrip(notes: notes)
+          }
         }
 
         Panel(title: "SLA context", symbol: "timer") {
@@ -199,12 +502,22 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(events) { event in
-                TrackingEventRow(event: event, order: order) {
+                TrackingEventRow(event: event, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
                   store.removeTrackingEvent(event)
                 } onCreateTask: {
                   store.createReviewTask(from: event)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: event)
+                } onDraftFromContact: { contact in
+                  store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+                } onCreateProfile: {
+                  store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+                } onTaskFromProfile: { profile in
+                  store.createReviewTask(from: profile)
+                } onDraftFromProfile: { profile in
+                  store.createDraftMessage(from: profile)
                 } relatedTasks: {
                   store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }
@@ -237,12 +550,16 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
               ForEach(attachments) { attachment in
-                EvidenceAttachmentRow(attachment: attachment) {
+                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
                   store.removeEvidence(attachment)
                 } onCreateTask: {
                   store.createReviewTask(from: attachment)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: attachment)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
                 }
               }
             }
