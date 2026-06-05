@@ -49,7 +49,7 @@ struct ReceivingInspectionsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredInspections) { inspection in
-              ReceivingInspectionRow(inspection: inspection, inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection)) { updatedInspection in
+              ReceivingInspectionRow(inspection: inspection, inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: inspection)) { updatedInspection in
                 store.updateReceivingInspection(updatedInspection)
               } onInspected: {
                 store.markReceivingInspectionInspected(inspection)
@@ -170,6 +170,7 @@ struct ReceivingInspectionRow: View {
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
+  var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (ReceivingInspectionRecord) -> Void
   var onInspected: () -> Void
   var onDiscrepancy: () -> Void

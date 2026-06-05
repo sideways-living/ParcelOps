@@ -272,6 +272,16 @@ struct DashboardView: View {
             CompactShipmentManifestList(records: Array((store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans).prefix(4)))
           }
 
+          AnalyticsSection(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
+            MetricStrip(items: [
+              ("Review", "\(store.dispatchChecklistsNeedingReview.count)", .orange),
+              ("Blocked", "\(store.blockedDispatchChecklists.count)", .red),
+              ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .blue),
+              ("Missing", "\(store.dispatchChecklistsMissingRequirements.count)", .red)
+            ])
+            CompactDispatchReadinessList(checklists: Array((store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests).prefix(4)))
+          }
+
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
             MetricStrip(items: [
               ("Enabled", "\(store.enabledAccountRecordCount)", .green),
@@ -866,6 +876,23 @@ struct CompactShipmentManifestList: View {
           detail: "\(record.carrierCourier) • \(record.destinationSummary)",
           badge: record.dispatchStatus.rawValue,
           color: record.dispatchStatus.color
+        )
+      }
+    }
+  }
+}
+
+struct CompactDispatchReadinessList: View {
+  var checklists: [DispatchReadinessChecklist]
+
+  var body: some View {
+    CompactList(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
+      ForEach(checklists) { checklist in
+        CompactRow(
+          title: checklist.title,
+          detail: "\(checklist.checklistType.rawValue) • \(checklist.plannedDispatchDate)",
+          badge: checklist.checklistStatus.rawValue,
+          color: checklist.checklistStatus.color
         )
       }
     }

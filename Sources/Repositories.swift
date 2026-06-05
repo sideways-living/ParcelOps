@@ -165,6 +165,11 @@ protocol ShipmentManifestRepository {
   func saveShipmentManifestRecords(_ records: [ShipmentManifestRecord])
 }
 
+protocol DispatchReadinessRepository {
+  func loadDispatchReadinessChecklists() -> [DispatchReadinessChecklist]
+  func saveDispatchReadinessChecklists(_ checklists: [DispatchReadinessChecklist])
+}
+
 protocol AccountCredentialRepository {
   func loadAccountCredentialRecords() -> [AccountCredentialRecord]
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord])
@@ -190,7 +195,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -496,6 +501,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(records, to: .shipmentManifestRecords)
   }
 
+  func loadDispatchReadinessChecklists() -> [DispatchReadinessChecklist] {
+    load([DispatchReadinessChecklist].self, from: .dispatchReadinessChecklists, defaultValue: SampleData.dispatchReadinessChecklists)
+  }
+
+  func saveDispatchReadinessChecklists(_ checklists: [DispatchReadinessChecklist]) {
+    save(checklists, to: .dispatchReadinessChecklists)
+  }
+
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] {
     load([AccountCredentialRecord].self, from: .accountCredentialRecords, defaultValue: SampleData.accountCredentialRecords)
   }
@@ -628,6 +641,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case labelReferenceRecords = "label-reference-records.json"
     case scanSessionRecords = "scan-session-records.json"
     case shipmentManifestRecords = "shipment-manifest-records.json"
+    case dispatchReadinessChecklists = "dispatch-readiness-checklists.json"
     case accountCredentialRecords = "account-credential-records.json"
     case vendorProfiles = "vendor-profiles.json"
     case shipmentGroups = "shipment-groups.json"
@@ -636,7 +650,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -673,6 +687,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var labelReferenceRecords = SampleData.labelReferenceRecords
   private var scanSessionRecords = SampleData.scanSessionRecords
   private var shipmentManifestRecords = SampleData.shipmentManifestRecords
+  private var dispatchReadinessChecklists = SampleData.dispatchReadinessChecklists
   private var accountCredentialRecords = SampleData.accountCredentialRecords
   private var vendorProfiles = SampleData.vendorProfiles
   private var shipmentGroups = SampleData.shipmentGroups
@@ -777,6 +792,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   func saveScanSessionRecords(_ records: [ScanSessionRecord]) { scanSessionRecords = records }
   func loadShipmentManifestRecords() -> [ShipmentManifestRecord] { shipmentManifestRecords }
   func saveShipmentManifestRecords(_ records: [ShipmentManifestRecord]) { shipmentManifestRecords = records }
+  func loadDispatchReadinessChecklists() -> [DispatchReadinessChecklist] { dispatchReadinessChecklists }
+  func saveDispatchReadinessChecklists(_ checklists: [DispatchReadinessChecklist]) { dispatchReadinessChecklists = checklists }
 
   func loadAccountCredentialRecords() -> [AccountCredentialRecord] { accountCredentialRecords }
   func saveAccountCredentialRecords(_ accounts: [AccountCredentialRecord]) { accountCredentialRecords = accounts }

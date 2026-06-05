@@ -410,7 +410,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item)) {
+            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
               store.createDraftMessage(from: item)
@@ -1075,6 +1075,30 @@ struct NeedsReviewView: View {
               store.createDraftMessage(from: record)
             } onRemove: {
               store.removeShipmentManifestRecord(record)
+            }
+          }
+        }
+
+        SettingsPanel(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
+          ForEach(Array(Set(store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests))) { checklist in
+            DispatchReadinessRow(checklist: checklist) { updatedChecklist in
+              store.updateDispatchReadinessChecklist(updatedChecklist)
+            } onReady: {
+              store.markDispatchChecklistReady(checklist)
+            } onBlocked: {
+              store.markDispatchChecklistBlocked(checklist)
+            } onCompleted: {
+              store.markDispatchChecklistCompleted(checklist)
+            } onReopen: {
+              store.reopenDispatchChecklist(checklist)
+            } onReviewed: {
+              store.markDispatchChecklistReviewed(checklist)
+            } onCreateTask: {
+              store.createReviewTask(from: checklist)
+            } onCreateDraft: {
+              store.createDraftMessage(from: checklist)
+            } onRemove: {
+              store.removeDispatchReadinessChecklist(checklist)
             }
           }
         }

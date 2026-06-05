@@ -45,6 +45,7 @@ final class ParcelOpsStore {
   var labelReferenceRecords: [LabelReferenceRecord]
   var scanSessionRecords: [ScanSessionRecord]
   var shipmentManifestRecords: [ShipmentManifestRecord]
+  var dispatchReadinessChecklists: [DispatchReadinessChecklist]
   var accountCredentialRecords: [AccountCredentialRecord]
   var vendorProfiles: [VendorProfile]
   var shipmentGroups: [ShipmentGroup]
@@ -82,6 +83,7 @@ final class ParcelOpsStore {
   private let labelReferenceRepository: LabelReferenceRepository
   private let scanSessionRepository: ScanSessionRepository
   private let shipmentManifestRepository: ShipmentManifestRepository
+  private let dispatchReadinessRepository: DispatchReadinessRepository
   private let accountCredentialRepository: AccountCredentialRepository
   private let vendorProfileRepository: VendorProfileRepository
   private let shipmentGroupRepository: ShipmentGroupRepository
@@ -94,7 +96,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -136,6 +138,7 @@ final class ParcelOpsStore {
     self.labelReferenceRepository = repository
     self.scanSessionRepository = repository
     self.shipmentManifestRepository = repository
+    self.dispatchReadinessRepository = repository
     self.accountCredentialRepository = repository
     self.vendorProfileRepository = repository
     self.shipmentGroupRepository = repository
@@ -183,6 +186,7 @@ final class ParcelOpsStore {
     self.labelReferenceRecords = repository.loadLabelReferenceRecords()
     self.scanSessionRecords = repository.loadScanSessionRecords()
     self.shipmentManifestRecords = repository.loadShipmentManifestRecords()
+    self.dispatchReadinessChecklists = repository.loadDispatchReadinessChecklists()
     self.accountCredentialRecords = repository.loadAccountCredentialRecords()
     self.vendorProfiles = repository.loadVendorProfiles()
     self.shipmentGroups = repository.loadShipmentGroups()
@@ -215,7 +219,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -692,6 +696,36 @@ final class ParcelOpsStore {
     }
   }
 
+  var dispatchChecklistsNeedingReview: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.reviewState != .accepted }
+  }
+
+  var blockedDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.checklistStatus == .blockedNeedsReview }
+  }
+
+  var incompleteDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.checklistStatus == .draft || $0.checklistStatus == .ready || $0.checklistStatus == .reopened }
+  }
+
+  var highRiskDispatchChecklists: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
+  }
+
+  var dispatchChecklistsMissingRequirements: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter {
+      !$0.missingRequirementsSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !$0.missingRequirementsSummary.localizedCaseInsensitiveContains("no missing")
+    }
+  }
+
+  var dispatchChecklistsLinkedToBlockedManifests: [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { checklist in
+      guard let manifestID = checklist.shipmentManifestID else { return false }
+      return shipmentManifestRecords.contains { $0.id == manifestID && $0.dispatchStatus == .blockedNeedsReview }
+    }
+  }
+
   var enabledAccountRecordCount: Int {
     accountCredentialRecords.filter(\.isEnabled).count
   }
@@ -894,6 +928,7 @@ final class ParcelOpsStore {
       + labelReferenceWorkbenchItems()
       + scanSessionWorkbenchItems()
       + shipmentManifestWorkbenchItems()
+      + dispatchChecklistWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems())
       .sorted { lhs, rhs in
@@ -2811,6 +2846,25 @@ final class ParcelOpsStore {
         reviewState: record.reviewState,
         source: .shipmentManifest,
         suggestedNextAction: record.dispatchStatus == .handedOff ? "Review completed handoff" : "Prepare, dispatch, hand off, or unblock manifest"
+      )
+    }
+  }
+
+  private func dispatchChecklistWorkbenchItems() -> [WorkbenchItem] {
+    Array(Set(dispatchChecklistsNeedingReview + blockedDispatchChecklists + incompleteDispatchChecklists + highRiskDispatchChecklists + dispatchChecklistsMissingRequirements + dispatchChecklistsLinkedToBlockedManifests)).map { checklist in
+      WorkbenchItem(
+        id: "dispatch-checklist-\(checklist.id.uuidString)",
+        title: checklist.title,
+        summary: "\(checklist.checklistType.rawValue) • \(checklist.requiredChecksSummary)",
+        linkedEntityType: .dispatchChecklist,
+        linkedEntityID: checklist.id.uuidString,
+        prioritySeverity: checklist.checklistStatus == .blockedNeedsReview || checklist.riskLevel == .critical ? "High" : checklist.riskLevel.rawValue,
+        status: checklist.checklistStatus.rawValue,
+        assignee: checklist.assignedOwnerTeam,
+        dueDateText: checklist.plannedDispatchDate,
+        reviewState: checklist.reviewState,
+        source: .dispatchChecklist,
+        suggestedNextAction: checklist.checklistStatus == .completed ? "Review completed readiness checklist" : "Clear missing requirements or complete readiness check"
       )
     }
   }
@@ -6653,6 +6707,141 @@ final class ParcelOpsStore {
     suggestedShipmentManifestRecords(orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, packageContentID: suggestedPackageContents(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, scanSessionID: suggestedScanSessionRecords(for: item).first?.id, evidenceID: nil, storageLocationID: suggestedStorageLocations(for: item).first?.id, carrierCourier: "", ownerTeam: item.assignee, locationText: item.summary, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
 
+  func filteredDispatchReadinessChecklists(checklistType: DispatchChecklistType?, checklistStatus: DispatchChecklistStatus?, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { checklist in
+      let matchesType = checklistType == nil || checklist.checklistType == checklistType
+      let matchesStatus = checklistStatus == nil || checklist.checklistStatus == checklistStatus
+      let matchesOwner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || checklist.assignedOwnerTeam.localizedCaseInsensitiveContains(ownerTeam)
+      let matchesRisk = riskLevel == nil || checklist.riskLevel == riskLevel
+      let matchesLinked = linkedEntityType == nil || checklist.linkedEntityType == linkedEntityType
+      let matchesReview = reviewState == nil || checklist.reviewState == reviewState
+      return matchesType && matchesStatus && matchesOwner && matchesRisk && matchesLinked && matchesReview
+    }
+  }
+
+  func addDispatchReadinessChecklistPlaceholder() {
+    let manifest = shipmentManifestRecords.first
+    let checklist = DispatchReadinessChecklist(title: "New dispatch checklist \(dispatchReadinessChecklists.count + 1)", linkedEntityType: .shipmentManifest, linkedEntityID: manifest?.id.uuidString ?? "Unlinked", shipmentManifestID: manifest?.id, orderIDs: manifest?.includedOrderIDs ?? orders.prefix(1).map(\.id), shipmentGroupIDs: manifest?.shipmentGroupIDs ?? shipmentGroups.prefix(1).map(\.id), inventoryReceiptIDs: manifest?.inventoryReceiptIDs ?? inventoryReceipts.prefix(1).map(\.id), packageContentIDs: manifest?.packageContentIDs ?? packageContents.prefix(1).map(\.id), custodyRecordIDs: manifest?.custodyRecordIDs ?? custodyRecords.prefix(1).map(\.id), labelReferenceIDs: manifest?.labelReferenceIDs ?? labelReferenceRecords.prefix(1).map(\.id), scanSessionIDs: manifest?.scanSessionIDs ?? scanSessionRecords.prefix(1).map(\.id), evidenceAttachmentIDs: manifest?.evidenceAttachmentIDs ?? evidenceAttachments.prefix(1).map(\.id), checklistType: .manifestReadiness, checklistStatus: .draft, requiredChecksSummary: "Confirm manifest, labels, scans, custody, destination, and evidence before dispatch.", completedChecksSummary: "No readiness checks completed yet.", missingRequirementsSummary: "Readiness checks still need completion.", assignedOwnerTeam: manifest?.assignedOwnerTeam ?? "ParcelOps Operations", plannedDispatchDate: manifest?.plannedDispatchDate ?? "To schedule", completedDate: "Not completed", riskLevel: .medium, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
+    dispatchReadinessChecklists.insert(checklist, at: 0)
+    persistDispatchReadinessChecklists()
+    logAudit(action: .created, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Dispatch readiness checklist placeholder added.", afterDetail: checklist.auditDetail)
+  }
+
+  func updateDispatchReadinessChecklist(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index] = checklist
+    persistDispatchReadinessChecklists()
+    logAudit(action: .edited, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Dispatch readiness checklist details updated.", beforeDetail: beforeDetail, afterDetail: checklist.auditDetail)
+  }
+
+  func markDispatchChecklistReady(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .ready, reviewState: .monitor, summary: "Dispatch readiness checklist marked ready locally.", action: .edited)
+  }
+
+  func markDispatchChecklistBlocked(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .blockedNeedsReview, reviewState: .needsReview, summary: "Dispatch readiness checklist blocked and needs review.", action: .edited, forceHighRisk: true)
+  }
+
+  func markDispatchChecklistCompleted(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .completed, reviewState: .accepted, summary: "Dispatch readiness checklist completed locally.", action: .completed, completedDate: Self.auditTimestamp())
+  }
+
+  func reopenDispatchChecklist(_ checklist: DispatchReadinessChecklist) {
+    updateDispatchChecklistStatus(checklist, status: .reopened, reviewState: .needsReview, summary: "Dispatch readiness checklist reopened.", action: .reopened)
+  }
+
+  func markDispatchChecklistReviewed(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index].reviewState = .accepted
+    dispatchReadinessChecklists[index].lastReviewedDate = Self.auditTimestamp()
+    persistDispatchReadinessChecklists()
+    logAudit(action: .reviewed, entityType: .dispatchChecklist, entityID: dispatchReadinessChecklists[index].id.uuidString, entityLabel: dispatchReadinessChecklists[index].title, summary: "Dispatch readiness checklist marked reviewed.", beforeDetail: beforeDetail, afterDetail: dispatchReadinessChecklists[index].auditDetail)
+  }
+
+  func removeDispatchReadinessChecklist(_ checklist: DispatchReadinessChecklist) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let removed = dispatchReadinessChecklists.remove(at: index)
+    persistDispatchReadinessChecklists()
+    logAudit(action: .removed, entityType: .dispatchChecklist, entityID: removed.id.uuidString, entityLabel: removed.title, summary: "Dispatch readiness checklist removed.", beforeDetail: removed.auditDetail)
+  }
+
+  func createReviewTask(from checklist: DispatchReadinessChecklist) {
+    createReviewTask(linkedEntityType: .dispatchChecklist, linkedEntityID: checklist.id.uuidString, label: checklist.title, summary: "Review dispatch readiness: \(checklist.missingRequirementsSummary).", priority: checklist.riskLevel == .critical ? .urgent : checklist.riskLevel == .high ? .high : .normal, assignee: checklist.assignedOwnerTeam)
+  }
+
+  func createDraftMessage(from checklist: DispatchReadinessChecklist) {
+    createDraftMessage(linkedEntityType: .dispatchChecklist, linkedEntityID: checklist.id.uuidString, label: checklist.title, recipient: checklist.assignedOwnerTeam)
+    logAudit(action: .created, entityType: .dispatchChecklist, entityID: checklist.id.uuidString, entityLabel: checklist.title, summary: "Draft message created from dispatch readiness checklist.", afterDetail: checklist.auditDetail)
+  }
+
+  private func updateDispatchChecklistStatus(_ checklist: DispatchReadinessChecklist, status: DispatchChecklistStatus, reviewState: ReviewState, summary: String, action: AuditAction, forceHighRisk: Bool = false, completedDate: String? = nil) {
+    guard let index = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { return }
+    let beforeDetail = dispatchReadinessChecklists[index].auditDetail
+    dispatchReadinessChecklists[index].checklistStatus = status
+    dispatchReadinessChecklists[index].reviewState = reviewState
+    dispatchReadinessChecklists[index].lastReviewedDate = Self.auditTimestamp()
+    if let completedDate { dispatchReadinessChecklists[index].completedDate = completedDate }
+    if forceHighRisk {
+      dispatchReadinessChecklists[index].riskLevel = dispatchReadinessChecklists[index].riskLevel == .critical ? .critical : .high
+    }
+    persistDispatchReadinessChecklists()
+    logAudit(action: action, entityType: .dispatchChecklist, entityID: dispatchReadinessChecklists[index].id.uuidString, entityLabel: dispatchReadinessChecklists[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: dispatchReadinessChecklists[index].auditDetail)
+  }
+
+  private func suggestedDispatchReadinessChecklists(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DispatchReadinessChecklist] {
+    dispatchReadinessChecklists.filter { $0.matches(shipmentManifestID: shipmentManifestID, orderID: orderID, shipmentGroupID: shipmentGroupID, inventoryReceiptID: inventoryReceiptID, packageContentID: packageContentID, custodyRecordID: custodyRecordID, labelReferenceID: labelReferenceID, scanSessionID: scanSessionID, evidenceID: evidenceID, ownerTeam: ownerTeam, dateText: dateText, context: context, linkedEntityType: linkedEntityType, linkedEntityID: linkedEntityID) }
+  }
+
+  func suggestedDispatchReadinessChecklists(for manifest: ShipmentManifestRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: manifest.id, orderID: manifest.includedOrderIDs.first, shipmentGroupID: manifest.shipmentGroupIDs.first, inventoryReceiptID: manifest.inventoryReceiptIDs.first, packageContentID: manifest.packageContentIDs.first, custodyRecordID: manifest.custodyRecordIDs.first, labelReferenceID: manifest.labelReferenceIDs.first, scanSessionID: manifest.scanSessionIDs.first, evidenceID: manifest.evidenceAttachmentIDs.first, ownerTeam: manifest.assignedOwnerTeam, dateText: manifest.plannedDispatchDate, context: "\(manifest.title) \(manifest.notes)", linkedEntityType: .shipmentManifest, linkedEntityID: manifest.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for scan: ScanSessionRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: scan).first?.id, orderID: scan.orderID, shipmentGroupID: scan.shipmentGroupID, inventoryReceiptID: scan.inventoryReceiptID, packageContentID: scan.packageContentID, custodyRecordID: scan.custodyRecordID, labelReferenceID: scan.linkedLabelReferenceID, scanSessionID: scan.id, evidenceID: scan.evidenceAttachmentIDs.first, ownerTeam: scan.assignedOperatorTeam, dateText: scan.completedDate, context: "\(scan.title) \(scan.notes)", linkedEntityType: .scanSession, linkedEntityID: scan.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for label: LabelReferenceRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: label).first?.id, orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, inventoryReceiptID: label.inventoryReceiptID, packageContentID: label.packageContentID, custodyRecordID: label.custodyRecordID, labelReferenceID: label.id, scanSessionID: suggestedScanSessionRecords(for: label).first?.id, evidenceID: label.evidenceAttachmentIDs.first, ownerTeam: label.assignedOwnerTeam, dateText: label.lastReviewedDate, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for order: TrackedOrder) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: order).first?.id, orderID: order.id, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: order).first?.id, packageContentID: suggestedPackageContents(for: order).first?.id, custodyRecordID: suggestedCustodyRecords(for: order).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: order).first?.id, scanSessionID: suggestedScanSessionRecords(for: order).first?.id, evidenceID: nil, ownerTeam: order.customer, dateText: "", context: "\(order.store) \(order.orderNumber) \(order.destination)", linkedEntityType: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for location: StorageLocationRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: location).first?.id, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, inventoryReceiptID: location.inventoryReceiptIDs.first, packageContentID: location.packageContentIDs.first, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, scanSessionID: suggestedScanSessionRecords(for: location).first?.id, evidenceID: nil, ownerTeam: location.assignedOwnerTeam, dateText: "", context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for custody: CustodyRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: custody).first?.id, orderID: custody.orderID, shipmentGroupID: custody.shipmentGroupID, inventoryReceiptID: custody.inventoryReceiptID, packageContentID: custody.packageContentID, custodyRecordID: custody.id, labelReferenceID: suggestedLabelReferenceRecords(for: custody).first?.id, scanSessionID: suggestedScanSessionRecords(for: custody).first?.id, evidenceID: custody.evidenceAttachmentIDs.first, ownerTeam: custody.assignedOwnerTeam, dateText: custody.expectedReturnCloseDate, context: "\(custody.title) \(custody.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: custody.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for receipt: InventoryReceiptRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: receipt).first?.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, inventoryReceiptID: receipt.id, packageContentID: receipt.packageContentID, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: receipt).first?.id, scanSessionID: suggestedScanSessionRecords(for: receipt).first?.id, evidenceID: receipt.evidenceAttachmentIDs.first, ownerTeam: receipt.assignedOwnerTeam, dateText: receipt.handoffDate, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for inspection: ReceivingInspectionRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: inspection).first?.id, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, packageContentID: inspection.packageContentID, custodyRecordID: suggestedCustodyRecords(for: inspection).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: inspection).first?.id, scanSessionID: suggestedScanSessionRecords(for: inspection).first?.id, evidenceID: inspection.evidenceAttachmentIDs.first, ownerTeam: inspection.assignedInspectorTeam, dateText: inspection.dueDate, context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for content: PackageContentRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: content).first?.id, orderID: content.orderID, shipmentGroupID: content.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: content).first?.id, packageContentID: content.id, custodyRecordID: suggestedCustodyRecords(for: content).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: content).first?.id, scanSessionID: suggestedScanSessionRecords(for: content).first?.id, evidenceID: content.evidenceAttachmentIDs.first, ownerTeam: "", dateText: "", context: "\(content.title) \(content.itemSummary)", linkedEntityType: .packageContent, linkedEntityID: content.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for request: ProcurementRequest) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: request).first?.id, orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: request).first?.id, packageContentID: request.packageContentID, custodyRecordID: suggestedCustodyRecords(for: request).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: request).first?.id, scanSessionID: suggestedScanSessionRecords(for: request).first?.id, evidenceID: request.evidenceAttachmentIDs.first, ownerTeam: request.assignedBuyerTeam, dateText: request.neededByDate, context: "\(request.title) \(request.requestedItemsSummary)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for claim: ReturnClaimRecord) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, inventoryReceiptID: suggestedInventoryReceipts(for: claim).first?.id, packageContentID: claim.packageContentID, custodyRecordID: suggestedCustodyRecords(for: claim).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: claim).first?.id, scanSessionID: suggestedScanSessionRecords(for: claim).first?.id, evidenceID: claim.evidenceAttachmentIDs.first, ownerTeam: claim.assignedOwnerTeam, dateText: claim.dueDate, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
+  }
+
+  func suggestedDispatchReadinessChecklists(for item: WorkbenchItem) -> [DispatchReadinessChecklist] {
+    suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: item).first?.id, orderID: nil, shipmentGroupID: nil, inventoryReceiptID: suggestedInventoryReceipts(for: item).first?.id, packageContentID: suggestedPackageContents(for: item).first?.id, custodyRecordID: suggestedCustodyRecords(for: item).first?.id, labelReferenceID: suggestedLabelReferenceRecords(for: item).first?.id, scanSessionID: suggestedScanSessionRecords(for: item).first?.id, evidenceID: nil, ownerTeam: item.assignee, dateText: item.dueDateText, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
+  }
+
   func filteredLabelReferenceRecords(labelType: LabelReferenceType?, labelStatus: LabelReferenceStatus?, labelSource: LabelReferenceSource?, carrier: String, ownerTeam: String, riskLevel: ShipmentRiskLevel?, linkedEntityType: ReviewTaskLinkedEntityType?, reviewState: ReviewState?) -> [LabelReferenceRecord] {
     labelReferenceRecords.filter { record in
       let matchesType = labelType == nil || record.labelType == labelType
@@ -7281,6 +7470,10 @@ final class ParcelOpsStore {
       if let record = shipmentManifestRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markShipmentManifestReviewed(record)
       }
+    case .dispatchChecklist:
+      if let checklist = dispatchReadinessChecklists.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markDispatchChecklistReviewed(checklist)
+      }
     case .account:
       if let account = accountCredentialRecords.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markAccountCredentialRecordReviewed(account)
@@ -7587,6 +7780,10 @@ final class ParcelOpsStore {
 
   private func persistShipmentManifestRecords() {
     shipmentManifestRepository.saveShipmentManifestRecords(shipmentManifestRecords)
+  }
+
+  private func persistDispatchReadinessChecklists() {
+    dispatchReadinessRepository.saveDispatchReadinessChecklists(dispatchReadinessChecklists)
   }
 
   private func persistAccountCredentialRecords() {
@@ -8265,6 +8462,42 @@ private extension ShipmentManifestRecord {
         || contextText.localizedCaseInsensitiveContains(manifestType.rawValue)
     )
     return orderMatch || groupMatch || receiptMatch || contentMatch || custodyMatch || labelMatch || scanMatch || evidenceMatch || locationMatch || linkedMatch || carrierMatch || ownerMatch || locationTextMatch || contextMatch
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var auditDetail: String {
+    "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); manifest: \(shipmentManifestID?.uuidString ?? "none"); orders: \(orderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); type: \(checklistType.rawValue); status: \(checklistStatus.rawValue); required: \(requiredChecksSummary); completed: \(completedChecksSummary); missing: \(missingRequirementsSummary); owner: \(assignedOwnerTeam); planned: \(plannedDispatchDate); completed date: \(completedDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate)."
+  }
+
+  func matches(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
+    let manifestMatch = shipmentManifestID != nil && self.shipmentManifestID == shipmentManifestID
+    let orderMatch = orderID != nil && orderIDs.contains(orderID!)
+    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
+    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
+    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
+    let custodyMatch = custodyRecordID != nil && custodyRecordIDs.contains(custodyRecordID!)
+    let labelMatch = labelReferenceID != nil && labelReferenceIDs.contains(labelReferenceID!)
+    let scanMatch = scanSessionID != nil && scanSessionIDs.contains(scanSessionID!)
+    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
+    let ownerText = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ownerMatch = !ownerText.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(ownerText) || ownerText.localizedCaseInsensitiveContains(assignedOwnerTeam))
+    let date = dateText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let dateMatch = !date.isEmpty && (plannedDispatchDate.localizedCaseInsensitiveContains(date) || date.localizedCaseInsensitiveContains(plannedDispatchDate))
+    let contextText = context.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contextMatch = !contextText.isEmpty && (
+      title.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(title)
+        || requiredChecksSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(requiredChecksSummary)
+        || completedChecksSummary.localizedCaseInsensitiveContains(contextText)
+        || missingRequirementsSummary.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(missingRequirementsSummary)
+        || checklistType.rawValue.localizedCaseInsensitiveContains(contextText)
+        || contextText.localizedCaseInsensitiveContains(checklistType.rawValue)
+    )
+    return manifestMatch || orderMatch || groupMatch || receiptMatch || contentMatch || custodyMatch || labelMatch || scanMatch || evidenceMatch || linkedMatch || ownerMatch || dateMatch || contextMatch
   }
 }
 

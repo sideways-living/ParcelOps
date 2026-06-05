@@ -49,7 +49,7 @@ struct ReturnsClaimsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredClaims) { claim in
-              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim), shipmentManifests: store.suggestedShipmentManifestRecords(for: claim)) { updatedClaim in
+              ReturnClaimRow(claim: claim, procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim), shipmentManifests: store.suggestedShipmentManifestRecords(for: claim), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: claim)) { updatedClaim in
                 store.updateReturnClaim(updatedClaim)
               } onSubmitted: {
                 store.markReturnClaimSubmitted(claim)
@@ -172,6 +172,7 @@ struct ReturnClaimRow: View {
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
+  var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (ReturnClaimRecord) -> Void
   var onSubmitted: () -> Void
   var onApproved: () -> Void

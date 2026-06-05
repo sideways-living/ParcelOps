@@ -42,7 +42,7 @@ struct LabelReferencesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record)) { updatedRecord in
+              LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateLabelReferenceRecord(updatedRecord)
               } onPrinted: {
                 store.markLabelReferencePrinted(record)
@@ -148,6 +148,7 @@ struct LabelReferenceRow: View {
   var record: LabelReferenceRecord
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
+  var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (LabelReferenceRecord) -> Void
   var onPrinted: () -> Void
   var onVerified: () -> Void

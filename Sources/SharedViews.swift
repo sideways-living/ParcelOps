@@ -132,6 +132,7 @@ extension AuditEntityType {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .accountCredentialRecord: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -169,6 +170,7 @@ extension TimelineEntityType {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -255,6 +257,7 @@ extension WorkbenchSource {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     }
@@ -302,7 +305,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .account, .vendorProfile:
+    case .reviewTask, .handoffNote, .intakeEmail, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile:
       true
     case .importQueue, .acceptanceReview, .validation:
       false
@@ -1273,6 +1276,43 @@ extension CustodyHandoffMethod {
   }
 }
 
+struct DispatchReadinessStrip: View {
+  var checklists: [DispatchReadinessChecklist]
+
+  var body: some View {
+    if !checklists.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Dispatch readiness", systemImage: "checkmark.rectangle.stack.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        ForEach(checklists.prefix(3)) { checklist in
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: checklist.checklistType.symbol)
+              .foregroundStyle(checklist.checklistStatus.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(checklist.title)
+                .font(.caption.weight(.semibold))
+              Text("\(checklist.checklistType.rawValue) • \(checklist.plannedDispatchDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(checklist.missingRequirementsSummary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer()
+            Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
+          }
+        }
+      }
+      .padding(10)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+}
+
 extension LabelReferenceType {
   var symbol: String {
     switch self {
@@ -1330,6 +1370,7 @@ extension ShipmentManifestType {
   var symbol: String {
     switch self {
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .dispatchBatch: "shippingbox.and.arrow.backward.fill"
     case .courierHandoff: "person.badge.shield.checkmark.fill"
     case .internalDeliveryRun: "arrow.triangle.swap"
@@ -1346,6 +1387,31 @@ extension ShipmentManifestDispatchStatus {
     case .dispatched: .purple
     case .handedOff: .green
     case .blockedNeedsReview: .red
+    case .reopened: .orange
+    }
+  }
+}
+
+extension DispatchChecklistType {
+  var symbol: String {
+    switch self {
+    case .manifestReadiness: "list.bullet.clipboard.fill"
+    case .labelAndScan: "qrcode.viewfinder"
+    case .custodyHandoff: "person.badge.shield.checkmark.fill"
+    case .destinationReview: "mappin.and.ellipse"
+    case .exceptionClearance: "checkmark.shield.fill"
+    case .outboundTransfer: "tray.and.arrow.up.fill"
+    }
+  }
+}
+
+extension DispatchChecklistStatus {
+  var color: Color {
+    switch self {
+    case .draft: .gray
+    case .ready: .blue
+    case .blockedNeedsReview: .red
+    case .completed: .green
     case .reopened: .orange
     }
   }
@@ -1523,6 +1589,7 @@ extension ContactLinkedEntityType {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .trackingEvent: "location.fill.viewfinder"
@@ -1569,6 +1636,7 @@ extension AccountLinkedEntityType {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .order: "shippingbox.fill"
     case .intakeEmail: "envelope.open.fill"
     case .integration: "point.3.connected.trianglepath.dotted"
@@ -1618,6 +1686,7 @@ extension ReviewTaskLinkedEntityType {
     case .labelReference: "barcode.viewfinder"
     case .scanSession: "qrcode.viewfinder"
     case .shipmentManifest: "list.bullet.clipboard.fill"
+    case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
@@ -1731,7 +1800,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return id.uuidString == linkedEntityID
     }
@@ -1811,6 +1880,7 @@ extension TimelineActivity {
     case .labelReference: .labelReference
     case .scanSession: .scanSession
     case .shipmentManifest: .shipmentManifest
+    case .dispatchChecklist: .dispatchChecklist
     case .account: .account
     case .vendorProfile: .vendorProfile
     case .shipmentGroup: .shipmentGroup

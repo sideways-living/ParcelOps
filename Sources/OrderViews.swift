@@ -320,6 +320,17 @@ struct OrderDetailView: View {
           }
         }
 
+        Panel(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
+          let checklists = store.suggestedDispatchReadinessChecklists(for: order)
+
+          if checklists.isEmpty {
+            Text("No local dispatch readiness checklists matched this order.")
+              .foregroundStyle(.secondary)
+          } else {
+            DispatchReadinessStrip(checklists: checklists)
+          }
+        }
+
         Panel(title: "Suggested accounts", symbol: "key.horizontal.fill") {
           let accounts = store.suggestedAccounts(for: order)
 

@@ -1,10 +1,9 @@
 import SwiftUI
 
-struct ShipmentManifestsView: View {
+struct DispatchReadinessView: View {
   var store: ParcelOpsStore
-  @State private var selectedType: ShipmentManifestType?
-  @State private var carrierCourier = ""
-  @State private var selectedStatus: ShipmentManifestDispatchStatus?
+  @State private var selectedType: DispatchChecklistType?
+  @State private var selectedStatus: DispatchChecklistStatus?
   @State private var ownerTeam = ""
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
@@ -12,8 +11,8 @@ struct ShipmentManifestsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [ShipmentManifestRecord] {
-    store.filteredShipmentManifestRecords(manifestType: selectedType, carrierCourier: carrierCourier, dispatchStatus: selectedStatus, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  private var filteredChecklists: [DispatchReadinessChecklist] {
+    store.filteredDispatchReadinessChecklists(checklistType: selectedType, checklistStatus: selectedStatus, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
   }
 
   var body: some View {
@@ -22,45 +21,43 @@ struct ShipmentManifestsView: View {
         header
         filterBar
 
-        SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {
+        SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
           HStack {
-            Text("\(filteredRecords.count) visible manifests")
+            Text("\(filteredChecklists.count) visible checklists")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Add manifest", systemImage: "plus", action: store.addShipmentManifestPlaceholder)
+            Button("Add checklist", systemImage: "plus", action: store.addDispatchReadinessChecklistPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          if filteredRecords.isEmpty {
-            Text("No shipment manifests match the selected filters.")
+          if filteredChecklists.isEmpty {
+            Text("No dispatch readiness checklists match the selected filters.")
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(12)
               .background(.quinary)
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
-            ForEach(filteredRecords) { record in
-              ShipmentManifestRow(record: record, dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
-                store.updateShipmentManifestRecord(updatedRecord)
-              } onPrepared: {
-                store.markShipmentManifestPrepared(record)
-              } onDispatched: {
-                store.markShipmentManifestDispatched(record)
-              } onHandedOff: {
-                store.markShipmentManifestHandedOff(record)
+            ForEach(filteredChecklists) { checklist in
+              DispatchReadinessRow(checklist: checklist) { updatedChecklist in
+                store.updateDispatchReadinessChecklist(updatedChecklist)
+              } onReady: {
+                store.markDispatchChecklistReady(checklist)
               } onBlocked: {
-                store.markShipmentManifestBlocked(record)
+                store.markDispatchChecklistBlocked(checklist)
+              } onCompleted: {
+                store.markDispatchChecklistCompleted(checklist)
               } onReopen: {
-                store.reopenShipmentManifest(record)
+                store.reopenDispatchChecklist(checklist)
               } onReviewed: {
-                store.markShipmentManifestReviewed(record)
+                store.markDispatchChecklistReviewed(checklist)
               } onCreateTask: {
-                store.createReviewTask(from: record)
+                store.createReviewTask(from: checklist)
               } onCreateDraft: {
-                store.createDraftMessage(from: record)
+                store.createDraftMessage(from: checklist)
               } onRemove: {
-                store.removeShipmentManifestRecord(record)
+                store.removeDispatchReadinessChecklist(checklist)
               }
             }
           }
@@ -73,15 +70,15 @@ struct ShipmentManifestsView: View {
   private var header: some View {
     HStack(alignment: .top) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Shipment Manifests")
+        Text("Dispatch Readiness")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local dispatch batches, courier handoffs, internal delivery runs, and outbound transfer groups.")
+        Text("Local readiness checks for manifests, labels, scans, custody, destinations, and outbound handoff work.")
           .foregroundStyle(.secondary)
       }
       Spacer()
       VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.blockedShipmentManifests.count) blocked", color: .red)
-        Badge("\(store.undispatchedShipmentManifests.count) undispatched", color: .orange)
+        Badge("\(store.blockedDispatchChecklists.count) blocked", color: .red)
+        Badge("\(store.incompleteDispatchChecklists.count) incomplete", color: .orange)
       }
     }
   }
@@ -89,18 +86,14 @@ struct ShipmentManifestsView: View {
   private var filterBar: some View {
     HStack {
       Picker("Type", selection: $selectedType) {
-        Text("All types").tag(nil as ShipmentManifestType?)
-        ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type as ShipmentManifestType?) }
+        Text("All types").tag(nil as DispatchChecklistType?)
+        ForEach(DispatchChecklistType.allCases) { type in Text(type.rawValue).tag(type as DispatchChecklistType?) }
       }
       .pickerStyle(.menu)
 
-      TextField("Carrier/courier", text: $carrierCourier)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
-
       Picker("Status", selection: $selectedStatus) {
-        Text("All status").tag(nil as ShipmentManifestDispatchStatus?)
-        ForEach(ShipmentManifestDispatchStatus.allCases) { status in Text(status.rawValue).tag(status as ShipmentManifestDispatchStatus?) }
+        Text("All status").tag(nil as DispatchChecklistStatus?)
+        ForEach(DispatchChecklistStatus.allCases) { status in Text(status.rawValue).tag(status as DispatchChecklistStatus?) }
       }
       .pickerStyle(.menu)
 
@@ -129,7 +122,6 @@ struct ShipmentManifestsView: View {
       Spacer()
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedType = nil
-        carrierCourier = ""
         selectedStatus = nil
         ownerTeam = ""
         selectedRiskLevel = nil
@@ -141,14 +133,12 @@ struct ShipmentManifestsView: View {
   }
 }
 
-struct ShipmentManifestRow: View {
-  var record: ShipmentManifestRecord
-  var dispatchChecklists: [DispatchReadinessChecklist] = []
-  var onSave: (ShipmentManifestRecord) -> Void
-  var onPrepared: () -> Void
-  var onDispatched: () -> Void
-  var onHandedOff: () -> Void
+struct DispatchReadinessRow: View {
+  var checklist: DispatchReadinessChecklist
+  var onSave: (DispatchReadinessChecklist) -> Void
+  var onReady: () -> Void
   var onBlocked: () -> Void
+  var onCompleted: () -> Void
   var onReopen: () -> Void
   var onReviewed: () -> Void
   var onCreateTask: () -> Void
@@ -159,33 +149,35 @@ struct ShipmentManifestRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: record.manifestType.symbol)
-          .foregroundStyle(record.riskLevel.color)
+        Image(systemName: checklist.checklistType.symbol)
+          .foregroundStyle(checklist.riskLevel.color)
           .frame(width: 28, height: 28)
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-              Text(record.title)
+              Text(checklist.title)
                 .font(.headline)
-              Text("\(record.manifestType.rawValue) • \(record.carrierCourier)")
+              Text("\(checklist.checklistType.rawValue) • \(checklist.assignedOwnerTeam)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
+            Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
           }
-          Text(record.destinationSummary)
+          Text(checklist.requiredChecksSummary)
             .foregroundStyle(.secondary)
-          Text("\(record.manifestReferencePlaceholder) • planned \(record.plannedDispatchDate) • actual \(record.actualDispatchDate)")
+            .lineLimit(2)
+          Text("Missing: \(checklist.missingRequirementsSummary)")
             .font(.caption)
             .foregroundStyle(.secondary)
+            .lineLimit(2)
           HStack(spacing: 8) {
-            Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
-            Badge(record.reviewState.rawValue, color: record.reviewState.color)
-            Label("\(record.includedOrderIDs.count) orders", systemImage: "shippingbox.fill")
+            Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
+            Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
+            Label(checklist.plannedDispatchDate, systemImage: "calendar")
               .font(.caption)
               .foregroundStyle(.secondary)
-            Label("\(record.scanSessionIDs.count) scans", systemImage: "qrcode.viewfinder")
+            Label("\(checklist.scanSessionIDs.count) scans", systemImage: "qrcode.viewfinder")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -195,13 +187,11 @@ struct ShipmentManifestRow: View {
       HStack {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Prepared", systemImage: "checkmark.circle.fill", action: onPrepared)
-          .buttonStyle(.bordered)
-        Button("Dispatched", systemImage: "paperplane.fill", action: onDispatched)
-          .buttonStyle(.bordered)
-        Button("Handed off", systemImage: "person.badge.shield.checkmark.fill", action: onHandedOff)
+        Button("Ready", systemImage: "checkmark.circle.fill", action: onReady)
           .buttonStyle(.bordered)
         Button("Blocked", systemImage: "exclamationmark.triangle.fill", action: onBlocked)
+          .buttonStyle(.bordered)
+        Button("Complete", systemImage: "checkmark.seal.fill", action: onCompleted)
           .buttonStyle(.bordered)
         Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
           .buttonStyle(.bordered)
@@ -214,53 +204,48 @@ struct ShipmentManifestRow: View {
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
-
-      if !dispatchChecklists.isEmpty {
-        DispatchReadinessStrip(checklists: dispatchChecklists)
-      }
     }
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      ShipmentManifestEditView(record: record) { updatedRecord in
-        onSave(updatedRecord)
+      DispatchReadinessEditView(checklist: checklist) { updatedChecklist in
+        onSave(updatedChecklist)
       }
     }
   }
 }
 
-struct ShipmentManifestEditView: View {
+struct DispatchReadinessEditView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var draft: ShipmentManifestRecord
-  var onSave: (ShipmentManifestRecord) -> Void
+  @State private var draft: DispatchReadinessChecklist
+  var onSave: (DispatchReadinessChecklist) -> Void
 
-  init(record: ShipmentManifestRecord, onSave: @escaping (ShipmentManifestRecord) -> Void) {
-    self._draft = State(initialValue: record)
+  init(checklist: DispatchReadinessChecklist, onSave: @escaping (DispatchReadinessChecklist) -> Void) {
+    self._draft = State(initialValue: checklist)
     self.onSave = onSave
   }
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Manifest") {
+        Section("Checklist") {
           TextField("Title", text: $draft.title)
-          Picker("Type", selection: $draft.manifestType) {
-            ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type) }
+          Picker("Type", selection: $draft.checklistType) {
+            ForEach(DispatchChecklistType.allCases) { type in Text(type.rawValue).tag(type) }
           }
-          Picker("Status", selection: $draft.dispatchStatus) {
-            ForEach(ShipmentManifestDispatchStatus.allCases) { status in Text(status.rawValue).tag(status) }
+          Picker("Status", selection: $draft.checklistStatus) {
+            ForEach(DispatchChecklistStatus.allCases) { status in Text(status.rawValue).tag(status) }
           }
-          TextField("Carrier/courier", text: $draft.carrierCourier)
-          TextField("Destination summary", text: $draft.destinationSummary, axis: .vertical)
-          TextField("Manifest reference", text: $draft.manifestReferencePlaceholder)
+          TextField("Required checks", text: $draft.requiredChecksSummary, axis: .vertical)
+          TextField("Completed checks", text: $draft.completedChecksSummary, axis: .vertical)
+          TextField("Missing requirements", text: $draft.missingRequirementsSummary, axis: .vertical)
         }
 
         Section("Dispatch") {
           TextField("Owner/team", text: $draft.assignedOwnerTeam)
           TextField("Planned dispatch date", text: $draft.plannedDispatchDate)
-          TextField("Actual dispatch date", text: $draft.actualDispatchDate)
-          TextField("Notes", text: $draft.notes, axis: .vertical)
+          TextField("Completed date", text: $draft.completedDate)
         }
 
         Section("Review") {
@@ -279,7 +264,7 @@ struct ShipmentManifestEditView: View {
           TextField("Linked record ID", text: $draft.linkedEntityID)
         }
       }
-      .navigationTitle("Edit Manifest")
+      .navigationTitle("Edit Readiness")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: { dismiss() })

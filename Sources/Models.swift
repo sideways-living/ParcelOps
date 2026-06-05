@@ -31,6 +31,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   case labelReferences
   case scanSessions
   case shipmentManifests
+  case dispatchReadiness
   case accounts
   case vendorProfiles
   case shipmentGroups
@@ -77,6 +78,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .labelReferences: "Label References"
     case .scanSessions: "Scan Sessions"
     case .shipmentManifests: "Shipment Manifests"
+    case .dispatchReadiness: "Dispatch Readiness"
     case .accounts: "Accounts"
     case .vendorProfiles: "Vendor Profiles"
     case .shipmentGroups: "Shipment Groups"
@@ -123,6 +125,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .labelReferences: "Labels"
     case .scanSessions: "Scans"
     case .shipmentManifests: "Manifests"
+    case .dispatchReadiness: "Ready"
     case .accounts: "Accounts"
     case .vendorProfiles: "Profiles"
     case .shipmentGroups: "Groups"
@@ -169,6 +172,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .labelReferences: "barcode.viewfinder"
     case .scanSessions: "qrcode.viewfinder"
     case .shipmentManifests: "list.bullet.clipboard.fill"
+    case .dispatchReadiness: "checkmark.rectangle.stack.fill"
     case .accounts: "key.horizontal.fill"
     case .vendorProfiles: "building.2.crop.circle.fill"
     case .shipmentGroups: "shippingbox.and.arrow.backward.fill"
@@ -882,6 +886,34 @@ struct ShipmentManifestRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+struct DispatchReadinessChecklist: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var title: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var shipmentManifestID: UUID?
+  var orderIDs: [UUID]
+  var shipmentGroupIDs: [UUID]
+  var inventoryReceiptIDs: [UUID]
+  var packageContentIDs: [UUID]
+  var custodyRecordIDs: [UUID]
+  var labelReferenceIDs: [UUID]
+  var scanSessionIDs: [UUID]
+  var evidenceAttachmentIDs: [UUID]
+  var checklistType: DispatchChecklistType
+  var checklistStatus: DispatchChecklistStatus
+  var requiredChecksSummary: String
+  var completedChecksSummary: String
+  var missingRequirementsSummary: String
+  var assignedOwnerTeam: String
+  var plannedDispatchDate: String
+  var completedDate: String
+  var riskLevel: ShipmentRiskLevel
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+}
+
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var accountName: String
@@ -1146,6 +1178,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case accountCredentialRecord = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1451,6 +1484,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1522,6 +1556,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
 
@@ -1607,6 +1642,7 @@ enum AccountLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case order = "Order"
   case intakeEmail = "Intake email"
   case integration = "Integration"
@@ -1635,6 +1671,7 @@ enum ContactLinkedEntityType: String, CaseIterable, Identifiable, Hashable, Coda
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case order = "Order"
   case intakeEmail = "Intake email"
   case trackingEvent = "Tracking event"
@@ -1675,6 +1712,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case labelReference = "Label reference"
   case scanSession = "Scan session"
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
   case shipmentGroup = "Shipment group"
@@ -1850,6 +1888,7 @@ enum ScanSessionStatus: String, CaseIterable, Identifiable, Hashable, Codable {
 
 enum ShipmentManifestType: String, CaseIterable, Identifiable, Hashable, Codable {
   case shipmentManifest = "Shipment manifest"
+  case dispatchChecklist = "Dispatch checklist"
   case dispatchBatch = "Dispatch batch"
   case courierHandoff = "Courier handoff"
   case internalDeliveryRun = "Internal delivery run"
@@ -1864,6 +1903,27 @@ enum ShipmentManifestDispatchStatus: String, CaseIterable, Identifiable, Hashabl
   case dispatched = "Dispatched"
   case handedOff = "Handed off"
   case blockedNeedsReview = "Blocked/needs review"
+  case reopened = "Reopened"
+
+  var id: String { rawValue }
+}
+
+enum DispatchChecklistType: String, CaseIterable, Identifiable, Hashable, Codable {
+  case manifestReadiness = "Manifest readiness"
+  case labelAndScan = "Label and scan"
+  case custodyHandoff = "Custody handoff"
+  case destinationReview = "Destination review"
+  case exceptionClearance = "Exception clearance"
+  case outboundTransfer = "Outbound transfer"
+
+  var id: String { rawValue }
+}
+
+enum DispatchChecklistStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case draft = "Draft"
+  case ready = "Ready"
+  case blockedNeedsReview = "Blocked/needs review"
+  case completed = "Completed"
   case reopened = "Reopened"
 
   var id: String { rawValue }

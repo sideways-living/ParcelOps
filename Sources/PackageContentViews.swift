@@ -47,7 +47,7 @@ struct PackageContentsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContents) { content in
-              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content), scanSessions: store.suggestedScanSessionRecords(for: content), shipmentManifests: store.suggestedShipmentManifestRecords(for: content)) { updatedContent in
+              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content), scanSessions: store.suggestedScanSessionRecords(for: content), shipmentManifests: store.suggestedShipmentManifestRecords(for: content), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: content)) { updatedContent in
                 store.updatePackageContent(updatedContent)
               } onVerified: {
                 store.markPackageContentVerified(content)
@@ -163,6 +163,7 @@ struct PackageContentRow: View {
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
+  var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (PackageContentRecord) -> Void
   var onVerified: () -> Void
   var onDiscrepancy: () -> Void

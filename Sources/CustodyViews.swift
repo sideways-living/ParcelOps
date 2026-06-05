@@ -49,7 +49,7 @@ struct CustodyChainView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record)) { updatedRecord in
+              CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateCustodyRecord(updatedRecord)
               } onTransferred: {
                 store.markCustodyRecordTransferred(record)
@@ -163,6 +163,7 @@ struct CustodyRecordRow: View {
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
+  var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (CustodyRecord) -> Void
   var onTransferred: () -> Void
   var onReceived: () -> Void
