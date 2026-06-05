@@ -277,6 +277,20 @@ struct SettingsView: View {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
+        SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
+          Text("ParcelOps currently stores local JSON records and sample operational data. These controls describe intended workflows; they do not connect to live services yet.")
+            .foregroundStyle(.secondary)
+
+          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            IntegrationStatusRow(title: "Email mailbox", status: "Not connected", symbol: "envelope.badge.fill", color: .orange)
+            IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)
+            IntegrationStatusRow(title: "Carrier APIs", status: "Not connected", symbol: "location.fill.viewfinder", color: .orange)
+            IntegrationStatusRow(title: "Store logins", status: "Placeholder only", symbol: "key.horizontal.fill", color: .orange)
+            IntegrationStatusRow(title: "Credential storage", status: "Not enabled", symbol: "lock.shield.fill", color: .red)
+            IntegrationStatusRow(title: "Background sync", status: "Not enabled", symbol: "bell.slash.fill", color: .red)
+          }
+        }
+
         SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
           Toggle("Monitor forwarded tracking mailbox", isOn: $store.settings.mailboxMonitoringEnabled)
           Toggle("Create orders from recognized emails", isOn: $store.settings.autoCreateOrdersFromEmail)
@@ -327,9 +341,9 @@ struct SettingsView: View {
         }
 
         SettingsPanel(title: "Connected sources", symbol: "link.badge.plus") {
-          Toggle("Sync Shopify OAuth suppliers", isOn: $store.settings.shopifySyncEnabled)
-          Toggle("Sync password-vault store logins", isOn: $store.settings.storeLoginSyncEnabled)
-          Toggle("Enable delivery handoff after shipment", isOn: $store.settings.carrierTrackingEnabled)
+          Toggle("Plan Shopify supplier sync", isOn: $store.settings.shopifySyncEnabled)
+          Toggle("Plan password-vault login sync", isOn: $store.settings.storeLoginSyncEnabled)
+          Toggle("Plan carrier tracking handoff", isOn: $store.settings.carrierTrackingEnabled)
           Picker("Carrier tracking mode", selection: $store.settings.carrierTrackingMode) {
             Text("Export to Parcel").tag("Export to Parcel")
             Text("Free carrier API").tag("Free carrier API")
@@ -342,5 +356,31 @@ struct SettingsView: View {
       }
       .padding(isCompact ? 14 : 24)
     }
+  }
+}
+
+struct IntegrationStatusRow: View {
+  var title: String
+  var status: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(status)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
