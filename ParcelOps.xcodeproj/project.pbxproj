@@ -1,0 +1,587 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01FD7A05D54D3BD0C5018A59 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBE20445D49D4AD19F7FBDD /* Services.swift */; };
+		05D3E912BBCDDD5249071205 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C294C1E031F8E92F4B72882D /* Models.swift */; };
+		289AC6946D6FE5077422F0C3 /* Repositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6E4AB0D91F13028C85CC39 /* Repositories.swift */; };
+		38F9432EF8FB79070F02CA7F /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = B126E1E735231BE8314F5B87 /* App.swift */; };
+		407F68F759C3A812C7B16C22 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6166B4A04869511E9FE15779 /* ContentView.swift */; };
+		417E500D9E9431D7DF961355 /* ParcelOpsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691EA6953A8547DF595E322A /* ParcelOpsApp.swift */; };
+		4C5BAD9E5208F55D8F529A60 /* AutomationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B836E80ABE0108260C2E600B /* AutomationViews.swift */; };
+		4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */; };
+		4D7EA9C386C701B90612713F /* IntegrationsSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */; };
+		55A859A36024281A3C6F37B7 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F6A60AB18340948AA8FF22 /* DashboardViews.swift */; };
+		5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714FBCDEBC13145973570D0D /* OrderViews.swift */; };
+		6720C349361C35DA73E3EA5B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B35131894477ED26462D829A /* Assets.xcassets */; };
+		71A99B094D4EBC94635E2E85 /* ParcelOpsWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B322651F5309B88596C34DF /* ParcelOpsWidgets.swift */; };
+		97CFB6978471B3359E337980 /* WishlistViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3B090BC5DCF3E7E976AE36 /* WishlistViews.swift */; };
+		98C35ECB54BABD8531AFC4D9 /* ParcelOpsActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */; };
+		B19610644621A4CB73F0B7B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A518D638621BEE2F1123A89C /* Assets.xcassets */; };
+		B52230695356CE498F4C4371 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */; };
+		C5704F0F428E5E8190046CFB /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3188C1B96C11510976A0FA56 /* SampleData.swift */; };
+		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E82D8B7001DDA88C9F861078 /* ParcelOpsActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */; };
+		FBF47AE91636527A3BD26C2D /* ParcelOpsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326CED242CBA5310ECC264A5 /* ParcelOpsStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3B6C4FF67925B18A0E03171F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 11D16C109A2962BB5F389326 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6E26421399CF4A15ECFA2AD3;
+			remoteInfo = "ParcelOps Widget Extension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		3428EDEAF9A0DD2F0E8B2761 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		2B322651F5309B88596C34DF /* ParcelOpsWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsWidgets.swift; sourceTree = "<group>"; };
+		3188C1B96C11510976A0FA56 /* SampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleData.swift; sourceTree = "<group>"; };
+		326CED242CBA5310ECC264A5 /* ParcelOpsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsStore.swift; sourceTree = "<group>"; };
+		3B3B090BC5DCF3E7E976AE36 /* WishlistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WishlistViews.swift; sourceTree = "<group>"; };
+		4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailboxReviewViews.swift; sourceTree = "<group>"; };
+		6166B4A04869511E9FE15779 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		691EA6953A8547DF595E322A /* ParcelOpsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsApp.swift; sourceTree = "<group>"; };
+		714FBCDEBC13145973570D0D /* OrderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderViews.swift; sourceTree = "<group>"; };
+		7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsActivityAttributes.swift; sourceTree = "<group>"; };
+		82F6A60AB18340948AA8FF22 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
+		8B919FEB425C4E95C8E54260 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
+		980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettingsViews.swift; sourceTree = "<group>"; };
+		9BBE20445D49D4AD19F7FBDD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		A518D638621BEE2F1123A89C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B126E1E735231BE8314F5B87 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		B35131894477ED26462D829A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B836E80ABE0108260C2E600B /* AutomationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationViews.swift; sourceTree = "<group>"; };
+		C294C1E031F8E92F4B72882D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ParcelOps Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAF3A15F042E2C123A948632 /* ParcelOps.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ParcelOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = "ParcelOps Widget Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CF6E4AB0D91F13028C85CC39 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
+		EBA261A8A4AE2D79333F1E80 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		231887813CF530BED2C2A913 /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				B126E1E735231BE8314F5B87 /* App.swift */,
+				B35131894477ED26462D829A /* Assets.xcassets */,
+				6166B4A04869511E9FE15779 /* ContentView.swift */,
+				8B919FEB425C4E95C8E54260 /* Info.plist */,
+			);
+			path = Watch;
+			sourceTree = "<group>";
+		};
+		26FAEC6509BE9A75EACC4C16 = {
+			isa = PBXGroup;
+			children = (
+				B960480CEAB3A43647FB4450 /* App */,
+				B2382205A2FE79E08D580F84 /* Shared */,
+				D801FA819D88AC32030801C2 /* Sources */,
+				231887813CF530BED2C2A913 /* Watch */,
+				A7E4C76963355E71323C4E57 /* Widget Extension */,
+				28B4921062D8B256ECDD1F41 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		28B4921062D8B256ECDD1F41 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */,
+				CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */,
+				CAF3A15F042E2C123A948632 /* ParcelOps.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A7E4C76963355E71323C4E57 /* Widget Extension */ = {
+			isa = PBXGroup;
+			children = (
+				EBA261A8A4AE2D79333F1E80 /* Info.plist */,
+				2B322651F5309B88596C34DF /* ParcelOpsWidgets.swift */,
+			);
+			path = "Widget Extension";
+			sourceTree = "<group>";
+		};
+		B2382205A2FE79E08D580F84 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		B960480CEAB3A43647FB4450 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A518D638621BEE2F1123A89C /* Assets.xcassets */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D801FA819D88AC32030801C2 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				B836E80ABE0108260C2E600B /* AutomationViews.swift */,
+				82F6A60AB18340948AA8FF22 /* DashboardViews.swift */,
+				980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */,
+				4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */,
+				C294C1E031F8E92F4B72882D /* Models.swift */,
+				714FBCDEBC13145973570D0D /* OrderViews.swift */,
+				691EA6953A8547DF595E322A /* ParcelOpsApp.swift */,
+				326CED242CBA5310ECC264A5 /* ParcelOpsStore.swift */,
+				CF6E4AB0D91F13028C85CC39 /* Repositories.swift */,
+				3188C1B96C11510976A0FA56 /* SampleData.swift */,
+				9BBE20445D49D4AD19F7FBDD /* Services.swift */,
+				8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */,
+				3B3B090BC5DCF3E7E976AE36 /* WishlistViews.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5B50CBC18835C5D2E2B938FC /* ParcelOps */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F2CC2D89B4FB9BB00A090FCE /* Build configuration list for PBXNativeTarget "ParcelOps" */;
+			buildPhases = (
+				75B63BF68CFAC82657F22A37 /* Sources */,
+				06439D0BD4DE9D59A0E1FE75 /* Resources */,
+				3428EDEAF9A0DD2F0E8B2761 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4333B56F74FB8CEE379E1B65 /* PBXTargetDependency */,
+			);
+			name = ParcelOps;
+			packageProductDependencies = (
+			);
+			productName = ParcelOps;
+			productReference = CAF3A15F042E2C123A948632 /* ParcelOps.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F9F5672FADB02A24CAB184A8 /* Build configuration list for PBXNativeTarget "ParcelOps Widget Extension" */;
+			buildPhases = (
+				48AA95EBEED8E4FEEF7BD404 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "ParcelOps Widget Extension";
+			packageProductDependencies = (
+			);
+			productName = "ParcelOps Widget Extension";
+			productReference = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		824BAD0248C1DF5A7CD502AC /* ParcelOps Watch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EF07471202C54C2DBCFE2648 /* Build configuration list for PBXNativeTarget "ParcelOps Watch" */;
+			buildPhases = (
+				5C43A73742FDCA7DC540E608 /* Sources */,
+				B2D666ACDCF45385036CEAE5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "ParcelOps Watch";
+			packageProductDependencies = (
+			);
+			productName = "ParcelOps Watch";
+			productReference = C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		11D16C109A2962BB5F389326 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = AA1890A89201244A41BD5A05 /* Build configuration list for PBXProject "ParcelOps" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 26FAEC6509BE9A75EACC4C16;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 28B4921062D8B256ECDD1F41 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5B50CBC18835C5D2E2B938FC /* ParcelOps */,
+				824BAD0248C1DF5A7CD502AC /* ParcelOps Watch */,
+				6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		06439D0BD4DE9D59A0E1FE75 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B19610644621A4CB73F0B7B5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B2D666ACDCF45385036CEAE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6720C349361C35DA73E3EA5B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		48AA95EBEED8E4FEEF7BD404 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				98C35ECB54BABD8531AFC4D9 /* ParcelOpsActivityAttributes.swift in Sources */,
+				71A99B094D4EBC94635E2E85 /* ParcelOpsWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5C43A73742FDCA7DC540E608 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				38F9432EF8FB79070F02CA7F /* App.swift in Sources */,
+				407F68F759C3A812C7B16C22 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		75B63BF68CFAC82657F22A37 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C5BAD9E5208F55D8F529A60 /* AutomationViews.swift in Sources */,
+				55A859A36024281A3C6F37B7 /* DashboardViews.swift in Sources */,
+				4D7EA9C386C701B90612713F /* IntegrationsSettingsViews.swift in Sources */,
+				4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */,
+				05D3E912BBCDDD5249071205 /* Models.swift in Sources */,
+				5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */,
+				E82D8B7001DDA88C9F861078 /* ParcelOpsActivityAttributes.swift in Sources */,
+				417E500D9E9431D7DF961355 /* ParcelOpsApp.swift in Sources */,
+				FBF47AE91636527A3BD26C2D /* ParcelOpsStore.swift in Sources */,
+				289AC6946D6FE5077422F0C3 /* Repositories.swift in Sources */,
+				C5704F0F428E5E8190046CFB /* SampleData.swift in Sources */,
+				01FD7A05D54D3BD0C5018A59 /* Services.swift in Sources */,
+				B52230695356CE498F4C4371 /* SharedViews.swift in Sources */,
+				97CFB6978471B3359E337980 /* WishlistViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4333B56F74FB8CEE379E1B65 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilters = (
+				ios,
+			);
+			target = 6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */;
+			targetProxy = 3B6C4FF67925B18A0E03171F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0DCB03AC6A041AA63F669BC5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		212194B14F60CEBA724FD31D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		2C251D558DE3EC309252137C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "Widget Extension/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.bitrig.parcelops.widget-extension";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3C87E5DBC99091CF005E2151 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = Watch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops.watch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		81FE028D2DB43A99FEF5195A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = Watch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops.watch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		8B01807DF480BE4334E97130 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		D0CE975CAAB7D88D61ED938F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "Widget Extension/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.bitrig.parcelops.widget-extension";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FC52B070CA0CDB3D6AEDA763 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA1890A89201244A41BD5A05 /* Build configuration list for PBXProject "ParcelOps" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				212194B14F60CEBA724FD31D /* Debug */,
+				8B01807DF480BE4334E97130 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EF07471202C54C2DBCFE2648 /* Build configuration list for PBXNativeTarget "ParcelOps Watch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81FE028D2DB43A99FEF5195A /* Debug */,
+				3C87E5DBC99091CF005E2151 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F2CC2D89B4FB9BB00A090FCE /* Build configuration list for PBXNativeTarget "ParcelOps" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC52B070CA0CDB3D6AEDA763 /* Debug */,
+				0DCB03AC6A041AA63F669BC5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F9F5672FADB02A24CAB184A8 /* Build configuration list for PBXNativeTarget "ParcelOps Widget Extension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0CE975CAAB7D88D61ED938F /* Debug */,
+				2C251D558DE3EC309252137C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 11D16C109A2962BB5F389326 /* Project object */;
+}
