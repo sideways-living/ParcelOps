@@ -90,7 +90,7 @@ struct DispatchReadinessView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as DispatchChecklistType?)
         ForEach(DispatchChecklistType.allCases) { type in Text(type.rawValue).tag(type as DispatchChecklistType?) }
@@ -104,8 +104,6 @@ struct DispatchReadinessView: View {
       .pickerStyle(.menu)
 
       TextField("Owner/team", text: $ownerTeam)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -125,7 +123,6 @@ struct DispatchReadinessView: View {
       }
       .pickerStyle(.menu)
 
-      Spacer()
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedType = nil
         selectedStatus = nil

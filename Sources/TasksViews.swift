@@ -87,7 +87,7 @@ struct TasksView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Status", selection: $selectedStatus) {
         Text("All statuses").tag(nil as TaskStatus?)
         ForEach(TaskStatus.allCases) { status in
@@ -127,8 +127,6 @@ struct TasksView: View {
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
       .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedStatus = nil

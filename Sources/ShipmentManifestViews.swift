@@ -93,7 +93,7 @@ struct ShipmentManifestsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as ShipmentManifestType?)
         ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type as ShipmentManifestType?) }
@@ -101,8 +101,6 @@ struct ShipmentManifestsView: View {
       .pickerStyle(.menu)
 
       TextField("Carrier/courier", text: $carrierCourier)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as ShipmentManifestDispatchStatus?)
@@ -111,8 +109,6 @@ struct ShipmentManifestsView: View {
       .pickerStyle(.menu)
 
       TextField("Owner/team", text: $ownerTeam)
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -132,7 +128,6 @@ struct ShipmentManifestsView: View {
       }
       .pickerStyle(.menu)
 
-      Spacer()
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedType = nil
         carrierCourier = ""

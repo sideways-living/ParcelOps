@@ -54,7 +54,7 @@ struct AuditView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Action", selection: $selectedAction) {
         Text("All actions").tag(nil as AuditAction?)
         ForEach(AuditAction.allCases) { action in
@@ -70,8 +70,6 @@ struct AuditView: View {
         }
       }
       .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedAction = nil

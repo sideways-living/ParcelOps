@@ -92,49 +92,40 @@ struct AcceptanceReviewView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Source", selection: $selectedSourceType) {
-          Text("All sources").tag(nil as AcceptanceSourceType?)
-          ForEach(AcceptanceSourceType.allCases) { sourceType in
-            Text(sourceType.rawValue).tag(sourceType as AcceptanceSourceType?)
-          }
-        }
-
-        Picker("Decision", selection: $selectedDecision) {
-          Text("All decisions").tag(nil as AcceptanceDecision?)
-          ForEach(AcceptanceDecision.allCases) { decision in
-            Text(decision.rawValue).tag(decision as AcceptanceDecision?)
-          }
+    FilterControlGrid {
+      Picker("Source", selection: $selectedSourceType) {
+        Text("All sources").tag(nil as AcceptanceSourceType?)
+        ForEach(AcceptanceSourceType.allCases) { sourceType in
+          Text(sourceType.rawValue).tag(sourceType as AcceptanceSourceType?)
         }
       }
 
-      HStack {
-        Picker("Confidence", selection: $selectedConfidenceRange) {
-          ForEach(ImportConfidenceRange.allCases) { range in
-            Text(range.rawValue).tag(range)
-          }
+      Picker("Decision", selection: $selectedDecision) {
+        Text("All decisions").tag(nil as AcceptanceDecision?)
+        ForEach(AcceptanceDecision.allCases) { decision in
+          Text(decision.rawValue).tag(decision as AcceptanceDecision?)
         }
+      }
 
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(nil as ReviewState?)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(state as ReviewState?)
-          }
+      Picker("Confidence", selection: $selectedConfidenceRange) {
+        ForEach(ImportConfidenceRange.allCases) { range in
+          Text(range.rawValue).tag(range)
         }
+      }
 
-        Picker("Group", selection: $grouping) {
-          ForEach(AcceptanceGrouping.allCases) { group in
-            Text(group.rawValue).tag(group)
-          }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(nil as ReviewState?)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(state as ReviewState?)
+        }
+      }
+
+      Picker("Group", selection: $grouping) {
+        ForEach(AcceptanceGrouping.allCases) { group in
+          Text(group.rawValue).tag(group)
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

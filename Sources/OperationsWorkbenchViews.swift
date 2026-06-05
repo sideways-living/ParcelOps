@@ -92,55 +92,44 @@ struct OperationsWorkbenchView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Assignee", selection: $selectedAssignee) {
-          Text("All assignees").tag(String?.none)
-          ForEach(assignees, id: \.self) { assignee in
-            Text(assignee).tag(Optional(assignee))
-          }
-        }
-        Picker("Entity", selection: $selectedEntityType) {
-          Text("All entities").tag(ReviewTaskLinkedEntityType?.none)
-          ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
-            Label(entityType.rawValue, systemImage: entityType.symbol).tag(Optional(entityType))
-          }
+    FilterControlGrid {
+      Picker("Assignee", selection: $selectedAssignee) {
+        Text("All assignees").tag(String?.none)
+        ForEach(assignees, id: \.self) { assignee in
+          Text(assignee).tag(Optional(assignee))
         }
       }
-      HStack {
-        Picker("Priority", selection: $selectedPrioritySeverity) {
-          Text("All priority").tag(String?.none)
-          ForEach(prioritySeverities, id: \.self) { priority in
-            Text(priority).tag(Optional(priority))
-          }
-        }
-        Picker("Status", selection: $selectedStatus) {
-          Text("All status").tag(String?.none)
-          ForEach(statuses, id: \.self) { status in
-            Text(status).tag(Optional(status))
-          }
+      Picker("Entity", selection: $selectedEntityType) {
+        Text("All entities").tag(ReviewTaskLinkedEntityType?.none)
+        ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
+          Label(entityType.rawValue, systemImage: entityType.symbol).tag(Optional(entityType))
         }
       }
-      HStack {
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      Picker("Priority", selection: $selectedPrioritySeverity) {
+        Text("All priority").tag(String?.none)
+        ForEach(prioritySeverities, id: \.self) { priority in
+          Text(priority).tag(Optional(priority))
         }
-        Picker("Source", selection: $selectedSource) {
-          Text("All sources").tag(WorkbenchSource?.none)
-          ForEach(WorkbenchSource.allCases) { source in
-            Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
-          }
+      }
+      Picker("Status", selection: $selectedStatus) {
+        Text("All status").tag(String?.none)
+        ForEach(statuses, id: \.self) { status in
+          Text(status).tag(Optional(status))
+        }
+      }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
+        }
+      }
+      Picker("Source", selection: $selectedSource) {
+        Text("All sources").tag(WorkbenchSource?.none)
+        ForEach(WorkbenchSource.allCases) { source in
+          Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

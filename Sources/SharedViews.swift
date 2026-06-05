@@ -2046,6 +2046,27 @@ struct SettingsPanel<Content: View>: View {
   }
 }
 
+struct FilterControlGrid<Content: View>: View {
+  @ViewBuilder var content: Content
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: 150), spacing: 10)]
+  }
+
+  var body: some View {
+    LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+      content
+    }
+    .pickerStyle(.menu)
+    .textFieldStyle(.roundedBorder)
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

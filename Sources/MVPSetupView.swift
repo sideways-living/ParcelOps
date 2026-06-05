@@ -5,6 +5,9 @@ struct MVPSetupView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var statusColumns: [GridItem] {
+    Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 1 : 2)
+  }
 
   var body: some View {
     ScrollView {
@@ -23,7 +26,7 @@ struct MVPSetupView: View {
           ]
         )
 
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: statusColumns, spacing: 12) {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
           MVPStatusCard(title: "Forwarded mailbox", detail: "Mailbox records and intake review screens exist, but no real email provider is connected.", status: "Placeholder", symbol: "envelope.badge.fill", color: .orange)

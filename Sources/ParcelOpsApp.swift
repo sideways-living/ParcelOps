@@ -181,7 +181,7 @@ struct ExpandableBottomMenu: View {
   var onSelect: (ParcelSection) -> Void
 
   private var primaryItems: [ParcelSection] {
-    [.dashboard, .mvpSetup, .workbench, .orders]
+    [.dashboard, .mvpSetup, .mailbox, .orders]
   }
 
   private var secondaryItems: [ParcelSection] {
@@ -233,15 +233,15 @@ struct ParcelNavigationGroup: Identifiable {
   var id: String { title }
 
   static let desktopGroups: [ParcelNavigationGroup] = [
-    ParcelNavigationGroup(title: "MVP Workflow", sections: [.dashboard, .mvpSetup, .workbench, .review, .orders, .mailbox, .importQueue, .acceptanceReview]),
-    ParcelNavigationGroup(title: "Dispatch Operations", sections: [.shipmentManifests, .dispatchReadiness, .tracking, .tasks, .audit, .settings]),
+    ParcelNavigationGroup(title: "MVP Workflow", sections: [.dashboard, .mvpSetup, .mailbox, .importQueue, .acceptanceReview, .orders, .workbench, .shipmentManifests, .dispatchReadiness, .tasks, .audit, .settings]),
+    ParcelNavigationGroup(title: "Dispatch Operations", sections: [.review, .tracking]),
     ParcelNavigationGroup(title: "Search & Review", sections: [.search, .timeline, .validation, .reconciliation, .evidence, .handoffNotes]),
     ParcelNavigationGroup(title: "Supporting Records", sections: [.shipmentGroups, .packageContents, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
     ParcelNavigationGroup(title: "Admin & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .costsBudgets, .accounts, .vendorProfiles, .wishlist])
   ]
 
   static var mobileSecondarySections: [ParcelSection] {
-    desktopGroups.flatMap(\.sections).filter { ![.dashboard, .mvpSetup, .workbench, .orders].contains($0) }
+    desktopGroups.flatMap(\.sections).filter { ![.dashboard, .mvpSetup, .mailbox, .orders].contains($0) }
   }
 }
 

@@ -87,46 +87,37 @@ struct ImportQueueView: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      Button("Add", systemImage: "plus", action: store.addImportQueueItemPlaceholder)
+      Button("Add local import", systemImage: "plus", action: store.addImportQueueItemPlaceholder)
         .buttonStyle(.borderedProminent)
     }
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Source", selection: $sourceFilter) {
-          Text("All sources").tag(ImportSourceType?.none)
-          ForEach(ImportSourceType.allCases) { source in
-            Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
-          }
-        }
-        Picker("Status", selection: $statusFilter) {
-          Text("All statuses").tag(ImportStatus?.none)
-          ForEach(ImportStatus.allCases) { status in
-            Text(status.rawValue).tag(Optional(status))
-          }
+    FilterControlGrid {
+      Picker("Source", selection: $sourceFilter) {
+        Text("All sources").tag(ImportSourceType?.none)
+        ForEach(ImportSourceType.allCases) { source in
+          Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
         }
       }
-      HStack {
-        Picker("Confidence", selection: $confidenceFilter) {
-          ForEach(ImportConfidenceRange.allCases) { range in
-            Text(range.rawValue).tag(range)
-          }
+      Picker("Status", selection: $statusFilter) {
+        Text("All statuses").tag(ImportStatus?.none)
+        ForEach(ImportStatus.allCases) { status in
+          Text(status.rawValue).tag(Optional(status))
         }
-        Picker("Review", selection: $reviewFilter) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      }
+      Picker("Confidence", selection: $confidenceFilter) {
+        ForEach(ImportConfidenceRange.allCases) { range in
+          Text(range.rawValue).tag(range)
+        }
+      }
+      Picker("Review", selection: $reviewFilter) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

@@ -318,7 +318,7 @@ struct SettingsView: View {
           ForEach(store.mailboxes) { mailbox in
             MailboxConnectionRow(mailbox: mailbox)
           }
-          Button("Add tracked mailbox", systemImage: "plus", action: store.addTrackedMailboxPlaceholder)
+          Button("Add mailbox placeholder", systemImage: "plus", action: store.addTrackedMailboxPlaceholder)
             .buttonStyle(.bordered)
         }
 
@@ -326,7 +326,7 @@ struct SettingsView: View {
           ForEach(store.shopifyConnections) { connection in
             ShopifyConnectionRow(connection: connection)
           }
-          Button("Connect Shopify account", systemImage: "plus", action: store.connectShopifyPlaceholder)
+          Button("Add Shopify placeholder", systemImage: "plus", action: store.connectShopifyPlaceholder)
             .buttonStyle(.bordered)
         }
 
@@ -342,7 +342,7 @@ struct SettingsView: View {
           ForEach(store.watchedFolders) { folder in
             WatchedFolderRow(folder: folder)
           }
-          Button("Add folder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
+          Button("Add folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
             .buttonStyle(.bordered)
         }
 
