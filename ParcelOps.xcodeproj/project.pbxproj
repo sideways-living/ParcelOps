@@ -14,6 +14,7 @@
 		0A5003ECC06E8155B02A7944 /* ShipmentManifestViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */; };
 		111407DBC3A6AC2C0D3CC44C /* CostViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F8D74A6303191DB719411 /* CostViews.swift */; };
 		13A61F2FD39FA92F418C95DA /* ExceptionPlaybookViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066C38EC72A5DAD5C5DF392F /* ExceptionPlaybookViews.swift */; };
+		145B03D460BF221A531479FB /* MVPSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD3B5CF499A918F102549CDA /* MVPSetupView.swift */; };
 		25DC031C259BA1AD363ABB34 /* CustodyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022E22C2294CB9B86F4654F0 /* CustodyViews.swift */; };
 		289AC6946D6FE5077422F0C3 /* Repositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6E4AB0D91F13028C85CC39 /* Repositories.swift */; };
 		38D4A3363E17870FF8D1E3D5 /* DispatchReadinessViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 299E154A43E3EF3BBC55411F /* DispatchReadinessViews.swift */; };
@@ -48,7 +49,7 @@
 		C272B81890FB90DD5BB2493A /* TasksViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085551AB9FCCC7F86AF41668 /* TasksViews.swift */; };
 		C5704F0F428E5E8190046CFB /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3188C1B96C11510976A0FA56 /* SampleData.swift */; };
 		D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F255E833C8D83405F1F68811 /* StorageLocationViews.swift */; };
-		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DD6E5C8C97CB124E859ED49A /* CustomerProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CE4C0D73EFE6A4C77667E6 /* CustomerProfileViews.swift */; };
 		E060980AFC6F9459D7D1B9E2 /* ContactsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BFA5EEA942D1C8E375F1F8F /* ContactsViews.swift */; };
 		E79CF578136295FA735A1AE9 /* TimelineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF611A7ECFF96B0BA513594A /* TimelineViews.swift */; };
@@ -135,7 +136,7 @@
 		C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ParcelOps Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipmentManifestViews.swift; sourceTree = "<group>"; };
 		C7AB9F271170DD68B00CAD9C /* ReconciliationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationViews.swift; sourceTree = "<group>"; };
-		CAF3A15F042E2C123A948632 /* ParcelOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParcelOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAF3A15F042E2C123A948632 /* ParcelOps.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ParcelOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = "ParcelOps Widget Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCFDC100E4D09EFA74EF440F /* AuditViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditViews.swift; sourceTree = "<group>"; };
 		CF6E4AB0D91F13028C85CC39 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
@@ -146,6 +147,7 @@
 		F255E833C8D83405F1F68811 /* StorageLocationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageLocationViews.swift; sourceTree = "<group>"; };
 		F896286D2DCA3EA39BB16FAB /* ScanSessionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSessionViews.swift; sourceTree = "<group>"; };
 		FB03E04EE9877117E89B2DEC /* ValidationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationViews.swift; sourceTree = "<group>"; };
+		FD3B5CF499A918F102549CDA /* MVPSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MVPSetupView.swift; sourceTree = "<group>"; };
 		FF611A7ECFF96B0BA513594A /* TimelineViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -233,6 +235,7 @@
 				975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */,
 				4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */,
 				C294C1E031F8E92F4B72882D /* Models.swift */,
+				FD3B5CF499A918F102549CDA /* MVPSetupView.swift */,
 				2B4A1864B6092510C25D93BC /* OperationsWorkbenchViews.swift */,
 				714FBCDEBC13145973570D0D /* OrderViews.swift */,
 				6862DCA976BE93D4AFAE8663 /* PackageContentViews.swift */,
@@ -328,6 +331,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = AA1890A89201244A41BD5A05 /* Build configuration list for PBXProject "ParcelOps" */;
 			developmentRegion = en;
@@ -412,6 +417,7 @@
 				4D7EA9C386C701B90612713F /* IntegrationsSettingsViews.swift in Sources */,
 				E9DC786F4529ADCE1AC02187 /* InventoryReceiptViews.swift in Sources */,
 				76E7A7386AD6DF10FBCC3FB9 /* LabelReferenceViews.swift in Sources */,
+				145B03D460BF221A531479FB /* MVPSetupView.swift in Sources */,
 				4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */,
 				05D3E912BBCDDD5249071205 /* Models.swift in Sources */,
 				F0FC33BDB1782A53EACD7CBC /* OperationsWorkbenchViews.swift in Sources */,
@@ -448,7 +454,9 @@
 /* Begin PBXTargetDependency section */
 		4333B56F74FB8CEE379E1B65 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			platformFilter = ios;
+			platformFilters = (
+				ios,
+			);
 			target = 6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */;
 			targetProxy = 3B6C4FF67925B18A0E03171F /* PBXContainerItemProxy */;
 		};
@@ -462,7 +470,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 567HFA65LS;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -660,7 +667,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 567HFA65LS;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
