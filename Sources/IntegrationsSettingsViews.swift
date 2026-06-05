@@ -277,6 +277,18 @@ struct SettingsView: View {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
+        MVPWorkflowGuide(
+          title: "Before connecting live systems",
+          detail: "These settings describe the intended workflow, but the current MVP remains local-only.",
+          steps: [
+            "Use sample and placeholder records to test the full flow.",
+            "Do not enter real passwords, API keys, OAuth secrets, or mailbox credentials.",
+            "Treat toggles as planning controls until integrations are explicitly added.",
+            "Use Audit to confirm that local actions are being recorded."
+          ],
+          symbol: "gearshape.2.fill"
+        )
+
         SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
           Text("ParcelOps currently stores local JSON records and sample operational data. These controls describe intended workflows; they do not connect to live services yet.")
             .foregroundStyle(.secondary)

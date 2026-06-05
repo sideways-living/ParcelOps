@@ -11,14 +11,17 @@ struct MVPSetupView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
 
-        SettingsPanel(title: "First usable workflow", symbol: "point.3.connected.trianglepath.dotted") {
-          VStack(alignment: .leading, spacing: 12) {
-            MVPWorkflowStep(number: "1", title: "Review intake", detail: "Use Mailbox Monitor, Import Queue, and Acceptance Review to turn local sample intake into tracked orders.")
-            MVPWorkflowStep(number: "2", title: "Work exceptions", detail: "Use Needs Review and Operations Workbench to clear blocked, risky, or incomplete operational records.")
-            MVPWorkflowStep(number: "3", title: "Prepare dispatch", detail: "Use Shipment Manifests and Dispatch Readiness to stage local outbound handoff work.")
-            MVPWorkflowStep(number: "4", title: "Check traceability", detail: "Use Tasks and Audit to confirm follow-up work and local change history.")
-          }
-        }
+        MVPWorkflowGuide(
+          title: "First usable workflow",
+          detail: "This is the shortest route for testing whether ParcelOps works as a local operational tool.",
+          steps: [
+            "Review Mailbox Monitor and Import Queue records.",
+            "Use Acceptance Review to link or create orders and shipment groups.",
+            "Use Needs Review and Operations Workbench to clear exceptions.",
+            "Prepare dispatch through Shipment Manifests and Dispatch Readiness.",
+            "Use Tasks and Audit to confirm follow-up and traceability."
+          ]
+        )
 
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
@@ -54,30 +57,6 @@ struct MVPSetupView: View {
         .font(isCompact ? .title.bold() : .largeTitle.bold())
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
-    }
-  }
-}
-
-struct MVPWorkflowStep: View {
-  var number: String
-  var title: String
-  var detail: String
-
-  var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      Text(number)
-        .font(.caption.weight(.bold))
-        .foregroundStyle(.white)
-        .frame(width: 24, height: 24)
-        .background(.teal)
-        .clipShape(Circle())
-      VStack(alignment: .leading, spacing: 3) {
-        Text(title)
-          .font(.callout.weight(.semibold))
-        Text(detail)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
     }
   }
 }

@@ -23,35 +23,52 @@ struct AcceptanceReviewView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
+        MVPWorkflowGuide(
+          title: "Acceptance decision",
+          detail: "This is the handoff between captured intake and operational records.",
+          steps: [
+            "Compare detected merchant, order, tracking, and destination values.",
+            "Choose an existing order/group when the record is already represented.",
+            "Create a new order/group only when it is genuinely new.",
+            "Accept when linked context is clear, or ignore/reopen when it is not."
+          ],
+          symbol: "checkmark.rectangle.stack.fill"
+        )
         filters
 
-        ForEach(store.groupedAcceptanceCandidates(filteredCandidates, by: grouping), id: \.title) { group in
-          SettingsPanel(title: group.title, symbol: grouping.symbol) {
-            VStack(spacing: 12) {
-              ForEach(group.candidates) { candidate in
-                AcceptanceCandidateRow(
-                  candidate: candidate,
-                  orders: store.orders,
-                  shipmentGroups: store.shipmentGroups,
-                  linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
-                  linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
-                  history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
-                  playbooks: store.suggestedPlaybooks(for: candidate),
-                  handoffNotes: store.handoffNotes(for: candidate),
-                  customerProfiles: store.suggestedCustomerProfiles(for: candidate),
-                  destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
-                  deliveryInstructions: store.suggestedDeliveryInstructions(for: candidate),
-                  packageContents: store.suggestedPackageContents(for: candidate),
-                  onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
-                  onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
-                  onCreateOrder: { store.createOrder(from: candidate) },
-                  onCreateShipmentGroup: { store.createShipmentGroup(from: candidate) },
-                  onAccept: { store.acceptCandidate(candidate) },
-                  onIgnore: { store.ignoreCandidate(candidate) },
-                  onReopen: { store.reopenCandidate(candidate) },
-                  onTask: { store.createReviewTask(from: candidate) },
-                  onDraft: { store.createDraftMessage(from: candidate) }
-                )
+        if filteredCandidates.isEmpty {
+          SettingsPanel(title: "Acceptance candidates", symbol: "checkmark.rectangle.stack.fill") {
+            MVPEmptyState(title: "No acceptance candidates match this view", detail: "Clear filters or review Mailbox Monitor and Import Queue to create local intake candidates.", symbol: "checkmark.rectangle.stack.fill")
+          }
+        } else {
+          ForEach(store.groupedAcceptanceCandidates(filteredCandidates, by: grouping), id: \.title) { group in
+            SettingsPanel(title: "\(group.title) (\(group.candidates.count))", symbol: grouping.symbol) {
+              VStack(spacing: 12) {
+                ForEach(group.candidates) { candidate in
+                  AcceptanceCandidateRow(
+                    candidate: candidate,
+                    orders: store.orders,
+                    shipmentGroups: store.shipmentGroups,
+                    linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
+                    linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
+                    history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
+                    playbooks: store.suggestedPlaybooks(for: candidate),
+                    handoffNotes: store.handoffNotes(for: candidate),
+                    customerProfiles: store.suggestedCustomerProfiles(for: candidate),
+                    destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
+                    deliveryInstructions: store.suggestedDeliveryInstructions(for: candidate),
+                    packageContents: store.suggestedPackageContents(for: candidate),
+                    onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
+                    onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
+                    onCreateOrder: { store.createOrder(from: candidate) },
+                    onCreateShipmentGroup: { store.createShipmentGroup(from: candidate) },
+                    onAccept: { store.acceptCandidate(candidate) },
+                    onIgnore: { store.ignoreCandidate(candidate) },
+                    onReopen: { store.reopenCandidate(candidate) },
+                    onTask: { store.createReviewTask(from: candidate) },
+                    onDraft: { store.createDraftMessage(from: candidate) }
+                  )
+                }
               }
             }
           }

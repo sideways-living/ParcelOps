@@ -31,9 +31,21 @@ struct TasksView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Tasks")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local follow-up work for orders, intake, tracking, evidence, automations, saved filters, and audit events.")
+          Text("Local ownership and follow-up work created from intake, orders, dispatch, exceptions, and audit events.")
             .foregroundStyle(.secondary)
         }
+
+        MVPWorkflowGuide(
+          title: "Task workflow",
+          detail: "Tasks are the simplest way to turn a confusing record into assigned follow-up.",
+          steps: [
+            "Filter to open, urgent, or overdue work.",
+            "Edit the assignee, priority, due date, or summary when ownership is unclear.",
+            "Create a draft if the task needs a supplier, customer, or team message.",
+            "Complete and mark reviewed when the work is done."
+          ],
+          symbol: "checklist"
+        )
 
         filterBar
 
@@ -48,12 +60,7 @@ struct TasksView: View {
           }
 
           if filteredTasks.isEmpty {
-            Text("No review tasks match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No tasks match this view", detail: "Clear filters or add a placeholder task to test local follow-up ownership.", symbol: "checklist", actionTitle: "Add task", action: store.addReviewTaskPlaceholder)
           } else {
             ForEach(filteredTasks) { task in
               ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in

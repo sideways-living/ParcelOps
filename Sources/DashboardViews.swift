@@ -16,6 +16,18 @@ struct DashboardView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
+        MVPWorkflowGuide(
+          title: "First run path",
+          detail: "Use these screens in order when testing the local-only app in Xcode.",
+          steps: [
+            "Review forwarded email and import intake.",
+            "Accept or link records into orders and shipment groups.",
+            "Work exceptions in the workbench and tasks.",
+            "Prepare manifests and dispatch readiness.",
+            "Check audit history and local-only settings."
+          ],
+          symbol: "map.fill"
+        )
         MVPReadinessCallout(store: store)
 
         AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {

@@ -19,6 +19,17 @@ struct DispatchReadinessView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        MVPWorkflowGuide(
+          title: "Readiness workflow",
+          detail: "Use this screen as the local go/no-go check before dispatch.",
+          steps: [
+            "Review required checks and missing requirements.",
+            "Mark ready only when scans, labels, custody, and handoff details are clear.",
+            "Block anything that needs manual correction.",
+            "Complete the checklist after the dispatch handoff is done."
+          ],
+          symbol: "checkmark.rectangle.stack.fill"
+        )
         filterBar
 
         SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
@@ -32,12 +43,7 @@ struct DispatchReadinessView: View {
           }
 
           if filteredChecklists.isEmpty {
-            Text("No dispatch readiness checklists match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No readiness checklists match this view", detail: "Clear filters or add a placeholder checklist to test local dispatch checks.", symbol: "checkmark.rectangle.stack.fill", actionTitle: "Add checklist", action: store.addDispatchReadinessChecklistPlaceholder)
           } else {
             ForEach(filteredChecklists) { checklist in
               DispatchReadinessRow(checklist: checklist) { updatedChecklist in
@@ -72,7 +78,7 @@ struct DispatchReadinessView: View {
       VStack(alignment: .leading, spacing: 6) {
         Text("Dispatch Readiness")
           .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local readiness checks for manifests, labels, scans, custody, destinations, and outbound handoff work.")
+        Text("Local go/no-go checks for manifests, labels, scans, custody, destinations, and handoff work.")
           .foregroundStyle(.secondary)
       }
       Spacer()
