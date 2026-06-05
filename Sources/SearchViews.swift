@@ -99,7 +99,7 @@ struct SearchView: View {
       }
       .padding()
     }
-    .background(Color(nsColor: .windowBackgroundColor))
+    .background(.background)
   }
 
   private func apply(_ filter: SavedFilter) {
