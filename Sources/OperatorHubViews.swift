@@ -8,31 +8,52 @@ struct InboxView: View {
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
-    VStack(spacing: 0) {
-      VStack(alignment: .leading, spacing: 14) {
-        header
-        Picker("Inbox area", selection: $selectedTab) {
-          ForEach(InboxTab.allCases) { tab in
-            Label(tab.title, systemImage: tab.symbol).tag(tab)
+    if isCompact {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+          header
+          OperatorRouteCard(title: "Mailbox Monitor", detail: "Review forwarded order emails and detected fields.", symbol: "envelope.badge.fill", badge: "\(store.intakeEmails.count) emails") {
+            MailboxView(store: store)
+          }
+
+          OperatorRouteCard(title: "Import Queue", detail: "Review manually staged order records before accepting them.", symbol: "tray.and.arrow.down.fill", badge: "\(store.importQueueItems.count) imports") {
+            ImportQueueView(store: store)
+          }
+
+          OperatorRouteCard(title: "Acceptance Review", detail: "Link intake to existing orders or create new local records.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.acceptanceRecordsNeedingReview.count) to review") {
+            AcceptanceReviewView(store: store)
           }
         }
-        .pickerStyle(.segmented)
+        .padding(14)
       }
-      .padding(isCompact ? 14 : 24)
-      .padding(.bottom, 0)
+      .background(.regularMaterial)
+    } else {
+      VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
+          header
+          Picker("Inbox area", selection: $selectedTab) {
+            ForEach(InboxTab.allCases) { tab in
+              Label(tab.title, systemImage: tab.symbol).tag(tab)
+            }
+          }
+          .pickerStyle(.segmented)
+        }
+        .padding(24)
+        .padding(.bottom, 0)
 
-      Divider()
+        Divider()
 
-      switch selectedTab {
-      case .mailbox:
-        MailboxView(store: store)
-      case .importQueue:
-        ImportQueueView(store: store)
-      case .acceptance:
-        AcceptanceReviewView(store: store)
+        switch selectedTab {
+        case .mailbox:
+          MailboxView(store: store)
+        case .importQueue:
+          ImportQueueView(store: store)
+        case .acceptance:
+          AcceptanceReviewView(store: store)
+        }
       }
+      .background(.regularMaterial)
     }
-    .background(.regularMaterial)
   }
 
   private var header: some View {
@@ -84,29 +105,46 @@ struct DispatchView: View {
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
-    VStack(spacing: 0) {
-      VStack(alignment: .leading, spacing: 14) {
-        header
-        Picker("Dispatch area", selection: $selectedTab) {
-          ForEach(DispatchTab.allCases) { tab in
-            Label(tab.title, systemImage: tab.symbol).tag(tab)
+    if isCompact {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+          header
+          OperatorRouteCard(title: "Shipment Manifests", detail: "Prepare outbound batches and courier handoff groups.", symbol: "list.bullet.clipboard.fill", badge: "\(store.shipmentManifestRecords.count) manifests") {
+            ShipmentManifestsView(store: store)
+          }
+
+          OperatorRouteCard(title: "Dispatch Readiness", detail: "Confirm scans, labels, custody, and handoff readiness.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.incompleteDispatchChecklists.count) incomplete") {
+            DispatchReadinessView(store: store)
           }
         }
-        .pickerStyle(.segmented)
+        .padding(14)
       }
-      .padding(isCompact ? 14 : 24)
-      .padding(.bottom, 0)
+      .background(.regularMaterial)
+    } else {
+      VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
+          header
+          Picker("Dispatch area", selection: $selectedTab) {
+            ForEach(DispatchTab.allCases) { tab in
+              Label(tab.title, systemImage: tab.symbol).tag(tab)
+            }
+          }
+          .pickerStyle(.segmented)
+        }
+        .padding(24)
+        .padding(.bottom, 0)
 
-      Divider()
+        Divider()
 
-      switch selectedTab {
-      case .manifests:
-        ShipmentManifestsView(store: store)
-      case .readiness:
-        DispatchReadinessView(store: store)
+        switch selectedTab {
+        case .manifests:
+          ShipmentManifestsView(store: store)
+        case .readiness:
+          DispatchReadinessView(store: store)
+        }
       }
+      .background(.regularMaterial)
     }
-    .background(.regularMaterial)
   }
 
   private var header: some View {
@@ -123,6 +161,42 @@ struct DispatchView: View {
         ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange)
       ])
     }
+  }
+}
+
+private struct OperatorRouteCard<Destination: View>: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var badge: String
+  @ViewBuilder var destination: Destination
+
+  var body: some View {
+    NavigationLink {
+      destination
+    } label: {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(badge, color: .teal)
+      }
+      .padding(14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.background)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    }
+    .buttonStyle(.plain)
   }
 }
 

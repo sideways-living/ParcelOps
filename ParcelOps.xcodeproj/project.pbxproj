@@ -48,6 +48,7 @@
 		C0F23CA1B244428118FA6D21 /* ValidationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB03E04EE9877117E89B2DEC /* ValidationViews.swift */; };
 		C272B81890FB90DD5BB2493A /* TasksViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085551AB9FCCC7F86AF41668 /* TasksViews.swift */; };
 		C5704F0F428E5E8190046CFB /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3188C1B96C11510976A0FA56 /* SampleData.swift */; };
+		CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5776053ED5DCD32056445106 /* OperatorHubViews.swift */; };
 		D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F255E833C8D83405F1F68811 /* StorageLocationViews.swift */; };
 		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DD6E5C8C97CB124E859ED49A /* CustomerProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CE4C0D73EFE6A4C77667E6 /* CustomerProfileViews.swift */; };
@@ -113,6 +114,7 @@
 		4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailboxReviewViews.swift; sourceTree = "<group>"; };
 		5070E49D90C5C090A79EA48A /* DestinationAddressViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DestinationAddressViews.swift; sourceTree = "<group>"; };
 		52F2EAC70B830904E02C17BD /* SLAPolicyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SLAPolicyViews.swift; sourceTree = "<group>"; };
+		5776053ED5DCD32056445106 /* OperatorHubViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorHubViews.swift; sourceTree = "<group>"; };
 		6166B4A04869511E9FE15779 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipmentGroupViews.swift; sourceTree = "<group>"; };
 		6862DCA976BE93D4AFAE8663 /* PackageContentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageContentViews.swift; sourceTree = "<group>"; };
@@ -237,6 +239,7 @@
 				C294C1E031F8E92F4B72882D /* Models.swift */,
 				FD3B5CF499A918F102549CDA /* MVPSetupView.swift */,
 				2B4A1864B6092510C25D93BC /* OperationsWorkbenchViews.swift */,
+				5776053ED5DCD32056445106 /* OperatorHubViews.swift */,
 				714FBCDEBC13145973570D0D /* OrderViews.swift */,
 				6862DCA976BE93D4AFAE8663 /* PackageContentViews.swift */,
 				691EA6953A8547DF595E322A /* ParcelOpsApp.swift */,
@@ -421,6 +424,7 @@
 				4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */,
 				05D3E912BBCDDD5249071205 /* Models.swift in Sources */,
 				F0FC33BDB1782A53EACD7CBC /* OperationsWorkbenchViews.swift in Sources */,
+				CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */,
 				5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */,
 				7AB1298E41A709272C915EF6 /* PackageContentViews.swift in Sources */,
 				E82D8B7001DDA88C9F861078 /* ParcelOpsActivityAttributes.swift in Sources */,
