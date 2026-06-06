@@ -2,9 +2,11 @@ import Foundation
 
 enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
-  case mvpSetup
-  case workbench
+  case inbox
   case orders
+  case workbench
+  case dispatch
+  case mvpSetup
   case mailbox
   case review
   case wishlist
@@ -50,9 +52,11 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .dashboard: "Dashboard"
-    case .mvpSetup: "MVP Setup"
-    case .workbench: "Operations Workbench"
+    case .inbox: "Inbox"
     case .orders: "Orders"
+    case .workbench: "Operations Workbench"
+    case .dispatch: "Dispatch"
+    case .mvpSetup: "MVP Setup"
     case .mailbox: "Mailbox Monitor"
     case .review: "Needs Review"
     case .wishlist: "Wishlist"
@@ -98,9 +102,11 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var shortTitle: String {
     switch self {
     case .dashboard: "Dashboard"
-    case .mvpSetup: "Setup"
-    case .workbench: "Workbench"
+    case .inbox: "Inbox"
     case .orders: "Orders"
+    case .workbench: "Workbench"
+    case .dispatch: "Dispatch"
+    case .mvpSetup: "Setup"
     case .mailbox: "Mailbox"
     case .review: "Review"
     case .wishlist: "Wishlist"
@@ -146,9 +152,11 @@ enum ParcelSection: String, CaseIterable, Identifiable {
   var symbol: String {
     switch self {
     case .dashboard: "rectangle.grid.2x2.fill"
-    case .mvpSetup: "checklist"
-    case .workbench: "rectangle.stack.badge.person.crop.fill"
+    case .inbox: "tray.full.fill"
     case .orders: "shippingbox.fill"
+    case .workbench: "rectangle.stack.badge.person.crop.fill"
+    case .dispatch: "paperplane.fill"
+    case .mvpSetup: "checklist"
     case .mailbox: "envelope.badge.fill"
     case .review: "checkmark.shield.fill"
     case .wishlist: "star.square.fill"
