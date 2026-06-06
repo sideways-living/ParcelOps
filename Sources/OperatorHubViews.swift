@@ -2,57 +2,81 @@ import SwiftUI
 
 struct InboxView: View {
   var store: ParcelOpsStore
-  @State private var selectedTab: InboxTab = .mailbox
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var triageItems: [InboxTriageItem] {
+    let acceptanceItems = store.acceptanceRecordsNeedingReview.compactMap { record in
+      store.acceptanceCandidates.first { $0.sourceType == record.sourceType && $0.sourceID == record.sourceID }
+    }
+    let acceptanceKeys = Set(acceptanceItems.map { InboxTriageItem.sourceKey(sourceType: $0.sourceType, sourceID: $0.sourceID) })
+
+    let emailItems = store.reviewIntakeEmails
+      .filter { !acceptanceKeys.contains(InboxTriageItem.sourceKey(sourceType: .intakeEmail, sourceID: $0.id)) }
+      .map(InboxTriageItem.email)
+
+    let importItems = uniqueImportItems(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)
+      .filter { !acceptanceKeys.contains(InboxTriageItem.sourceKey(sourceType: .importQueueItem, sourceID: $0.id)) }
+      .map(InboxTriageItem.importQueue)
+
+    return (acceptanceItems.map(InboxTriageItem.acceptance) + emailItems + importItems)
+      .sorted { lhs, rhs in
+        if lhs.sortPriority == rhs.sortPriority {
+          return lhs.capturedDate > rhs.capturedDate
+        }
+        return lhs.sortPriority > rhs.sortPriority
+      }
+  }
 
   var body: some View {
-    if isCompact {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-          header
-          OperatorRouteCard(title: "Mailbox Monitor", detail: "Review forwarded order emails and detected fields.", symbol: "envelope.badge.fill", badge: "\(store.intakeEmails.count) emails") {
-            MailboxView(store: store)
-          }
-
-          OperatorRouteCard(title: "Import Queue", detail: "Review manually staged order records before accepting them.", symbol: "tray.and.arrow.down.fill", badge: "\(store.importQueueItems.count) imports") {
-            ImportQueueView(store: store)
-          }
-
-          OperatorRouteCard(title: "Acceptance Review", detail: "Link intake to existing orders or create new local records.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.acceptanceRecordsNeedingReview.count) to review") {
-            AcceptanceReviewView(store: store)
-          }
-        }
-        .padding(14)
+    ScrollView {
+      VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
+        header
+        triagePanel
+        detailRoutes
       }
-      .background(.regularMaterial)
-    } else {
-      VStack(spacing: 0) {
-        VStack(alignment: .leading, spacing: 14) {
-          header
-          Picker("Inbox area", selection: $selectedTab) {
-            ForEach(InboxTab.allCases) { tab in
-              Label(tab.title, systemImage: tab.symbol).tag(tab)
-            }
+      .padding(isCompact ? 14 : 24)
+    }
+    .background(.regularMaterial)
+  }
+
+  private var triagePanel: some View {
+    SettingsPanel(title: "Unified triage queue", symbol: "tray.full.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Work the highest-risk incoming order signals here, then open the detailed tools when a record needs correction or linking.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        if triageItems.isEmpty {
+          MVPEmptyState(
+            title: "Inbox triage is clear",
+            detail: "Forwarded emails, staged imports, and acceptance decisions that need action will appear here.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          ForEach(triageItems.prefix(12)) { item in
+            InboxTriageRow(item: item, store: store)
           }
-          .pickerStyle(.segmented)
         }
-        .padding(24)
-        .padding(.bottom, 0)
+      }
+    }
+  }
 
-        Divider()
-
-        switch selectedTab {
-        case .mailbox:
+  private var detailRoutes: some View {
+    SettingsPanel(title: "Detailed inbox tools", symbol: "rectangle.stack.fill") {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
+        OperatorRouteCard(title: "Mailbox Monitor", detail: "Review forwarded order emails and detected fields.", symbol: "envelope.badge.fill", badge: "\(store.intakeEmails.count) emails") {
           MailboxView(store: store)
-        case .importQueue:
+        }
+
+        OperatorRouteCard(title: "Import Queue", detail: "Review manually staged order records before accepting them.", symbol: "tray.and.arrow.down.fill", badge: "\(store.importQueueItems.count) imports") {
           ImportQueueView(store: store)
-        case .acceptance:
+        }
+
+        OperatorRouteCard(title: "Acceptance Review", detail: "Link intake to existing orders or create new local records.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.acceptanceRecordsNeedingReview.count) to review") {
           AcceptanceReviewView(store: store)
         }
       }
-      .background(.regularMaterial)
     }
   }
 
@@ -60,40 +84,303 @@ struct InboxView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Inbox")
         .font(isCompact ? .title.bold() : .largeTitle.bold())
-      Text("Review incoming order signals, staged imports, and acceptance decisions before they become operational records.")
+      Text("Triage incoming order signals, staged imports, and acceptance decisions before they become operational records.")
         .foregroundStyle(.secondary)
 
       MetricStrip(items: [
-        ("Emails", "\(store.intakeEmails.count)", .blue),
-        ("Imports", "\(store.importQueueItems.count)", .teal),
+        ("Triage", "\(triageItems.count)", .red),
+        ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
+        ("Imports", "\(store.importQueueItemsNeedingReview.count)", .teal),
         ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .orange),
-        ("Review", "\(store.reviewIntakeEmails.count)", .red)
+        ("All records", "\(store.intakeEmails.count + store.importQueueItems.count)", .gray)
       ])
+    }
+  }
+
+  private func uniqueImportItems(_ items: [ImportQueueItem]) -> [ImportQueueItem] {
+    var seen: Set<UUID> = []
+    var unique: [ImportQueueItem] = []
+    for item in items where !seen.contains(item.id) {
+      seen.insert(item.id)
+      unique.append(item)
+    }
+    return unique
+  }
+}
+
+private struct InboxTriageItem: Identifiable {
+  var id: String
+  var source: InboxTriageSource
+  var sourceLabel: String
+  var title: String
+  var subtitle: String
+  var detail: String
+  var capturedDate: String
+  var confidenceScore: Int?
+  var reviewLabel: String
+  var linkedOrderID: UUID?
+  var linkedShipmentGroupID: UUID?
+  var nextAction: String
+  var sortPriority: Int
+
+  static func email(_ email: ForwardedEmailIntake) -> InboxTriageItem {
+    InboxTriageItem(
+      id: "email-\(email.id.uuidString)",
+      source: .email(email),
+      sourceLabel: "Mailbox",
+      title: "\(email.detectedMerchant) • \(email.detectedOrderNumber)",
+      subtitle: email.subject,
+      detail: "Tracking \(email.detectedTrackingNumber) • \(email.detectedDestinationAddress)",
+      capturedDate: email.receivedDate,
+      confidenceScore: email.localInboxConfidence,
+      reviewLabel: email.reviewState.rawValue,
+      linkedOrderID: email.linkedOrderID,
+      linkedShipmentGroupID: nil,
+      nextAction: email.linkedOrderID == nil ? "Link or create order" : "Review detected fields",
+      sortPriority: email.reviewState == .needsReview ? 80 : 35
+    )
+  }
+
+  static func importQueue(_ item: ImportQueueItem) -> InboxTriageItem {
+    InboxTriageItem(
+      id: "import-\(item.id.uuidString)",
+      source: .importQueue(item),
+      sourceLabel: "Import",
+      title: "\(item.detectedMerchant) • \(item.detectedOrderNumber)",
+      subtitle: item.sourceLabel,
+      detail: "Tracking \(item.detectedTrackingNumber) • \(item.detectedDestinationAddress)",
+      capturedDate: item.capturedDate,
+      confidenceScore: item.confidenceScore,
+      reviewLabel: item.importStatus.rawValue,
+      linkedOrderID: item.suggestedLinkedOrderID,
+      linkedShipmentGroupID: item.suggestedShipmentGroupID,
+      nextAction: item.importStatus == .blocked ? "Resolve blocked import" : item.confidenceScore < 70 ? "Check low-confidence fields" : "Accept or link import",
+      sortPriority: item.importStatus == .blocked ? 95 : item.confidenceScore < 70 ? 85 : 65
+    )
+  }
+
+  static func acceptance(_ candidate: AcceptanceCandidate) -> InboxTriageItem {
+    InboxTriageItem(
+      id: "acceptance-\(candidate.id)",
+      source: .acceptance(candidate),
+      sourceLabel: "Acceptance",
+      title: "\(candidate.detectedMerchant) • \(candidate.detectedOrderNumber)",
+      subtitle: candidate.sourceLabel,
+      detail: "Tracking \(candidate.detectedTrackingNumber) • \(candidate.detectedDestinationAddress)",
+      capturedDate: candidate.capturedDate,
+      confidenceScore: candidate.confidenceScore,
+      reviewLabel: candidate.decision.rawValue,
+      linkedOrderID: candidate.suggestedLinkedOrderID,
+      linkedShipmentGroupID: candidate.suggestedShipmentGroupID,
+      nextAction: candidate.suggestedLinkedOrderID == nil ? "Choose order or create one" : "Accept into operations",
+      sortPriority: candidate.decision == .blocked ? 100 : candidate.reviewState == .needsReview ? 90 : 70
+    )
+  }
+
+  static func sourceKey(sourceType: AcceptanceSourceType, sourceID: UUID) -> String {
+    "\(sourceType.rawValue)-\(sourceID.uuidString)"
+  }
+}
+
+private enum InboxTriageSource {
+  case email(ForwardedEmailIntake)
+  case importQueue(ImportQueueItem)
+  case acceptance(AcceptanceCandidate)
+
+  var symbol: String {
+    switch self {
+    case .email: "envelope.open.fill"
+    case .importQueue: "tray.and.arrow.down.fill"
+    case .acceptance: "checkmark.rectangle.stack.fill"
+    }
+  }
+
+  var color: Color {
+    switch self {
+    case .email(let email):
+      email.reviewState.color
+    case .importQueue(let item):
+      item.importStatus.color
+    case .acceptance(let candidate):
+      candidate.decision.color
     }
   }
 }
 
-private enum InboxTab: String, CaseIterable, Identifiable {
-  case mailbox
-  case importQueue
-  case acceptance
+private struct InboxTriageRow: View {
+  var item: InboxTriageItem
+  var store: ParcelOpsStore
 
-  var id: String { rawValue }
+  private var linkedOrderLabel: String? {
+    item.linkedOrderID.flatMap { store.orderLabel(for: $0) }
+  }
 
-  var title: String {
-    switch self {
-    case .mailbox: "Mailbox"
-    case .importQueue: "Import"
-    case .acceptance: "Accept"
+  private var linkedShipmentGroupLabel: String? {
+    item.linkedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: item.source.symbol)
+          .foregroundStyle(item.source.color)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(item.title)
+                .font(.headline)
+              Text(item.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Badge(item.sourceLabel, color: item.source.color)
+          }
+
+          Text(item.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+
+          CompactMetadataGrid {
+            if let confidenceScore = item.confidenceScore {
+              Badge("\(confidenceScore)% confidence", color: confidenceColor(confidenceScore))
+            }
+            Badge(item.reviewLabel, color: item.source.color)
+            if let linkedOrderLabel {
+              Label(linkedOrderLabel, systemImage: "shippingbox.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            if let linkedShipmentGroupLabel {
+              Label(linkedShipmentGroupLabel, systemImage: "shippingbox.and.arrow.backward.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+
+          Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(item.source.color)
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          detailDestination
+        } label: {
+          Label("Open", systemImage: "arrow.up.right.square.fill")
+        }
+        .buttonStyle(.bordered)
+
+        switch item.source {
+        case .email(let email):
+          Button("Reviewed", systemImage: "checkmark.circle.fill") {
+            store.markIntakeEmailReviewed(email)
+          }
+          .buttonStyle(.bordered)
+          Button("Ignore", systemImage: "eye.slash.fill") {
+            store.ignoreIntakeEmail(email)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: email)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: email)
+          }
+          .buttonStyle(.bordered)
+
+        case .importQueue(let importItem):
+          Button("Accept", systemImage: "checkmark.seal.fill") {
+            store.markImportQueueItemAccepted(importItem)
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Ignore", systemImage: "eye.slash.fill") {
+            store.ignoreImportQueueItem(importItem)
+          }
+          .buttonStyle(.bordered)
+          Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+            store.reopenImportQueueItem(importItem)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: importItem)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "square.and.pencil") {
+            store.createDraftMessage(from: importItem)
+          }
+          .buttonStyle(.bordered)
+
+        case .acceptance(let candidate):
+          Button("Accept", systemImage: "checkmark.circle.fill") {
+            store.acceptCandidate(candidate)
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Ignore", systemImage: "eye.slash.fill") {
+            store.ignoreCandidate(candidate)
+          }
+          .buttonStyle(.bordered)
+          Button("Reopen", systemImage: "arrow.counterclockwise") {
+            store.reopenCandidate(candidate)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: candidate)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: candidate)
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  @ViewBuilder
+  private var detailDestination: some View {
+    switch item.source {
+    case .email:
+      MailboxView(store: store)
+    case .importQueue:
+      ImportQueueView(store: store)
+    case .acceptance:
+      AcceptanceReviewView(store: store)
     }
   }
 
-  var symbol: String {
-    switch self {
-    case .mailbox: "envelope.badge.fill"
-    case .importQueue: "tray.and.arrow.down.fill"
-    case .acceptance: "checkmark.rectangle.stack.fill"
+  private func confidenceColor(_ score: Int) -> Color {
+    if score < 50 {
+      return .red
     }
+    if score < 75 {
+      return .orange
+    }
+    return .green
+  }
+}
+
+private extension ForwardedEmailIntake {
+  var localInboxConfidence: Int {
+    var score = 90
+    if detectedMerchant.isPlaceholderValidationValue { score -= 18 }
+    if detectedOrderNumber.isPlaceholderValidationValue { score -= 18 }
+    if detectedTrackingNumber.isPlaceholderValidationValue { score -= 12 }
+    if detectedDestinationAddress.isPlaceholderValidationValue { score -= 16 }
+    if linkedOrderID == nil { score -= 8 }
+    if reviewState == .needsReview { score -= 6 }
+    return max(10, min(100, score))
   }
 }
 
