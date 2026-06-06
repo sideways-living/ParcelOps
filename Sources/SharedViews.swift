@@ -1999,6 +1999,8 @@ struct Badge: View {
     Text(text)
       .font(.caption.weight(.semibold))
       .foregroundStyle(color)
+      .lineLimit(1)
+      .truncationMode(.tail)
       .padding(.horizontal, 9)
       .padding(.vertical, 5)
       .background(color.opacity(0.12))
@@ -2064,6 +2066,49 @@ struct FilterControlGrid<Content: View>: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct CompactActionRow<Content: View>: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @ViewBuilder var content: Content
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
+  var body: some View {
+    if isCompact {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], alignment: .leading, spacing: 8) {
+        content
+      }
+      .font(.caption)
+      .controlSize(.small)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      HStack(spacing: 8) {
+        content
+      }
+    }
+  }
+}
+
+struct CompactMetadataGrid<Content: View>: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  var minimumWidth: CGFloat = 110
+  @ViewBuilder var content: Content
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
+  var body: some View {
+    if isCompact {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], alignment: .leading, spacing: 8) {
+        content
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      HStack(spacing: 8) {
+        content
+      }
+    }
   }
 }
 

@@ -217,7 +217,7 @@ struct AcceptanceCandidateRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         Menu("Link order", systemImage: "shippingbox.fill") {
           ForEach(orders) { order in
             Button("\(order.store) \(order.orderNumber)") {
@@ -236,7 +236,6 @@ struct AcceptanceCandidateRow: View {
 
         Button("Create order", systemImage: "plus.square.fill", action: onCreateOrder)
         Button("Create group", systemImage: "square.stack.3d.up.fill", action: onCreateShipmentGroup)
-        Spacer()
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
         Button("Accept", systemImage: "checkmark.circle.fill", action: onAccept)

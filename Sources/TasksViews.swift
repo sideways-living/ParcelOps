@@ -185,7 +185,7 @@ struct ReviewTaskRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
-          HStack(spacing: 8) {
+          CompactMetadataGrid {
             Badge(task.status.rawValue, color: task.status.color)
             Badge(task.reviewState.rawValue, color: task.reviewState.color)
             Label(task.linkedEntityType.rawValue, systemImage: task.linkedEntityType.symbol)
@@ -227,7 +227,7 @@ struct ReviewTaskRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         if task.status == .completed {

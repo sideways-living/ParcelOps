@@ -477,9 +477,18 @@ struct MetricCard: View {
 
 struct MetricStrip: View {
   var items: [(String, String, Color)]
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var columns: [GridItem] {
+    if isCompact {
+      return [GridItem(.adaptive(minimum: 116), spacing: 8)]
+    }
+    return Array(repeating: GridItem(.flexible()), count: max(items.count, 1))
+  }
 
   var body: some View {
-    HStack(spacing: 8) {
+    LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
       ForEach(items, id: \.0) { item in
         VStack(alignment: .leading, spacing: 4) {
           Text(item.1)

@@ -170,6 +170,9 @@ private struct OperatorRouteCard<Destination: View>: View {
   var symbol: String
   var badge: String
   @ViewBuilder var destination: Destination
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
     NavigationLink {
@@ -180,15 +183,25 @@ private struct OperatorRouteCard<Destination: View>: View {
           .foregroundStyle(.teal)
           .frame(width: 24)
         VStack(alignment: .leading, spacing: 5) {
-          Text(title)
-            .font(.headline)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              Text(title)
+                .font(.headline)
+              Badge(badge, color: .teal)
+            }
+          } else {
+            Text(title)
+              .font(.headline)
+          }
           Text(detail)
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
-        Spacer(minLength: 8)
-        Badge(badge, color: .teal)
+        if !isCompact {
+          Spacer(minLength: 8)
+          Badge(badge, color: .teal)
+        }
       }
       .padding(14)
       .frame(maxWidth: .infinity, alignment: .leading)

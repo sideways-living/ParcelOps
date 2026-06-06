@@ -110,10 +110,15 @@ struct IntakeEmailRow: View {
   var onCreateProfile: () -> Void = {}
   var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
 
   private var linkedOrder: TrackedOrder? {
     orders.first { $0.id == email.linkedOrderID }
+  }
+
+  private var factColumns: [GridItem] {
+    Array(repeating: GridItem(.flexible()), count: horizontalSizeClass == .compact ? 1 : 2)
   }
 
   var body: some View {
@@ -137,7 +142,7 @@ struct IntakeEmailRow: View {
           Text(email.rawBodyPreview)
             .foregroundStyle(.secondary)
             .lineLimit(3)
-          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+          LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
             IntakeFact(title: "Merchant", value: email.detectedMerchant, symbol: "storefront.fill")
             IntakeFact(title: "Order", value: email.detectedOrderNumber, symbol: "number")
             IntakeFact(title: "Tracking", value: email.detectedTrackingNumber, symbol: "barcode.viewfinder")
@@ -154,7 +159,7 @@ struct IntakeEmailRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
 

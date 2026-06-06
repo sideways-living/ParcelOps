@@ -180,7 +180,7 @@ struct WorkbenchItemRow: View {
         }
       }
 
-      HStack {
+      CompactMetadataGrid {
         Label(item.assignee, systemImage: "person.2.fill")
         Label(item.dueDateText, systemImage: "calendar")
         Label(item.linkedEntityType.rawValue, systemImage: item.linkedEntityType.symbol)
@@ -188,7 +188,7 @@ struct WorkbenchItemRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
 
-      HStack {
+      CompactActionRow {
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
@@ -197,7 +197,6 @@ struct WorkbenchItemRow: View {
           Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
             .buttonStyle(.bordered)
         }
-        Spacer()
         Text(item.source.rawValue)
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)

@@ -120,30 +120,21 @@ struct OrderDetailView: View {
 
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
-        HStack(alignment: .top) {
-          VStack(alignment: .leading, spacing: 10) {
-            Text(order.orderNumber)
-              .font(isCompact ? .title.bold() : .largeTitle.bold())
-            Text(order.store)
-              .foregroundStyle(.secondary)
-            HStack {
-              Badge(order.status.rawValue, color: order.status.color)
-              Badge(order.reviewState.rawValue, color: order.reviewState.color)
+        if isCompact {
+          VStack(alignment: .leading, spacing: 12) {
+            orderHeaderSummary(order)
+            CompactActionRow {
+              orderHeaderButtons(order)
             }
           }
-          Spacer()
-          Button("Edit", systemImage: "pencil") {
-            isEditing = true
+        } else {
+          HStack(alignment: .top) {
+            orderHeaderSummary(order)
+            Spacer()
+            HStack(spacing: 8) {
+              orderHeaderButtons(order)
+            }
           }
-          .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
-            store.createReviewTask(from: order)
-          }
-          .buttonStyle(.bordered)
-          Button("Draft", systemImage: "envelope.open.fill") {
-            store.createDraftMessage(from: order)
-          }
-          .buttonStyle(.bordered)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -611,6 +602,35 @@ struct OrderDetailView: View {
         store.updateOrder(updatedOrder)
       }
     }
+  }
+
+  private func orderHeaderSummary(_ order: TrackedOrder) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(order.orderNumber)
+        .font(isCompact ? .title.bold() : .largeTitle.bold())
+      Text(order.store)
+        .foregroundStyle(.secondary)
+      HStack {
+        Badge(order.status.rawValue, color: order.status.color)
+        Badge(order.reviewState.rawValue, color: order.reviewState.color)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func orderHeaderButtons(_ order: TrackedOrder) -> some View {
+    Button("Edit", systemImage: "pencil") {
+      isEditing = true
+    }
+    .buttonStyle(.bordered)
+    Button("Task", systemImage: "checklist") {
+      store.createReviewTask(from: order)
+    }
+    .buttonStyle(.bordered)
+    Button("Draft", systemImage: "envelope.open.fill") {
+      store.createDraftMessage(from: order)
+    }
+    .buttonStyle(.bordered)
   }
 }
 

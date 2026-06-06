@@ -142,8 +142,13 @@ struct ImportQueueItemRow: View {
   var onRemove: () -> Void = {}
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var draft: ImportQueueItem
   @State private var isEditing = false
+
+  private var factColumns: [GridItem] {
+    Array(repeating: GridItem(.flexible()), count: horizontalSizeClass == .compact ? 1 : 2)
+  }
 
   init(
     item: ImportQueueItem,
@@ -214,7 +219,7 @@ struct ImportQueueItemRow: View {
         }
       }
 
-      LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
         ImportFact(title: "Merchant", value: item.detectedMerchant, symbol: "storefront.fill")
         ImportFact(title: "Order", value: item.detectedOrderNumber, symbol: "number")
         ImportFact(title: "Tracking", value: item.detectedTrackingNumber, symbol: "barcode.viewfinder")
@@ -252,7 +257,7 @@ struct ImportQueueItemRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         Button(isEditing ? "Save" : "Edit", systemImage: isEditing ? "checkmark" : "pencil") {
           if isEditing {
             onSave(draft)
@@ -283,7 +288,7 @@ struct ImportQueueItemRow: View {
           .buttonStyle(.bordered)
       }
 
-      HStack {
+      CompactActionRow {
         Button("Accept", systemImage: "checkmark.seal.fill", action: onAccepted)
           .buttonStyle(.borderedProminent)
         Button("Ignore", systemImage: "eye.slash.fill", action: onIgnored)
@@ -294,7 +299,6 @@ struct ImportQueueItemRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
-        Spacer()
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

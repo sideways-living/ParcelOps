@@ -180,7 +180,7 @@ struct ShipmentManifestRow: View {
           Text("\(record.manifestReferencePlaceholder) • planned \(record.plannedDispatchDate) • actual \(record.actualDispatchDate)")
             .font(.caption)
             .foregroundStyle(.secondary)
-          HStack(spacing: 8) {
+          CompactMetadataGrid {
             Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
             Badge(record.reviewState.rawValue, color: record.reviewState.color)
             Label("\(record.includedOrderIDs.count) orders", systemImage: "shippingbox.fill")
@@ -193,7 +193,7 @@ struct ShipmentManifestRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Prepared", systemImage: "checkmark.circle.fill", action: onPrepared)

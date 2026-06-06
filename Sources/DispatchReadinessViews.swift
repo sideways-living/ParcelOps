@@ -174,7 +174,7 @@ struct DispatchReadinessRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          HStack(spacing: 8) {
+          CompactMetadataGrid {
             Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
             Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
             Label(checklist.plannedDispatchDate, systemImage: "calendar")
@@ -187,7 +187,7 @@ struct DispatchReadinessRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Ready", systemImage: "checkmark.circle.fill", action: onReady)
