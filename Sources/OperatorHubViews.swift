@@ -386,51 +386,83 @@ private extension ForwardedEmailIntake {
 
 struct DispatchView: View {
   var store: ParcelOpsStore
-  @State private var selectedTab: DispatchTab = .manifests
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var dispatchItems: [DispatchQueueItem] {
+    let manifestItems = uniqueManifests(
+      store.blockedShipmentManifests
+        + store.highRiskShipmentManifests
+        + store.undispatchedShipmentManifests
+        + store.shipmentManifestsNeedingReview
+        + store.shipmentManifestsMissingIncludedOrders
+        + store.shipmentManifestsMissingHandoffLocation
+        + store.shipmentManifestsWithIncompleteScans
+    ).map(DispatchQueueItem.manifest)
+
+    let checklistItems = uniqueChecklists(
+      store.blockedDispatchChecklists
+        + store.highRiskDispatchChecklists
+        + store.incompleteDispatchChecklists
+        + store.dispatchChecklistsNeedingReview
+        + store.dispatchChecklistsMissingRequirements
+        + store.dispatchChecklistsLinkedToBlockedManifests
+    ).map(DispatchQueueItem.checklist)
+
+    return (manifestItems + checklistItems)
+      .sorted { lhs, rhs in
+        if lhs.sortPriority == rhs.sortPriority {
+          return lhs.plannedDate > rhs.plannedDate
+        }
+        return lhs.sortPriority > rhs.sortPriority
+      }
+  }
 
   var body: some View {
-    if isCompact {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-          header
-          OperatorRouteCard(title: "Shipment Manifests", detail: "Prepare outbound batches and courier handoff groups.", symbol: "list.bullet.clipboard.fill", badge: "\(store.shipmentManifestRecords.count) manifests") {
-            ShipmentManifestsView(store: store)
-          }
-
-          OperatorRouteCard(title: "Dispatch Readiness", detail: "Confirm scans, labels, custody, and handoff readiness.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.incompleteDispatchChecklists.count) incomplete") {
-            DispatchReadinessView(store: store)
-          }
-        }
-        .padding(14)
+    ScrollView {
+      VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
+        header
+        dispatchQueuePanel
+        detailRoutes
       }
-      .background(.regularMaterial)
-    } else {
-      VStack(spacing: 0) {
-        VStack(alignment: .leading, spacing: 14) {
-          header
-          Picker("Dispatch area", selection: $selectedTab) {
-            ForEach(DispatchTab.allCases) { tab in
-              Label(tab.title, systemImage: tab.symbol).tag(tab)
-            }
+      .padding(isCompact ? 14 : 24)
+    }
+    .background(.regularMaterial)
+  }
+
+  private var dispatchQueuePanel: some View {
+    SettingsPanel(title: "Unified dispatch queue", symbol: "shippingbox.and.arrow.backward.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Work blocked, high-risk, incomplete, and upcoming outbound records here before opening the detailed dispatch tools.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        if dispatchItems.isEmpty {
+          MVPEmptyState(
+            title: "Dispatch queue is clear",
+            detail: "Shipment manifests and readiness checklists that need outbound action will appear here.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          ForEach(dispatchItems.prefix(12)) { item in
+            DispatchQueueRow(item: item, store: store)
           }
-          .pickerStyle(.segmented)
         }
-        .padding(24)
-        .padding(.bottom, 0)
+      }
+    }
+  }
 
-        Divider()
-
-        switch selectedTab {
-        case .manifests:
+  private var detailRoutes: some View {
+    SettingsPanel(title: "Detailed dispatch tools", symbol: "rectangle.stack.fill") {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
+        OperatorRouteCard(title: "Shipment Manifests", detail: "Prepare outbound batches and courier handoff groups.", symbol: "list.bullet.clipboard.fill", badge: "\(store.shipmentManifestRecords.count) manifests") {
           ShipmentManifestsView(store: store)
-        case .readiness:
+        }
+
+        OperatorRouteCard(title: "Dispatch Readiness", detail: "Confirm scans, labels, custody, and handoff readiness.", symbol: "checkmark.rectangle.stack.fill", badge: "\(store.incompleteDispatchChecklists.count) incomplete") {
           DispatchReadinessView(store: store)
         }
       }
-      .background(.regularMaterial)
     }
   }
 
@@ -438,15 +470,301 @@ struct DispatchView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Dispatch")
         .font(isCompact ? .title.bold() : .largeTitle.bold())
-      Text("Prepare outbound batches and confirm local readiness before handoff.")
+      Text("Triage outbound batches and readiness checks before dispatch, courier handoff, or internal transfer.")
         .foregroundStyle(.secondary)
 
       MetricStrip(items: [
-        ("Manifests", "\(store.shipmentManifestRecords.count)", .purple),
+        ("Queue", "\(dispatchItems.count)", .red),
+        ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .purple),
         ("Blocked", "\(store.blockedShipmentManifests.count)", .red),
-        ("Checklists", "\(store.dispatchReadinessChecklists.count)", .teal),
-        ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange)
+        ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
+        ("High risk", "\(store.highRiskShipmentManifests.count + store.highRiskDispatchChecklists.count)", .pink)
       ])
+    }
+  }
+
+  private func uniqueManifests(_ records: [ShipmentManifestRecord]) -> [ShipmentManifestRecord] {
+    var seen: Set<UUID> = []
+    var unique: [ShipmentManifestRecord] = []
+    for record in records where !seen.contains(record.id) {
+      seen.insert(record.id)
+      unique.append(record)
+    }
+    return unique
+  }
+
+  private func uniqueChecklists(_ checklists: [DispatchReadinessChecklist]) -> [DispatchReadinessChecklist] {
+    var seen: Set<UUID> = []
+    var unique: [DispatchReadinessChecklist] = []
+    for checklist in checklists where !seen.contains(checklist.id) {
+      seen.insert(checklist.id)
+      unique.append(checklist)
+    }
+    return unique
+  }
+}
+
+private struct DispatchQueueItem: Identifiable {
+  var id: String
+  var source: DispatchQueueSource
+  var sourceLabel: String
+  var title: String
+  var subtitle: String
+  var detail: String
+  var plannedDate: String
+  var statusLabel: String
+  var riskLevel: ShipmentRiskLevel
+  var reviewState: ReviewState
+  var orderCount: Int
+  var shipmentGroupCount: Int
+  var scanCount: Int
+  var nextAction: String
+  var sortPriority: Int
+
+  static func manifest(_ record: ShipmentManifestRecord) -> DispatchQueueItem {
+    DispatchQueueItem(
+      id: "manifest-\(record.id.uuidString)",
+      source: .manifest(record),
+      sourceLabel: "Manifest",
+      title: "\(record.carrierCourier) • \(record.manifestType.rawValue)",
+      subtitle: record.title,
+      detail: record.destinationSummary,
+      plannedDate: record.plannedDispatchDate,
+      statusLabel: record.dispatchStatus.rawValue,
+      riskLevel: record.riskLevel,
+      reviewState: record.reviewState,
+      orderCount: record.includedOrderIDs.count,
+      shipmentGroupCount: record.shipmentGroupIDs.count,
+      scanCount: record.scanSessionIDs.count,
+      nextAction: manifestNextAction(record),
+      sortPriority: manifestSortPriority(record)
+    )
+  }
+
+  static func checklist(_ checklist: DispatchReadinessChecklist) -> DispatchQueueItem {
+    DispatchQueueItem(
+      id: "checklist-\(checklist.id.uuidString)",
+      source: .checklist(checklist),
+      sourceLabel: "Readiness",
+      title: "\(checklist.checklistType.rawValue) • \(checklist.assignedOwnerTeam)",
+      subtitle: checklist.title,
+      detail: checklist.missingRequirementsSummary.isPlaceholderValidationValue ? checklist.requiredChecksSummary : "Missing: \(checklist.missingRequirementsSummary)",
+      plannedDate: checklist.plannedDispatchDate,
+      statusLabel: checklist.checklistStatus.rawValue,
+      riskLevel: checklist.riskLevel,
+      reviewState: checklist.reviewState,
+      orderCount: checklist.orderIDs.count,
+      shipmentGroupCount: checklist.shipmentGroupIDs.count,
+      scanCount: checklist.scanSessionIDs.count,
+      nextAction: checklistNextAction(checklist),
+      sortPriority: checklistSortPriority(checklist)
+    )
+  }
+
+  private static func manifestNextAction(_ record: ShipmentManifestRecord) -> String {
+    switch record.dispatchStatus {
+    case .blockedNeedsReview:
+      return "Resolve blocked manifest"
+    case .draft, .reopened:
+      return "Prepare manifest"
+    case .prepared:
+      return "Dispatch or block"
+    case .dispatched:
+      return "Confirm handoff"
+    case .handedOff:
+      return record.reviewState == .accepted ? "Handoff complete" : "Mark reviewed"
+    }
+  }
+
+  private static func checklistNextAction(_ checklist: DispatchReadinessChecklist) -> String {
+    switch checklist.checklistStatus {
+    case .blockedNeedsReview:
+      return "Resolve blocked checklist"
+    case .draft, .reopened:
+      return "Mark ready or block"
+    case .ready:
+      return "Complete readiness checks"
+    case .completed:
+      return checklist.reviewState == .accepted ? "Checklist complete" : "Mark reviewed"
+    }
+  }
+
+  private static func manifestSortPriority(_ record: ShipmentManifestRecord) -> Int {
+    if record.dispatchStatus == .blockedNeedsReview { return 100 }
+    if record.riskLevel == .critical { return 95 }
+    if record.riskLevel == .high { return 90 }
+    if record.dispatchStatus == .prepared { return 82 }
+    if record.dispatchStatus == .draft || record.dispatchStatus == .reopened { return 75 }
+    if record.reviewState != .accepted { return 65 }
+    return 35
+  }
+
+  private static func checklistSortPriority(_ checklist: DispatchReadinessChecklist) -> Int {
+    if checklist.checklistStatus == .blockedNeedsReview { return 100 }
+    if checklist.riskLevel == .critical { return 95 }
+    if checklist.riskLevel == .high { return 90 }
+    if checklist.checklistStatus == .ready { return 82 }
+    if checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened { return 75 }
+    if checklist.reviewState != .accepted { return 65 }
+    return 35
+  }
+}
+
+private enum DispatchQueueSource {
+  case manifest(ShipmentManifestRecord)
+  case checklist(DispatchReadinessChecklist)
+
+  var symbol: String {
+    switch self {
+    case .manifest: "list.bullet.clipboard.fill"
+    case .checklist: "checkmark.rectangle.stack.fill"
+    }
+  }
+}
+
+private struct DispatchQueueRow: View {
+  var item: DispatchQueueItem
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: item.source.symbol)
+          .foregroundStyle(item.riskLevel.color)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(item.title)
+                .font(.headline)
+              Text(item.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Badge(item.sourceLabel, color: item.riskLevel.color)
+          }
+
+          Text(item.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+
+          CompactMetadataGrid {
+            Badge(item.statusLabel, color: item.riskLevel.color)
+            Badge(item.riskLevel.rawValue, color: item.riskLevel.color)
+            Badge(item.reviewState.rawValue, color: item.reviewState.color)
+            Label(item.plannedDate, systemImage: "calendar")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Label("\(item.orderCount) orders", systemImage: "shippingbox.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Label("\(item.shipmentGroupCount) groups", systemImage: "shippingbox.and.arrow.backward.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Label("\(item.scanCount) scans", systemImage: "qrcode.viewfinder")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
+          Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(item.riskLevel.color)
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          detailDestination
+        } label: {
+          Label("Open", systemImage: "arrow.up.right.square.fill")
+        }
+        .buttonStyle(.bordered)
+
+        switch item.source {
+        case .manifest(let record):
+          Button("Prepared", systemImage: "checkmark.circle.fill") {
+            store.markShipmentManifestPrepared(record)
+          }
+          .buttonStyle(.bordered)
+          Button("Dispatched", systemImage: "paperplane.fill") {
+            store.markShipmentManifestDispatched(record)
+          }
+          .buttonStyle(.bordered)
+          Button("Handed off", systemImage: "person.badge.shield.checkmark.fill") {
+            store.markShipmentManifestHandedOff(record)
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+            store.markShipmentManifestBlocked(record)
+          }
+          .buttonStyle(.bordered)
+          Button("Reopen", systemImage: "arrow.counterclockwise") {
+            store.reopenShipmentManifest(record)
+          }
+          .buttonStyle(.bordered)
+          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+            store.markShipmentManifestReviewed(record)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: record)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: record)
+          }
+          .buttonStyle(.bordered)
+
+        case .checklist(let checklist):
+          Button("Ready", systemImage: "checkmark.circle.fill") {
+            store.markDispatchChecklistReady(checklist)
+          }
+          .buttonStyle(.bordered)
+          Button("Complete", systemImage: "checkmark.seal.fill") {
+            store.markDispatchChecklistCompleted(checklist)
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+            store.markDispatchChecklistBlocked(checklist)
+          }
+          .buttonStyle(.bordered)
+          Button("Reopen", systemImage: "arrow.counterclockwise") {
+            store.reopenDispatchChecklist(checklist)
+          }
+          .buttonStyle(.bordered)
+          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+            store.markDispatchChecklistReviewed(checklist)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: checklist)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: checklist)
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  @ViewBuilder
+  private var detailDestination: some View {
+    switch item.source {
+    case .manifest:
+      ShipmentManifestsView(store: store)
+    case .checklist:
+      DispatchReadinessView(store: store)
     }
   }
 }
@@ -497,26 +815,5 @@ private struct OperatorRouteCard<Destination: View>: View {
       .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
     }
     .buttonStyle(.plain)
-  }
-}
-
-private enum DispatchTab: String, CaseIterable, Identifiable {
-  case manifests
-  case readiness
-
-  var id: String { rawValue }
-
-  var title: String {
-    switch self {
-    case .manifests: "Manifests"
-    case .readiness: "Readiness"
-    }
-  }
-
-  var symbol: String {
-    switch self {
-    case .manifests: "list.bullet.clipboard.fill"
-    case .readiness: "checkmark.rectangle.stack.fill"
-    }
   }
 }
