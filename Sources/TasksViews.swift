@@ -3,6 +3,355 @@ import SwiftUI
 struct TasksView: View {
   var store: ParcelOpsStore
 
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var queueItems: [TaskQueueItem] {
+    let tasks = store.reviewTasks
+      .filter { $0.status != .completed || $0.reviewState != .accepted }
+      .map(TaskQueueItem.task)
+    let notes = store.handoffNotes
+      .filter { $0.status != .completed || $0.reviewState != .accepted }
+      .map(TaskQueueItem.handoff)
+
+    return (tasks + notes).sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
+      }
+      return first.sortPriority > second.sortPriority
+    }
+  }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 16) {
+        header
+        taskQueuePanel
+        detailRoutes
+      }
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+    .background(.regularMaterial)
+  }
+
+  private var header: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Tasks")
+          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+        Text("A focused action queue for open follow-up tasks and shift handoffs.")
+          .foregroundStyle(.secondary)
+      }
+
+      MetricStrip(items: [
+        ("Queue", "\(queueItems.count)", .orange),
+        ("Overdue", "\(queueItems.filter(\.isOverdue).count)", .red),
+        ("Blocked", "\(queueItems.filter { $0.status == .blocked }.count)", .red),
+        ("Urgent", "\(queueItems.filter { $0.priority == .urgent }.count)", .pink),
+        ("Review", "\(queueItems.filter { $0.reviewState != .accepted }.count)", .purple)
+      ])
+    }
+  }
+
+  private var taskQueuePanel: some View {
+    SettingsPanel(title: "Unified action queue", symbol: "checklist") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Work this list from the top: overdue, blocked, urgent, and review-needed items are promoted first.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+
+        if queueItems.isEmpty {
+          MVPEmptyState(
+            title: "No open actions",
+            detail: "Review tasks and handoff notes that need operator attention will appear here.",
+            symbol: "checkmark.circle.fill",
+            actionTitle: "Add task",
+            action: store.addReviewTaskPlaceholder
+          )
+        } else {
+          ForEach(queueItems.prefix(16)) { item in
+            TaskQueueRow(item: item, store: store)
+          }
+        }
+      }
+    }
+  }
+
+  private var detailRoutes: some View {
+    SettingsPanel(title: "Detailed task tools", symbol: "rectangle.stack.fill") {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 160 : 220), spacing: 12)], spacing: 12) {
+        NavigationLink {
+          ReviewTasksDetailView(store: store)
+        } label: {
+          TaskRouteCard(title: "Review Tasks", detail: "Filter, edit, complete, reopen, review, or remove local task records.", symbol: "checklist", badge: "\(store.reviewTasks.count) tasks", tint: .orange)
+        }
+        .buttonStyle(.plain)
+
+        NavigationLink {
+          HandoffNotesView(store: store)
+        } label: {
+          TaskRouteCard(title: "Handoff Notes", detail: "Manage shift notes, acknowledgements, and local team continuity.", symbol: "arrow.left.arrow.right.square.fill", badge: "\(store.handoffNotes.count) notes", tint: .blue)
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+}
+
+private struct TaskQueueItem: Identifiable {
+  var id: String
+  var source: TaskQueueSource
+  var sourceLabel: String
+  var title: String
+  var summary: String
+  var linkedEntityType: ReviewTaskLinkedEntityType
+  var linkedEntityID: String
+  var assignee: String
+  var priority: TaskPriority
+  var dueDate: String
+  var status: TaskStatus
+  var reviewState: ReviewState
+  var isOverdue: Bool
+  var nextAction: String
+  var sortPriority: Int
+
+  static func task(_ task: ReviewTask) -> TaskQueueItem {
+    TaskQueueItem(
+      id: "task-\(task.id.uuidString)",
+      source: .task(task),
+      sourceLabel: "Task",
+      title: task.title,
+      summary: task.summary,
+      linkedEntityType: task.linkedEntityType,
+      linkedEntityID: task.linkedEntityID,
+      assignee: task.assignee,
+      priority: task.priority,
+      dueDate: task.isLocallyOverdue ? "Overdue: \(task.dueDate)" : task.dueDate,
+      status: task.status,
+      reviewState: task.reviewState,
+      isOverdue: task.isLocallyOverdue,
+      nextAction: nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue)
+    )
+  }
+
+  static func handoff(_ note: HandoffNote) -> TaskQueueItem {
+    TaskQueueItem(
+      id: "handoff-\(note.id.uuidString)",
+      source: .handoff(note),
+      sourceLabel: "Handoff",
+      title: note.title,
+      summary: note.summary,
+      linkedEntityType: note.linkedEntityType,
+      linkedEntityID: note.linkedEntityID,
+      assignee: note.assignee,
+      priority: note.priority,
+      dueDate: note.isLocallyOverdue ? "Overdue: \(note.dueDate)" : note.dueDate,
+      status: note.status,
+      reviewState: note.reviewState,
+      isOverdue: note.isLocallyOverdue,
+      nextAction: nextAction(status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue, completedVerb: "Reopen if the handoff is active again"),
+      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue)
+    )
+  }
+
+  private static func nextAction(status: TaskStatus, reviewState: ReviewState, isOverdue: Bool, completedVerb: String) -> String {
+    if status == .completed {
+      return reviewState == .accepted ? completedVerb : "Mark reviewed"
+    }
+    if status == .blocked {
+      return "Resolve blocker or create a draft"
+    }
+    if isOverdue {
+      return "Complete or reassign today"
+    }
+    if reviewState != .accepted {
+      return "Review details and act"
+    }
+    return "Complete when follow-up is done"
+  }
+
+  private static func sortPriority(priority: TaskPriority, status: TaskStatus, reviewState: ReviewState, isOverdue: Bool) -> Int {
+    if isOverdue { return 110 }
+    if status == .blocked { return 100 }
+    if priority == .urgent { return 95 }
+    if priority == .high { return 85 }
+    if reviewState != .accepted { return 70 }
+    if status == .inProgress { return 60 }
+    if status == .open { return 50 }
+    return 20
+  }
+}
+
+private enum TaskQueueSource {
+  case task(ReviewTask)
+  case handoff(HandoffNote)
+
+  var symbol: String {
+    switch self {
+    case .task: "checklist"
+    case .handoff: "arrow.left.arrow.right.square.fill"
+    }
+  }
+}
+
+private struct TaskQueueRow: View {
+  var item: TaskQueueItem
+  var store: ParcelOpsStore
+  @State private var editingTask: ReviewTask?
+  @State private var editingHandoff: HandoffNote?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: item.source.symbol)
+          .foregroundStyle(item.priority.color)
+          .frame(width: 30, height: 30)
+
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(item.title)
+                .font(.headline)
+              Text("\(item.assignee) • due \(item.dueDate)")
+                .font(.caption)
+                .foregroundStyle(item.isOverdue ? .red : .secondary)
+            }
+            Spacer(minLength: 8)
+            Badge(item.sourceLabel, color: item.priority.color)
+          }
+
+          Text(item.summary)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+
+          CompactMetadataGrid {
+            Badge(item.priority.rawValue, color: item.priority.color)
+            Badge(item.status.rawValue, color: item.status.color)
+            Badge(item.reviewState.rawValue, color: item.reviewState.color)
+            if item.isOverdue {
+              Badge("Overdue", color: .red)
+            }
+            Label(item.linkedEntityType.rawValue, systemImage: item.linkedEntityType.symbol)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Text(item.linkedEntityID)
+              .font(.caption2.monospaced())
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .truncationMode(.middle)
+          }
+
+          Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+            .font(.caption)
+            .foregroundStyle(item.priority.color)
+        }
+      }
+
+      CompactActionRow {
+        openLink
+
+        switch item.source {
+        case .task(let task):
+          Button("Edit", systemImage: "pencil") {
+            editingTask = task
+          }
+          .buttonStyle(.bordered)
+          if task.status == .completed {
+            Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+              store.reopenReviewTask(task)
+            }
+            .buttonStyle(.bordered)
+          } else {
+            Button("Complete", systemImage: "checkmark.circle.fill") {
+              store.completeReviewTask(task)
+            }
+            .buttonStyle(.borderedProminent)
+          }
+          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+            store.markReviewTaskReviewed(task)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: task)
+          }
+          .buttonStyle(.bordered)
+
+        case .handoff(let note):
+          Button("Edit", systemImage: "pencil") {
+            editingHandoff = note
+          }
+          .buttonStyle(.bordered)
+          Button("Acknowledge", systemImage: "hand.thumbsup.fill") {
+            store.acknowledgeHandoffNote(note)
+          }
+          .buttonStyle(.bordered)
+          if note.status == .completed {
+            Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+              store.reopenHandoffNote(note)
+            }
+            .buttonStyle(.bordered)
+          } else {
+            Button("Complete", systemImage: "checkmark.circle.fill") {
+              store.completeHandoffNote(note)
+            }
+            .buttonStyle(.borderedProminent)
+          }
+          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+            store.markHandoffNoteReviewed(note)
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: note)
+          }
+          .buttonStyle(.bordered)
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: note)
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(12)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    .sheet(item: $editingTask) { task in
+      ReviewTaskEditView(task: task) { updatedTask in
+        store.updateReviewTask(updatedTask)
+      }
+    }
+    .sheet(item: $editingHandoff) { note in
+      HandoffNoteEditView(note: note) { updatedNote in
+        store.updateHandoffNote(updatedNote)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var openLink: some View {
+    switch item.source {
+    case .task:
+      NavigationLink {
+        ReviewTasksDetailView(store: store)
+      } label: {
+        Label("Open", systemImage: "arrow.right.circle.fill")
+      }
+      .buttonStyle(.bordered)
+    case .handoff:
+      NavigationLink {
+        HandoffNotesView(store: store)
+      } label: {
+        Label("Open", systemImage: "arrow.right.circle.fill")
+      }
+      .buttonStyle(.bordered)
+    }
+  }
+}
+
+struct ReviewTasksDetailView: View {
+  var store: ParcelOpsStore
+
   @State private var selectedStatus: TaskStatus?
   @State private var selectedPriority: TaskPriority?
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
@@ -328,5 +677,52 @@ struct ReviewTaskEditView: View {
       .frame(minWidth: 560, minHeight: 620)
       #endif
     }
+  }
+}
+
+private struct TaskRouteCard: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var badge: String
+  var tint: Color
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: symbol)
+        .foregroundStyle(tint)
+        .frame(width: 24)
+
+      VStack(alignment: .leading, spacing: 5) {
+        if isCompact {
+          VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+              .font(.headline)
+            Badge(badge, color: tint)
+          }
+        } else {
+          Text(title)
+            .font(.headline)
+        }
+
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !isCompact {
+        Spacer(minLength: 8)
+        Badge(badge, color: tint)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
