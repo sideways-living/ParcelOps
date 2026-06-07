@@ -4,58 +4,99 @@ struct OrdersView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var orderItems: [OrderQueueItem] {
+    store.filteredOrders
+      .map { order in
+        OrderQueueItem(
+          order: order,
+          trackingEvents: store.trackingEvents(for: order.id),
+          tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
+          manifests: store.suggestedShipmentManifestRecords(for: order),
+          checklists: store.suggestedDispatchReadinessChecklists(for: order)
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.order.orderNumber.localizedCaseInsensitiveCompare(second.order.orderNumber) == .orderedAscending
+        }
+        return first.sortPriority > second.sortPriority
+      }
+  }
+
   var body: some View {
     @Bindable var store = store
 
     ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Orders")
-            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Tracked local order records created manually or from accepted intake.")
-            .foregroundStyle(.secondary)
-        }
+      VStack(alignment: .leading, spacing: 16) {
+        header
 
         MVPWorkflowGuide(
           title: "Order workflow",
-          detail: "Orders are the operational record you use after intake has been confirmed.",
+          detail: "Use this queue after Inbox acceptance to focus on active, risky, or review-needed order records first.",
           steps: [
-            "Search by order number, tracking number, store, customer, or email.",
-            "Open an order to review destination, carrier, status, linked tasks, and dispatch context.",
-            "Create a task or draft from the order when follow-up is needed."
+            "Search by order number, tracking number, store, customer, email, or destination.",
+            "Work exceptions, review-needed orders, warning tracking events, and overdue tasks first.",
+            "Open an order when you need the full linked record context."
           ],
           symbol: "shippingbox.fill"
         )
 
-        HStack {
-          if horizontalSizeClass == .compact {
-            statusPicker
-              .pickerStyle(.menu)
-          } else {
-            statusPicker
-              .pickerStyle(.segmented)
-          }
-          Spacer()
-          Button("Add order", systemImage: "plus", action: store.createManualOrderPlaceholder)
-            .buttonStyle(.bordered)
-        }
+        SettingsPanel(title: "Order queue", symbol: "shippingbox.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            Text("Prioritized local orders with tracking, task, review, and dispatch signals in one row.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
 
-        if store.filteredOrders.isEmpty {
-          MVPEmptyState(title: "No orders match this view", detail: "Clear the status filter or search text, or add a manual order to test the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
-        } else {
-          ForEach(store.filteredOrders) { order in
-            NavigationLink {
-              OrderDetailView(order: order, store: store)
-            } label: {
-              OrderListRow(order: order)
+            filterControls
+
+            if orderItems.isEmpty {
+              MVPEmptyState(title: "No orders match this queue", detail: "Clear the status filter or search text, or add a manual order to test the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
+            } else {
+              ForEach(orderItems) { item in
+                OrderQueueRow(item: item, store: store)
+              }
             }
-            .buttonStyle(.plain)
           }
         }
       }
-      .padding(horizontalSizeClass == .compact ? 14 : 24)
+      .padding(isCompact ? 14 : 24)
     }
     .searchable(text: $store.searchText, prompt: "Search orders, tracking, email, store")
+  }
+
+  private var header: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Orders")
+        .font(isCompact ? .title.bold() : .largeTitle.bold())
+      Text("A focused queue for tracked local orders after intake has been accepted or linked.")
+        .foregroundStyle(.secondary)
+
+      MetricStrip(items: [
+        ("Queue", "\(orderItems.count)", .blue),
+        ("Active", "\(store.orders.filter { $0.status != .delivered }.count)", .teal),
+        ("Review", "\(store.orders.filter { $0.reviewState != .accepted }.count)", .orange),
+        ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
+        ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
+      ])
+    }
+  }
+
+  private var filterControls: some View {
+    @Bindable var store = store
+
+    return HStack(alignment: .center, spacing: 10) {
+      if isCompact {
+        statusPicker
+          .pickerStyle(.menu)
+      } else {
+        statusPicker
+          .pickerStyle(.segmented)
+      }
+      Spacer()
+      Button("Add order", systemImage: "plus", action: store.createManualOrderPlaceholder)
+        .buttonStyle(.borderedProminent)
+    }
   }
 
   private var statusPicker: some View {
@@ -65,6 +106,87 @@ struct OrdersView: View {
       ForEach(OrderStatus.allCases) { status in
         Text(status.rawValue).tag(status as OrderStatus?)
       }
+    }
+  }
+}
+
+private struct OrderQueueItem: Identifiable {
+  var order: TrackedOrder
+  var trackingEvents: [CarrierTrackingEvent]
+  var tasks: [ReviewTask]
+  var manifests: [ShipmentManifestRecord]
+  var checklists: [DispatchReadinessChecklist]
+
+  var id: UUID { order.id }
+  var warningTrackingCount: Int {
+    trackingEvents.filter { $0.severity == .watch || $0.severity == .critical }.count
+  }
+  var criticalTrackingCount: Int {
+    trackingEvents.filter { $0.severity == .critical }.count
+  }
+  var urgentTaskCount: Int {
+    tasks.filter { $0.status != .completed && ($0.priority == .urgent || $0.priority == .high || $0.isLocallyOverdue) }.count
+  }
+  var blockedDispatchCount: Int {
+    let blockedManifests = manifests.filter { manifest in
+      manifest.dispatchStatus == .blockedNeedsReview
+    }.count
+    let blockedChecklists = checklists.filter { checklist in
+      checklist.checklistStatus == .blockedNeedsReview
+    }.count
+    return blockedManifests + blockedChecklists
+  }
+  var dispatchContextCount: Int {
+    manifests.count + checklists.count
+  }
+  var riskLabel: String {
+    if order.status == .exception || criticalTrackingCount > 0 || blockedDispatchCount > 0 {
+      "High risk"
+    } else if warningTrackingCount > 0 || urgentTaskCount > 0 || order.reviewState != .accepted {
+      "Needs attention"
+    } else if order.status == .delivered {
+      "Complete"
+    } else {
+      "On track"
+    }
+  }
+  var riskColor: Color {
+    switch riskLabel {
+    case "High risk": .red
+    case "Needs attention": .orange
+    case "Complete": .green
+    default: .blue
+    }
+  }
+  var nextAction: String {
+    if order.reviewState != .accepted {
+      "Review order details"
+    } else if order.status == .exception || criticalTrackingCount > 0 {
+      "Create follow-up task"
+    } else if blockedDispatchCount > 0 {
+      "Open dispatch context"
+    } else if urgentTaskCount > 0 {
+      "Resolve linked task"
+    } else if warningTrackingCount > 0 {
+      "Check tracking events"
+    } else if order.status == .delivered {
+      "Confirm closure"
+    } else {
+      "Monitor progress"
+    }
+  }
+  var sortPriority: Int {
+    if order.status == .exception { return 120 }
+    if criticalTrackingCount > 0 { return 110 }
+    if blockedDispatchCount > 0 { return 105 }
+    if urgentTaskCount > 0 { return 95 }
+    if order.reviewState != .accepted { return 90 }
+    if warningTrackingCount > 0 { return 80 }
+    switch order.status {
+    case .inTransit, .shipped: return 70
+    case .ordered, .intake: return 60
+    case .delivered: return 20
+    case .exception: return 120
     }
   }
 }
@@ -101,6 +223,110 @@ struct OrderListRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct OrderQueueRow: View {
+  var item: OrderQueueItem
+  var store: ParcelOpsStore
+  @State private var isEditing = false
+
+  var body: some View {
+    let order = item.order
+
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: order.status == .exception ? "exclamationmark.triangle.fill" : order.source.symbol)
+          .foregroundStyle(item.riskColor)
+          .frame(width: 30, height: 30)
+
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("\(order.store) • \(order.orderNumber)")
+                .font(.headline)
+              Text("\(order.customer) • \(order.recipientEmail)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Badge(item.riskLabel, color: item.riskColor)
+          }
+
+          Text(order.destination)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+
+          Text("\(order.carrier) • \(order.trackingNumber) • \(order.latestStatus)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+
+          CompactMetadataGrid {
+            Badge(order.status.rawValue, color: order.status.color)
+            Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            Badge(order.fulfillment.rawValue, color: .blue)
+            Label(order.eta, systemImage: "calendar")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if item.warningTrackingCount > 0 {
+              Badge("\(item.warningTrackingCount) tracking", color: item.criticalTrackingCount > 0 ? .red : .orange)
+            }
+            if item.urgentTaskCount > 0 {
+              Badge("\(item.urgentTaskCount) task", color: .red)
+            }
+            if item.dispatchContextCount > 0 {
+              Badge("\(item.dispatchContextCount) dispatch", color: item.blockedDispatchCount > 0 ? .red : .purple)
+            }
+          }
+
+          Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+            .font(.caption)
+            .foregroundStyle(item.riskColor)
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: order, store: store)
+        } label: {
+          Label("Open", systemImage: "arrow.right.circle.fill")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Edit", systemImage: "pencil") {
+          isEditing = true
+        }
+        .buttonStyle(.bordered)
+
+        Button("Task", systemImage: "checklist") {
+          store.createReviewTask(from: order)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: order)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          var reviewedOrder = order
+          reviewedOrder.reviewState = .accepted
+          store.updateOrder(reviewedOrder)
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    .sheet(isPresented: $isEditing) {
+      OrderEditView(order: order) { updatedOrder in
+        store.updateOrder(updatedOrder)
+      }
+    }
   }
 }
 
