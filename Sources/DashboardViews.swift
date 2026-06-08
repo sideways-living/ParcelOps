@@ -419,7 +419,7 @@ struct DashboardView: View {
       HStack {
         Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
           .buttonStyle(.borderedProminent)
-        Button("Refresh local data", systemImage: "arrow.clockwise", action: store.syncSources)
+        Button("Refresh local placeholders", systemImage: "arrow.clockwise", action: store.syncSources)
           .buttonStyle(.bordered)
       }
     }

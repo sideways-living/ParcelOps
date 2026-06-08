@@ -307,8 +307,8 @@ struct SettingsView: View {
         }
 
         SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
-          Toggle("Monitor forwarded tracking mailbox", isOn: $store.settings.mailboxMonitoringEnabled)
-          Toggle("Create orders from recognized emails", isOn: $store.settings.autoCreateOrdersFromEmail)
+          Toggle("Plan forwarded mailbox monitoring", isOn: $store.settings.mailboxMonitoringEnabled)
+          Toggle("Plan order creation from recognized emails", isOn: $store.settings.autoCreateOrdersFromEmail)
           Picker("Match confidence", selection: $store.settings.matchConfidencePolicy) {
             Text("Strict").tag("Strict")
             Text("Balanced").tag("Balanced")
@@ -334,7 +334,7 @@ struct SettingsView: View {
         }
 
         SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
-          Toggle("Regularly scan saved folders", isOn: $store.settings.folderWatchingEnabled)
+          Toggle("Plan saved-folder scanning", isOn: $store.settings.folderWatchingEnabled)
           Picker("Scan cadence", selection: $store.settings.folderScanCadence) {
             Text("Every 5 minutes").tag("Every 5 minutes")
             Text("Every 15 minutes").tag("Every 15 minutes")
@@ -351,7 +351,7 @@ struct SettingsView: View {
 
         SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
           Toggle("Require review for risky email/order matches", isOn: $store.settings.requireReviewForRiskyMatches)
-          Toggle("Notify on delivery exceptions", isOn: $store.settings.notifyOnDeliveryExceptions)
+          Toggle("Plan delivery exception alerts", isOn: $store.settings.notifyOnDeliveryExceptions)
           Stepper("Exception alert threshold: \(store.settings.exceptionThreshold)", value: $store.settings.exceptionThreshold, in: 1...10)
         }
 
@@ -359,10 +359,10 @@ struct SettingsView: View {
           Toggle("Plan Shopify supplier sync", isOn: $store.settings.shopifySyncEnabled)
           Toggle("Plan password-vault login sync", isOn: $store.settings.storeLoginSyncEnabled)
           Toggle("Plan carrier tracking handoff", isOn: $store.settings.carrierTrackingEnabled)
-          Picker("Carrier tracking mode", selection: $store.settings.carrierTrackingMode) {
-            Text("Export to Parcel").tag("Export to Parcel")
-            Text("Free carrier API").tag("Free carrier API")
-            Text("Manual updates").tag("Manual updates")
+          Picker("Future carrier tracking mode", selection: $store.settings.carrierTrackingMode) {
+            Text("Parcel handoff placeholder").tag("Export to Parcel")
+            Text("Carrier API placeholder").tag("Free carrier API")
+            Text("Manual local updates").tag("Manual updates")
           }
           .pickerStyle(.menu)
           Button("Save settings", systemImage: "checkmark", action: store.saveSettings)
