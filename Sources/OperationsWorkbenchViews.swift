@@ -22,6 +22,15 @@ struct OperationsWorkbenchView: View {
     Array(Set(store.workbenchItems.map(\.status))).sorted()
   }
 
+  private var hasActiveFilters: Bool {
+    selectedAssignee != nil
+      || selectedEntityType != nil
+      || selectedPrioritySeverity != nil
+      || selectedStatus != nil
+      || selectedReviewState != nil
+      || selectedSource != nil
+  }
+
   private var filteredItems: [WorkbenchItem] {
     store.filteredWorkbenchItems(
       assignee: selectedAssignee,
@@ -31,6 +40,31 @@ struct OperationsWorkbenchView: View {
       reviewState: selectedReviewState,
       source: selectedSource
     )
+  }
+
+  private var queueItems: [WorkbenchItem] {
+    hasActiveFilters ? filteredItems : store.openWorkbenchItems
+  }
+
+  private var operatorSections: [WorkbenchItemGroup] {
+    let urgent = unique(queueItems.filter { $0.isDueOrOverdue || $0.rank >= 3 })
+    let blocked = unique(queueItems.filter { $0.isBlocked }, excluding: urgent)
+    let exceptions = unique(queueItems.filter { $0.isException }, excluding: urgent + blocked)
+    let highRiskShipments = unique(queueItems.filter {
+      [.shipmentGroup, .shipmentManifest, .dispatchChecklist, .tracking].contains($0.source)
+        && ($0.rank >= 3 || $0.reviewState == .needsReview)
+    }, excluding: urgent + blocked + exceptions)
+    let needsReview = unique(queueItems.filter { $0.reviewState == .needsReview }, excluding: urgent + blocked + exceptions + highRiskShipments)
+    let recent = unique(Array(queueItems.prefix(8)), excluding: urgent + blocked + exceptions + highRiskShipments + needsReview)
+
+    return [
+      WorkbenchItemGroup(title: "Urgent now", symbol: "flame.fill", items: urgent),
+      WorkbenchItemGroup(title: "Blocked work", symbol: "hand.raised.fill", items: blocked),
+      WorkbenchItemGroup(title: "Exceptions and mismatches", symbol: "arrow.triangle.2.circlepath.circle.fill", items: exceptions),
+      WorkbenchItemGroup(title: "High-risk shipments", symbol: "shippingbox.and.arrow.backward.fill", items: highRiskShipments),
+      WorkbenchItemGroup(title: "Needs review", symbol: "checkmark.shield.fill", items: needsReview),
+      WorkbenchItemGroup(title: "Recently updated", symbol: "clock.fill", items: recent)
+    ].filter { !$0.items.isEmpty }
   }
 
   var body: some View {
@@ -48,27 +82,9 @@ struct OperationsWorkbenchView: View {
           ],
           symbol: "rectangle.stack.badge.person.crop.fill"
         )
-        filters
-
-        if filteredItems.isEmpty {
-          SettingsPanel(title: "Workbench items", symbol: "rectangle.stack.badge.person.crop.fill") {
-            MVPEmptyState(title: "No workbench items match this view", detail: "Clear filters to see open local work, or create tasks from intake, orders, manifests, and dispatch readiness records.", symbol: "rectangle.stack.badge.person.crop.fill")
-          }
-        } else {
-          ForEach(store.groupedWorkbenchItems(filteredItems)) { group in
-            SettingsPanel(title: "\(group.title) (\(group.items.count))", symbol: group.symbol) {
-              ForEach(group.items) { item in
-                WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), costRecords: store.suggestedCostRecords(for: item), returnClaims: store.suggestedReturnClaims(for: item), procurementRequests: store.suggestedProcurementRequests(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
-                  store.createReviewTask(from: item)
-                } onCreateDraft: {
-                  store.createDraftMessage(from: item)
-                } onReviewed: {
-                  store.markWorkbenchItemReviewed(item)
-                }
-              }
-            }
-          }
-        }
+        operatorSummary
+        operatorQueue
+        advancedFilters
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
@@ -89,6 +105,72 @@ struct OperationsWorkbenchView: View {
         Badge("\(store.highPriorityWorkbenchItems.count) high", color: .orange)
       }
     }
+  }
+
+  private var operatorSummary: some View {
+    SettingsPanel(title: "Exception queue summary", symbol: "exclamationmark.triangle.fill") {
+      MetricStrip(items: [
+        ("Urgent", "\(store.overdueWorkbenchItems.count + store.highPriorityWorkbenchItems.count)", .red),
+        ("Blocked", "\(store.blockedWorkbenchItems.count)", .orange),
+        ("Review", "\(store.workbenchItemsNeedingReview.count)", .purple),
+        ("Open", "\(store.openWorkbenchItems.count)", .blue)
+      ])
+      Text("Use this queue to turn local exceptions into tasks, drafts, reviews, or the right detailed workspace.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private var operatorQueue: some View {
+    Group {
+      if queueItems.isEmpty {
+        SettingsPanel(title: "Operator queue", symbol: "rectangle.stack.badge.person.crop.fill") {
+          MVPEmptyState(
+            title: hasActiveFilters ? "No workbench items match this view" : "No open workbench items",
+            detail: hasActiveFilters ? "Clear filters to return to the daily exception queue." : "Blocked intake, exceptions, high-risk shipments, handoffs, and review work will appear here.",
+            symbol: "rectangle.stack.badge.person.crop.fill"
+          )
+        }
+      } else {
+        ForEach(operatorSections) { group in
+          SettingsPanel(title: "\(group.title) (\(group.items.count))", symbol: group.symbol) {
+            Text(sectionDetail(for: group.title))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(group.items) { item in
+              workbenchRow(for: item)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var advancedFilters: some View {
+    DisclosureGroup {
+      VStack(alignment: .leading, spacing: 12) {
+        filters
+        if hasActiveFilters {
+          Button("Clear workbench filters", systemImage: "xmark.circle") {
+            selectedAssignee = nil
+            selectedEntityType = nil
+            selectedPrioritySeverity = nil
+            selectedStatus = nil
+            selectedReviewState = nil
+            selectedSource = nil
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+      .padding(.top, 8)
+    } label: {
+      Label(hasActiveFilters ? "Filtered detailed queue" : "Detailed filters", systemImage: "line.3.horizontal.decrease.circle")
+        .font(.headline)
+    }
+    .padding(16)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private var filters: some View {
@@ -131,6 +213,121 @@ struct OperationsWorkbenchView: View {
       }
     }
   }
+
+  private func sectionDetail(for title: String) -> String {
+    switch title {
+    case "Urgent now":
+      return "Due, overdue, high, urgent, or critical work that should be handled first."
+    case "Blocked work":
+      return "Items that cannot move forward until someone resolves the blocker."
+    case "Exceptions and mismatches":
+      return "Validation, reconciliation, tracking, and playbook items that need a decision."
+    case "High-risk shipments":
+      return "Shipment, manifest, dispatch, and tracking records with elevated risk or review state."
+    case "Needs review":
+      return "Records waiting for a local review mark-off after follow-up."
+    default:
+      return "Recent open work that did not fall into a higher-priority section."
+    }
+  }
+
+  private func unique(_ items: [WorkbenchItem], excluding excluded: [WorkbenchItem] = []) -> [WorkbenchItem] {
+    let excludedIDs = Set(excluded.map(\.id))
+    var seen = Set<String>()
+    return items.filter { item in
+      guard !excludedIDs.contains(item.id) else { return false }
+      return seen.insert(item.id).inserted
+    }
+  }
+
+  @ViewBuilder
+  private func workbenchRow(for item: WorkbenchItem) -> some View {
+    WorkbenchItemRow(
+      item: item,
+      customerProfiles: store.suggestedCustomerProfiles(for: item),
+      destinationAddresses: store.suggestedDestinationAddresses(for: item),
+      deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
+      packageContents: store.suggestedPackageContents(for: item),
+      costRecords: store.suggestedCostRecords(for: item),
+      returnClaims: store.suggestedReturnClaims(for: item),
+      procurementRequests: store.suggestedProcurementRequests(for: item),
+      receivingInspections: store.suggestedReceivingInspections(for: item),
+      inventoryReceipts: store.suggestedInventoryReceipts(for: item),
+      storageLocations: store.suggestedStorageLocations(for: item),
+      custodyRecords: store.suggestedCustodyRecords(for: item),
+      labelReferences: store.suggestedLabelReferenceRecords(for: item),
+      scanSessions: store.suggestedScanSessionRecords(for: item),
+      shipmentManifests: store.suggestedShipmentManifestRecords(for: item),
+      dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item),
+      contextDestination: AnyView(workbenchDestination(for: item))
+    ) {
+      store.createReviewTask(from: item)
+    } onCreateDraft: {
+      store.createDraftMessage(from: item)
+    } onReviewed: {
+      store.markWorkbenchItemReviewed(item)
+    }
+  }
+
+  @ViewBuilder
+  private func workbenchDestination(for item: WorkbenchItem) -> some View {
+    switch item.source {
+    case .reviewTask, .handoffNote:
+      TasksView(store: store)
+    case .intakeEmail, .importQueue, .acceptanceReview:
+      InboxView(store: store)
+    case .reconciliation:
+      ReconciliationView(store: store)
+    case .validation:
+      ValidationView(store: store)
+    case .shipmentGroup:
+      ShipmentGroupsView(store: store)
+    case .tracking:
+      TrackingView(store: store)
+    case .evidence:
+      EvidenceView(store: store)
+    case .slaPolicy:
+      SLAPoliciesView(store: store)
+    case .exceptionPlaybook:
+      ExceptionPlaybooksView(store: store)
+    case .draftMessage:
+      CommunicationView(store: store)
+    case .contact:
+      ContactsView(store: store)
+    case .customerProfile:
+      CustomerProfilesView(store: store)
+    case .destinationAddress:
+      DestinationAddressesView(store: store)
+    case .deliveryInstruction:
+      DeliveryInstructionsView(store: store)
+    case .packageContent:
+      PackageContentsView(store: store)
+    case .costRecord:
+      CostsBudgetsView(store: store)
+    case .returnClaim:
+      ReturnsClaimsView(store: store)
+    case .procurementRequest:
+      ProcurementView(store: store)
+    case .receivingInspection:
+      ReceivingInspectionsView(store: store)
+    case .inventoryReceipt:
+      InventoryReceiptsView(store: store)
+    case .storageLocation:
+      StorageLocationsView(store: store)
+    case .custodyRecord:
+      CustodyChainView(store: store)
+    case .labelReference:
+      LabelReferencesView(store: store)
+    case .scanSession:
+      ScanSessionsView(store: store)
+    case .shipmentManifest, .dispatchChecklist:
+      DispatchView(store: store)
+    case .account:
+      AccountsView(store: store)
+    case .vendorProfile:
+      VendorProfilesView(store: store)
+    }
+  }
 }
 
 struct WorkbenchItemRow: View {
@@ -150,6 +347,7 @@ struct WorkbenchItemRow: View {
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
   var dispatchChecklists: [DispatchReadinessChecklist] = []
+  var contextDestination: AnyView?
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
@@ -189,6 +387,14 @@ struct WorkbenchItemRow: View {
       .foregroundStyle(.secondary)
 
       CompactActionRow {
+        if let contextDestination {
+          NavigationLink {
+            contextDestination
+          } label: {
+            Label("Open", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
