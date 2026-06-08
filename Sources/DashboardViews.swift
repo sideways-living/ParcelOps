@@ -11,6 +11,21 @@ struct DashboardView: View {
   private var sectionColumns: [GridItem] {
     Array(repeating: GridItem(.flexible(), spacing: 14), count: isCompact ? 1 : 2)
   }
+  private var incomingAttentionCount: Int {
+    store.reviewIntakeEmails.count + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
+  }
+  private var problemOrdersCount: Int {
+    store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
+  }
+  private var dispatchAttentionCount: Int {
+    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count
+  }
+  private var taskAttentionCount: Int {
+    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+  }
+  private var attentionNowCount: Int {
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + store.highPriorityWorkbenchItems.count
+  }
 
   var body: some View {
     ScrollView {
@@ -29,6 +44,14 @@ struct DashboardView: View {
           symbol: "map.fill"
         )
         MVPReadinessCallout(store: store)
+        dailyOperatorStart
+
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Detailed local analytics")
+            .font(.title2.bold())
+          Text("Broader local record summaries remain available below for deeper review and testing.")
+            .foregroundStyle(.secondary)
+        }
 
         AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
           LazyVGrid(columns: metricColumns, spacing: 12) {
@@ -388,9 +411,9 @@ struct DashboardView: View {
   private var header: some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Operations overview")
+        Text("Daily operations")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
-        Text("Start with intake, review, orders, workbench, shipment manifests, dispatch readiness, tasks, and audit.")
+        Text("Start here, then move through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit.")
           .foregroundStyle(.secondary)
       }
       HStack {
@@ -400,6 +423,181 @@ struct DashboardView: View {
           .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var dailyOperatorStart: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      AnalyticsSection(title: "What needs attention now", symbol: "exclamationmark.triangle.fill") {
+        LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 12) {
+          OperatorDashboardCard(
+            title: "Inbox",
+            count: incomingAttentionCount,
+            detail: "Forwarded emails, import items, and acceptance records waiting for triage.",
+            nextAction: incomingAttentionCount == 0 ? "Inbox is clear" : "Triage incoming work",
+            symbol: "tray.full.fill",
+            tint: incomingAttentionCount == 0 ? .green : .orange
+          ) {
+            InboxView(store: store)
+          }
+
+          OperatorDashboardCard(
+            title: "Orders",
+            count: problemOrdersCount,
+            detail: "Review-needed orders, exceptions, and warning or critical tracking events.",
+            nextAction: problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders",
+            symbol: "shippingbox.fill",
+            tint: problemOrdersCount == 0 ? .green : .red
+          ) {
+            OrdersView(store: store)
+          }
+
+          OperatorDashboardCard(
+            title: "Workbench",
+            count: store.highPriorityWorkbenchItems.count,
+            detail: "Highest-priority local work from exceptions, validation, reconciliation, and follow-up records.",
+            nextAction: store.highPriorityWorkbenchItems.isEmpty ? "No urgent workbench items" : "Open high-priority work",
+            symbol: "rectangle.stack.badge.person.crop.fill",
+            tint: store.highPriorityWorkbenchItems.isEmpty ? .green : .purple
+          ) {
+            OperationsWorkbenchView(store: store)
+          }
+
+          OperatorDashboardCard(
+            title: "Dispatch",
+            count: dispatchAttentionCount,
+            detail: "Blocked manifests, undispatched batches, incomplete checklists, and readiness work.",
+            nextAction: dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work",
+            symbol: "shippingbox.and.arrow.backward.fill",
+            tint: dispatchAttentionCount == 0 ? .green : .blue
+          ) {
+            DispatchView(store: store)
+          }
+
+          OperatorDashboardCard(
+            title: "Tasks",
+            count: taskAttentionCount,
+            detail: "Open review tasks and handoff notes that need ownership or completion.",
+            nextAction: taskAttentionCount == 0 ? "No task escalations" : "Work follow-ups",
+            symbol: "checklist",
+            tint: taskAttentionCount == 0 ? .green : .orange
+          ) {
+            TasksView(store: store)
+          }
+
+          OperatorDashboardCard(
+            title: "Audit",
+            count: store.recentAuditEvents.count,
+            detail: "Recent local actions, record changes, reviews, creates, removes, tasks, and drafts.",
+            nextAction: "Check recent activity",
+            symbol: "list.clipboard.fill",
+            tint: .teal
+          ) {
+            AuditView(store: store)
+          }
+        }
+      }
+
+      LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
+        AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
+          MetricStrip(items: [
+            ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
+            ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
+            ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
+            ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
+          ])
+          CompactIntakeList(emails: store.newestIntakeEmails)
+        }
+
+        AnalyticsSection(title: "Active/problem orders", symbol: "shippingbox.fill") {
+          MetricStrip(items: [
+            ("Active", "\(store.activeCount)", .teal),
+            ("Review", "\(store.reviewOrders.count)", .orange),
+            ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
+            ("Delivered", "\(store.deliveredCount)", .green)
+          ])
+          CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
+        }
+
+        AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
+          MetricStrip(items: [
+            ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+            ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
+            ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
+            ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
+          ])
+          CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
+        }
+
+        AnalyticsSection(title: "Open tasks and handoffs", symbol: "checklist") {
+          MetricStrip(items: [
+            ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .orange),
+            ("Handoffs", "\(store.handoffNotesNeedingAttention.count)", .blue),
+            ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
+            ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
+          ])
+          CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)))
+          CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)))
+        }
+      }
+
+      AnalyticsSection(title: "Recent local activity", symbol: "list.clipboard.fill") {
+        if store.recentAuditEvents.isEmpty {
+          MVPEmptyState(title: "No recent local activity", detail: "Create, edit, review, accept, dispatch, or complete a local record and it will appear here.", symbol: "list.clipboard.fill")
+        } else {
+          CompactAuditList(events: store.recentAuditEvents)
+        }
+      }
+    }
+  }
+}
+
+private struct OperatorDashboardCard<Destination: View>: View {
+  var title: String
+  var count: Int
+  var detail: String
+  var nextAction: String
+  var symbol: String
+  var tint: Color
+  @ViewBuilder var destination: Destination
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
+  var body: some View {
+    NavigationLink {
+      destination
+    } label: {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: symbol)
+            .foregroundStyle(tint)
+            .frame(width: 26)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+              .font(.headline)
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Text("\(count)")
+            .font(.title2.bold())
+            .foregroundStyle(tint)
+        }
+
+        Label(nextAction, systemImage: "arrow.right.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tint)
+          .lineLimit(isCompact ? 2 : 1)
+      }
+      .padding(14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.background)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    }
+    .buttonStyle(.plain)
   }
 }
 
@@ -522,6 +720,32 @@ struct CompactIntakeList: View {
           badge: email.reviewState.rawValue,
           color: email.reviewState.color
         )
+      }
+    }
+  }
+}
+
+struct CompactOrderList: View {
+  var orders: [TrackedOrder]
+
+  var body: some View {
+    CompactList(title: "Active/problem orders", symbol: "shippingbox.fill") {
+      if orders.isEmpty {
+        CompactRow(
+          title: "No problem orders",
+          detail: "Active and review-needed orders will appear here.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(orders) { order in
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: "\(order.customer) • \(order.carrier) • \(order.trackingNumber)",
+            badge: order.status.rawValue,
+            color: order.status.color
+          )
+        }
       }
     }
   }
