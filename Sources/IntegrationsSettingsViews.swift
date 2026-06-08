@@ -10,13 +10,16 @@ struct IntegrationsView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         VStack(alignment: .leading, spacing: 10) {
-          Text("Connected sources")
+          Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          HStack {
-            Button("Add mailbox", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
-            Button("Connect Shopify", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
-            Button("Watch folder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
-            Button("Add login", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
+          Text("Placeholder records for future mailbox, Shopify, folder, and login workflows. Nothing here connects to live services yet.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Mailbox placeholder", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
+            Button("Shopify placeholder", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
+            Button("Folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
+            Button("Login placeholder", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
           }
         }
 
@@ -352,7 +355,7 @@ struct SettingsView: View {
           Stepper("Exception alert threshold: \(store.settings.exceptionThreshold)", value: $store.settings.exceptionThreshold, in: 1...10)
         }
 
-        SettingsPanel(title: "Connected sources", symbol: "link.badge.plus") {
+        SettingsPanel(title: "Future source planning", symbol: "link.badge.plus") {
           Toggle("Plan Shopify supplier sync", isOn: $store.settings.shopifySyncEnabled)
           Toggle("Plan password-vault login sync", isOn: $store.settings.storeLoginSyncEnabled)
           Toggle("Plan carrier tracking handoff", isOn: $store.settings.carrierTrackingEnabled)

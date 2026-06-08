@@ -711,7 +711,7 @@ struct OrderDetailView: View {
         }
 
         if order.fulfillment == .delivery {
-          Button("Send to Parcel", systemImage: "square.and.arrow.up") {
+          Button("Mark parcel handoff planned", systemImage: "square.and.arrow.up") {
             store.exportToParcel(order: order)
           }
           .buttonStyle(.borderedProminent)

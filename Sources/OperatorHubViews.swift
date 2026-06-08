@@ -43,7 +43,7 @@ struct InboxView: View {
   private var triagePanel: some View {
     SettingsPanel(title: "Unified triage queue", symbol: "tray.full.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Work the highest-risk incoming order signals here, then open the detailed tools when a record needs correction or linking.")
+        Text("Work the highest-risk incoming order signals here, then open a detailed view when a record needs correction or linking.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -63,7 +63,7 @@ struct InboxView: View {
   }
 
   private var detailRoutes: some View {
-    SettingsPanel(title: "Detailed inbox tools", symbol: "rectangle.stack.fill") {
+    SettingsPanel(title: "Detailed inbox views", symbol: "rectangle.stack.fill") {
       LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
         OperatorRouteCard(title: "Mailbox Monitor", detail: "Review forwarded order emails and detected fields.", symbol: "envelope.badge.fill", badge: "\(store.intakeEmails.count) emails") {
           MailboxView(store: store)
@@ -433,7 +433,7 @@ struct DispatchView: View {
   private var dispatchQueuePanel: some View {
     SettingsPanel(title: "Unified dispatch queue", symbol: "shippingbox.and.arrow.backward.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Work blocked, high-risk, incomplete, and upcoming outbound records here before opening the detailed dispatch tools.")
+        Text("Work blocked, high-risk, incomplete, and upcoming outbound records here before opening a detailed dispatch view.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -453,7 +453,7 @@ struct DispatchView: View {
   }
 
   private var detailRoutes: some View {
-    SettingsPanel(title: "Detailed dispatch tools", symbol: "rectangle.stack.fill") {
+    SettingsPanel(title: "Detailed dispatch views", symbol: "rectangle.stack.fill") {
       LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
         OperatorRouteCard(title: "Shipment Manifests", detail: "Prepare outbound batches and courier handoff groups.", symbol: "list.bullet.clipboard.fill", badge: "\(store.shipmentManifestRecords.count) manifests") {
           ShipmentManifestsView(store: store)

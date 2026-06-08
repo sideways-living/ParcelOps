@@ -77,8 +77,8 @@ struct TasksView: View {
   }
 
   private var detailRoutes: some View {
-    SettingsPanel(title: "Detailed task tools", symbol: "rectangle.stack.fill") {
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 160 : 220), spacing: 12)], spacing: 12) {
+    SettingsPanel(title: "Detailed task views", symbol: "rectangle.stack.fill") {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 240), spacing: 12)], spacing: 12) {
         NavigationLink {
           ReviewTasksDetailView(store: store)
         } label: {
