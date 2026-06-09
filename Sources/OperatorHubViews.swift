@@ -210,6 +210,7 @@ private enum InboxTriageSource {
 private struct InboxTriageRow: View {
   var item: InboxTriageItem
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var linkedOrderLabel: String? {
     item.linkedOrderID.flatMap { store.orderLabel(for: $0) }
@@ -280,65 +281,90 @@ private struct InboxTriageRow: View {
         case .email(let email):
           Button("Reviewed", systemImage: "checkmark.circle.fill") {
             store.markIntakeEmailReviewed(email)
+            feedbackMessage = "Email marked reviewed locally."
           }
           .buttonStyle(.bordered)
           Button("Ignore", systemImage: "eye.slash.fill") {
             store.ignoreIntakeEmail(email)
+            feedbackMessage = "Email ignored locally."
           }
           .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
+          Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: email)
+            feedbackMessage = "Follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
-          Button("Draft", systemImage: "envelope.open.fill") {
+          Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: email)
+            feedbackMessage = "Draft message created locally."
           }
           .buttonStyle(.bordered)
 
         case .importQueue(let importItem):
-          Button("Accept", systemImage: "checkmark.seal.fill") {
+          Button("Accept import", systemImage: "checkmark.seal.fill") {
             store.markImportQueueItemAccepted(importItem)
+            feedbackMessage = "Import accepted locally."
           }
           .buttonStyle(.borderedProminent)
           Button("Ignore", systemImage: "eye.slash.fill") {
             store.ignoreImportQueueItem(importItem)
+            feedbackMessage = "Import ignored locally."
           }
           .buttonStyle(.bordered)
           Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
             store.reopenImportQueueItem(importItem)
+            feedbackMessage = "Import reopened for review."
           }
           .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
+          Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: importItem)
+            feedbackMessage = "Follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
-          Button("Draft", systemImage: "square.and.pencil") {
+          Button("Create draft", systemImage: "square.and.pencil") {
             store.createDraftMessage(from: importItem)
+            feedbackMessage = "Draft message created locally."
           }
           .buttonStyle(.bordered)
 
         case .acceptance(let candidate):
-          Button("Accept", systemImage: "checkmark.circle.fill") {
+          Button("Accept record", systemImage: "checkmark.circle.fill") {
             store.acceptCandidate(candidate)
+            feedbackMessage = "Acceptance record accepted locally."
           }
           .buttonStyle(.borderedProminent)
           Button("Ignore", systemImage: "eye.slash.fill") {
             store.ignoreCandidate(candidate)
+            feedbackMessage = "Acceptance record ignored locally."
           }
           .buttonStyle(.bordered)
           Button("Reopen", systemImage: "arrow.counterclockwise") {
             store.reopenCandidate(candidate)
+            feedbackMessage = "Acceptance record reopened for review."
           }
           .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
+          Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: candidate)
+            feedbackMessage = "Follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
-          Button("Draft", systemImage: "envelope.open.fill") {
+          Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: candidate)
+            feedbackMessage = "Draft message created locally."
           }
           .buttonStyle(.bordered)
         }
+      }
+
+      if let feedbackMessage {
+        Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 7)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.green.opacity(0.12))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
       }
     }
     .padding(12)
