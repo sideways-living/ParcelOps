@@ -13,6 +13,7 @@ final class ParcelOpsStore {
   var orders: [TrackedOrder]
   var mailEvents: [MailEvent]
   var intakeEmails: [ForwardedEmailIntake]
+  var mailboxIngestRecords: [MailboxIngestRecord]
   var mailboxes: [TrackedMailbox]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
@@ -55,6 +56,7 @@ final class ParcelOpsStore {
   private let orderRepository: OrderRepository
   private let mailEventRepository: MailEventRepository
   private let intakeEmailRepository: IntakeEmailRepository
+  private let mailboxIngestRepository: MailboxIngestRepository
   private let integrationRepository: IntegrationRepository
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
@@ -96,7 +98,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & MailboxIngestRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -110,6 +112,7 @@ final class ParcelOpsStore {
     self.orderRepository = repository
     self.mailEventRepository = repository
     self.intakeEmailRepository = repository
+    self.mailboxIngestRepository = repository
     self.integrationRepository = repository
     self.wishlistRepository = repository
     self.settingsRepository = repository
@@ -153,6 +156,7 @@ final class ParcelOpsStore {
     self.orders = repository.loadOrders()
     self.mailEvents = repository.loadMailEvents()
     self.intakeEmails = repository.loadIntakeEmails()
+    self.mailboxIngestRecords = repository.loadMailboxIngestRecords()
     self.mailboxes = repository.loadMailboxes()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
@@ -3639,6 +3643,161 @@ final class ParcelOpsStore {
   func syncSources() {
     let actions = workflowTemplateEngine.actions(for: .manualSync).map(\.rawValue).joined(separator: ", ")
     appendSystemContact("Sync requested", evidence: "Workflow template actions queued: \(actions).")
+    importSimulatedFetchedMailboxMessages()
+  }
+
+  func importSimulatedFetchedMailboxMessages() {
+    let mailbox = mailboxes.first ?? TrackedMailbox(
+      address: "tracking-intake@parcelops.example",
+      provider: .microsoft365,
+      monitoredFolders: "Inbox",
+      status: "Local test mailbox",
+      lastChecked: "Never",
+      routingRule: "Simulated forwarded-order intake"
+    )
+    if mailboxes.isEmpty {
+      mailboxes.append(mailbox)
+      persistIntegrations()
+    }
+
+    let messages = simulatedFetchedMailboxMessages(for: mailbox)
+    importFetchedMailboxMessages(messages)
+  }
+
+  @discardableResult
+  func importFetchedMailboxMessages(_ messages: [FetchedMailboxMessage]) -> (imported: Int, duplicates: Int) {
+    var importedCount = 0
+    var duplicateCount = 0
+
+    for message in messages {
+      if mailboxIngestRecords.contains(where: { $0.providerMessageID == message.providerMessageID && $0.sourceMailboxID == message.sourceMailboxID }) {
+        duplicateCount += 1
+        let duplicateRecord = MailboxIngestRecord(
+          providerMessageID: message.providerMessageID,
+          sourceMailboxID: message.sourceMailboxID,
+          intakeEmailID: nil,
+          capturedDate: Self.auditTimestamp(),
+          status: .duplicateSkipped,
+          summary: "Skipped duplicate forwarded email: \(message.subject)"
+        )
+        mailboxIngestRecords.insert(duplicateRecord, at: 0)
+        logAudit(action: .ignored, entityType: .intakeEmail, entityID: message.providerMessageID, entityLabel: message.subject, summary: "Duplicate fetched mailbox message skipped locally.", afterDetail: mailboxIngestAuditDetail(for: duplicateRecord))
+        continue
+      }
+
+      let intakeEmail = makeForwardedEmailIntake(from: message)
+      intakeEmails.insert(intakeEmail, at: 0)
+      let ingestRecord = MailboxIngestRecord(
+        providerMessageID: message.providerMessageID,
+        sourceMailboxID: message.sourceMailboxID,
+        intakeEmailID: intakeEmail.id,
+        capturedDate: Self.auditTimestamp(),
+        status: .imported,
+        summary: "Imported forwarded email: \(message.subject)"
+      )
+      mailboxIngestRecords.insert(ingestRecord, at: 0)
+      importedCount += 1
+      logAudit(action: .created, entityType: .intakeEmail, entityID: intakeEmail.id.uuidString, entityLabel: intakeEmail.auditLabel, summary: "Fetched mailbox message imported into forwarded email intake.", afterDetail: "\(intakeEmail.auditDetail)\nProvider message ID: \(message.providerMessageID)")
+    }
+
+    if importedCount > 0 {
+      persistIntakeEmails()
+    }
+    if importedCount > 0 || duplicateCount > 0 {
+      persistMailboxIngestRecords()
+    }
+    return (importedCount, duplicateCount)
+  }
+
+  private func simulatedFetchedMailboxMessages(for mailbox: TrackedMailbox) -> [FetchedMailboxMessage] {
+    [
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailbox.id.uuidString)-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(mailbox.address).",
+        sourceMailboxID: mailbox.id
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailbox.id.uuidString)-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: mailbox.id
+      )
+    ]
+  }
+
+  private func makeForwardedEmailIntake(from message: FetchedMailboxMessage) -> ForwardedEmailIntake {
+    let combinedText = "\(message.subject)\n\(message.plainTextBodyPreview)"
+    let orderNumber = detectedOrderNumber(in: combinedText)
+    return ForwardedEmailIntake(
+      sender: message.sender,
+      subject: message.subject,
+      receivedDate: message.receivedDate,
+      rawBodyPreview: String(message.plainTextBodyPreview.prefix(280)),
+      detectedMerchant: detectedMerchant(from: message),
+      detectedOrderNumber: orderNumber,
+      detectedTrackingNumber: detectedTrackingNumber(in: combinedText, excluding: orderNumber),
+      detectedDestinationAddress: detectedDestinationAddress(in: combinedText),
+      linkedOrderID: matchedOrderID(for: orderNumber),
+      reviewState: .needsReview
+    )
+  }
+
+  private func detectedMerchant(from message: FetchedMailboxMessage) -> String {
+    let subject = message.subject.replacingOccurrences(of: "Fwd:", with: "", options: [.caseInsensitive]).trimmingCharacters(in: .whitespacesAndNewlines)
+    if let orderRange = subject.range(of: " order ", options: [.caseInsensitive]) {
+      let merchant = subject[..<orderRange.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+      if !merchant.isEmpty { return merchant }
+    }
+    if let domain = message.sender.split(separator: "@").last?.split(separator: ".").first {
+      return domain.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+    return "Merchant needs review"
+  }
+
+  private func detectedOrderNumber(in text: String) -> String {
+    if let value = firstMatch(in: text, pattern: #"(?i)\border\s+#?([A-Z]{2,6}-?\d{3,8})\b"#) {
+      return value
+    }
+    return firstMatch(in: text, pattern: #"\b[A-Z]{2,6}-\d{3,8}\b"#) ?? "Order number needs review"
+  }
+
+  private func detectedTrackingNumber(in text: String, excluding orderNumber: String) -> String {
+    if let value = firstMatch(in: text, pattern: #"(?i)\btracking(?:\s+number)?\s+([A-Z0-9]{8,24})\b"#), value != orderNumber {
+      return value
+    }
+    return firstMatch(in: text, pattern: #"\b[A-Z]{2,6}\d{6,18}[A-Z0-9]*\b"#) ?? "Tracking number needs review"
+  }
+
+  private func detectedDestinationAddress(in text: String) -> String {
+    if let range = text.range(of: #"(?i)\bto\s+([^.\n]+)"#, options: .regularExpression) {
+      let value = text[range]
+        .replacingOccurrences(of: #"(?i)^\s*to\s+"#, with: "", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !value.isEmpty { return value }
+    }
+    return "Destination needs review"
+  }
+
+  private func matchedOrderID(for orderNumber: String) -> UUID? {
+    orders.first { $0.orderNumber.caseInsensitiveCompare(orderNumber) == .orderedSame }?.id
+  }
+
+  private func firstMatch(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+    let captureRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
+    guard let swiftRange = Range(captureRange, in: text) else { return nil }
+    return String(text[swiftRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func mailboxIngestAuditDetail(for record: MailboxIngestRecord) -> String {
+    "Provider message ID: \(record.providerMessageID)\nSource mailbox ID: \(record.sourceMailboxID.uuidString)\nStatus: \(record.status.rawValue)\nCaptured: \(record.capturedDate)\n\(record.summary)"
   }
 
   func createManualOrderPlaceholder() {
@@ -7668,6 +7827,10 @@ final class ParcelOpsStore {
 
   private func persistIntakeEmails() {
     intakeEmailRepository.saveIntakeEmails(intakeEmails)
+  }
+
+  private func persistMailboxIngestRecords() {
+    mailboxIngestRepository.saveMailboxIngestRecords(mailboxIngestRecords)
   }
 
   private func persistIntegrations() {

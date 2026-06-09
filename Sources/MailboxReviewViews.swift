@@ -26,6 +26,19 @@ struct MailboxView: View {
           symbol: "envelope.open.fill"
         )
 
+        SettingsPanel(title: "Local mailbox ingest test", symbol: "tray.and.arrow.down.fill") {
+          Text("Import simulated fetched mailbox messages through the same provider-neutral intake path that a real mailbox connector will use later. No mailbox is contacted.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Import simulated mailbox messages", systemImage: "envelope.badge.fill") {
+              store.importSimulatedFetchedMailboxMessages()
+            }
+            .buttonStyle(.borderedProminent)
+            Badge("\(store.mailboxIngestRecords.count) ingest records", color: .blue)
+          }
+        }
+
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")

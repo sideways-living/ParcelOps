@@ -262,6 +262,33 @@ struct ForwardedEmailIntake: Identifiable, Hashable, Codable {
   var reviewState: IntakeEmailReviewState
 }
 
+struct FetchedMailboxMessage: Identifiable, Hashable {
+  var id: String { providerMessageID }
+  var providerMessageID: String
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var plainTextBodyPreview: String
+  var sourceMailboxID: UUID
+}
+
+struct MailboxIngestRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var providerMessageID: String
+  var sourceMailboxID: UUID
+  var intakeEmailID: UUID?
+  var capturedDate: String
+  var status: MailboxIngestStatus
+  var summary: String
+}
+
+enum MailboxIngestStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case imported = "Imported"
+  case duplicateSkipped = "Duplicate skipped"
+
+  var id: String { rawValue }
+}
+
 struct AuditEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var timestamp: String

@@ -15,6 +15,11 @@ protocol IntakeEmailRepository {
   func saveIntakeEmails(_ emails: [ForwardedEmailIntake])
 }
 
+protocol MailboxIngestRepository {
+  func loadMailboxIngestRecords() -> [MailboxIngestRecord]
+  func saveMailboxIngestRecords(_ records: [MailboxIngestRecord])
+}
+
 protocol IntegrationRepository {
   func loadMailboxes() -> [TrackedMailbox]
   func saveMailboxes(_ mailboxes: [TrackedMailbox])
@@ -195,7 +200,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -235,6 +240,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
 
   func saveIntakeEmails(_ emails: [ForwardedEmailIntake]) {
     save(emails, to: .intakeEmails)
+  }
+
+  func loadMailboxIngestRecords() -> [MailboxIngestRecord] {
+    load([MailboxIngestRecord].self, from: .mailboxIngestRecords, defaultValue: [])
+  }
+
+  func saveMailboxIngestRecords(_ records: [MailboxIngestRecord]) {
+    save(records, to: .mailboxIngestRecords)
   }
 
   func loadMailboxes() -> [TrackedMailbox] {
@@ -608,6 +621,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case orders = "orders.json"
     case mailEvents = "mail-events.json"
     case intakeEmails = "intake-emails.json"
+    case mailboxIngestRecords = "mailbox-ingest-records.json"
     case mailboxes = "mailboxes.json"
     case shopifyConnections = "shopify-connections.json"
     case watchedFolders = "watched-folders.json"
@@ -650,10 +664,11 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
+  private var mailboxIngestRecords: [MailboxIngestRecord] = []
   private var mailboxes = SampleData.mailboxes
   private var shopifyConnections = SampleData.shopifyConnections
   private var watchedFolders = SampleData.watchedFolders
@@ -702,6 +717,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadIntakeEmails() -> [ForwardedEmailIntake] { intakeEmails }
   func saveIntakeEmails(_ emails: [ForwardedEmailIntake]) { intakeEmails = emails }
+  func loadMailboxIngestRecords() -> [MailboxIngestRecord] { mailboxIngestRecords }
+  func saveMailboxIngestRecords(_ records: [MailboxIngestRecord]) { mailboxIngestRecords = records }
 
   func loadMailboxes() -> [TrackedMailbox] { mailboxes }
   func saveMailboxes(_ mailboxes: [TrackedMailbox]) { self.mailboxes = mailboxes }

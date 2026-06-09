@@ -1,7 +1,7 @@
 import Foundation
 
 protocol MailboxIngestionService {
-  func ingest(from mailboxes: [TrackedMailbox]) async throws -> [MailEvent]
+  func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage]
 }
 
 protocol OrderMatchingService {
@@ -25,8 +25,28 @@ protocol WorkflowTemplateEngine {
 }
 
 struct MockMailboxIngestionService: MailboxIngestionService {
-  func ingest(from mailboxes: [TrackedMailbox]) async throws -> [MailEvent] {
-    []
+  func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage] {
+    let mailbox = mailboxes.first
+    let mailboxID = mailbox?.id ?? UUID()
+    let mailboxAddress = mailbox?.address ?? "tracking-intake@parcelops.example"
+    return [
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailboxID.uuidString)-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(mailboxAddress).",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailboxID.uuidString)-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: mailboxID
+      )
+    ]
   }
 }
 
