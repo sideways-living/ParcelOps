@@ -93,6 +93,7 @@ final class ParcelOpsStore {
   private let importQueueRepository: ImportQueueRepository
   private let acceptanceRepository: AcceptanceRepository
   private let mailboxIngestionService: MailboxIngestionService
+  private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
   private let carrierTrackingService: CarrierTrackingService
@@ -104,6 +105,7 @@ final class ParcelOpsStore {
   init(
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
+    microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),
     carrierTrackingService: CarrierTrackingService = MockCarrierTrackingService(),
@@ -149,6 +151,7 @@ final class ParcelOpsStore {
     self.importQueueRepository = repository
     self.acceptanceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
+    self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
     self.carrierTrackingService = carrierTrackingService
@@ -3667,20 +3670,63 @@ final class ParcelOpsStore {
   }
 
   func importSimulatedFetchedMailboxMessages(for connection: Microsoft365MailboxConnection) {
+    Task {
+      await refreshMicrosoft365MailboxConnectionThroughMockGraph(connection)
+    }
+  }
+
+  private func refreshMicrosoft365MailboxConnectionThroughMockGraph(_ connection: Microsoft365MailboxConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
-    let result = importFetchedMailboxMessages(simulatedFetchedMailboxMessages(for: mailbox))
-    updateMicrosoft365MailboxConnection(connection) { draft in
-      draft.lastManualRefreshDate = Self.auditTimestamp()
-      draft.connectionStatus = result.imported > 0 ? "Simulated refresh imported \(result.imported)" : "Simulated refresh found duplicates"
-    }
+
     logAudit(
       action: .evaluated,
       entityType: .microsoft365MailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
-      summary: "Microsoft 365 mailbox placeholder simulated refresh completed locally.",
-      afterDetail: "Mailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo OAuth, token, Microsoft Graph, or mailbox connection was used."
+      summary: "Mock Microsoft Graph mailbox fetch started.",
+      afterDetail: "Mailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nNo OAuth, token, password, network call, or real mailbox access is used."
+    )
+
+    let fetchResult = await microsoftGraphMailboxClient.fetchMessages(for: connection)
+    let fetchedMessages = mapGraphMessages(fetchResult.messages, sourceMailboxID: mailbox.id)
+    let result = importFetchedMailboxMessages(fetchedMessages)
+    let refreshStatus = microsoftGraphRefreshStatus(fetchResult: fetchResult, ingestResult: result)
+
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+      draft.connectionStatus = refreshStatus.rawValue
+    }
+
+    if fetchResult.status == .noMessages {
+      logAudit(
+        action: .evaluated,
+        entityType: .microsoft365MailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Mock Microsoft Graph fetch returned no messages.",
+        afterDetail: fetchResult.detail
+      )
+    }
+
+    if fetchResult.status == .notConnected || fetchResult.status == .simulatedAuthPlaceholder {
+      logAudit(
+        action: .evaluated,
+        entityType: .microsoft365MailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Mock Microsoft Graph fetch stopped at local connection placeholder.",
+        afterDetail: fetchResult.detail
+      )
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Microsoft Graph mailbox fetch completed locally.",
+      afterDetail: "Status: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, or real mailbox connection was used."
     )
   }
 
@@ -3748,6 +3794,35 @@ final class ParcelOpsStore {
         sourceMailboxID: mailbox.id
       )
     ]
+  }
+
+  private func mapGraphMessages(_ messages: [MicrosoftGraphFetchedMessage], sourceMailboxID: UUID) -> [FetchedMailboxMessage] {
+    messages.map { message in
+      FetchedMailboxMessage(
+        providerMessageID: message.graphMessageID,
+        sender: message.sender,
+        subject: message.subject,
+        receivedDate: message.receivedDate,
+        plainTextBodyPreview: message.plainTextBodyPreview,
+        sourceMailboxID: sourceMailboxID
+      )
+    }
+  }
+
+  private func microsoftGraphRefreshStatus(
+    fetchResult: MicrosoftGraphMailboxFetchResult,
+    ingestResult: (imported: Int, duplicates: Int)
+  ) -> MicrosoftGraphMailboxFetchStatus {
+    if fetchResult.status != .success {
+      return fetchResult.status
+    }
+    if ingestResult.imported > 0 {
+      return .success
+    }
+    if ingestResult.duplicates > 0 {
+      return .duplicateSkipped
+    }
+    return .noMessages
   }
 
   private func makeForwardedEmailIntake(from message: FetchedMailboxMessage) -> ForwardedEmailIntake {

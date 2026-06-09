@@ -25,7 +25,7 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Non-secret setup records only. OAuth, Microsoft Graph, tokens, passwords, and real mailbox access are not connected yet.")
+          Text("Non-secret setup records only. The Microsoft Graph client is mocked: OAuth, tokens, passwords, network calls, and real mailbox access are not connected yet.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           ForEach(store.microsoft365MailboxConnections) { connection in
@@ -130,7 +130,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Local setup only. No OAuth, Microsoft Graph, password, token, or mailbox connection is stored.")
+      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, password, token, network call, or mailbox connection is used.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -141,7 +141,7 @@ struct Microsoft365MailboxConnectionRow: View {
         .buttonStyle(.bordered)
         Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
           .buttonStyle(.bordered)
-        Button("Simulated refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+        Button("Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
           .buttonStyle(.borderedProminent)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)

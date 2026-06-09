@@ -272,6 +272,31 @@ struct FetchedMailboxMessage: Identifiable, Hashable {
   var sourceMailboxID: UUID
 }
 
+struct MicrosoftGraphFetchedMessage: Identifiable, Hashable {
+  var id: String { graphMessageID }
+  var graphMessageID: String
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var plainTextBodyPreview: String
+}
+
+struct MicrosoftGraphMailboxFetchResult: Hashable {
+  var status: MicrosoftGraphMailboxFetchStatus
+  var messages: [MicrosoftGraphFetchedMessage]
+  var detail: String
+}
+
+enum MicrosoftGraphMailboxFetchStatus: String, CaseIterable, Identifiable, Hashable {
+  case success = "Fetch success"
+  case duplicateSkipped = "Duplicate skipped"
+  case noMessages = "No messages"
+  case notConnected = "Not connected"
+  case simulatedAuthPlaceholder = "Simulated auth placeholder"
+
+  var id: String { rawValue }
+}
+
 struct MailboxIngestRecord: Identifiable, Hashable, Codable {
   var id = UUID()
   var providerMessageID: String

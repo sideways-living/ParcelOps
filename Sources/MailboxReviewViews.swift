@@ -27,7 +27,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
-          Text("These records prepare the mailbox setup flow. OAuth, Microsoft Graph, tokens, passwords, and real mailbox access are not connected yet.")
+          Text("These records prepare the mailbox setup flow. The Microsoft Graph client is mocked: OAuth, tokens, passwords, network calls, and real mailbox access are not connected yet.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {

@@ -4,6 +4,10 @@ protocol MailboxIngestionService {
   func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage]
 }
 
+protocol MicrosoftGraphMailboxClient {
+  func fetchMessages(for connection: Microsoft365MailboxConnection) async -> MicrosoftGraphMailboxFetchResult
+}
+
 protocol OrderMatchingService {
   func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState
 }
@@ -47,6 +51,55 @@ struct MockMailboxIngestionService: MailboxIngestionService {
         sourceMailboxID: mailboxID
       )
     ]
+  }
+}
+
+struct MockMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
+  func fetchMessages(for connection: Microsoft365MailboxConnection) async -> MicrosoftGraphMailboxFetchResult {
+    if connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .notConnected,
+        messages: [],
+        detail: "Mailbox address is missing. This is still a local setup placeholder."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("auth") {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .simulatedAuthPlaceholder,
+        messages: [],
+        detail: "OAuth is not connected yet. No Microsoft Graph request was made."
+      )
+    }
+
+    if connection.monitoredFolderNames.localizedCaseInsensitiveContains("empty") {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock Microsoft Graph client returned no local sample messages for these folders."
+      )
+    }
+
+    return MicrosoftGraphMailboxFetchResult(
+      status: .success,
+      messages: [
+        MicrosoftGraphFetchedMessage(
+          graphMessageID: "mock-graph-\(connection.id.uuidString)-1001",
+          sender: "orders@northline.example",
+          subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+          receivedDate: "Today 9:15 AM",
+          plainTextBodyPreview: "Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.mailboxAddress)."
+        ),
+        MicrosoftGraphFetchedMessage(
+          graphMessageID: "mock-graph-\(connection.id.uuidString)-1002",
+          sender: "dispatch@urbancrate.example",
+          subject: "Fwd: Urban Crate order UC-7812 tracking update",
+          receivedDate: "Today 10:05 AM",
+          plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details."
+        )
+      ],
+      detail: "Mock Microsoft Graph client returned deterministic local messages. No network request was made."
+    )
   }
 }
 
