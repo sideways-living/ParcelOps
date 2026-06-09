@@ -16,10 +16,28 @@ struct IntegrationsView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
+            Button("Microsoft 365 setup", systemImage: "mail.stack.fill", action: store.addMicrosoft365MailboxConnectionPlaceholder)
             Button("Mailbox placeholder", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
             Button("Shopify placeholder", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
             Button("Folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
             Button("Login placeholder", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
+          }
+        }
+
+        SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
+          Text("Non-secret setup records only. OAuth, Microsoft Graph, tokens, passwords, and real mailbox access are not connected yet.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          ForEach(store.microsoft365MailboxConnections) { connection in
+            Microsoft365MailboxConnectionRow(connection: connection) { updatedConnection in
+              store.updateMicrosoft365MailboxConnection(updatedConnection)
+            } onReadyForReview: {
+              store.markMicrosoft365MailboxConnectionReadyForReview(connection)
+            } onSimulatedRefresh: {
+              store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onRemove: {
+              store.removeMicrosoft365MailboxConnection(connection)
+            }
           }
         }
 
@@ -67,6 +85,126 @@ struct IntegrationsView: View {
         }
       }
       .padding(isCompact ? 14 : 24)
+    }
+  }
+}
+
+struct Microsoft365MailboxConnectionRow: View {
+  var connection: Microsoft365MailboxConnection
+  var onSave: (Microsoft365MailboxConnection) -> Void
+  var onReadyForReview: () -> Void
+  var onSimulatedRefresh: () -> Void
+  var onRemove: () -> Void
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var isEditing = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "mail.stack.fill")
+          .foregroundStyle(.blue)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.mailboxAddress)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("\(connection.tenantDomainHint) • \(connection.monitoredFolderNames)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(connection.setupNotes)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Badge(connection.reviewState.rawValue, color: connection.reviewState.color)
+          Text(connection.connectionStatus)
+            .font(.caption.weight(.semibold))
+            .multilineTextAlignment(.trailing)
+          Text("Refresh: \(connection.lastManualRefreshDate)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      Text("Local setup only. No OAuth, Microsoft Graph, password, token, or mailbox connection is stored.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        Button("Edit setup", systemImage: "pencil") {
+          isEditing = true
+        }
+        .buttonStyle(.bordered)
+        Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
+          .buttonStyle(.bordered)
+        Button("Simulated refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+          .buttonStyle(.borderedProminent)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      Microsoft365MailboxConnectionEditor(connection: connection) { updatedConnection in
+        onSave(updatedConnection)
+        isEditing = false
+      }
+      .presentationDetents(horizontalSizeClass == .compact ? [.large] : [.medium, .large])
+    }
+  }
+}
+
+struct Microsoft365MailboxConnectionEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: Microsoft365MailboxConnection
+  var onSave: (Microsoft365MailboxConnection) -> Void
+
+  init(connection: Microsoft365MailboxConnection, onSave: @escaping (Microsoft365MailboxConnection) -> Void) {
+    self._draft = State(initialValue: connection)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Mailbox setup") {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
+          TextField("Mailbox address", text: $draft.mailboxAddress)
+          TextField("Monitored folders", text: $draft.monitoredFolderNames)
+        }
+        Section("Local status") {
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text("Accepted").tag(ReviewState.accepted)
+            Text("Needs review").tag(ReviewState.needsReview)
+            Text("Monitor").tag(ReviewState.monitor)
+          }
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
+        Section("Not connected") {
+          Text("Do not enter passwords, OAuth codes, client secrets, tokens, or API keys. This placeholder does not contact Microsoft Graph or any mailbox.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .navigationTitle("Microsoft 365 mailbox")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") { onSave(draft) }
+        }
+      }
     }
   }
 }

@@ -15,6 +15,7 @@ final class ParcelOpsStore {
   var intakeEmails: [ForwardedEmailIntake]
   var mailboxIngestRecords: [MailboxIngestRecord]
   var mailboxes: [TrackedMailbox]
+  var microsoft365MailboxConnections: [Microsoft365MailboxConnection]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
@@ -158,6 +159,7 @@ final class ParcelOpsStore {
     self.intakeEmails = repository.loadIntakeEmails()
     self.mailboxIngestRecords = repository.loadMailboxIngestRecords()
     self.mailboxes = repository.loadMailboxes()
+    self.microsoft365MailboxConnections = repository.loadMicrosoft365MailboxConnections()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
     self.connections = repository.loadSourceConnections()
@@ -3662,6 +3664,24 @@ final class ParcelOpsStore {
 
     let messages = simulatedFetchedMailboxMessages(for: mailbox)
     importFetchedMailboxMessages(messages)
+  }
+
+  func importSimulatedFetchedMailboxMessages(for connection: Microsoft365MailboxConnection) {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    let result = importFetchedMailboxMessages(simulatedFetchedMailboxMessages(for: mailbox))
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+      draft.connectionStatus = result.imported > 0 ? "Simulated refresh imported \(result.imported)" : "Simulated refresh found duplicates"
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 mailbox placeholder simulated refresh completed locally.",
+      afterDetail: "Mailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo OAuth, token, Microsoft Graph, or mailbox connection was used."
+    )
   }
 
   @discardableResult
@@ -7721,6 +7741,75 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  func addMicrosoft365MailboxConnectionPlaceholder() {
+    let connection = Microsoft365MailboxConnection(
+      displayName: "New Microsoft 365 mailbox",
+      tenantDomainHint: "company.example",
+      mailboxAddress: "tracking-intake@company.example",
+      monitoredFolderNames: "Inbox, Forwarded Orders",
+      connectionStatus: "Local setup only",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Placeholder only. Do not enter passwords, tokens, client secrets, or OAuth codes.",
+      reviewState: .needsReview
+    )
+    microsoft365MailboxConnections.insert(connection, at: 0)
+    persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 mailbox setup placeholder created.",
+      afterDetail: microsoft365MailboxConnectionAuditDetail(connection)
+    )
+  }
+
+  func updateMicrosoft365MailboxConnection(_ connection: Microsoft365MailboxConnection) {
+    guard let index = microsoft365MailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = microsoft365MailboxConnectionAuditDetail(microsoft365MailboxConnections[index])
+    microsoft365MailboxConnections[index] = connection
+    persistIntegrations()
+    logAudit(
+      action: .edited,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 mailbox setup placeholder edited.",
+      beforeDetail: beforeDetail,
+      afterDetail: microsoft365MailboxConnectionAuditDetail(connection)
+    )
+  }
+
+  func markMicrosoft365MailboxConnectionReadyForReview(_ connection: Microsoft365MailboxConnection) {
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.connectionStatus = "Ready for review"
+      draft.reviewState = .monitor
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 mailbox setup placeholder marked ready for review.",
+      afterDetail: "No OAuth, token, Microsoft Graph, or mailbox connection was used."
+    )
+  }
+
+  func removeMicrosoft365MailboxConnection(_ connection: Microsoft365MailboxConnection) {
+    guard let index = microsoft365MailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = microsoft365MailboxConnectionAuditDetail(microsoft365MailboxConnections[index])
+    microsoft365MailboxConnections.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 mailbox setup placeholder removed.",
+      beforeDetail: beforeDetail
+    )
+  }
+
   func connectShopifyPlaceholder() {
     shopifyConnections.append(ShopifyConnection(storeName: "New Shopify Store", storeDomain: "new-store.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Unassigned", status: "Needs OAuth", lastSync: "Never", isEnabled: false))
     persistIntegrations()
@@ -7811,6 +7900,39 @@ final class ParcelOpsStore {
     persistWishlist()
   }
 
+  private func updateMicrosoft365MailboxConnection(_ connection: Microsoft365MailboxConnection, mutate: (inout Microsoft365MailboxConnection) -> Void) {
+    guard let index = microsoft365MailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    var draft = microsoft365MailboxConnections[index]
+    mutate(&draft)
+    microsoft365MailboxConnections[index] = draft
+    persistIntegrations()
+  }
+
+  private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
+    TrackedMailbox(
+      id: connection.id,
+      address: connection.mailboxAddress,
+      provider: .microsoft365,
+      monitoredFolders: connection.monitoredFolderNames,
+      status: "Local simulated refresh only",
+      lastChecked: Self.auditTimestamp(),
+      routingRule: connection.displayName
+    )
+  }
+
+  private func upsertTrackedMailbox(_ mailbox: TrackedMailbox) {
+    if let index = mailboxes.firstIndex(where: { $0.id == mailbox.id }) {
+      mailboxes[index] = mailbox
+    } else {
+      mailboxes.insert(mailbox, at: 0)
+    }
+    persistIntegrations()
+  }
+
+  private func microsoft365MailboxConnectionAuditDetail(_ connection: Microsoft365MailboxConnection) -> String {
+    "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo OAuth, token, client secret, password, or Microsoft Graph connection is stored."
+  }
+
   private func appendSystemContact(_ summary: String, evidence: String) {
     guard !orders.isEmpty else { return }
     orders[0].contactHistory.insert(ContactHistoryEvent(time: "Now", source: .manual, contactPoint: "System action", summary: summary, evidence: evidence, reviewState: .monitor), at: 0)
@@ -7835,6 +7957,7 @@ final class ParcelOpsStore {
 
   private func persistIntegrations() {
     integrationRepository.saveMailboxes(mailboxes)
+    integrationRepository.saveMicrosoft365MailboxConnections(microsoft365MailboxConnections)
     integrationRepository.saveShopifyConnections(shopifyConnections)
     integrationRepository.saveWatchedFolders(watchedFolders)
     integrationRepository.saveSourceConnections(connections)

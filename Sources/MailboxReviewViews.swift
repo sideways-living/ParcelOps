@@ -26,6 +26,28 @@ struct MailboxView: View {
           symbol: "envelope.open.fill"
         )
 
+        SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
+          Text("These records prepare the mailbox setup flow. OAuth, Microsoft Graph, tokens, passwords, and real mailbox access are not connected yet.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Add Microsoft 365 mailbox", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+              .buttonStyle(.bordered)
+            Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
+          }
+          ForEach(store.microsoft365MailboxConnections) { connection in
+            Microsoft365MailboxConnectionRow(connection: connection) { updatedConnection in
+              store.updateMicrosoft365MailboxConnection(updatedConnection)
+            } onReadyForReview: {
+              store.markMicrosoft365MailboxConnectionReadyForReview(connection)
+            } onSimulatedRefresh: {
+              store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onRemove: {
+              store.removeMicrosoft365MailboxConnection(connection)
+            }
+          }
+        }
+
         SettingsPanel(title: "Local mailbox ingest test", symbol: "tray.and.arrow.down.fill") {
           Text("Import simulated fetched mailbox messages through the same provider-neutral intake path that a real mailbox connector will use later. No mailbox is contacted.")
             .font(.subheadline)

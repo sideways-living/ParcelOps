@@ -154,6 +154,29 @@ enum SampleData {
     TrackedMailbox(address: "ap-invoices@parcelops.example", provider: .imap, monitoredFolders: "Orders", status: "Needs auth", lastChecked: "Yesterday", routingRule: "Invoice-only matching")
   ]
 
+  static var microsoft365MailboxConnections: [Microsoft365MailboxConnection] = [
+    Microsoft365MailboxConnection(
+      displayName: "Tracking intake mailbox",
+      tenantDomainHint: "parcelops.example",
+      mailboxAddress: "tracking-intake@parcelops.example",
+      monitoredFolderNames: "Inbox, Forwarded Orders",
+      connectionStatus: "Local setup only",
+      lastManualRefreshDate: "Never",
+      setupNotes: "OAuth and Microsoft Graph are not connected. Use simulated refresh to test intake parsing.",
+      reviewState: .needsReview
+    ),
+    Microsoft365MailboxConnection(
+      displayName: "Field purchasing mailbox",
+      tenantDomainHint: "parcelops.example",
+      mailboxAddress: "field-purchasing@parcelops.example",
+      monitoredFolderNames: "Inbox, Purchases, Shipping",
+      connectionStatus: "Ready for review",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Future Microsoft 365 mailbox candidate for field purchase confirmations.",
+      reviewState: .monitor
+    )
+  ]
+
   static var shopifyConnections: [ShopifyConnection] = [
     ShopifyConnection(storeName: "Acme Parts", storeDomain: "acme-parts.myshopify.com", mappedMailbox: "field-purchasing@parcelops.example", mappedTeam: "Brisbane Field Team", status: "Synced", lastSync: "6 min ago", isEnabled: true),
     ShopifyConnection(storeName: "SafetyPro Direct", storeDomain: "safetypro-direct.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Melbourne Operations", status: "Synced", lastSync: "12 min ago", isEnabled: true),

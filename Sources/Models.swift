@@ -1079,6 +1079,18 @@ struct TrackedMailbox: Identifiable, Hashable, Codable {
   var routingRule: String
 }
 
+struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var displayName: String
+  var tenantDomainHint: String
+  var mailboxAddress: String
+  var monitoredFolderNames: String
+  var connectionStatus: String
+  var lastManualRefreshDate: String
+  var setupNotes: String
+  var reviewState: ReviewState
+}
+
 struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String
@@ -1224,6 +1236,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
   case reconciliationIssue = "Reconciliation issue"
+  case microsoft365MailboxConnection = "Microsoft 365 mailbox"
 
   var id: String { rawValue }
 }
