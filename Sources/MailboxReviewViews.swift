@@ -36,7 +36,7 @@ struct MailboxView: View {
             Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection)) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
@@ -46,6 +46,10 @@ struct MailboxView: View {
               store.markMicrosoft365OAuthSetupReviewed(connection)
             } onResetOAuth: {
               store.resetMicrosoft365OAuthReadiness(connection)
+            } onReviewImplementationPlan: {
+              store.markMicrosoft365OAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromMicrosoft365OAuthPlan(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
             }

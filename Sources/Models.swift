@@ -1120,6 +1120,63 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
   var requestedScopesSummary: String = "Mail.Read, User.Read"
   var oauthReadinessStatus: String = "Not reviewed"
   var consentAdminNotes: String = "Local planning only. No OAuth flow runs and no tokens are requested."
+  var oauthImplementationPlanStatus: String = "Not reviewed"
+
+  init(
+    id: UUID = UUID(),
+    displayName: String,
+    tenantDomainHint: String,
+    mailboxAddress: String,
+    monitoredFolderNames: String,
+    connectionStatus: String,
+    lastManualRefreshDate: String,
+    setupNotes: String,
+    reviewState: ReviewState,
+    tenantIDPlaceholder: String = "",
+    clientIDPlaceholder: String = "",
+    redirectURIPlaceholder: String = "",
+    requestedScopesSummary: String = "Mail.Read, User.Read",
+    oauthReadinessStatus: String = "Not reviewed",
+    consentAdminNotes: String = "Local planning only. No OAuth flow runs and no tokens are requested.",
+    oauthImplementationPlanStatus: String = "Not reviewed"
+  ) {
+    self.id = id
+    self.displayName = displayName
+    self.tenantDomainHint = tenantDomainHint
+    self.mailboxAddress = mailboxAddress
+    self.monitoredFolderNames = monitoredFolderNames
+    self.connectionStatus = connectionStatus
+    self.lastManualRefreshDate = lastManualRefreshDate
+    self.setupNotes = setupNotes
+    self.reviewState = reviewState
+    self.tenantIDPlaceholder = tenantIDPlaceholder
+    self.clientIDPlaceholder = clientIDPlaceholder
+    self.redirectURIPlaceholder = redirectURIPlaceholder
+    self.requestedScopesSummary = requestedScopesSummary
+    self.oauthReadinessStatus = oauthReadinessStatus
+    self.consentAdminNotes = consentAdminNotes
+    self.oauthImplementationPlanStatus = oauthImplementationPlanStatus
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+    displayName = try container.decode(String.self, forKey: .displayName)
+    tenantDomainHint = try container.decode(String.self, forKey: .tenantDomainHint)
+    mailboxAddress = try container.decode(String.self, forKey: .mailboxAddress)
+    monitoredFolderNames = try container.decode(String.self, forKey: .monitoredFolderNames)
+    connectionStatus = try container.decode(String.self, forKey: .connectionStatus)
+    lastManualRefreshDate = try container.decode(String.self, forKey: .lastManualRefreshDate)
+    setupNotes = try container.decode(String.self, forKey: .setupNotes)
+    reviewState = try container.decode(ReviewState.self, forKey: .reviewState)
+    tenantIDPlaceholder = try container.decodeIfPresent(String.self, forKey: .tenantIDPlaceholder) ?? ""
+    clientIDPlaceholder = try container.decodeIfPresent(String.self, forKey: .clientIDPlaceholder) ?? ""
+    redirectURIPlaceholder = try container.decodeIfPresent(String.self, forKey: .redirectURIPlaceholder) ?? ""
+    requestedScopesSummary = try container.decodeIfPresent(String.self, forKey: .requestedScopesSummary) ?? "Mail.Read, User.Read"
+    oauthReadinessStatus = try container.decodeIfPresent(String.self, forKey: .oauthReadinessStatus) ?? "Not reviewed"
+    consentAdminNotes = try container.decodeIfPresent(String.self, forKey: .consentAdminNotes) ?? "Local planning only. No OAuth flow runs and no tokens are requested."
+    oauthImplementationPlanStatus = try container.decodeIfPresent(String.self, forKey: .oauthImplementationPlanStatus) ?? "Not reviewed"
+  }
 }
 
 struct Microsoft365OAuthReadinessSummary: Identifiable, Hashable {
@@ -1129,6 +1186,22 @@ struct Microsoft365OAuthReadinessSummary: Identifiable, Hashable {
   var missingFields: [String]
   var statusText: String
   var detailText: String
+}
+
+struct Microsoft365OAuthImplementationPlan: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var statusText: String
+  var completedCount: Int
+  var totalCount: Int
+  var items: [Microsoft365OAuthImplementationChecklistItem]
+}
+
+struct Microsoft365OAuthImplementationChecklistItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var isComplete: Bool
+  var detail: String
 }
 
 struct ShopifyConnection: Identifiable, Hashable, Codable {
@@ -1579,6 +1652,7 @@ enum TimelineEntityType: String, CaseIterable, Identifiable, Hashable {
   case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case integration = "Integration"
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
@@ -1807,6 +1881,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case integration = "Integration"
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"

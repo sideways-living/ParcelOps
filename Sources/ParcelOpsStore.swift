@@ -7835,7 +7835,8 @@ final class ParcelOpsStore {
       redirectURIPlaceholder: "parcelops://oauth/microsoft365",
       requestedScopesSummary: "Mail.Read, User.Read",
       oauthReadinessStatus: "Not reviewed",
-      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested."
+      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested.",
+      oauthImplementationPlanStatus: "Not reviewed"
     )
     microsoft365MailboxConnections.insert(connection, at: 0)
     persistIntegrations()
@@ -7904,6 +7905,7 @@ final class ParcelOpsStore {
       draft.requestedScopesSummary = ""
       draft.oauthReadinessStatus = "Reset locally"
       draft.consentAdminNotes = "Local planning reset. No OAuth flow runs and no tokens are requested."
+      draft.oauthImplementationPlanStatus = "Not reviewed"
       draft.reviewState = .needsReview
     }
     logAudit(
@@ -7913,6 +7915,42 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Microsoft 365 OAuth readiness placeholders reset locally.",
       afterDetail: "Tenant/client/redirect/scope placeholders cleared. No OAuth, token, Keychain, or network action occurred."
+    )
+  }
+
+  func markMicrosoft365OAuthImplementationPlanReviewed(_ connection: Microsoft365MailboxConnection) {
+    let plan = microsoft365OAuthImplementationPlan(for: connection)
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.oauthImplementationPlanStatus = plan.statusText
+      draft.reviewState = plan.completedCount == plan.totalCount ? .monitor : .needsReview
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 OAuth implementation plan reviewed locally.",
+      afterDetail: microsoft365OAuthImplementationPlanAuditDetail(plan)
+    )
+  }
+
+  func createReviewTaskFromMicrosoft365OAuthPlan(_ connection: Microsoft365MailboxConnection) {
+    let plan = microsoft365OAuthImplementationPlan(for: connection)
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: "\(connection.displayName) OAuth plan",
+      summary: "Review Microsoft 365 OAuth implementation plan. \(plan.statusText). \(plan.items.filter { !$0.isComplete }.map(\.title).joined(separator: ", "))",
+      priority: plan.completedCount < plan.totalCount ? .high : .normal,
+      assignee: "Operations"
+    )
+    logAudit(
+      action: .created,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from Microsoft 365 OAuth implementation plan.",
+      afterDetail: microsoft365OAuthImplementationPlanAuditDetail(plan)
     )
   }
 
@@ -8058,6 +8096,78 @@ final class ParcelOpsStore {
     )
   }
 
+  func microsoft365OAuthImplementationPlan(for connection: Microsoft365MailboxConnection) -> Microsoft365OAuthImplementationPlan {
+    let trimmedTenant = connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedClient = connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedRedirect = connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedScopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedNotes = connection.consentAdminNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lowerScopes = trimmedScopes.lowercased()
+    let hasClientID = !trimmedClient.isEmpty
+    let hasTenantID = !trimmedTenant.isEmpty
+    let hasRedirect = !trimmedRedirect.isEmpty
+    let hasMailRead = lowerScopes.contains("mail.read")
+    let hasConsentNotes = !trimmedNotes.isEmpty && !trimmedNotes.localizedCaseInsensitiveContains("local planning only")
+
+    let items = [
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "App registration created",
+        isComplete: hasClientID,
+        detail: hasClientID ? "Client ID placeholder is captured." : "Capture the app registration client ID placeholder first."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Tenant ID placeholder captured",
+        isComplete: hasTenantID,
+        detail: hasTenantID ? "Tenant ID placeholder is captured." : "Add a non-secret tenant ID placeholder."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Client ID placeholder captured",
+        isComplete: hasClientID,
+        detail: hasClientID ? "Client ID placeholder is captured." : "Add a non-secret client ID placeholder."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Redirect URI decided",
+        isComplete: hasRedirect,
+        detail: hasRedirect ? connection.redirectURIPlaceholder : "Choose the future redirect URI placeholder."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Mail.Read scope planned",
+        isComplete: hasMailRead,
+        detail: hasMailRead ? connection.requestedScopesSummary : "Add Mail.Read to the requested scopes summary."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Admin/user consent notes captured",
+        isComplete: hasConsentNotes,
+        detail: hasConsentNotes ? connection.consentAdminNotes : "Capture admin or user consent notes without secrets."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Token storage decision pending",
+        isComplete: false,
+        detail: "Pending future decision. Keychain is not implemented yet."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Refresh strategy pending",
+        isComplete: false,
+        detail: "Pending future decision. Background sync is not implemented yet."
+      ),
+      Microsoft365OAuthImplementationChecklistItem(
+        title: "Error handling/audit strategy pending",
+        isComplete: false,
+        detail: "Pending future decision. Current audit events are local planning records only."
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    let statusText = "\(completedCount)/\(items.count) OAuth implementation planning items ready"
+    return Microsoft365OAuthImplementationPlan(
+      connectionID: connection.id,
+      statusText: statusText,
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
     TrackedMailbox(
       id: connection.id,
@@ -8081,7 +8191,15 @@ final class ParcelOpsStore {
 
   private func microsoft365MailboxConnectionAuditDetail(_ connection: Microsoft365MailboxConnection) -> String {
     let readiness = microsoft365OAuthReadinessSummary(for: connection)
-    return "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nOAuth readiness: \(readiness.statusText)\nTenant ID placeholder: \(connection.tenantIDPlaceholder)\nClient ID placeholder: \(connection.clientIDPlaceholder)\nRedirect URI placeholder: \(connection.redirectURIPlaceholder)\nScopes: \(connection.requestedScopesSummary)\nConsent/admin notes: \(connection.consentAdminNotes)\nNo OAuth, token, client secret, password, Keychain item, or Microsoft Graph connection is stored."
+    let plan = microsoft365OAuthImplementationPlan(for: connection)
+    return "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nOAuth readiness: \(readiness.statusText)\nOAuth implementation plan: \(plan.statusText)\nTenant ID placeholder: \(connection.tenantIDPlaceholder)\nClient ID placeholder: \(connection.clientIDPlaceholder)\nRedirect URI placeholder: \(connection.redirectURIPlaceholder)\nScopes: \(connection.requestedScopesSummary)\nConsent/admin notes: \(connection.consentAdminNotes)\nNo OAuth, token, client secret, password, Keychain item, or Microsoft Graph connection is stored."
+  }
+
+  private func microsoft365OAuthImplementationPlanAuditDetail(_ plan: Microsoft365OAuthImplementationPlan) -> String {
+    let itemText = plan.items
+      .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
+      .joined(separator: "\n")
+    return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
   }
 
   private func appendSystemContact(_ summary: String, evidence: String) {

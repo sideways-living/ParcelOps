@@ -169,7 +169,8 @@ enum SampleData {
       redirectURIPlaceholder: "parcelops://oauth/microsoft365",
       requestedScopesSummary: "offline_access, User.Read, Mail.Read",
       oauthReadinessStatus: "Needs admin consent notes",
-      consentAdminNotes: "Confirm Entra app registration owner and mailbox read consent before real OAuth is added."
+      consentAdminNotes: "Confirm Entra app registration owner and mailbox read consent before real OAuth is added.",
+      oauthImplementationPlanStatus: "Needs token storage decision"
     ),
     Microsoft365MailboxConnection(
       displayName: "Field purchasing mailbox",
@@ -185,7 +186,8 @@ enum SampleData {
       redirectURIPlaceholder: "parcelops://oauth/microsoft365",
       requestedScopesSummary: "Mail.Read",
       oauthReadinessStatus: "Missing tenant and client placeholders",
-      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested."
+      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested.",
+      oauthImplementationPlanStatus: "Not reviewed"
     )
   ]
 

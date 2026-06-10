@@ -29,7 +29,7 @@ struct IntegrationsView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection)) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
@@ -39,6 +39,10 @@ struct IntegrationsView: View {
               store.markMicrosoft365OAuthSetupReviewed(connection)
             } onResetOAuth: {
               store.resetMicrosoft365OAuthReadiness(connection)
+            } onReviewImplementationPlan: {
+              store.markMicrosoft365OAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromMicrosoft365OAuthPlan(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
             }
@@ -96,11 +100,14 @@ struct IntegrationsView: View {
 struct Microsoft365MailboxConnectionRow: View {
   var connection: Microsoft365MailboxConnection
   var readiness: Microsoft365OAuthReadinessSummary
+  var implementationPlan: Microsoft365OAuthImplementationPlan
   var onSave: (Microsoft365MailboxConnection) -> Void
   var onReadyForReview: () -> Void
   var onSimulatedRefresh: () -> Void
   var onReviewOAuth: () -> Void
   var onResetOAuth: () -> Void
+  var onReviewImplementationPlan: () -> Void
+  var onCreatePlanTask: () -> Void
   var onRemove: () -> Void
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
@@ -132,6 +139,9 @@ struct Microsoft365MailboxConnectionRow: View {
               .font(.caption2)
               .foregroundStyle(.secondary)
           }
+          Label(implementationPlan.statusText, systemImage: "list.clipboard.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.blue)
         }
         Spacer()
         VStack(alignment: .trailing, spacing: 4) {
@@ -149,6 +159,26 @@ struct Microsoft365MailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      VStack(alignment: .leading, spacing: 6) {
+        Label("OAuth implementation checklist", systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        ForEach(implementationPlan.items) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+              .foregroundStyle(item.isComplete ? .green : .secondary)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit setup", systemImage: "pencil") {
           isEditing = true
@@ -162,6 +192,10 @@ struct Microsoft365MailboxConnectionRow: View {
           .buttonStyle(.bordered)
         Button("Reset OAuth", systemImage: "arrow.counterclockwise", action: onResetOAuth)
           .buttonStyle(.bordered)
+        Button("Review plan", systemImage: "list.clipboard.fill", action: onReviewImplementationPlan)
+          .buttonStyle(.bordered)
+        Button("Plan task", systemImage: "checklist", action: onCreatePlanTask)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
@@ -170,7 +204,7 @@ struct Microsoft365MailboxConnectionRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .sheet(isPresented: $isEditing) {
-      Microsoft365MailboxConnectionEditor(connection: connection) { updatedConnection in
+      Microsoft365MailboxConnectionEditor(connection: connection, implementationPlan: implementationPlan) { updatedConnection in
         onSave(updatedConnection)
         isEditing = false
       }
@@ -182,10 +216,12 @@ struct Microsoft365MailboxConnectionRow: View {
 struct Microsoft365MailboxConnectionEditor: View {
   @Environment(\.dismiss) private var dismiss
   @State private var draft: Microsoft365MailboxConnection
+  var implementationPlan: Microsoft365OAuthImplementationPlan
   var onSave: (Microsoft365MailboxConnection) -> Void
 
-  init(connection: Microsoft365MailboxConnection, onSave: @escaping (Microsoft365MailboxConnection) -> Void) {
+  init(connection: Microsoft365MailboxConnection, implementationPlan: Microsoft365OAuthImplementationPlan, onSave: @escaping (Microsoft365MailboxConnection) -> Void) {
     self._draft = State(initialValue: connection)
+    self.implementationPlan = implementationPlan
     self.onSave = onSave
   }
 
@@ -219,8 +255,25 @@ struct Microsoft365MailboxConnectionEditor: View {
           TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
             .lineLimit(3...6)
         }
+        Section("Implementation checklist") {
+          Text(implementationPlan.statusText)
+            .font(.subheadline.weight(.semibold))
+          ForEach(implementationPlan.items) { item in
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                Text(item.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(item.isComplete ? .green : .secondary)
+            }
+          }
+        }
         Section("Not connected") {
-          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, request tokens, contact Microsoft Graph, or access any mailbox.")
+          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

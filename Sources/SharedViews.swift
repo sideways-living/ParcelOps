@@ -174,6 +174,7 @@ extension TimelineEntityType {
     case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .integration: "point.3.connected.trianglepath.dotted"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
@@ -1690,6 +1691,7 @@ extension ReviewTaskLinkedEntityType {
     case .dispatchChecklist: "checkmark.rectangle.stack.fill"
     case .account: "key.horizontal.fill"
     case .vendorProfile: "building.2.crop.circle.fill"
+    case .integration: "point.3.connected.trianglepath.dotted"
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
@@ -1801,7 +1803,7 @@ extension ShipmentGroup {
     case .evidence:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return relatedEvidenceIDs.contains(id)
-    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
+    case .reviewTask, .handoffNote, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile, .integration, .automationRule, .savedFilter, .auditEvent, .shipmentGroup, .importQueueItem, .acceptanceRecord, .reconciliationIssue:
       guard let id = UUID(uuidString: linkedEntityID) else { return false }
       return id.uuidString == linkedEntityID
     }
@@ -1884,6 +1886,7 @@ extension TimelineActivity {
     case .dispatchChecklist: .dispatchChecklist
     case .account: .account
     case .vendorProfile: .vendorProfile
+    case .integration: .integration
     case .shipmentGroup: .shipmentGroup
     case .importQueueItem: .importQueueItem
     case .acceptanceRecord: .acceptanceRecord
