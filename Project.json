@@ -77,7 +77,11 @@
         "path": "App/App.entitlements",
         "properties": {
           "com.apple.security.app-sandbox": true,
-          "com.apple.security.network.client": true
+          "com.apple.security.network.client": true,
+          "keychain-access-groups": [
+            "$(AppIdentifierPrefix)com.microsoft.adalcache",
+            "$(AppIdentifierPrefix)com.microsoft.identity.universalstorage"
+          ]
         }
       },
       "settings": {

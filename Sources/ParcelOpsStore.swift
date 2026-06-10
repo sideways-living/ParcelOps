@@ -17,6 +17,7 @@ final class ParcelOpsStore {
   var mailboxes: [TrackedMailbox]
   var microsoft365MailboxConnections: [Microsoft365MailboxConnection]
   var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
+  private var activeMicrosoft365AuthAttempts: [UUID: UUID] = [:]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
@@ -7971,9 +7972,9 @@ final class ParcelOpsStore {
       signedInAccount: "Not signed in",
       lastAuthAttemptDate: "Never",
       lastSuccessfulAuthDate: "Never",
-      keychainStatus: "Keychain not implemented",
+      keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: .keychainNotConfigured,
-      tokenStoreDetail: "Future token store is not configured. No Keychain item is created, read, written, or deleted.",
+      tokenStoreDetail: "ParcelOps custom token store is not configured. MSAL may manage its own signed-in account cache when real sign-in succeeds, but ParcelOps does not create, read, write, delete, or log token values.",
       detailText: "Future Microsoft 365 OAuth connection. No browser sign-in opens, no tokens are requested or stored, and Microsoft Graph remains mocked."
     )
   }
@@ -7985,7 +7986,7 @@ final class ParcelOpsStore {
       signedInAccount: "Not signed in",
       lastAuthAttemptDate: Self.auditTimestamp(),
       lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
-      keychainStatus: "Keychain not implemented",
+      keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: microsoft365AuthSessionState(for: connection).tokenStoreStatus,
       tokenStoreDetail: microsoft365AuthSessionState(for: connection).tokenStoreDetail,
       detailText: "Mock Microsoft 365 auth started locally. No browser sign-in opened and no token request was made."
@@ -8002,7 +8003,9 @@ final class ParcelOpsStore {
 
     Task {
       let result = await microsoft365AuthClient.connect(connection: connection)
-      applyMicrosoft365AuthResult(result, to: connection)
+      await MainActor.run {
+        applyMicrosoft365AuthResult(result, to: connection)
+      }
     }
   }
 
@@ -8013,7 +8016,7 @@ final class ParcelOpsStore {
       signedInAccount: "Not signed in",
       lastAuthAttemptDate: Self.auditTimestamp(),
       lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
-      keychainStatus: "Keychain not implemented",
+      keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: microsoft365AuthSessionState(for: connection).tokenStoreStatus,
       tokenStoreDetail: microsoft365AuthSessionState(for: connection).tokenStoreDetail,
       detailText: "Mock Microsoft 365 auth failure test started locally. No browser sign-in opened and no token request was made."
@@ -8030,11 +8033,15 @@ final class ParcelOpsStore {
 
     Task {
       let result = await microsoft365AuthClient.simulateFailure(connection: connection)
-      applyMicrosoft365AuthResult(result, to: connection)
+      await MainActor.run {
+        applyMicrosoft365AuthResult(result, to: connection)
+      }
     }
   }
 
   func connectMicrosoft365AuthReal(_ connection: Microsoft365MailboxConnection) {
+    let attemptID = UUID()
+    activeMicrosoft365AuthAttempts[connection.id] = attemptID
     let previousState = microsoft365AuthSessionState(for: connection)
     let startedState = Microsoft365AuthSessionState(
       connectionID: connection.id,
@@ -8042,10 +8049,10 @@ final class ParcelOpsStore {
       signedInAccount: "Not signed in",
       lastAuthAttemptDate: Self.auditTimestamp(),
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
-      keychainStatus: "MSAL cache pending",
+      keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Real Microsoft 365 sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch mailbox messages."
+      detailText: "Real Microsoft 365 sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch mailbox messages. Attempt ID: \(attemptID.uuidString)."
     )
     microsoft365AuthSessionStates[connection.id] = startedState
     logAudit(
@@ -8059,7 +8066,16 @@ final class ParcelOpsStore {
 
     Task {
       let result = await microsoft365RealAuthClient.connect(connection: connection)
-      applyMicrosoft365AuthResult(result, to: connection, isRealAuth: true)
+      await MainActor.run {
+        applyMicrosoft365AuthResult(result, to: connection, isRealAuth: true, attemptID: attemptID)
+      }
+    }
+
+    Task {
+      try? await Task.sleep(for: .seconds(120))
+      await MainActor.run {
+        completeTimedOutMicrosoft365AuthAttempt(connectionID: connection.id, attemptID: attemptID)
+      }
     }
   }
 
@@ -8067,13 +8083,19 @@ final class ParcelOpsStore {
   func handleMicrosoft365AuthCallback(_ url: URL) {
     let isMicrosoft365Callback = url.scheme == MSALMicrosoft365AuthAdapter.redirectScheme
     let status = MSALMicrosoft365AuthAdapter().callbackReadinessStatus(for: url)
+    let activeConnections = activeMicrosoft365AuthAttempts.keys.compactMap { id in
+      microsoft365MailboxConnections.first { $0.id == id }?.displayName
+    }
+    let activeDetail = activeConnections.isEmpty
+      ? "No active Microsoft 365 sign-in attempt was waiting in ParcelOps when this callback was handled."
+      : "Active Microsoft 365 sign-in attempts waiting for MSAL completion: \(activeConnections.joined(separator: ", "))."
     logAudit(
       action: .evaluated,
       entityType: .microsoft365MailboxConnection,
       entityID: "microsoft-365-auth-callback",
       entityLabel: "Microsoft 365 auth callback",
       summary: isMicrosoft365Callback ? "Microsoft 365 auth callback received." : "Non-Microsoft 365 auth callback ignored.",
-      afterDetail: "\(status)\nRaw callback URLs, auth codes, state values, access tokens, refresh tokens, and ID tokens are not logged or stored."
+      afterDetail: "\(status)\n\(activeDetail)\nRaw callback URLs, auth codes, state values, access tokens, refresh tokens, and ID tokens are not logged or stored."
     )
   }
 
@@ -8218,7 +8240,11 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
-  private func applyMicrosoft365AuthResult(_ result: Microsoft365AuthResult, to connection: Microsoft365MailboxConnection, isRealAuth: Bool = false) {
+  private func applyMicrosoft365AuthResult(_ result: Microsoft365AuthResult, to connection: Microsoft365MailboxConnection, isRealAuth: Bool = false, attemptID: UUID? = nil) {
+    let completionDetail = microsoft365AuthCompletionDetail(for: connection, result: result, isRealAuth: isRealAuth, attemptID: attemptID)
+    if isRealAuth {
+      activeMicrosoft365AuthAttempts[connection.id] = nil
+    }
     let previousState = microsoft365AuthSessionState(for: connection)
     let timestamp = Self.auditTimestamp()
     let state = Microsoft365AuthSessionState(
@@ -8230,7 +8256,7 @@ final class ParcelOpsStore {
       keychainStatus: isRealAuth && result.status == .connected ? "MSAL token cache managed by MSAL" : previousState.keychainStatus,
       tokenStoreStatus: isRealAuth && result.status == .connected ? .mockTokenReferenceAvailable : previousState.tokenStoreStatus,
       tokenStoreDetail: isRealAuth && result.status == .connected ? "MSAL completed sign-in and manages its own token cache. ParcelOps did not write token values, auth codes, passwords, or client secrets to JSON." : previousState.tokenStoreDetail,
-      detailText: result.detailText
+      detailText: completionDetail
     )
     microsoft365AuthSessionStates[connection.id] = state
 
@@ -8260,6 +8286,64 @@ final class ParcelOpsStore {
       summary: summary,
       afterDetail: microsoft365AuthSessionAuditDetail(state)
     )
+  }
+
+  private func completeTimedOutMicrosoft365AuthAttempt(connectionID: UUID, attemptID: UUID) {
+    guard activeMicrosoft365AuthAttempts[connectionID] == attemptID,
+          let connection = microsoft365MailboxConnections.first(where: { $0.id == connectionID }) else { return }
+
+    let previousState = microsoft365AuthSessionState(for: connection)
+    guard previousState.status == .connecting else {
+      activeMicrosoft365AuthAttempts[connectionID] = nil
+      return
+    }
+
+    activeMicrosoft365AuthAttempts[connectionID] = nil
+    let state = Microsoft365AuthSessionState(
+      connectionID: connectionID,
+      status: .notConnected,
+      signedInAccount: previousState.signedInAccount,
+      lastAuthAttemptDate: previousState.lastAuthAttemptDate,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      keychainStatus: previousState.keychainStatus,
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
+      detailText: "Timeout: ParcelOps did not receive a final MSAL completion after the browser sign-in window returned or stalled. Try Test real Microsoft sign-in again from an active ParcelOps window. If this repeats, check callback routing, presentation window state, Xcode signing, and MSAL console diagnostics. No token values were stored in ParcelOps JSON and no Microsoft Graph mailbox call was made. Attempt ID: \(attemptID.uuidString)."
+    )
+    microsoft365AuthSessionStates[connectionID] = state
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connectionID.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Microsoft 365 sign-in timed out before completion.",
+      afterDetail: microsoft365AuthSessionAuditDetail(state)
+    )
+  }
+
+  private func microsoft365AuthCompletionDetail(for connection: Microsoft365MailboxConnection, result: Microsoft365AuthResult, isRealAuth: Bool, attemptID: UUID?) -> String {
+    guard isRealAuth else { return result.detailText }
+
+    let attemptText = attemptID.map { " Attempt ID: \($0.uuidString)." } ?? ""
+    let completionText: String
+    switch result.status {
+    case .connected:
+      completionText = "Completion: MSAL returned a real identity sign-in success for \(connection.displayName)."
+    case .notConnected:
+      completionText = "Completion: MSAL returned without connecting an account, usually because the user cancelled or closed the sign-in window."
+    case .notConfigured:
+      completionText = "Completion: ParcelOps did not start MSAL because required setup fields are missing."
+    case .consentRequired:
+      completionText = "Completion: MSAL returned a consent, conditional access, or tenant policy requirement."
+    case .authFailed:
+      completionText = "Completion: MSAL returned a sign-in failure."
+    case .tokenExpired:
+      completionText = "Completion: MSAL reported an expired token state."
+    case .connecting:
+      completionText = "Completion: MSAL still reports connecting."
+    }
+
+    return "\(completionText)\(attemptText)\n\(result.detailText)"
   }
 
   private func applyMicrosoft365TokenStoreResult(_ result: Microsoft365TokenStoreResult, to connection: Microsoft365MailboxConnection, summary: String) {
@@ -8377,7 +8461,7 @@ final class ParcelOpsStore {
       Microsoft365OAuthImplementationChecklistItem(
         title: "Token storage decision pending",
         isComplete: false,
-        detail: "Pending future decision. Keychain is not implemented yet."
+        detail: "Pending future decision. MSAL cache entitlement is configured, but ParcelOps custom token storage is not implemented."
       ),
       Microsoft365OAuthImplementationChecklistItem(
         title: "Refresh strategy pending",
@@ -8433,7 +8517,7 @@ final class ParcelOpsStore {
     let itemText = plan.items
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
-    return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
+    return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored by ParcelOps, no custom Keychain token store was used, and Microsoft Graph remains mocked."
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

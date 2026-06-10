@@ -16,6 +16,8 @@ struct MSALMicrosoft365AuthAdapter {
   static let bundleID = "app.bitrig.parcelops"
   static let redirectScheme = "msauth.app.bitrig.parcelops"
   static let redirectURI = "msauth.app.bitrig.parcelops://auth"
+  static let iOSKeychainGroup = "com.microsoft.adalcache"
+  static let macOSKeychainGroup = "com.microsoft.identity.universalstorage"
 
   var dependencyStatus: String {
     #if canImport(MSAL)
@@ -113,6 +115,11 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
         redirectUri: Self.redirectURI,
         authority: authority
       )
+      #if os(iOS)
+      config.cacheConfig.keychainSharingGroup = MSALMicrosoft365AuthAdapter.iOSKeychainGroup
+      #elseif os(macOS)
+      config.cacheConfig.keychainSharingGroup = MSALMicrosoft365AuthAdapter.macOSKeychainGroup
+      #endif
       let application = try MSALPublicClientApplication(configuration: config)
       let webParameters = try Self.webviewParameters()
       let parameters = MSALInteractiveTokenParameters(scopes: ["User.Read"], webviewParameters: webParameters)
@@ -122,7 +129,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
       return Microsoft365AuthResult(
         status: .authFailed,
         signedInAccount: "Not signed in",
-        detailText: "MSAL setup/runtime issue: \(safeErrorSummary(error)). Check client ID, redirect URI, active app window, Xcode signing, and MSAL cache/Keychain configuration. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+        detailText: authFailureDetail(for: error)
       )
     }
   }
@@ -160,21 +167,87 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
   }
 
   private func authResult(from error: Error) -> Microsoft365AuthResult {
-    let nsError = error as NSError
-    if nsError.domain == "MSALErrorDomain" && nsError.code == -50005 {
-      return Microsoft365AuthResult(
-        status: .notConnected,
-        signedInAccount: "Not signed in",
-        detailText: "Cancelled: Microsoft 365 sign-in was closed before completion. No account was connected, no token value was stored in ParcelOps JSON, and no Microsoft Graph mailbox call was made."
-      )
-    }
-
-    let status: Microsoft365AuthStatus = nsError.domain == "MSALErrorDomain" ? .consentRequired : .authFailed
+    let status = authStatus(for: error)
     return Microsoft365AuthResult(
       status: status,
       signedInAccount: "Not signed in",
-      detailText: "\(status == .consentRequired ? "Consent/admin review needed" : "Sign-in failed"): \(safeErrorSummary(error)). Check Entra app registration, tenant policy, User.Read consent, redirect URI, and signing. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+      detailText: authFailureDetail(for: error)
     )
+  }
+
+  private func authStatus(for error: Error) -> Microsoft365AuthStatus {
+    if error is MSALMicrosoft365AuthError {
+      return .authFailed
+    }
+
+    let nsError = error as NSError
+    guard nsError.domain == "MSALErrorDomain" else {
+      return .authFailed
+    }
+
+    switch nsError.code {
+    case -50005:
+      return .notConnected
+    case -50002, -50003, -50004, -50142:
+      return .consentRequired
+    default:
+      return .authFailed
+    }
+  }
+
+  private func authFailureDetail(for error: Error) -> String {
+    let nsError = error as NSError
+    let summary = safeErrorSummary(error)
+    let safeSuffix = "No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+
+    if error is MSALMicrosoft365AuthError {
+      return "Missing presentation window: ParcelOps could not find an active app window for Microsoft sign-in. Bring the app window forward and try again from Settings or Mailbox Monitor. \(safeSuffix)"
+    }
+
+    if nsError.domain == "NSURLErrorDomain" {
+      return "Network/login endpoint issue: \(summary). Check macOS sandbox network client entitlement, DNS/network access, and whether Microsoft login is reachable. \(safeSuffix)"
+    }
+
+    guard nsError.domain == "MSALErrorDomain" else {
+      return "Sign-in failed outside MSAL: \(summary). Check the active app window, Xcode signing, sandbox permissions, and network access. \(safeSuffix)"
+    }
+
+    let internalCode = safeMSALInternalErrorCode(from: nsError)
+    let oauthHint = safeOAuthHint(from: nsError)
+    let diagnosticContext = [internalCode, oauthHint].compactMap { $0 }.joined(separator: " ")
+    let contextSuffix = diagnosticContext.isEmpty ? "" : " \(diagnosticContext)"
+
+    switch nsError.code {
+    case -50005:
+      return "Cancelled: Microsoft 365 sign-in was closed before completion. No account was connected. \(safeSuffix)"
+    case -50002:
+      return "Interaction or consent required: MSAL says additional sign-in interaction is needed.\(contextSuffix) Check user/admin consent and tenant policy for User.Read. \(safeSuffix)"
+    case -50003:
+      return "Consent or scope issue: Microsoft declined one or more requested scopes.\(contextSuffix) For this test, keep the app registration and ParcelOps setup to identity-only User.Read. \(safeSuffix)"
+    case -50004, -50007:
+      return "Tenant protection policy issue: Microsoft requires device compliance, Intune, or stronger device state before sign-in can complete.\(contextSuffix) Review tenant conditional access policy. \(safeSuffix)"
+    case -50142:
+      return "Account action required: Microsoft reports a password reset or secure change requirement before sign-in can complete.\(contextSuffix) Complete the account requirement in Microsoft 365, then retry. \(safeSuffix)"
+    case -50006:
+      return "Microsoft sign-in server error: \(summary). Retry once, then check tenant/app registration status if it continues.\(contextSuffix) \(safeSuffix)"
+    case -50000:
+      return "Internal MSAL error: \(summary).\(contextSuffix) Common causes are redirect URI or URL scheme mismatch, invalid tenant/client setup, missing active presentation window, MSAL token cache access failure, or Keychain Sharing entitlement/signing mismatch. Verify redirect URI \(MSALMicrosoft365AuthAdapter.redirectURI), bundle ID \(MSALMicrosoft365AuthAdapter.bundleID), Keychain groups \(MSALMicrosoft365AuthAdapter.iOSKeychainGroup) and \(MSALMicrosoft365AuthAdapter.macOSKeychainGroup), and Xcode signing. \(safeSuffix)"
+    default:
+      return "MSAL sign-in failed: \(summary).\(contextSuffix) Check Entra app registration, tenant policy, User.Read consent, redirect URI, URL scheme, Xcode signing, network access, and MSAL Keychain cache entitlement. \(safeSuffix)"
+    }
+  }
+
+  private func safeMSALInternalErrorCode(from error: NSError) -> String? {
+    guard let value = error.userInfo["MSALInternalErrorCodeKey"] else { return nil }
+    return "MSAL internal code: \(value)."
+  }
+
+  private func safeOAuthHint(from error: NSError) -> String? {
+    let oauthError = error.userInfo["MSALOAuthErrorKey"].map { "OAuth error: \($0)." }
+    let subError = error.userInfo["MSALOAuthSubErrorKey"].map { "OAuth suberror: \($0)." }
+    let httpStatus = error.userInfo["MSALHTTPResponseCodeKey"].map { "HTTP status: \($0)." }
+    let text = [oauthError, subError, httpStatus].compactMap { $0 }.joined(separator: " ")
+    return text.isEmpty ? nil : text
   }
 
   private func safeErrorSummary(_ error: Error) -> String {
