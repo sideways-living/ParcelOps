@@ -33,9 +33,15 @@ struct MSALMicrosoft365AuthAdapter {
       return "Ignored non-MSAL callback URL."
     }
     #if canImport(MSAL) && os(iOS)
-    _ = MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
+    let handled = MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
+    return handled
+      ? "MSAL callback URL scheme detected and forwarded to the Microsoft sign-in completion handler."
+      : "MSAL callback URL scheme detected, but MSAL did not match it to an active sign-in session."
+    #elseif canImport(MSAL) && os(macOS)
+    return "MSAL callback URL scheme detected on macOS. MSAL for macOS completes through its web authentication session rather than the iOS callback forwarding API."
+    #else
+    return "MSAL callback URL scheme detected, but MSAL is not linked in this build."
     #endif
-    return "MSAL callback URL scheme detected and routed through the Microsoft sign-in boundary when supported."
   }
 }
 
