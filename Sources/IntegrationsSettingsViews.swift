@@ -46,6 +46,14 @@ struct IntegrationsView: View {
               store.connectMicrosoft365AuthMock(connection)
             } onMockAuthFailure: {
               store.simulateMicrosoft365AuthFailure(connection)
+            } onTokenStoreReady: {
+              store.simulateMicrosoft365TokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateMicrosoft365TokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateMicrosoft365TokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateMicrosoft365TokenClear(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
             } onReviewOAuth: {
@@ -166,6 +174,10 @@ struct Microsoft365MailboxConnectionRow: View {
   var onReadyForReview: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
+  var onTokenStoreReady: () -> Void
+  var onTokenMissing: () -> Void
+  var onTokenStorageError: () -> Void
+  var onTokenClear: () -> Void
   var onSimulatedRefresh: () -> Void
   var onReviewOAuth: () -> Void
   var onResetOAuth: () -> Void
@@ -255,6 +267,17 @@ struct Microsoft365MailboxConnectionRow: View {
           Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
             .buttonStyle(.bordered)
         }
+        ActionGroupHeader(title: "Token storage planning", symbol: "key.fill")
+        CompactActionRow {
+          Button("Mock token ready", systemImage: "checkmark.seal", action: onTokenStoreReady)
+            .buttonStyle(.bordered)
+          Button("Token missing", systemImage: "exclamationmark.triangle", action: onTokenMissing)
+            .buttonStyle(.bordered)
+          Button("Storage error", systemImage: "xmark.octagon", action: onTokenStorageError)
+            .buttonStyle(.bordered)
+          Button("Clear token ref", systemImage: "trash", action: onTokenClear)
+            .buttonStyle(.bordered)
+        }
         ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
         CompactActionRow {
           Button("Edit setup", systemImage: "pencil") {
@@ -309,6 +332,14 @@ struct Microsoft365AuthStateSection: View {
     }
   }
 
+  private var tokenStoreColor: Color {
+    switch authState.tokenStoreStatus {
+    case .keychainNotConfigured, .tokenMissing, .tokenClearSimulated: .orange
+    case .mockTokenReferenceAvailable: .green
+    case .storageErrorSimulated: .red
+    }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Label("Future Microsoft 365 auth state", systemImage: "person.badge.key.fill")
@@ -328,8 +359,13 @@ struct Microsoft365AuthStateSection: View {
         Label(authState.keychainStatus, systemImage: "key.slash")
           .font(.caption)
           .foregroundStyle(.secondary)
+        Badge(authState.tokenStoreStatus.rawValue, color: tokenStoreColor)
       }
       Text(authState.detailText)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(authState.tokenStoreDetail)
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

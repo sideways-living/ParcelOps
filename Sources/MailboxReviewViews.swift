@@ -48,6 +48,14 @@ struct MailboxView: View {
               store.connectMicrosoft365AuthMock(connection)
             } onMockAuthFailure: {
               store.simulateMicrosoft365AuthFailure(connection)
+            } onTokenStoreReady: {
+              store.simulateMicrosoft365TokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateMicrosoft365TokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateMicrosoft365TokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateMicrosoft365TokenClear(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
             } onReviewOAuth: {

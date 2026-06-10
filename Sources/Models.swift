@@ -1212,6 +1212,8 @@ struct Microsoft365AuthSessionState: Identifiable, Hashable {
   var lastAuthAttemptDate: String
   var lastSuccessfulAuthDate: String
   var keychainStatus: String
+  var tokenStoreStatus: Microsoft365TokenStoreStatus
+  var tokenStoreDetail: String
   var detailText: String
 }
 
@@ -1244,6 +1246,31 @@ enum Microsoft365AuthStatus: String, CaseIterable, Identifiable, Hashable, Codab
     }
   }
 
+}
+
+struct Microsoft365TokenStoreResult: Hashable {
+  var status: Microsoft365TokenStoreStatus
+  var detailText: String
+}
+
+enum Microsoft365TokenStoreStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case keychainNotConfigured = "Keychain not configured"
+  case mockTokenReferenceAvailable = "Mock token reference available"
+  case tokenMissing = "Token missing"
+  case tokenClearSimulated = "Token clear simulated"
+  case storageErrorSimulated = "Storage error simulated"
+
+  var id: String { rawValue }
+
+  var symbol: String {
+    switch self {
+    case .keychainNotConfigured: "key.slash"
+    case .mockTokenReferenceAvailable: "checkmark.seal.fill"
+    case .tokenMissing: "exclamationmark.triangle.fill"
+    case .tokenClearSimulated: "trash.circle.fill"
+    case .storageErrorSimulated: "xmark.octagon.fill"
+    }
+  }
 }
 
 struct ShopifyConnection: Identifiable, Hashable, Codable {

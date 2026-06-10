@@ -96,6 +96,7 @@ final class ParcelOpsStore {
   private let mailboxIngestionService: MailboxIngestionService
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let microsoft365AuthClient: Microsoft365AuthClient
+  private let microsoft365TokenStore: Microsoft365TokenStore
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
   private let carrierTrackingService: CarrierTrackingService
@@ -109,6 +110,7 @@ final class ParcelOpsStore {
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
+    microsoft365TokenStore: Microsoft365TokenStore = MockMicrosoft365TokenStore(),
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),
     carrierTrackingService: CarrierTrackingService = MockCarrierTrackingService(),
@@ -156,6 +158,7 @@ final class ParcelOpsStore {
     self.mailboxIngestionService = mailboxIngestionService
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
     self.microsoft365AuthClient = microsoft365AuthClient
+    self.microsoft365TokenStore = microsoft365TokenStore
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
     self.carrierTrackingService = carrierTrackingService
@@ -7966,6 +7969,8 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: "Never",
       lastSuccessfulAuthDate: "Never",
       keychainStatus: "Keychain not implemented",
+      tokenStoreStatus: .keychainNotConfigured,
+      tokenStoreDetail: "Future token store is not configured. No Keychain item is created, read, written, or deleted.",
       detailText: "Future Microsoft 365 OAuth connection. No browser sign-in opens, no tokens are requested or stored, and Microsoft Graph remains mocked."
     )
   }
@@ -7978,6 +7983,8 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: Self.auditTimestamp(),
       lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
       keychainStatus: "Keychain not implemented",
+      tokenStoreStatus: microsoft365AuthSessionState(for: connection).tokenStoreStatus,
+      tokenStoreDetail: microsoft365AuthSessionState(for: connection).tokenStoreDetail,
       detailText: "Mock Microsoft 365 auth started locally. No browser sign-in opened and no token request was made."
     )
     microsoft365AuthSessionStates[connection.id] = startedState
@@ -8004,6 +8011,8 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: Self.auditTimestamp(),
       lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
       keychainStatus: "Keychain not implemented",
+      tokenStoreStatus: microsoft365AuthSessionState(for: connection).tokenStoreStatus,
+      tokenStoreDetail: microsoft365AuthSessionState(for: connection).tokenStoreDetail,
       detailText: "Mock Microsoft 365 auth failure test started locally. No browser sign-in opened and no token request was made."
     )
     microsoft365AuthSessionStates[connection.id] = startedState
@@ -8019,6 +8028,34 @@ final class ParcelOpsStore {
     Task {
       let result = await microsoft365AuthClient.simulateFailure(connection: connection)
       applyMicrosoft365AuthResult(result, to: connection)
+    }
+  }
+
+  func simulateMicrosoft365TokenStoreReady(_ connection: Microsoft365MailboxConnection) {
+    Task {
+      let result = await microsoft365TokenStore.simulateReady(for: connection)
+      applyMicrosoft365TokenStoreResult(result, to: connection, summary: "Mock Microsoft 365 token store marked ready.")
+    }
+  }
+
+  func simulateMicrosoft365TokenMissing(_ connection: Microsoft365MailboxConnection) {
+    Task {
+      let result = await microsoft365TokenStore.simulateMissing(for: connection)
+      applyMicrosoft365TokenStoreResult(result, to: connection, summary: "Mock Microsoft 365 token reference marked missing.")
+    }
+  }
+
+  func simulateMicrosoft365TokenStorageError(_ connection: Microsoft365MailboxConnection) {
+    Task {
+      let result = await microsoft365TokenStore.simulateStorageError(for: connection)
+      applyMicrosoft365TokenStoreResult(result, to: connection, summary: "Mock Microsoft 365 token storage error simulated.")
+    }
+  }
+
+  func simulateMicrosoft365TokenClear(_ connection: Microsoft365MailboxConnection) {
+    Task {
+      let result = await microsoft365TokenStore.simulateClear(for: connection)
+      applyMicrosoft365TokenStoreResult(result, to: connection, summary: "Mock Microsoft 365 token reference clear simulated.")
     }
   }
 
@@ -8145,6 +8182,8 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: previousState.lastAuthAttemptDate == "Never" ? timestamp : previousState.lastAuthAttemptDate,
       lastSuccessfulAuthDate: result.status == .connected ? timestamp : previousState.lastSuccessfulAuthDate,
       keychainStatus: "Keychain not implemented",
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
       detailText: result.detailText
     )
     microsoft365AuthSessionStates[connection.id] = state
@@ -8174,6 +8213,45 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: summary,
       afterDetail: microsoft365AuthSessionAuditDetail(state)
+    )
+  }
+
+  private func applyMicrosoft365TokenStoreResult(_ result: Microsoft365TokenStoreResult, to connection: Microsoft365MailboxConnection, summary: String) {
+    let previousState = microsoft365AuthSessionState(for: connection)
+    let keychainStatus: String
+    switch result.status {
+    case .keychainNotConfigured:
+      keychainStatus = "Keychain not configured"
+    case .mockTokenReferenceAvailable:
+      keychainStatus = "Mock token reference available"
+    case .tokenMissing:
+      keychainStatus = "Token missing"
+    case .tokenClearSimulated:
+      keychainStatus = "Token clear simulated"
+    case .storageErrorSimulated:
+      keychainStatus = "Storage error simulated"
+    }
+
+    let state = Microsoft365AuthSessionState(
+      connectionID: connection.id,
+      status: previousState.status,
+      signedInAccount: previousState.signedInAccount,
+      lastAuthAttemptDate: previousState.lastAuthAttemptDate,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      keychainStatus: keychainStatus,
+      tokenStoreStatus: result.status,
+      tokenStoreDetail: result.detailText,
+      detailText: previousState.detailText
+    )
+    microsoft365AuthSessionStates[connection.id] = state
+
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: summary,
+      afterDetail: microsoft365TokenStoreAuditDetail(state)
     )
   }
 
@@ -8313,7 +8391,11 @@ final class ParcelOpsStore {
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {
-    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nDetail: \(state.detailText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nToken store status: \(state.tokenStoreStatus.rawValue)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
+  }
+
+  private func microsoft365TokenStoreAuditDetail(_ state: Microsoft365AuthSessionState) -> String {
+    "Token store status: \(state.tokenStoreStatus.rawValue)\nKeychain status: \(state.keychainStatus)\nDetail: \(state.tokenStoreDetail)\nNo access token, refresh token, auth code, client secret, password, or Keychain item was created, read, written, or deleted."
   }
 
   private func appendSystemContact(_ summary: String, evidence: String) {

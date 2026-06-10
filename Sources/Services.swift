@@ -13,6 +13,13 @@ protocol Microsoft365AuthClient {
   func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
 }
 
+protocol Microsoft365TokenStore {
+  func simulateReady(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateMissing(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateStorageError(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateClear(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+}
+
 protocol OrderMatchingService {
   func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState
 }
@@ -149,6 +156,36 @@ struct MockMicrosoft365AuthClient: Microsoft365AuthClient {
       missingFields.append("Requested scopes summary")
     }
     return missingFields
+  }
+}
+
+struct MockMicrosoft365TokenStore: Microsoft365TokenStore {
+  func simulateReady(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .mockTokenReferenceAvailable,
+      detailText: "Mock token reference available for \(connection.displayName). No access token, refresh token, auth code, client secret, password, or Keychain item was created, read, written, or deleted."
+    )
+  }
+
+  func simulateMissing(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .tokenMissing,
+      detailText: "Mock token lookup reports no token reference for \(connection.displayName). This is local status only; Keychain was not read."
+    )
+  }
+
+  func simulateStorageError(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock token storage error for \(connection.displayName). No Keychain API was called and no secret value was handled."
+    )
+  }
+
+  func simulateClear(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .tokenClearSimulated,
+      detailText: "Mock token reference clear simulated for \(connection.displayName). No Keychain item, access token, or refresh token was deleted."
+    )
   }
 }
 
