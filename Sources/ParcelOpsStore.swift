@@ -16,6 +16,7 @@ final class ParcelOpsStore {
   var mailboxIngestRecords: [MailboxIngestRecord]
   var mailboxes: [TrackedMailbox]
   var microsoft365MailboxConnections: [Microsoft365MailboxConnection]
+  var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
@@ -94,6 +95,7 @@ final class ParcelOpsStore {
   private let acceptanceRepository: AcceptanceRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
+  private let microsoft365AuthClient: Microsoft365AuthClient
   private let orderMatchingService: OrderMatchingService
   private let shopifySyncService: ShopifySyncService
   private let carrierTrackingService: CarrierTrackingService
@@ -106,6 +108,7 @@ final class ParcelOpsStore {
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
+    microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
     orderMatchingService: OrderMatchingService = MockOrderMatchingService(),
     shopifySyncService: ShopifySyncService = MockShopifySyncService(),
     carrierTrackingService: CarrierTrackingService = MockCarrierTrackingService(),
@@ -152,6 +155,7 @@ final class ParcelOpsStore {
     self.acceptanceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
+    self.microsoft365AuthClient = microsoft365AuthClient
     self.orderMatchingService = orderMatchingService
     self.shopifySyncService = shopifySyncService
     self.carrierTrackingService = carrierTrackingService
@@ -7954,6 +7958,70 @@ final class ParcelOpsStore {
     )
   }
 
+  func microsoft365AuthSessionState(for connection: Microsoft365MailboxConnection) -> Microsoft365AuthSessionState {
+    microsoft365AuthSessionStates[connection.id] ?? Microsoft365AuthSessionState(
+      connectionID: connection.id,
+      status: .notConnected,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: "Never",
+      lastSuccessfulAuthDate: "Never",
+      keychainStatus: "Keychain not implemented",
+      detailText: "Future Microsoft 365 OAuth connection. No browser sign-in opens, no tokens are requested or stored, and Microsoft Graph remains mocked."
+    )
+  }
+
+  func connectMicrosoft365AuthMock(_ connection: Microsoft365MailboxConnection) {
+    let startedState = Microsoft365AuthSessionState(
+      connectionID: connection.id,
+      status: .connecting,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: Self.auditTimestamp(),
+      lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
+      keychainStatus: "Keychain not implemented",
+      detailText: "Mock Microsoft 365 auth started locally. No browser sign-in opened and no token request was made."
+    )
+    microsoft365AuthSessionStates[connection.id] = startedState
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Microsoft 365 auth started.",
+      afterDetail: microsoft365AuthSessionAuditDetail(startedState)
+    )
+
+    Task {
+      let result = await microsoft365AuthClient.connect(connection: connection)
+      applyMicrosoft365AuthResult(result, to: connection)
+    }
+  }
+
+  func simulateMicrosoft365AuthFailure(_ connection: Microsoft365MailboxConnection) {
+    let startedState = Microsoft365AuthSessionState(
+      connectionID: connection.id,
+      status: .connecting,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: Self.auditTimestamp(),
+      lastSuccessfulAuthDate: microsoft365AuthSessionState(for: connection).lastSuccessfulAuthDate,
+      keychainStatus: "Keychain not implemented",
+      detailText: "Mock Microsoft 365 auth failure test started locally. No browser sign-in opened and no token request was made."
+    )
+    microsoft365AuthSessionStates[connection.id] = startedState
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Microsoft 365 auth started.",
+      afterDetail: microsoft365AuthSessionAuditDetail(startedState)
+    )
+
+    Task {
+      let result = await microsoft365AuthClient.simulateFailure(connection: connection)
+      applyMicrosoft365AuthResult(result, to: connection)
+    }
+  }
+
   func removeMicrosoft365MailboxConnection(_ connection: Microsoft365MailboxConnection) {
     guard let index = microsoft365MailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
     let beforeDetail = microsoft365MailboxConnectionAuditDetail(microsoft365MailboxConnections[index])
@@ -8065,6 +8133,48 @@ final class ParcelOpsStore {
     mutate(&draft)
     microsoft365MailboxConnections[index] = draft
     persistIntegrations()
+  }
+
+  private func applyMicrosoft365AuthResult(_ result: Microsoft365AuthResult, to connection: Microsoft365MailboxConnection) {
+    let previousState = microsoft365AuthSessionState(for: connection)
+    let timestamp = Self.auditTimestamp()
+    let state = Microsoft365AuthSessionState(
+      connectionID: connection.id,
+      status: result.status,
+      signedInAccount: result.signedInAccount,
+      lastAuthAttemptDate: previousState.lastAuthAttemptDate == "Never" ? timestamp : previousState.lastAuthAttemptDate,
+      lastSuccessfulAuthDate: result.status == .connected ? timestamp : previousState.lastSuccessfulAuthDate,
+      keychainStatus: "Keychain not implemented",
+      detailText: result.detailText
+    )
+    microsoft365AuthSessionStates[connection.id] = state
+
+    let summary: String
+    switch result.status {
+    case .connected:
+      summary = "Mock Microsoft 365 auth succeeded."
+    case .notConfigured:
+      summary = "Microsoft 365 auth not configured."
+    case .authFailed:
+      summary = "Mock Microsoft 365 auth failed."
+    case .consentRequired:
+      summary = "Mock Microsoft 365 auth requires consent."
+    case .tokenExpired:
+      summary = "Mock Microsoft 365 token state expired."
+    case .notConnected:
+      summary = "Microsoft 365 auth remains not connected."
+    case .connecting:
+      summary = "Mock Microsoft 365 auth still in progress."
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: summary,
+      afterDetail: microsoft365AuthSessionAuditDetail(state)
+    )
   }
 
   func microsoft365OAuthReadinessSummary(for connection: Microsoft365MailboxConnection) -> Microsoft365OAuthReadinessSummary {
@@ -8200,6 +8310,10 @@ final class ParcelOpsStore {
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
     return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
+  }
+
+  private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nDetail: \(state.detailText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored, Keychain is not used, and Microsoft Graph remains mocked."
   }
 
   private func appendSystemContact(_ summary: String, evidence: String) {

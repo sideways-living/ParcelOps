@@ -8,6 +8,11 @@ protocol MicrosoftGraphMailboxClient {
   func fetchMessages(for connection: Microsoft365MailboxConnection) async -> MicrosoftGraphMailboxFetchResult
 }
 
+protocol Microsoft365AuthClient {
+  func connect(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
+  func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
+}
+
 protocol OrderMatchingService {
   func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState
 }
@@ -100,6 +105,50 @@ struct MockMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       ],
       detail: "Mock Microsoft Graph client returned deterministic local messages. No network request was made."
     )
+  }
+}
+
+struct MockMicrosoft365AuthClient: Microsoft365AuthClient {
+  func connect(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult {
+    let missingFields = missingReadinessFields(for: connection)
+    if !missingFields.isEmpty {
+      return Microsoft365AuthResult(
+        status: .notConfigured,
+        signedInAccount: "Not signed in",
+        detailText: "Mock auth did not start because setup placeholders are missing: \(missingFields.joined(separator: ", ")). No browser sign-in opened and no tokens were requested."
+      )
+    }
+
+    return Microsoft365AuthResult(
+      status: .connected,
+      signedInAccount: connection.mailboxAddress,
+      detailText: "Mock Microsoft 365 auth succeeded for local UI testing. No OAuth flow ran, no token exchange occurred, Keychain is unused, and Microsoft Graph remains mocked."
+    )
+  }
+
+  func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult {
+    Microsoft365AuthResult(
+      status: .authFailed,
+      signedInAccount: "Not signed in",
+      detailText: "Mock Microsoft 365 auth failed locally for error-state testing. No browser sign-in opened, no tokens were requested or stored, and no network call was made."
+    )
+  }
+
+  private func missingReadinessFields(for connection: Microsoft365MailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Tenant ID placeholder")
+    }
+    if connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Client ID placeholder")
+    }
+    if connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Redirect URI placeholder")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+    return missingFields
   }
 }
 

@@ -40,10 +40,14 @@ struct MailboxView: View {
             MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
+            } onMockAuthConnect: {
+              store.connectMicrosoft365AuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateMicrosoft365AuthFailure(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
             } onReviewOAuth: {

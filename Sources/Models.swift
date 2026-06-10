@@ -1204,6 +1204,48 @@ struct Microsoft365OAuthImplementationChecklistItem: Identifiable, Hashable {
   var detail: String
 }
 
+struct Microsoft365AuthSessionState: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var status: Microsoft365AuthStatus
+  var signedInAccount: String
+  var lastAuthAttemptDate: String
+  var lastSuccessfulAuthDate: String
+  var keychainStatus: String
+  var detailText: String
+}
+
+struct Microsoft365AuthResult: Hashable {
+  var status: Microsoft365AuthStatus
+  var signedInAccount: String
+  var detailText: String
+}
+
+enum Microsoft365AuthStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case notConfigured = "Not configured"
+  case notConnected = "Not connected"
+  case connecting = "Mock auth started"
+  case connected = "Mock connected"
+  case authFailed = "Mock auth failed"
+  case consentRequired = "Consent required"
+  case tokenExpired = "Token expired"
+
+  var id: String { rawValue }
+
+  var symbol: String {
+    switch self {
+    case .notConfigured: "exclamationmark.triangle.fill"
+    case .notConnected: "person.crop.circle.badge.questionmark"
+    case .connecting: "arrow.triangle.2.circlepath"
+    case .connected: "checkmark.seal.fill"
+    case .authFailed: "xmark.octagon.fill"
+    case .consentRequired: "person.badge.key.fill"
+    case .tokenExpired: "clock.badge.exclamationmark.fill"
+    }
+  }
+
+}
+
 struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String

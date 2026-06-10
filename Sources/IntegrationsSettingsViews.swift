@@ -38,10 +38,14 @@ struct IntegrationsView: View {
             MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is built.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
+            } onMockAuthConnect: {
+              store.connectMicrosoft365AuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateMicrosoft365AuthFailure(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
             } onReviewOAuth: {
@@ -157,8 +161,11 @@ struct Microsoft365MailboxConnectionRow: View {
   var connection: Microsoft365MailboxConnection
   var readiness: Microsoft365OAuthReadinessSummary
   var implementationPlan: Microsoft365OAuthImplementationPlan
+  var authState: Microsoft365AuthSessionState
   var onSave: (Microsoft365MailboxConnection) -> Void
   var onReadyForReview: () -> Void
+  var onMockAuthConnect: () -> Void
+  var onMockAuthFailure: () -> Void
   var onSimulatedRefresh: () -> Void
   var onReviewOAuth: () -> Void
   var onResetOAuth: () -> Void
@@ -215,6 +222,8 @@ struct Microsoft365MailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      Microsoft365AuthStateSection(authState: authState)
+
       VStack(alignment: .leading, spacing: 6) {
         Label("OAuth readiness and implementation checklist", systemImage: "checklist")
           .font(.caption.weight(.semibold))
@@ -239,6 +248,13 @@ struct Microsoft365MailboxConnectionRow: View {
       }
 
       VStack(alignment: .leading, spacing: 8) {
+        ActionGroupHeader(title: "Future OAuth boundary", symbol: "person.badge.key.fill")
+        CompactActionRow {
+          Button("Connect Microsoft 365 mock", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+            .buttonStyle(.borderedProminent)
+          Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+            .buttonStyle(.bordered)
+        }
         ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
         CompactActionRow {
           Button("Edit setup", systemImage: "pencil") {
@@ -278,6 +294,55 @@ struct Microsoft365MailboxConnectionRow: View {
       }
       .presentationDetents(horizontalSizeClass == .compact ? [.large] : [.medium, .large])
     }
+  }
+}
+
+struct Microsoft365AuthStateSection: View {
+  var authState: Microsoft365AuthSessionState
+
+  private var statusColor: Color {
+    switch authState.status {
+    case .notConfigured, .consentRequired, .tokenExpired: .orange
+    case .notConnected, .connecting: .blue
+    case .connected: .green
+    case .authFailed: .red
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Future Microsoft 365 auth state", systemImage: "person.badge.key.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      CompactMetadataGrid(minimumWidth: 140) {
+        Badge(authState.status.rawValue, color: statusColor)
+        Label(authState.signedInAccount, systemImage: "person.crop.circle")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label("Attempt: \(authState.lastAuthAttemptDate)", systemImage: "clock")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label("Success: \(authState.lastSuccessfulAuthDate)", systemImage: "checkmark.seal")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label(authState.keychainStatus, systemImage: "key.slash")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Text(authState.detailText)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Mock auth only: no browser sign-in opens, no OAuth flow runs, no tokens are requested or stored, Keychain is not used, and Microsoft Graph network calls remain mocked.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 
