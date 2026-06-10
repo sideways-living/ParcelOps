@@ -45,7 +45,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
       return Microsoft365AuthResult(
         status: .notConfigured,
         signedInAccount: "Not signed in",
-        detailText: "Real Microsoft 365 sign-in was not started because setup placeholders are missing: \(missingFields.joined(separator: ", ")). No browser sign-in opened and no token request was made."
+        detailText: "Setup incomplete: \(missingFields.joined(separator: ", ")). Real Microsoft 365 sign-in was not started, no browser opened, and no token request was made. Use Edit setup to add Entra tenant/client/redirect values, or use mock auth for local testing."
       )
     }
 
@@ -100,10 +100,10 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
     let tenant = normalizedTenant(for: connection)
     guard let authorityURL = URL(string: "https://login.microsoftonline.com/\(tenant)") else {
       return Microsoft365AuthResult(
-        status: .notConfigured,
-        signedInAccount: "Not signed in",
-        detailText: "Real Microsoft 365 sign-in was not started because the tenant placeholder is not a valid Microsoft identity authority segment."
-      )
+          status: .notConfigured,
+          signedInAccount: "Not signed in",
+          detailText: "Setup issue: the tenant placeholder could not form a Microsoft identity authority URL. Use a tenant ID GUID or domain such as company.onmicrosoft.com. No token value was stored and no mailbox call was made."
+        )
     }
 
     do {
@@ -122,7 +122,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
       return Microsoft365AuthResult(
         status: .authFailed,
         signedInAccount: "Not signed in",
-        detailText: "Real Microsoft 365 sign-in could not initialize MSAL: \(safeErrorSummary(error)). No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+        detailText: "MSAL setup/runtime issue: \(safeErrorSummary(error)). Check client ID, redirect URI, active app window, Xcode signing, and MSAL cache/Keychain configuration. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
       )
     }
   }
@@ -144,7 +144,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
           continuation.resume(returning: Microsoft365AuthResult(
             status: .authFailed,
             signedInAccount: "Not signed in",
-            detailText: "Real Microsoft 365 sign-in ended without an MSAL result. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+            detailText: "Sign-in ended without an MSAL result. Try again from an active ParcelOps window, or use mock auth for local testing. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
           ))
           return
         }
@@ -153,7 +153,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
         continuation.resume(returning: Microsoft365AuthResult(
           status: .connected,
           signedInAccount: account.isEmpty ? "Signed in Microsoft account" : account,
-          detailText: "Real Microsoft 365 sign-in succeeded for identity-only testing with User.Read. MSAL handled its token cache internally; ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Microsoft Graph mailbox calls remain mocked."
+          detailText: "Success: real Microsoft 365 identity sign-in completed with User.Read only. MSAL handled its token cache internally; ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Microsoft Graph mailbox calls remain mocked."
         ))
       }
     }
@@ -165,7 +165,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
       return Microsoft365AuthResult(
         status: .notConnected,
         signedInAccount: "Not signed in",
-        detailText: "Real Microsoft 365 sign-in was cancelled. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+        detailText: "Cancelled: Microsoft 365 sign-in was closed before completion. No account was connected, no token value was stored in ParcelOps JSON, and no Microsoft Graph mailbox call was made."
       )
     }
 
@@ -173,7 +173,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
     return Microsoft365AuthResult(
       status: status,
       signedInAccount: "Not signed in",
-      detailText: "Real Microsoft 365 sign-in failed: \(safeErrorSummary(error)). No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+      detailText: "\(status == .consentRequired ? "Consent/admin review needed" : "Sign-in failed"): \(safeErrorSummary(error)). Check Entra app registration, tenant policy, User.Read consent, redirect URI, and signing. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
     )
   }
 

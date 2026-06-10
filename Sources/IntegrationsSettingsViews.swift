@@ -233,11 +233,12 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Mailbox refresh remains mocked and local-only. The real sign-in test can open Microsoft authentication, but it does not fetch mailbox messages or store token values in ParcelOps JSON.")
+      Text("Mailbox refresh remains mocked and local-only. The real sign-in test only proves Microsoft identity sign-in and callback handling; it does not fetch mailbox messages or store token values in ParcelOps JSON.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       Microsoft365AuthStateSection(authState: authState)
+      Microsoft365RealSignInChecklist(connection: connection, readiness: readiness)
 
       VStack(alignment: .leading, spacing: 6) {
         Label("OAuth readiness and implementation checklist", systemImage: "checklist")
@@ -264,7 +265,7 @@ struct Microsoft365MailboxConnectionRow: View {
 
       VStack(alignment: .leading, spacing: 8) {
         ActionGroupHeader(title: "Microsoft sign-in boundary", symbol: "person.badge.key.fill")
-        Text("Real sign-in requests identity-only User.Read for this slice. Mail.Read and mailbox fetching stay off.")
+        Text("Use real sign-in only after the checklist is ready. If signing, consent, or Keychain cache setup blocks the test, use mock auth and Mock Graph refresh to keep testing intake.")
           .font(.caption2)
           .foregroundStyle(.secondary)
         CompactActionRow {
@@ -350,7 +351,7 @@ struct Microsoft365AuthStateSection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Future Microsoft 365 auth state", systemImage: "person.badge.key.fill")
+      Label("Microsoft 365 sign-in state", systemImage: "person.badge.key.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
       CompactMetadataGrid(minimumWidth: 140) {
@@ -377,6 +378,10 @@ struct Microsoft365AuthStateSection: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      Text(statusGuidance)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(statusColor)
+        .fixedSize(horizontal: false, vertical: true)
       Text("Real sign-in is opt-in and identity-only for this slice. ParcelOps does not store token values in JSON, and Microsoft Graph mailbox calls remain mocked.")
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -387,6 +392,85 @@ struct Microsoft365AuthStateSection: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var statusGuidance: String {
+    switch authState.status {
+    case .notConfigured:
+      "Missing setup: confirm tenant/domain, client ID, and redirect URI before trying real sign-in."
+    case .notConnected:
+      authState.detailText.localizedCaseInsensitiveContains("cancelled")
+        ? "Cancelled: no account was connected. You can retry real sign-in or use mock auth."
+        : "Not connected: use mock auth for local testing or complete setup before real sign-in."
+    case .connecting:
+      "Sign-in started: wait for Microsoft authentication to finish or return to ParcelOps."
+    case .connected:
+      "Connected: identity sign-in succeeded. Mailbox fetching is still off until a later Graph message slice."
+    case .authFailed:
+      "Failed: check Xcode signing, active app window, redirect URI, and MSAL runtime setup."
+    case .consentRequired:
+      "Consent/admin review: check Entra app registration, tenant policy, and User.Read permission consent."
+    case .tokenExpired:
+      "Token cache needs attention: retry sign-in. ParcelOps still does not store token values in JSON."
+    }
+  }
+}
+
+struct Microsoft365RealSignInChecklist: View {
+  var connection: Microsoft365MailboxConnection
+  var readiness: Microsoft365OAuthReadinessSummary
+
+  private let expectedRedirectURI = MSALMicrosoft365AuthAdapter.redirectURI
+
+  private var hasTenant: Bool {
+    !connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !connection.tenantDomainHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasClientID: Bool {
+    !connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasRedirect: Bool {
+    connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines) == expectedRedirectURI
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Before real sign-in", systemImage: "checklist.checked")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text("Required Entra setup: public client/native app registration, tenant or domain, application client ID, redirect URI \(expectedRedirectURI), and delegated User.Read consent. Mail.Read is planned later, not used for this test.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 170) {
+        ReadinessPill(title: "Tenant/domain", isReady: hasTenant)
+        ReadinessPill(title: "Client ID", isReady: hasClientID)
+        ReadinessPill(title: "Redirect URI", isReady: hasRedirect)
+        ReadinessPill(title: "User.Read only", isReady: connection.requestedScopesSummary.localizedCaseInsensitiveContains("User.Read"))
+        ReadinessPill(title: "Planning reviewed", isReady: readiness.isReady)
+      }
+      Text("Fallback: Connect Microsoft 365 mock tests auth state locally. Run Mock Graph refresh imports deterministic sample messages without contacting Microsoft Graph.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct ReadinessPill: View {
+  var title: String
+  var isReady: Bool
+
+  var body: some View {
+    Label(title, systemImage: isReady ? "checkmark.circle.fill" : "circle")
+      .font(.caption)
+      .foregroundStyle(isReady ? .green : .secondary)
   }
 }
 
