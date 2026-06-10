@@ -27,13 +27,17 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
-          Text("These records prepare the mailbox setup flow. The Microsoft Graph client is mocked: OAuth, token exchange, Keychain storage, network calls, and real mailbox access are not connected yet.")
+          Text("Use this local setup area to prepare mailbox details, OAuth planning notes, and a mocked Graph refresh before reviewing captured intake records.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add Microsoft 365 mailbox", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+            Button("Add mailbox placeholder", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
               .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
+          }
+          if store.microsoft365MailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in

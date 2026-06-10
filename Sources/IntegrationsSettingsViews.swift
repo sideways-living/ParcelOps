@@ -25,9 +25,18 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Non-secret setup records only. The Microsoft Graph client is mocked: OAuth, token exchange, Keychain storage, network calls, and real mailbox access are not connected yet.")
+          Text("Prepare the mailbox connection in local placeholder records, then test the mocked Graph refresh into Inbox. Nothing here opens browser sign-in, requests tokens, stores secrets, or contacts Microsoft Graph.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          Microsoft365SetupFlowGuide()
+          CompactActionRow {
+            Button("Add mailbox placeholder", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+              .buttonStyle(.bordered)
+            Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
+          }
+          if store.microsoft365MailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is built.", symbol: "mail.stack")
+          }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
@@ -97,6 +106,53 @@ struct IntegrationsView: View {
   }
 }
 
+struct Microsoft365SetupFlowGuide: View {
+  private let steps: [(String, String, String)] = [
+    ("1", "Setup mailbox placeholder", "Record the mailbox address, tenant hint, folders, and local setup notes."),
+    ("2", "Prepare OAuth placeholders", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
+    ("3", "Review implementation checklist", "Confirm the plan for app registration, consent, token storage, refresh, errors, and audit."),
+    ("4", "Run Mock Graph refresh", "Import deterministic sample messages through the provider-neutral intake path."),
+    ("5", "Review imported intake", "Open Inbox or Mailbox Monitor and accept, ignore, review, task, or draft from local records."),
+    ("6", "Check Audit and Tasks", "Confirm local actions were logged and follow-up work was created where needed.")
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label("Local setup flow", systemImage: "list.number")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(steps, id: \.0) { step in
+          HStack(alignment: .top, spacing: 10) {
+            Text(step.0)
+              .font(.caption.weight(.bold))
+              .foregroundStyle(.blue)
+              .frame(width: 24, height: 24)
+              .background(.blue.opacity(0.12))
+              .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+              Text(step.1)
+                .font(.caption.weight(.semibold))
+              Text(step.2)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+      Text("Local-only boundary: OAuth, browser sign-in, token exchange, Keychain, Microsoft Graph network calls, real mailbox access, background sync, and notifications are not active.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct Microsoft365MailboxConnectionRow: View {
   var connection: Microsoft365MailboxConnection
   var readiness: Microsoft365OAuthReadinessSummary
@@ -155,13 +211,16 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, token exchange, Keychain storage, network call, or mailbox connection is used.")
+      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, browser sign-in, token exchange, Keychain storage, network call, background sync, notification, or mailbox connection is used.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       VStack(alignment: .leading, spacing: 6) {
-        Label("OAuth implementation checklist", systemImage: "checklist")
+        Label("OAuth readiness and implementation checklist", systemImage: "checklist")
           .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text("Use this as a planning review before real Microsoft authentication work starts.")
+          .font(.caption2)
           .foregroundStyle(.secondary)
         ForEach(implementationPlan.items) { item in
           HStack(alignment: .top, spacing: 8) {
@@ -179,25 +238,34 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      CompactActionRow {
-        Button("Edit setup", systemImage: "pencil") {
-          isEditing = true
+      VStack(alignment: .leading, spacing: 8) {
+        ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
+        CompactActionRow {
+          Button("Edit setup", systemImage: "pencil") {
+            isEditing = true
+          }
+          .buttonStyle(.bordered)
+          Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
+            .buttonStyle(.bordered)
+          Button("Run Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+            .buttonStyle(.borderedProminent)
         }
-        .buttonStyle(.bordered)
-        Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
-          .buttonStyle(.bordered)
-        Button("Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
-          .buttonStyle(.borderedProminent)
-        Button("Review OAuth setup", systemImage: "checkmark.seal", action: onReviewOAuth)
-          .buttonStyle(.bordered)
-        Button("Reset OAuth", systemImage: "arrow.counterclockwise", action: onResetOAuth)
-          .buttonStyle(.bordered)
-        Button("Review plan", systemImage: "list.clipboard.fill", action: onReviewImplementationPlan)
-          .buttonStyle(.bordered)
-        Button("Plan task", systemImage: "checklist", action: onCreatePlanTask)
-          .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
-          .buttonStyle(.bordered)
+        ActionGroupHeader(title: "OAuth planning", symbol: "list.clipboard.fill")
+        CompactActionRow {
+          Button("Review OAuth setup", systemImage: "checkmark.seal", action: onReviewOAuth)
+            .buttonStyle(.bordered)
+          Button("Review plan", systemImage: "list.clipboard.fill", action: onReviewImplementationPlan)
+            .buttonStyle(.bordered)
+          Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
+            .buttonStyle(.bordered)
+        }
+        ActionGroupHeader(title: "Maintenance", symbol: "wrench.and.screwdriver.fill")
+        CompactActionRow {
+          Button("Reset OAuth placeholders", systemImage: "arrow.counterclockwise", action: onResetOAuth)
+            .buttonStyle(.bordered)
+          Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+            .buttonStyle(.bordered)
+        }
       }
     }
     .padding(10)
@@ -210,6 +278,17 @@ struct Microsoft365MailboxConnectionRow: View {
       }
       .presentationDetents(horizontalSizeClass == .compact ? [.large] : [.medium, .large])
     }
+  }
+}
+
+struct ActionGroupHeader: View {
+  var title: String
+  var symbol: String
+
+  var body: some View {
+    Label(title, systemImage: symbol)
+      .font(.caption.weight(.semibold))
+      .foregroundStyle(.secondary)
   }
 }
 
@@ -228,13 +307,13 @@ struct Microsoft365MailboxConnectionEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Mailbox setup") {
+        Section("1. Mailbox placeholder") {
           TextField("Display name", text: $draft.displayName)
           TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
           TextField("Mailbox address", text: $draft.mailboxAddress)
           TextField("Monitored folders", text: $draft.monitoredFolderNames)
         }
-        Section("Local status") {
+        Section("2. Local status and notes") {
           TextField("Connection status", text: $draft.connectionStatus)
           TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
           Picker("Review state", selection: $draft.reviewState) {
@@ -245,7 +324,10 @@ struct Microsoft365MailboxConnectionEditor: View {
           TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
             .lineLimit(3...6)
         }
-        Section("OAuth readiness placeholders") {
+        Section("3. OAuth readiness placeholders") {
+          Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
           TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
           TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
           TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
@@ -255,9 +337,12 @@ struct Microsoft365MailboxConnectionEditor: View {
           TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
             .lineLimit(3...6)
         }
-        Section("Implementation checklist") {
+        Section("4. Implementation checklist") {
           Text(implementationPlan.statusText)
             .font(.subheadline.weight(.semibold))
+          Text("Review these planning items before adding a real OAuth flow in a later pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
           ForEach(implementationPlan.items) { item in
             Label {
               VStack(alignment: .leading, spacing: 2) {
