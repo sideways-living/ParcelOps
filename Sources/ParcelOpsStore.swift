@@ -227,6 +227,10 @@ final class ParcelOpsStore {
     intakeEmails.filter { $0.reviewState == .needsReview }
   }
 
+  var microsoft365OAuthReadinessSummaries: [Microsoft365OAuthReadinessSummary] {
+    microsoft365MailboxConnections.map { microsoft365OAuthReadinessSummary(for: $0) }
+  }
+
   var reviewQueueCount: Int {
     reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
@@ -7825,7 +7829,13 @@ final class ParcelOpsStore {
       connectionStatus: "Local setup only",
       lastManualRefreshDate: "Never",
       setupNotes: "Placeholder only. Do not enter passwords, tokens, client secrets, or OAuth codes.",
-      reviewState: .needsReview
+      reviewState: .needsReview,
+      tenantIDPlaceholder: "",
+      clientIDPlaceholder: "",
+      redirectURIPlaceholder: "parcelops://oauth/microsoft365",
+      requestedScopesSummary: "Mail.Read, User.Read",
+      oauthReadinessStatus: "Not reviewed",
+      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested."
     )
     microsoft365MailboxConnections.insert(connection, at: 0)
     persistIntegrations()
@@ -7867,6 +7877,42 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Microsoft 365 mailbox setup placeholder marked ready for review.",
       afterDetail: "No OAuth, token, Microsoft Graph, or mailbox connection was used."
+    )
+  }
+
+  func markMicrosoft365OAuthSetupReviewed(_ connection: Microsoft365MailboxConnection) {
+    let summary = microsoft365OAuthReadinessSummary(for: connection)
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.oauthReadinessStatus = summary.statusText
+      draft.reviewState = summary.isReady ? .monitor : .needsReview
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 OAuth readiness reviewed locally.",
+      afterDetail: "\(summary.detailText)\nNo OAuth flow ran, no tokens were requested, and no credentials were stored."
+    )
+  }
+
+  func resetMicrosoft365OAuthReadiness(_ connection: Microsoft365MailboxConnection) {
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.tenantIDPlaceholder = ""
+      draft.clientIDPlaceholder = ""
+      draft.redirectURIPlaceholder = ""
+      draft.requestedScopesSummary = ""
+      draft.oauthReadinessStatus = "Reset locally"
+      draft.consentAdminNotes = "Local planning reset. No OAuth flow runs and no tokens are requested."
+      draft.reviewState = .needsReview
+    }
+    logAudit(
+      action: .cleared,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Microsoft 365 OAuth readiness placeholders reset locally.",
+      afterDetail: "Tenant/client/redirect/scope placeholders cleared. No OAuth, token, Keychain, or network action occurred."
     )
   }
 
@@ -7983,6 +8029,35 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  func microsoft365OAuthReadinessSummary(for connection: Microsoft365MailboxConnection) -> Microsoft365OAuthReadinessSummary {
+    var missingFields: [String] = []
+    if connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Tenant ID placeholder")
+    }
+    if connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Client ID placeholder")
+    }
+    if connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Redirect URI placeholder")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+
+    let isReady = missingFields.isEmpty
+    let statusText = isReady ? "Ready for future OAuth implementation" : "Missing \(missingFields.count) OAuth setup item\(missingFields.count == 1 ? "" : "s")"
+    let detailText = isReady
+      ? "Non-secret OAuth placeholders are complete for future implementation review."
+      : "Missing: \(missingFields.joined(separator: ", "))"
+    return Microsoft365OAuthReadinessSummary(
+      connectionID: connection.id,
+      isReady: isReady,
+      missingFields: missingFields,
+      statusText: statusText,
+      detailText: detailText
+    )
+  }
+
   private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
     TrackedMailbox(
       id: connection.id,
@@ -8005,7 +8080,8 @@ final class ParcelOpsStore {
   }
 
   private func microsoft365MailboxConnectionAuditDetail(_ connection: Microsoft365MailboxConnection) -> String {
-    "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo OAuth, token, client secret, password, or Microsoft Graph connection is stored."
+    let readiness = microsoft365OAuthReadinessSummary(for: connection)
+    return "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nOAuth readiness: \(readiness.statusText)\nTenant ID placeholder: \(connection.tenantIDPlaceholder)\nClient ID placeholder: \(connection.clientIDPlaceholder)\nRedirect URI placeholder: \(connection.redirectURIPlaceholder)\nScopes: \(connection.requestedScopesSummary)\nConsent/admin notes: \(connection.consentAdminNotes)\nNo OAuth, token, client secret, password, Keychain item, or Microsoft Graph connection is stored."
   }
 
   private func appendSystemContact(_ summary: String, evidence: String) {

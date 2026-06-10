@@ -1114,6 +1114,21 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
   var lastManualRefreshDate: String
   var setupNotes: String
   var reviewState: ReviewState
+  var tenantIDPlaceholder: String = ""
+  var clientIDPlaceholder: String = ""
+  var redirectURIPlaceholder: String = ""
+  var requestedScopesSummary: String = "Mail.Read, User.Read"
+  var oauthReadinessStatus: String = "Not reviewed"
+  var consentAdminNotes: String = "Local planning only. No OAuth flow runs and no tokens are requested."
+}
+
+struct Microsoft365OAuthReadinessSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var isReady: Bool
+  var missingFields: [String]
+  var statusText: String
+  var detailText: String
 }
 
 struct ShopifyConnection: Identifiable, Hashable, Codable {

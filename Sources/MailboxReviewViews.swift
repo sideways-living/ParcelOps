@@ -27,7 +27,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
-          Text("These records prepare the mailbox setup flow. The Microsoft Graph client is mocked: OAuth, tokens, passwords, network calls, and real mailbox access are not connected yet.")
+          Text("These records prepare the mailbox setup flow. The Microsoft Graph client is mocked: OAuth, token exchange, Keychain storage, network calls, and real mailbox access are not connected yet.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -36,12 +36,16 @@ struct MailboxView: View {
             Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onReviewOAuth: {
+              store.markMicrosoft365OAuthSetupReviewed(connection)
+            } onResetOAuth: {
+              store.resetMicrosoft365OAuthReadiness(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
             }

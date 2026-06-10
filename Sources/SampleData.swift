@@ -163,7 +163,13 @@ enum SampleData {
       connectionStatus: "Local setup only",
       lastManualRefreshDate: "Never",
       setupNotes: "OAuth and Microsoft Graph are not connected. Use simulated refresh to test intake parsing.",
-      reviewState: .needsReview
+      reviewState: .needsReview,
+      tenantIDPlaceholder: "tenant-id-to-confirm",
+      clientIDPlaceholder: "client-id-to-confirm",
+      redirectURIPlaceholder: "parcelops://oauth/microsoft365",
+      requestedScopesSummary: "offline_access, User.Read, Mail.Read",
+      oauthReadinessStatus: "Needs admin consent notes",
+      consentAdminNotes: "Confirm Entra app registration owner and mailbox read consent before real OAuth is added."
     ),
     Microsoft365MailboxConnection(
       displayName: "Field purchasing mailbox",
@@ -173,7 +179,13 @@ enum SampleData {
       connectionStatus: "Ready for review",
       lastManualRefreshDate: "Never",
       setupNotes: "Future Microsoft 365 mailbox candidate for field purchase confirmations.",
-      reviewState: .monitor
+      reviewState: .monitor,
+      tenantIDPlaceholder: "",
+      clientIDPlaceholder: "",
+      redirectURIPlaceholder: "parcelops://oauth/microsoft365",
+      requestedScopesSummary: "Mail.Read",
+      oauthReadinessStatus: "Missing tenant and client placeholders",
+      consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested."
     )
   ]
 

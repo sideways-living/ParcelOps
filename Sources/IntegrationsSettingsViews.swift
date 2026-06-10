@@ -25,16 +25,20 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Non-secret setup records only. The Microsoft Graph client is mocked: OAuth, tokens, passwords, network calls, and real mailbox access are not connected yet.")
+          Text("Non-secret setup records only. The Microsoft Graph client is mocked: OAuth, token exchange, Keychain storage, network calls, and real mailbox access are not connected yet.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           ForEach(store.microsoft365MailboxConnections) { connection in
-            Microsoft365MailboxConnectionRow(connection: connection) { updatedConnection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
               store.markMicrosoft365MailboxConnectionReadyForReview(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onReviewOAuth: {
+              store.markMicrosoft365OAuthSetupReviewed(connection)
+            } onResetOAuth: {
+              store.resetMicrosoft365OAuthReadiness(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
             }
@@ -91,9 +95,12 @@ struct IntegrationsView: View {
 
 struct Microsoft365MailboxConnectionRow: View {
   var connection: Microsoft365MailboxConnection
+  var readiness: Microsoft365OAuthReadinessSummary
   var onSave: (Microsoft365MailboxConnection) -> Void
   var onReadyForReview: () -> Void
   var onSimulatedRefresh: () -> Void
+  var onReviewOAuth: () -> Void
+  var onResetOAuth: () -> Void
   var onRemove: () -> Void
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
@@ -117,6 +124,14 @@ struct Microsoft365MailboxConnectionRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
+          Label(readiness.statusText, systemImage: readiness.isReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(readiness.isReady ? .green : .orange)
+          if !readiness.missingFields.isEmpty {
+            Text(readiness.detailText)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
         Spacer()
         VStack(alignment: .trailing, spacing: 4) {
@@ -130,7 +145,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, password, token, network call, or mailbox connection is used.")
+      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, token exchange, Keychain storage, network call, or mailbox connection is used.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -143,6 +158,10 @@ struct Microsoft365MailboxConnectionRow: View {
           .buttonStyle(.bordered)
         Button("Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
           .buttonStyle(.borderedProminent)
+        Button("Review OAuth setup", systemImage: "checkmark.seal", action: onReviewOAuth)
+          .buttonStyle(.bordered)
+        Button("Reset OAuth", systemImage: "arrow.counterclockwise", action: onResetOAuth)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
@@ -190,8 +209,18 @@ struct Microsoft365MailboxConnectionEditor: View {
           TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
             .lineLimit(3...6)
         }
+        Section("OAuth readiness placeholders") {
+          TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
+          TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
+          TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
+          TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
+            .lineLimit(2...4)
+          TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
+          TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
         Section("Not connected") {
-          Text("Do not enter passwords, OAuth codes, client secrets, tokens, or API keys. This placeholder does not contact Microsoft Graph or any mailbox.")
+          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, request tokens, contact Microsoft Graph, or access any mailbox.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
