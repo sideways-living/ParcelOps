@@ -6,6 +6,9 @@ struct ParcelOpsApp: App {
     WindowGroup {
       ParcelOpsRootView()
         .parcelOpsWindowFrame()
+        .onOpenURL { url in
+          _ = MSALMicrosoft365AuthAdapter().callbackReadinessStatus(for: url)
+        }
     }
   }
 }

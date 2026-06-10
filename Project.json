@@ -13,6 +13,12 @@
       "SWIFT_VERSION": "5.0"
     }
   },
+  "packages": {
+    "MSAL": {
+      "url": "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git",
+      "exactVersion": "2.12.1"
+    }
+  },
   "targets": {
     "ParcelOps": {
       "type": "application",
@@ -33,6 +39,10 @@
       ],
       "dependencies": [
         {
+          "package": "MSAL",
+          "product": "MSAL"
+        },
+        {
           "embed": true,
           "target": "ParcelOps Widget Extension",
           "destinationFilters": [
@@ -48,7 +58,19 @@
           },
           "NSSupportsLiveActivities": true,
           "NSSupportsLiveActivitiesFrequentUpdates": true,
-          "LSApplicationCategoryType": "public.app-category.business"
+          "LSApplicationCategoryType": "public.app-category.business",
+          "CFBundleURLTypes": [
+            {
+              "CFBundleURLName": "Microsoft 365 OAuth callback",
+              "CFBundleURLSchemes": [
+                "msauth.app.bitrig.parcelops"
+              ]
+            }
+          ],
+          "LSApplicationQueriesSchemes": [
+            "msauthv2",
+            "msauthv3"
+          ]
         }
       },
       "entitlements": {

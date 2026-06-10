@@ -41,6 +41,8 @@
 		98C35ECB54BABD8531AFC4D9 /* ParcelOpsActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */; };
 		9A258F87A35D250D49653B5C /* TrackingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2096A18F88235246D192AB /* TrackingViews.swift */; };
 		9E4432914A94BF3FC4BBDD36 /* AcceptanceReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF3076BE8338448EDFD2C3D /* AcceptanceReviewViews.swift */; };
+		A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */; };
+		A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = A6B5C4D3E2F1012345678904 /* MSAL */; };
 		A1A4593A0BA46C8E111B137D /* CommunicationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91EBD362A0621E5FC6CF3BF /* CommunicationViews.swift */; };
 		A9BBF23BBF56CA7001687BFD /* ShipmentGroupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */; };
 		B19610644621A4CB73F0B7B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A518D638621BEE2F1123A89C /* Assets.xcassets */; };
@@ -129,6 +131,7 @@
 		975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelReferenceViews.swift; sourceTree = "<group>"; };
 		980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettingsViews.swift; sourceTree = "<group>"; };
 		9BBE20445D49D4AD19F7FBDD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSALMicrosoft365AuthAdapter.swift; sourceTree = "<group>"; };
 		A518D638621BEE2F1123A89C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B126E1E735231BE8314F5B87 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		B35131894477ED26462D829A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -152,6 +155,17 @@
 		FD3B5CF499A918F102549CDA /* MVPSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MVPSetupView.swift; sourceTree = "<group>"; };
 		FF611A7ECFF96B0BA513594A /* TimelineViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A6B5C4D3E2F1012345678906 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		231887813CF530BED2C2A913 /* Watch */ = {
@@ -237,6 +251,7 @@
 				975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */,
 				4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */,
 				C294C1E031F8E92F4B72882D /* Models.swift */,
+				A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */,
 				FD3B5CF499A918F102549CDA /* MVPSetupView.swift */,
 				2B4A1864B6092510C25D93BC /* OperationsWorkbenchViews.swift */,
 				5776053ED5DCD32056445106 /* OperatorHubViews.swift */,
@@ -276,6 +291,7 @@
 			buildConfigurationList = F2CC2D89B4FB9BB00A090FCE /* Build configuration list for PBXNativeTarget "ParcelOps" */;
 			buildPhases = (
 				75B63BF68CFAC82657F22A37 /* Sources */,
+				A6B5C4D3E2F1012345678906 /* Frameworks */,
 				06439D0BD4DE9D59A0E1FE75 /* Resources */,
 				3428EDEAF9A0DD2F0E8B2761 /* Embed Foundation Extensions */,
 			);
@@ -286,6 +302,7 @@
 			);
 			name = ParcelOps;
 			packageProductDependencies = (
+				A6B5C4D3E2F1012345678904 /* MSAL */,
 			);
 			productName = ParcelOps;
 			productReference = CAF3A15F042E2C123A948632 /* ParcelOps.app */;
@@ -347,6 +364,9 @@
 			mainGroup = 26FAEC6509BE9A75EACC4C16;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			packageReferences = (
+				A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
+			);
 			productRefGroup = 28B4921062D8B256ECDD1F41 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -423,6 +443,7 @@
 				145B03D460BF221A531479FB /* MVPSetupView.swift in Sources */,
 				4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */,
 				05D3E912BBCDDD5249071205 /* Models.swift in Sources */,
+				A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */,
 				F0FC33BDB1782A53EACD7CBC /* OperationsWorkbenchViews.swift in Sources */,
 				CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */,
 				5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */,
@@ -726,6 +747,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.12.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A6B5C4D3E2F1012345678904 /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 11D16C109A2962BB5F389326 /* Project object */;
 }
