@@ -27,7 +27,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
-          Text("Use this local setup area to prepare mailbox details, OAuth planning notes, and a mocked Graph refresh before reviewing captured intake records.")
+          Text("Use this setup area to prepare mailbox details, test real Microsoft sign-in when ready, and keep mailbox refresh mocked until Graph message fetching is built.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -48,6 +48,8 @@ struct MailboxView: View {
               store.connectMicrosoft365AuthMock(connection)
             } onMockAuthFailure: {
               store.simulateMicrosoft365AuthFailure(connection)
+            } onRealAuthConnect: {
+              store.connectMicrosoft365AuthReal(connection)
             } onTokenStoreReady: {
               store.simulateMicrosoft365TokenStoreReady(connection)
             } onTokenMissing: {

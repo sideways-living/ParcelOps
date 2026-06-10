@@ -1226,9 +1226,9 @@ struct Microsoft365AuthResult: Hashable {
 enum Microsoft365AuthStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case notConfigured = "Not configured"
   case notConnected = "Not connected"
-  case connecting = "Mock auth started"
-  case connected = "Mock connected"
-  case authFailed = "Mock auth failed"
+  case connecting = "Connecting"
+  case connected = "Connected"
+  case authFailed = "Auth failed"
   case consentRequired = "Consent required"
   case tokenExpired = "Token expired"
 
@@ -1255,7 +1255,7 @@ struct Microsoft365TokenStoreResult: Hashable {
 
 enum Microsoft365TokenStoreStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case keychainNotConfigured = "Keychain not configured"
-  case mockTokenReferenceAvailable = "Mock token reference available"
+  case mockTokenReferenceAvailable = "Token cache reference available"
   case tokenMissing = "Token missing"
   case tokenClearSimulated = "Token clear simulated"
   case storageErrorSimulated = "Storage error simulated"

@@ -6,9 +6,6 @@ struct ParcelOpsApp: App {
     WindowGroup {
       ParcelOpsRootView()
         .parcelOpsWindowFrame()
-        .onOpenURL { url in
-          _ = MSALMicrosoft365AuthAdapter().callbackReadinessStatus(for: url)
-        }
     }
   }
 }
@@ -83,6 +80,9 @@ struct ParcelOpsRootView: View {
       }
     }
     .tint(.teal)
+    .onOpenURL { url in
+      store.handleMicrosoft365AuthCallback(url)
+    }
   }
 
   @ViewBuilder

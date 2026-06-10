@@ -166,8 +166,8 @@ enum SampleData {
       reviewState: .needsReview,
       tenantIDPlaceholder: "tenant-id-to-confirm",
       clientIDPlaceholder: "client-id-to-confirm",
-      redirectURIPlaceholder: "parcelops://oauth/microsoft365",
-      requestedScopesSummary: "offline_access, User.Read, Mail.Read",
+      redirectURIPlaceholder: MSALMicrosoft365AuthAdapter.redirectURI,
+      requestedScopesSummary: "User.Read now; Mail.Read planned later",
       oauthReadinessStatus: "Needs admin consent notes",
       consentAdminNotes: "Confirm Entra app registration owner and mailbox read consent before real OAuth is added.",
       oauthImplementationPlanStatus: "Needs token storage decision"
@@ -183,8 +183,8 @@ enum SampleData {
       reviewState: .monitor,
       tenantIDPlaceholder: "",
       clientIDPlaceholder: "",
-      redirectURIPlaceholder: "parcelops://oauth/microsoft365",
-      requestedScopesSummary: "Mail.Read",
+      redirectURIPlaceholder: MSALMicrosoft365AuthAdapter.redirectURI,
+      requestedScopesSummary: "User.Read now; Mail.Read planned later",
       oauthReadinessStatus: "Missing tenant and client placeholders",
       consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested.",
       oauthImplementationPlanStatus: "Not reviewed"

@@ -25,7 +25,7 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Prepare the mailbox connection in local placeholder records, then test the mocked Graph refresh into Inbox. Nothing here opens browser sign-in, requests tokens, stores secrets, or contacts Microsoft Graph.")
+          Text("Prepare the mailbox connection in local placeholder records, test real Microsoft sign-in separately when ready, then keep mailbox refresh mocked until Graph message fetching is built.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -46,6 +46,8 @@ struct IntegrationsView: View {
               store.connectMicrosoft365AuthMock(connection)
             } onMockAuthFailure: {
               store.simulateMicrosoft365AuthFailure(connection)
+            } onRealAuthConnect: {
+              store.connectMicrosoft365AuthReal(connection)
             } onTokenStoreReady: {
               store.simulateMicrosoft365TokenStoreReady(connection)
             } onTokenMissing: {
@@ -174,6 +176,7 @@ struct Microsoft365MailboxConnectionRow: View {
   var onReadyForReview: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
+  var onRealAuthConnect: () -> Void
   var onTokenStoreReady: () -> Void
   var onTokenMissing: () -> Void
   var onTokenStorageError: () -> Void
@@ -230,7 +233,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Local setup only. Mock Graph refresh uses deterministic sample messages; no OAuth, browser sign-in, token exchange, Keychain storage, network call, background sync, notification, or mailbox connection is used.")
+      Text("Mailbox refresh remains mocked and local-only. The real sign-in test can open Microsoft authentication, but it does not fetch mailbox messages or store token values in ParcelOps JSON.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -260,10 +263,15 @@ struct Microsoft365MailboxConnectionRow: View {
       }
 
       VStack(alignment: .leading, spacing: 8) {
-        ActionGroupHeader(title: "Future OAuth boundary", symbol: "person.badge.key.fill")
+        ActionGroupHeader(title: "Microsoft sign-in boundary", symbol: "person.badge.key.fill")
+        Text("Real sign-in requests identity-only User.Read for this slice. Mail.Read and mailbox fetching stay off.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
         CompactActionRow {
-          Button("Connect Microsoft 365 mock", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+          Button("Test real Microsoft sign-in", systemImage: "person.crop.circle.badge.checkmark", action: onRealAuthConnect)
             .buttonStyle(.borderedProminent)
+          Button("Connect Microsoft 365 mock", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+            .buttonStyle(.bordered)
           Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
             .buttonStyle(.bordered)
         }
@@ -369,7 +377,7 @@ struct Microsoft365AuthStateSection: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      Text("Mock auth only: no browser sign-in opens, no OAuth flow runs, no tokens are requested or stored, Keychain is not used, and Microsoft Graph network calls remain mocked.")
+      Text("Real sign-in is opt-in and identity-only for this slice. ParcelOps does not store token values in JSON, and Microsoft Graph mailbox calls remain mocked.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
