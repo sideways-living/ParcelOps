@@ -293,6 +293,28 @@ enum MicrosoftGraphMailboxFetchStatus: String, CaseIterable, Identifiable, Hasha
   case noMessages = "No messages"
   case notConnected = "Not connected"
   case simulatedAuthPlaceholder = "Simulated auth placeholder"
+  case authRequired = "Auth required"
+  case consentRequired = "Consent required"
+  case folderNotFound = "Folder not found"
+  case networkFailed = "Network failed"
+  case graphRejected = "Graph rejected"
+  case parseFailed = "Parse failed"
+
+  var id: String { rawValue }
+}
+
+struct Microsoft365GraphTokenResult {
+  var status: Microsoft365GraphTokenStatus
+  var accessToken: String?
+  var signedInAccount: String
+  var detailText: String
+}
+
+enum Microsoft365GraphTokenStatus: String, CaseIterable, Identifiable, Hashable {
+  case success = "Token acquired"
+  case authRequired = "Auth required"
+  case consentRequired = "Consent required"
+  case failed = "Token failed"
 
   var id: String { rawValue }
 }

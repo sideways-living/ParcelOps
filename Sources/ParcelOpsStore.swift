@@ -96,6 +96,8 @@ final class ParcelOpsStore {
   private let acceptanceRepository: AcceptanceRepository
   private let mailboxIngestionService: MailboxIngestionService
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
+  private let realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient
+  private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
   private let microsoft365AuthClient: Microsoft365AuthClient
   private let microsoft365RealAuthClient: Microsoft365AuthClient
   private let microsoft365TokenStore: Microsoft365TokenStore
@@ -111,6 +113,8 @@ final class ParcelOpsStore {
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
+    realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
+    microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
     microsoft365RealAuthClient: Microsoft365AuthClient = MSALMicrosoft365AuthClient(),
     microsoft365TokenStore: Microsoft365TokenStore = MockMicrosoft365TokenStore(),
@@ -160,6 +164,8 @@ final class ParcelOpsStore {
     self.acceptanceRepository = repository
     self.mailboxIngestionService = mailboxIngestionService
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
+    self.realMicrosoftGraphMailboxClient = realMicrosoftGraphMailboxClient
+    self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
     self.microsoft365AuthClient = microsoft365AuthClient
     self.microsoft365RealAuthClient = microsoft365RealAuthClient
     self.microsoft365TokenStore = microsoft365TokenStore
@@ -3690,6 +3696,12 @@ final class ParcelOpsStore {
     }
   }
 
+  func importRealMicrosoftGraphMailboxMessages(for connection: Microsoft365MailboxConnection) {
+    Task {
+      await refreshMicrosoft365MailboxConnectionThroughRealGraph(connection)
+    }
+  }
+
   private func refreshMicrosoft365MailboxConnectionThroughMockGraph(_ connection: Microsoft365MailboxConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
@@ -3703,7 +3715,7 @@ final class ParcelOpsStore {
       afterDetail: "Mailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nNo OAuth, token, password, network call, or real mailbox access is used."
     )
 
-    let fetchResult = await microsoftGraphMailboxClient.fetchMessages(for: connection)
+    let fetchResult = await microsoftGraphMailboxClient.fetchMessages(for: connection, accessToken: nil)
     let fetchedMessages = mapGraphMessages(fetchResult.messages, sourceMailboxID: mailbox.id)
     let result = importFetchedMailboxMessages(fetchedMessages)
     let refreshStatus = microsoftGraphRefreshStatus(fetchResult: fetchResult, ingestResult: result)
@@ -3743,6 +3755,85 @@ final class ParcelOpsStore {
       summary: "Mock Microsoft Graph mailbox fetch completed locally.",
       afterDetail: "Status: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, or real mailbox connection was used."
     )
+  }
+
+  private func refreshMicrosoft365MailboxConnectionThroughRealGraph(_ connection: Microsoft365MailboxConnection) async {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+
+    logAudit(
+      action: .evaluated,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Microsoft Graph mailbox fetch started.",
+      afterDetail: "Mailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nRequested scopes: User.Read, Mail.Read\nLimit: 10 messages\nMode: manual refresh only\nNo token values, passwords, client secrets, or raw callback URLs will be logged. Mailbox messages will not be deleted, moved, marked read, sent, or modified."
+    )
+
+    let tokenResult = await microsoft365GraphTokenProvider.acquireMailReadToken(for: connection)
+    await MainActor.run {
+      logAudit(
+        action: .evaluated,
+        entityType: .microsoft365MailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: tokenResult.status == .success ? "Real Microsoft Graph token acquired in memory." : "Real Microsoft Graph token request did not complete.",
+        afterDetail: "Token status: \(tokenResult.status.rawValue)\nSigned-in account: \(tokenResult.signedInAccount)\n\(tokenResult.detailText)\nToken values are not stored in ParcelOps JSON or audit logs."
+      )
+    }
+
+    guard tokenResult.status == .success, let accessToken = tokenResult.accessToken else {
+      await MainActor.run {
+        updateMicrosoft365MailboxConnection(connection) { draft in
+          draft.lastManualRefreshDate = Self.auditTimestamp()
+          draft.connectionStatus = tokenResult.status == .consentRequired ? MicrosoftGraphMailboxFetchStatus.consentRequired.rawValue : MicrosoftGraphMailboxFetchStatus.authRequired.rawValue
+        }
+      }
+      return
+    }
+
+    let fetchResult = await realMicrosoftGraphMailboxClient.fetchMessages(for: connection, accessToken: accessToken)
+    let fetchedMessages = mapGraphMessages(fetchResult.messages, sourceMailboxID: mailbox.id)
+    await MainActor.run {
+      let result = importFetchedMailboxMessages(fetchedMessages)
+      let refreshStatus = microsoftGraphRefreshStatus(fetchResult: fetchResult, ingestResult: result)
+
+      updateMicrosoft365MailboxConnection(connection) { draft in
+        draft.lastManualRefreshDate = Self.auditTimestamp()
+        draft.connectionStatus = refreshStatus.rawValue
+      }
+
+      if fetchResult.status == .noMessages {
+        logAudit(
+          action: .evaluated,
+          entityType: .microsoft365MailboxConnection,
+          entityID: connection.id.uuidString,
+          entityLabel: connection.displayName,
+          summary: "Real Microsoft Graph fetch returned no messages.",
+          afterDetail: "\(fetchResult.detail)\nNo mailbox items were modified."
+        )
+      }
+
+      if fetchResult.status != .success && fetchResult.status != .noMessages {
+        logAudit(
+          action: .evaluated,
+          entityType: .microsoft365MailboxConnection,
+          entityID: connection.id.uuidString,
+          entityLabel: connection.displayName,
+          summary: "Real Microsoft Graph fetch stopped before import.",
+          afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox items were deleted, moved, marked read, sent, or modified."
+        )
+      }
+
+      logAudit(
+        action: .evaluated,
+        entityType: .microsoft365MailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real Microsoft Graph mailbox fetch completed.",
+        afterDetail: "Status: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\n\(fetchResult.detail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
+      )
+    }
   }
 
   @discardableResult
@@ -7844,7 +7935,7 @@ final class ParcelOpsStore {
       tenantIDPlaceholder: "",
       clientIDPlaceholder: "",
       redirectURIPlaceholder: MSALMicrosoft365AuthAdapter.redirectURI,
-      requestedScopesSummary: "User.Read now; Mail.Read planned later",
+      requestedScopesSummary: "User.Read, Mail.Read",
       oauthReadinessStatus: "Not reviewed",
       consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested.",
       oauthImplementationPlanStatus: "Not reviewed"
@@ -7913,7 +8004,7 @@ final class ParcelOpsStore {
       draft.tenantIDPlaceholder = ""
       draft.clientIDPlaceholder = ""
       draft.redirectURIPlaceholder = MSALMicrosoft365AuthAdapter.redirectURI
-      draft.requestedScopesSummary = "User.Read now; Mail.Read planned later"
+      draft.requestedScopesSummary = "User.Read, Mail.Read"
       draft.oauthReadinessStatus = "Reset locally"
       draft.consentAdminNotes = "Local planning reset. No OAuth flow runs and no tokens are requested."
       draft.oauthImplementationPlanStatus = "Not reviewed"

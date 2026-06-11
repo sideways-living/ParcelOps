@@ -58,6 +58,8 @@ struct IntegrationsView: View {
               store.simulateMicrosoft365TokenClear(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onRealGraphRefresh: {
+              store.importRealMicrosoftGraphMailboxMessages(for: connection)
             } onReviewOAuth: {
               store.markMicrosoft365OAuthSetupReviewed(connection)
             } onResetOAuth: {
@@ -182,6 +184,7 @@ struct Microsoft365MailboxConnectionRow: View {
   var onTokenStorageError: () -> Void
   var onTokenClear: () -> Void
   var onSimulatedRefresh: () -> Void
+  var onRealGraphRefresh: () -> Void
   var onReviewOAuth: () -> Void
   var onResetOAuth: () -> Void
   var onReviewImplementationPlan: () -> Void
@@ -233,7 +236,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Mailbox refresh remains mocked and local-only. The real sign-in test only proves Microsoft identity sign-in and callback handling; it does not fetch mailbox messages or store token values in ParcelOps JSON.")
+      Text("Mock Graph refresh remains available for local testing. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -297,6 +300,15 @@ struct Microsoft365MailboxConnectionRow: View {
             .buttonStyle(.bordered)
           Button("Run Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
             .buttonStyle(.borderedProminent)
+        }
+        ActionGroupHeader(title: "Real mailbox read", symbol: "envelope.open.fill")
+        Text("Manual read-only test: requests User.Read and Mail.Read, fetches at most 10 message previews from the configured folder, then imports through the existing duplicate-safe intake path.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        CompactActionRow {
+          Button("Run real Graph refresh", systemImage: "arrow.down.message.fill", action: onRealGraphRefresh)
+            .buttonStyle(.bordered)
+            .disabled(authState.status != .connected)
         }
         ActionGroupHeader(title: "OAuth planning", symbol: "list.clipboard.fill")
         CompactActionRow {
@@ -382,7 +394,7 @@ struct Microsoft365AuthStateSection: View {
         .font(.caption2.weight(.semibold))
         .foregroundStyle(statusColor)
         .fixedSize(horizontal: false, vertical: true)
-      Text("Real sign-in is opt-in and identity-only for this slice. ParcelOps does not store token values in JSON, and Microsoft Graph mailbox calls remain mocked.")
+      Text("Real sign-in is opt-in. ParcelOps does not store token values in JSON. Mock Graph remains available, and real Graph refresh is manual/read-only.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -405,7 +417,7 @@ struct Microsoft365AuthStateSection: View {
     case .connecting:
       "Sign-in started: wait for Microsoft authentication to finish or return to ParcelOps."
     case .connected:
-      "Connected: identity sign-in succeeded. Mailbox fetching is still off until a later Graph message slice."
+      "Connected: identity sign-in succeeded. Use Run real Graph refresh only when you want a manual read-only mailbox test."
     case .authFailed:
       "Failed: check Xcode signing, active app window, redirect URI, and MSAL runtime setup."
     case .consentRequired:
@@ -439,7 +451,7 @@ struct Microsoft365RealSignInChecklist: View {
       Label("Before real sign-in", systemImage: "checklist.checked")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
-      Text("Required Entra setup: public client/native app registration, tenant or domain, application client ID, redirect URI \(expectedRedirectURI), and delegated User.Read consent. Mail.Read is planned later, not used for this test.")
+      Text("Required Entra setup: public client/native app registration, tenant or domain, application client ID, redirect URI \(expectedRedirectURI), delegated User.Read for sign-in, and delegated Mail.Read for manual real Graph refresh.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

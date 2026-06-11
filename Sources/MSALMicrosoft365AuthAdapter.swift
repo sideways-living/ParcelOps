@@ -291,6 +291,199 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
   #endif
 }
 
+struct MSALMicrosoft365GraphTokenProvider: Microsoft365GraphTokenProvider {
+  func acquireMailReadToken(for connection: Microsoft365MailboxConnection) async -> Microsoft365GraphTokenResult {
+    #if canImport(MSAL)
+    let missingFields = missingReadinessFields(for: connection)
+    guard missingFields.isEmpty else {
+      return Microsoft365GraphTokenResult(
+        status: .authRequired,
+        accessToken: nil,
+        signedInAccount: "Not signed in",
+        detailText: "Graph token request did not start because setup is incomplete: \(missingFields.joined(separator: ", ")). No token was requested and no mailbox call was made."
+      )
+    }
+
+    return await acquireInteractiveMailReadToken(connection: connection)
+    #else
+    return Microsoft365GraphTokenResult(
+      status: .failed,
+      accessToken: nil,
+      signedInAccount: "Not signed in",
+      detailText: "Graph token request is unavailable because MSAL is not linked in this build."
+    )
+    #endif
+  }
+
+  private static let redirectURI = "msauth.app.bitrig.parcelops://auth"
+
+  private func missingReadinessFields(for connection: Microsoft365MailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && connection.tenantDomainHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Tenant ID or tenant domain")
+    }
+    if connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Client ID")
+    }
+    let redirect = connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+    if redirect.isEmpty {
+      missingFields.append("Redirect URI")
+    } else if redirect != Self.redirectURI {
+      missingFields.append("Redirect URI must be \(Self.redirectURI)")
+    }
+    return missingFields
+  }
+
+  private func normalizedTenant(for connection: Microsoft365MailboxConnection) -> String {
+    let tenantID = connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !tenantID.isEmpty {
+      return tenantID
+    }
+    let domainHint = connection.tenantDomainHint.trimmingCharacters(in: .whitespacesAndNewlines)
+    return domainHint.isEmpty ? "organizations" : domainHint
+  }
+
+  @MainActor
+  private func acquireInteractiveMailReadToken(connection: Microsoft365MailboxConnection) async -> Microsoft365GraphTokenResult {
+    let tenant = normalizedTenant(for: connection)
+    guard let authorityURL = URL(string: "https://login.microsoftonline.com/\(tenant)") else {
+      return Microsoft365GraphTokenResult(
+        status: .authRequired,
+        accessToken: nil,
+        signedInAccount: "Not signed in",
+        detailText: "Graph token request could not create a Microsoft identity authority URL. No mailbox call was made."
+      )
+    }
+
+    do {
+      let authority = try MSALAADAuthority(url: authorityURL)
+      let config = MSALPublicClientApplicationConfig(
+        clientId: connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines),
+        redirectUri: Self.redirectURI,
+        authority: authority
+      )
+      #if os(iOS)
+      config.cacheConfig.keychainSharingGroup = MSALMicrosoft365AuthAdapter.iOSKeychainGroup
+      #elseif os(macOS)
+      config.cacheConfig.keychainSharingGroup = MSALMicrosoft365AuthAdapter.macOSKeychainGroup
+      #endif
+      let application = try MSALPublicClientApplication(configuration: config)
+      let webParameters = try Self.webviewParameters()
+      let parameters = MSALInteractiveTokenParameters(scopes: ["User.Read", "Mail.Read"], webviewParameters: webParameters)
+      parameters.promptType = .selectAccount
+      return await acquireToken(application: application, parameters: parameters, fallbackAccount: connection.mailboxAddress)
+    } catch {
+      return Microsoft365GraphTokenResult(
+        status: .failed,
+        accessToken: nil,
+        signedInAccount: "Not signed in",
+        detailText: "Graph token request failed before Microsoft Graph was called: \(safeErrorSummary(error)). No token value was stored or logged."
+      )
+    }
+  }
+
+  @MainActor
+  private func acquireToken(
+    application: MSALPublicClientApplication,
+    parameters: MSALInteractiveTokenParameters,
+    fallbackAccount: String
+  ) async -> Microsoft365GraphTokenResult {
+    await withCheckedContinuation { continuation in
+      application.acquireToken(with: parameters) { result, error in
+        if let error {
+          continuation.resume(returning: self.tokenResult(from: error))
+          return
+        }
+
+        guard let result else {
+          continuation.resume(returning: Microsoft365GraphTokenResult(
+            status: .failed,
+            accessToken: nil,
+            signedInAccount: "Not signed in",
+            detailText: "MSAL ended without a token result. No mailbox call was made."
+          ))
+          return
+        }
+
+        let account = result.account.username ?? fallbackAccount
+        continuation.resume(returning: Microsoft365GraphTokenResult(
+          status: .success,
+          accessToken: result.accessToken,
+          signedInAccount: account.isEmpty ? "Signed in Microsoft account" : account,
+          detailText: "MSAL acquired an in-memory access token for User.Read and Mail.Read. ParcelOps did not store or log the token value."
+        ))
+      }
+    }
+  }
+
+  private func tokenResult(from error: Error) -> Microsoft365GraphTokenResult {
+    let nsError = error as NSError
+    let status: Microsoft365GraphTokenStatus
+    if nsError.domain == "MSALErrorDomain" {
+      switch nsError.code {
+      case -50002, -50003, -50004, -50142:
+        status = .consentRequired
+      case -50005:
+        status = .authRequired
+      default:
+        status = .failed
+      }
+    } else {
+      status = .failed
+    }
+
+    return Microsoft365GraphTokenResult(
+      status: status,
+      accessToken: nil,
+      signedInAccount: "Not signed in",
+      detailText: "\(tokenFailurePrefix(for: status)): \(safeErrorSummary(error)). No token value was stored or logged and no mailbox call was made."
+    )
+  }
+
+  private func tokenFailurePrefix(for status: Microsoft365GraphTokenStatus) -> String {
+    switch status {
+    case .success: "Token acquired"
+    case .authRequired: "Graph token auth required or cancelled"
+    case .consentRequired: "Mail.Read consent or tenant policy required"
+    case .failed: "Graph token request failed"
+    }
+  }
+
+  private func safeErrorSummary(_ error: Error) -> String {
+    let description = error.localizedDescription
+    return description.isEmpty ? "MSAL returned an authentication error." : description
+  }
+
+  #if canImport(UIKit)
+  @MainActor
+  private static func webviewParameters() throws -> MSALWebviewParameters {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let keyWindow = scenes.flatMap(\.windows).first { $0.isKeyWindow }
+    var controller = keyWindow?.rootViewController
+    while let presented = controller?.presentedViewController {
+      controller = presented
+    }
+    guard let controller else {
+      throw MSALMicrosoft365AuthError.missingPresentationWindow
+    }
+    return MSALWebviewParameters(authPresentationViewController: controller)
+  }
+  #elseif canImport(AppKit)
+  @MainActor
+  private static func webviewParameters() throws -> MSALWebviewParameters {
+    guard let controller = NSApplication.shared.keyWindow?.contentViewController ?? NSApplication.shared.mainWindow?.contentViewController else {
+      throw MSALMicrosoft365AuthError.missingPresentationWindow
+    }
+    return MSALWebviewParameters(authPresentationViewController: controller)
+  }
+  #else
+  @MainActor
+  private static func webviewParameters() throws -> MSALWebviewParameters {
+    throw MSALMicrosoft365AuthError.missingPresentationWindow
+  }
+  #endif
+}
+
 enum MSALMicrosoft365AuthError: LocalizedError {
   case missingPresentationWindow
 

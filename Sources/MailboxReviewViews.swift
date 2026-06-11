@@ -60,6 +60,8 @@ struct MailboxView: View {
               store.simulateMicrosoft365TokenClear(connection)
             } onSimulatedRefresh: {
               store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onRealGraphRefresh: {
+              store.importRealMicrosoftGraphMailboxMessages(for: connection)
             } onReviewOAuth: {
               store.markMicrosoft365OAuthSetupReviewed(connection)
             } onResetOAuth: {
