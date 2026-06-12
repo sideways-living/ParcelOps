@@ -243,7 +243,7 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String) -> String {
     switch status {
     case .authRequired:
-      return "Microsoft Graph returned HTTP \(statusCode). Sign in again so ParcelOps can request an in-memory User.Read and Mail.Read token. No mailbox items were changed."
+      return "Microsoft Graph returned HTTP \(statusCode). Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh. No mailbox items were changed."
     case .consentRequired:
       return "Microsoft Graph returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
     case .folderNotFound:

@@ -3778,7 +3778,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: tokenResult.status == .success ? "Real Microsoft Graph token acquired in memory." : "Real Microsoft Graph token request did not complete.",
-        afterDetail: "Token status: \(tokenResult.status.rawValue)\nSigned-in account: \(tokenResult.signedInAccount)\n\(tokenResult.detailText)\nToken values are not stored in ParcelOps JSON or audit logs."
+        afterDetail: "Token status: \(tokenResult.status.rawValue)\nSigned-in account: \(tokenResult.signedInAccount)\n\(tokenResult.detailText)\n\(tokenResult.tokenDiagnosticsDetail)\nToken values are not stored in ParcelOps JSON or audit logs."
       )
     }
 
@@ -3821,7 +3821,7 @@ final class ParcelOpsStore {
           entityID: connection.id.uuidString,
           entityLabel: connection.displayName,
           summary: "Real Microsoft Graph fetch stopped before import.",
-          afterDetail: "Status: Real Graph: \(fetchResult.status.rawValue)\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nNo mailbox items were deleted, moved, marked read, sent, or modified."
+          afterDetail: "Status: Real Graph: \(fetchResult.status.rawValue)\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nNo mailbox items were deleted, moved, marked read, sent, or modified."
         )
       }
 
@@ -3831,7 +3831,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: "Real Microsoft Graph mailbox fetch completed.",
-        afterDetail: "Status: Real Graph: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
+        afterDetail: "Status: Real Graph: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
       )
     }
   }
@@ -3940,7 +3940,7 @@ final class ParcelOpsStore {
     case .noMessages:
       return "Graph returned an empty page for the configured folder."
     case .authRequired:
-      return "Check that real Microsoft sign-in is still connected before retrying."
+      return "Microsoft Graph returned an auth challenge. Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh."
     case .consentRequired:
       return "Check Microsoft Entra delegated Mail.Read consent, tenant policy, and whether admin consent is required."
     case .folderNotFound:

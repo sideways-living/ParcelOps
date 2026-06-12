@@ -406,11 +406,13 @@ struct MSALMicrosoft365GraphTokenProvider: Microsoft365GraphTokenProvider {
         }
 
         let account = result.account.username ?? fallbackAccount
+        let signedInAccount = account.isEmpty ? "Signed in Microsoft account" : account
         continuation.resume(returning: Microsoft365GraphTokenResult(
           status: .success,
           accessToken: result.accessToken,
-          signedInAccount: account.isEmpty ? "Signed in Microsoft account" : account,
-          detailText: "MSAL acquired an in-memory access token for User.Read and Mail.Read. ParcelOps did not store or log the token value."
+          signedInAccount: signedInAccount,
+          detailText: "MSAL acquired an in-memory access token for User.Read and Mail.Read. ParcelOps did not store or log the token value.",
+          tokenDiagnosticsDetail: safeTokenDiagnostics(for: result.accessToken, signedInAccount: signedInAccount)
         ))
       }
     }
@@ -452,6 +454,98 @@ struct MSALMicrosoft365GraphTokenProvider: Microsoft365GraphTokenProvider {
   private func safeErrorSummary(_ error: Error) -> String {
     let description = error.localizedDescription
     return description.isEmpty ? "MSAL returned an authentication error." : description
+  }
+
+  private func safeTokenDiagnostics(for accessToken: String, signedInAccount: String) -> String {
+    guard let claims = decodedJWTPayloadClaims(from: accessToken) else {
+      return "Token metadata: could not decode JWT payload safely. Token value was not stored or logged."
+    }
+
+    let audience = stringClaim("aud", in: claims)
+    let scopes = stringClaim("scp", in: claims)
+    let tenantID = stringClaim("tid", in: claims)
+    let expiry = expirySummary(from: claims["exp"])
+    let accountClaim = stringClaim("preferred_username", in: claims).isEmpty ? stringClaim("upn", in: claims) : stringClaim("preferred_username", in: claims)
+    let normalizedAccount = signedInAccount.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let normalizedClaim = accountClaim.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let accountMatch: String
+    if normalizedClaim.isEmpty || normalizedAccount.isEmpty || normalizedAccount == "signed in microsoft account" {
+      accountMatch = "unavailable"
+    } else {
+      accountMatch = normalizedClaim == normalizedAccount ? "yes" : "no"
+    }
+
+    return [
+      "Token metadata only:",
+      "Audience: \(audience.isEmpty ? "missing" : audience)",
+      "Graph audience: \(isGraphAudience(audience) ? "yes" : "no")",
+      "Scopes: \(scopes.isEmpty ? "missing" : scopes)",
+      "Has User.Read: \(hasScope("User.Read", in: scopes) ? "yes" : "no")",
+      "Has Mail.Read: \(hasScope("Mail.Read", in: scopes) ? "yes" : "no")",
+      "Tenant ID: \(tenantID.isEmpty ? "missing" : tenantID)",
+      expiry,
+      "Signed-in account claim matches MSAL account: \(accountMatch)",
+      "Raw token, auth code, callback URL, passwords, and client secrets are not stored or logged."
+    ].joined(separator: "\n")
+  }
+
+  private func decodedJWTPayloadClaims(from token: String) -> [String: Any]? {
+    let parts = token.split(separator: ".")
+    guard parts.count >= 2 else { return nil }
+    var payload = String(parts[1])
+      .replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    let paddingLength = (4 - payload.count % 4) % 4
+    payload += String(repeating: "=", count: paddingLength)
+    guard let data = Data(base64Encoded: payload),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return nil
+    }
+    return json
+  }
+
+  private func stringClaim(_ key: String, in claims: [String: Any]) -> String {
+    if let value = claims[key] as? String {
+      return value
+    }
+    if let values = claims[key] as? [String] {
+      return values.joined(separator: " ")
+    }
+    return ""
+  }
+
+  private func hasScope(_ scope: String, in scopes: String) -> Bool {
+    scopes
+      .split(separator: " ")
+      .contains { $0.caseInsensitiveCompare(scope) == .orderedSame }
+  }
+
+  private func isGraphAudience(_ audience: String) -> Bool {
+    audience.caseInsensitiveCompare("https://graph.microsoft.com") == .orderedSame
+      || audience.caseInsensitiveCompare("00000003-0000-0000-c000-000000000000") == .orderedSame
+  }
+
+  private func expirySummary(from claim: Any?) -> String {
+    let timestamp: TimeInterval?
+    if let number = claim as? NSNumber {
+      timestamp = number.doubleValue
+    } else if let double = claim as? Double {
+      timestamp = double
+    } else if let int = claim as? Int {
+      timestamp = TimeInterval(int)
+    } else if let string = claim as? String, let double = Double(string) {
+      timestamp = double
+    } else {
+      timestamp = nil
+    }
+
+    guard let timestamp else {
+      return "Expiry: missing"
+    }
+
+    let expiryDate = Date(timeIntervalSince1970: timestamp)
+    let expiryText = ISO8601DateFormatter().string(from: expiryDate)
+    return "Expiry: \(expiryText)\nExpired now: \(expiryDate <= Date() ? "yes" : "no")"
   }
 
   #if canImport(UIKit)

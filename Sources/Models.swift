@@ -308,6 +308,7 @@ struct Microsoft365GraphTokenResult {
   var accessToken: String?
   var signedInAccount: String
   var detailText: String
+  var tokenDiagnosticsDetail = "Token metadata: unavailable. No token value is stored or logged."
 }
 
 enum Microsoft365GraphTokenStatus: String, CaseIterable, Identifiable, Hashable {
