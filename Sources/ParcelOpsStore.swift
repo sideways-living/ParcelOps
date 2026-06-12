@@ -3722,7 +3722,7 @@ final class ParcelOpsStore {
 
     updateMicrosoft365MailboxConnection(connection) { draft in
       draft.lastManualRefreshDate = Self.auditTimestamp()
-      draft.connectionStatus = refreshStatus.rawValue
+      draft.connectionStatus = "Mock Graph: \(refreshStatus.rawValue)"
     }
 
     if fetchResult.status == .noMessages {
@@ -3753,7 +3753,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Microsoft Graph mailbox fetch completed locally.",
-      afterDetail: "Status: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, or real mailbox connection was used."
+      afterDetail: "Status: Mock Graph: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that provider message ID for this mailbox.\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, or real mailbox connection was used."
     )
   }
 
@@ -3786,7 +3786,7 @@ final class ParcelOpsStore {
       await MainActor.run {
         updateMicrosoft365MailboxConnection(connection) { draft in
           draft.lastManualRefreshDate = Self.auditTimestamp()
-          draft.connectionStatus = tokenResult.status == .consentRequired ? MicrosoftGraphMailboxFetchStatus.consentRequired.rawValue : MicrosoftGraphMailboxFetchStatus.authRequired.rawValue
+          draft.connectionStatus = tokenResult.status == .consentRequired ? "Real Graph: \(MicrosoftGraphMailboxFetchStatus.consentRequired.rawValue)" : "Real Graph: \(MicrosoftGraphMailboxFetchStatus.authRequired.rawValue)"
         }
       }
       return
@@ -3800,7 +3800,7 @@ final class ParcelOpsStore {
 
       updateMicrosoft365MailboxConnection(connection) { draft in
         draft.lastManualRefreshDate = Self.auditTimestamp()
-        draft.connectionStatus = refreshStatus.rawValue
+        draft.connectionStatus = "Real Graph: \(refreshStatus.rawValue)"
       }
 
       if fetchResult.status == .noMessages {
@@ -3821,7 +3821,7 @@ final class ParcelOpsStore {
           entityID: connection.id.uuidString,
           entityLabel: connection.displayName,
           summary: "Real Microsoft Graph fetch stopped before import.",
-          afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox items were deleted, moved, marked read, sent, or modified."
+          afterDetail: "Status: Real Graph: \(fetchResult.status.rawValue)\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nNo mailbox items were deleted, moved, marked read, sent, or modified."
         )
       }
 
@@ -3831,7 +3831,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: "Real Microsoft Graph mailbox fetch completed.",
-        afterDetail: "Status: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\n\(fetchResult.detail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
+        afterDetail: "Status: Real Graph: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
       )
     }
   }
@@ -3850,10 +3850,10 @@ final class ParcelOpsStore {
           intakeEmailID: nil,
           capturedDate: Self.auditTimestamp(),
           status: .duplicateSkipped,
-          summary: "Skipped duplicate forwarded email: \(message.subject)"
-        )
-        mailboxIngestRecords.insert(duplicateRecord, at: 0)
-        logAudit(action: .ignored, entityType: .intakeEmail, entityID: message.providerMessageID, entityLabel: message.subject, summary: "Duplicate fetched mailbox message skipped locally.", afterDetail: mailboxIngestAuditDetail(for: duplicateRecord))
+        summary: "Skipped duplicate fetched mailbox message: \(message.subject)"
+      )
+      mailboxIngestRecords.insert(duplicateRecord, at: 0)
+      logAudit(action: .ignored, entityType: .intakeEmail, entityID: message.providerMessageID, entityLabel: message.subject, summary: "Duplicate fetched mailbox message skipped locally.", afterDetail: mailboxIngestAuditDetail(for: duplicateRecord))
         continue
       }
 
@@ -3865,7 +3865,7 @@ final class ParcelOpsStore {
         intakeEmailID: intakeEmail.id,
         capturedDate: Self.auditTimestamp(),
         status: .imported,
-        summary: "Imported forwarded email: \(message.subject)"
+      summary: "Imported fetched mailbox message: \(message.subject)"
       )
       mailboxIngestRecords.insert(ingestRecord, at: 0)
       importedCount += 1
@@ -3929,6 +3929,33 @@ final class ParcelOpsStore {
       return .duplicateSkipped
     }
     return .noMessages
+  }
+
+  private func realGraphDiagnosticHint(for status: MicrosoftGraphMailboxFetchStatus) -> String {
+    switch status {
+    case .success:
+      return "Real Graph read succeeded with read-only message preview fields."
+    case .duplicateSkipped:
+      return "Refresh succeeded, but every fetched message was already in the local intake history."
+    case .noMessages:
+      return "Graph returned an empty page for the configured folder."
+    case .authRequired:
+      return "Check that real Microsoft sign-in is still connected before retrying."
+    case .consentRequired:
+      return "Check Microsoft Entra delegated Mail.Read consent, tenant policy, and whether admin consent is required."
+    case .folderNotFound:
+      return "Check the first monitored folder name. Use Inbox for the default mailbox inbox."
+    case .networkFailed:
+      return "Check network access and the macOS app sandbox network entitlement."
+    case .graphRejected:
+      return "Check the Graph HTTP response, mailbox permissions, tenant policy, and selected fields."
+    case .parseFailed:
+      return "Graph responded, but ParcelOps could not parse the message response shape."
+    case .notConnected:
+      return "Connect or configure the mailbox before refreshing."
+    case .simulatedAuthPlaceholder:
+      return "This status belongs to the mock/local refresh path."
+    }
   }
 
   private func makeForwardedEmailIntake(from message: FetchedMailboxMessage) -> ForwardedEmailIntake {

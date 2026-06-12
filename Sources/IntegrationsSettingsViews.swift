@@ -240,6 +240,7 @@ struct Microsoft365MailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      microsoftGraphRefreshSummary
       Microsoft365AuthStateSection(authState: authState)
       Microsoft365RealSignInChecklist(connection: connection, readiness: readiness)
 
@@ -310,6 +311,9 @@ struct Microsoft365MailboxConnectionRow: View {
             .buttonStyle(.bordered)
             .disabled(authState.status != .connected)
         }
+        Text(realGraphActionHint)
+          .font(.caption2)
+          .foregroundStyle(realGraphActionHintColor)
         ActionGroupHeader(title: "OAuth planning", symbol: "list.clipboard.fill")
         CompactActionRow {
           Button("Review OAuth setup", systemImage: "checkmark.seal", action: onReviewOAuth)
@@ -338,6 +342,85 @@ struct Microsoft365MailboxConnectionRow: View {
       }
       .presentationDetents(horizontalSizeClass == .compact ? [.large] : [.medium, .large])
     }
+  }
+
+  private var microsoftGraphRefreshSummary: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Mailbox refresh status", systemImage: refreshStatusIcon)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(refreshStatusColor)
+      Text(refreshStatusSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      Text(refreshStatusDetail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(refreshStatusColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var refreshStatusSummary: String {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Real Graph: Success") {
+      return "Real Graph refresh completed. New message previews, if any, were imported into Inbox through duplicate-safe intake."
+    }
+    if status.localizedCaseInsensitiveContains("Real Graph: Duplicate skipped") {
+      return "Real Graph refresh completed and only found messages ParcelOps had already captured."
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") {
+      return "Last refresh used the local Mock Graph path, not Microsoft Graph."
+    }
+    if status.localizedCaseInsensitiveContains("Consent required") {
+      return "Mail.Read consent or tenant policy needs attention before real Graph refresh can read message previews."
+    }
+    if status.localizedCaseInsensitiveContains("Folder not found") {
+      return "The configured folder was not found. Check the first monitored folder name, or use Inbox."
+    }
+    if status.localizedCaseInsensitiveContains("Auth required") {
+      return "Real Graph refresh needs a successful Microsoft sign-in before it can request Mail.Read."
+    }
+    if authState.status == .connected {
+      return "Microsoft sign-in is connected. Real Graph refresh is ready for a manual read-only test."
+    }
+    return "Connect Microsoft 365 before running a real Graph refresh, or use Mock Graph refresh for local testing."
+  }
+
+  private var refreshStatusDetail: String {
+    "Last refresh: \(connection.lastManualRefreshDate). Current status: \(connection.connectionStatus). Mock refresh and real Graph refresh are separate actions."
+  }
+
+  private var refreshStatusIcon: String {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Success") { return "checkmark.seal.fill" }
+    if status.localizedCaseInsensitiveContains("Duplicate skipped") { return "doc.on.doc.fill" }
+    if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
+      return "exclamationmark.triangle.fill"
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") { return "testtube.2" }
+    return authState.status == .connected ? "envelope.open.fill" : "mail.stack.fill"
+  }
+
+  private var refreshStatusColor: Color {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Success") { return .green }
+    if status.localizedCaseInsensitiveContains("Duplicate skipped") { return .blue }
+    if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
+      return .orange
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") { return .purple }
+    return authState.status == .connected ? .teal : .secondary
+  }
+
+  private var realGraphActionHint: String {
+    authState.status == .connected
+      ? "This reads message previews only. It will not delete, move, mark read, send, or change mailbox messages."
+      : "Real Graph refresh is disabled until real Microsoft sign-in succeeds. Mock Graph refresh remains available."
+  }
+
+  private var realGraphActionHintColor: Color {
+    authState.status == .connected ? .secondary : .orange
   }
 }
 

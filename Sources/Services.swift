@@ -158,10 +158,11 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
         return MicrosoftGraphMailboxFetchResult(status: .networkFailed, messages: [], detail: "Graph response was not an HTTP response.")
       }
       guard (200..<300).contains(httpResponse.statusCode) else {
+        let status = graphStatus(for: httpResponse.statusCode)
         return MicrosoftGraphMailboxFetchResult(
-          status: graphStatus(for: httpResponse.statusCode),
+          status: status,
           messages: [],
-          detail: "Microsoft Graph message fetch returned HTTP \(httpResponse.statusCode). No messages were imported and no mailbox items were changed."
+          detail: graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName)
         )
       }
 
@@ -236,6 +237,19 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     case 403: .consentRequired
     case 404: .folderNotFound
     default: .graphRejected
+    }
+  }
+
+  private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String) -> String {
+    switch status {
+    case .authRequired:
+      return "Microsoft Graph returned HTTP \(statusCode). Sign in again so ParcelOps can request an in-memory User.Read and Mail.Read token. No mailbox items were changed."
+    case .consentRequired:
+      return "Microsoft Graph returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
+    case .folderNotFound:
+      return "Microsoft Graph returned HTTP \(statusCode). Folder '\(folderName)' was not found or is not accessible. Use Inbox or check the first monitored folder name. No mailbox items were changed."
+    default:
+      return "Microsoft Graph message fetch returned HTTP \(statusCode). Check Graph permissions, selected fields, tenant policy, and mailbox access. No messages were imported and no mailbox items were changed."
     }
   }
 
