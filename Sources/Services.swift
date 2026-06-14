@@ -159,10 +159,11 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       }
       guard (200..<300).contains(httpResponse.statusCode) else {
         let status = graphStatus(for: httpResponse.statusCode)
+        let safeErrorDetail = graphErrorDetail(from: data, response: httpResponse)
         return MicrosoftGraphMailboxFetchResult(
           status: status,
           messages: [],
-          detail: graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName)
+          detail: "\(graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName))\n\(safeErrorDetail)"
         )
       }
 
@@ -243,7 +244,7 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String) -> String {
     switch status {
     case .authRequired:
-      return "Microsoft Graph returned HTTP \(statusCode). Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh. No mailbox items were changed."
+      return "Microsoft Graph returned HTTP \(statusCode). Token metadata may look valid, so use the Graph error code/message below as the source of truth. Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh. No mailbox items were changed."
     case .consentRequired:
       return "Microsoft Graph returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
     case .folderNotFound:
@@ -251,6 +252,37 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     default:
       return "Microsoft Graph message fetch returned HTTP \(statusCode). Check Graph permissions, selected fields, tenant policy, and mailbox access. No messages were imported and no mailbox items were changed."
     }
+  }
+
+  private func graphErrorDetail(from data: Data, response: HTTPURLResponse) -> String {
+    let decodedError = (try? JSONDecoder().decode(GraphErrorResponse.self, from: data))?.error
+    let code = sanitizedGraphErrorValue(decodedError?.code, fallback: "missing")
+    let message = sanitizedGraphErrorValue(decodedError?.message, fallback: "missing")
+    let requestID = sanitizedGraphErrorValue(headerValue("request-id", in: response) ?? decodedError?.innerError?.requestID, fallback: "missing")
+    let clientRequestID = sanitizedGraphErrorValue(headerValue("client-request-id", in: response) ?? decodedError?.innerError?.clientRequestID, fallback: "missing")
+    let responseDate = sanitizedGraphErrorValue(headerValue("date", in: response) ?? decodedError?.innerError?.date, fallback: "missing")
+
+    return [
+      "Microsoft Graph error detail:",
+      "Graph error code: \(code)",
+      "Graph error message: \(message)",
+      "Graph request-id: \(requestID)",
+      "Graph client-request-id: \(clientRequestID)",
+      "Graph response date: \(responseDate)",
+      "Authorization headers, request headers, raw tokens, and full request URLs are not logged."
+    ].joined(separator: "\n")
+  }
+
+  private func headerValue(_ key: String, in response: HTTPURLResponse) -> String? {
+    response.allHeaderFields.first { header, _ in
+      String(describing: header).caseInsensitiveCompare(key) == .orderedSame
+    }.map { String(describing: $0.value) }
+  }
+
+  private func sanitizedGraphErrorValue(_ value: String?, fallback: String) -> String {
+    let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return fallback }
+    return String(trimmed.prefix(600))
   }
 
   private func safeNetworkError(_ error: Error) -> String {
@@ -286,6 +318,34 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   private struct GraphFolder: Decodable {
     var id: String
     var displayName: String
+  }
+
+  private struct GraphErrorResponse: Decodable {
+    var error: GraphError
+  }
+
+  private struct GraphError: Decodable {
+    var code: String?
+    var message: String?
+    var innerError: GraphInnerError?
+
+    enum CodingKeys: String, CodingKey {
+      case code
+      case message
+      case innerError = "innerError"
+    }
+  }
+
+  private struct GraphInnerError: Decodable {
+    var date: String?
+    var requestID: String?
+    var clientRequestID: String?
+
+    enum CodingKeys: String, CodingKey {
+      case date
+      case requestID = "request-id"
+      case clientRequestID = "client-request-id"
+    }
   }
 }
 

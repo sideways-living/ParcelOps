@@ -3940,7 +3940,7 @@ final class ParcelOpsStore {
     case .noMessages:
       return "Graph returned an empty page for the configured folder."
     case .authRequired:
-      return "Microsoft Graph returned an auth challenge. Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh."
+      return "Microsoft Graph returned an auth challenge. Token metadata can look valid, so use the Graph error code/message below as the source of truth."
     case .consentRequired:
       return "Check Microsoft Entra delegated Mail.Read consent, tenant policy, and whether admin consent is required."
     case .folderNotFound:
