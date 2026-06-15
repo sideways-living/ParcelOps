@@ -138,13 +138,7 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       )
     }
 
-    var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/mailFolders/\(folderID)/messages")
-    components?.queryItems = [
-      URLQueryItem(name: "$top", value: "10"),
-      URLQueryItem(name: "$select", value: "id,subject,receivedDateTime,from,bodyPreview"),
-      URLQueryItem(name: "$orderby", value: "receivedDateTime desc")
-    ]
-    guard let url = components?.url else {
+    guard let url = messagesURL(path: "https://graph.microsoft.com/v1.0/me/mailFolders/\(folderID)/messages") else {
       return MicrosoftGraphMailboxFetchResult(
         status: .graphRejected,
         messages: [],
@@ -153,21 +147,37 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     }
 
     do {
-      let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
-      guard let httpResponse = response as? HTTPURLResponse else {
-        return MicrosoftGraphMailboxFetchResult(status: .networkFailed, messages: [], detail: "Graph response was not an HTTP response.")
-      }
-      guard (200..<300).contains(httpResponse.statusCode) else {
-        let status = graphStatus(for: httpResponse.statusCode)
-        let safeErrorDetail = graphErrorDetail(from: data, response: httpResponse)
-        return MicrosoftGraphMailboxFetchResult(
-          status: status,
-          messages: [],
-          detail: "\(graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName))\n\(safeErrorDetail)"
-        )
+      let primaryResult = try await executeMessagesRequest(url: url, accessToken: accessToken, folderName: folderName, pathLabel: "folder messages")
+      let graphResponse: GraphMessagesResponse
+      let resultDetail: String
+      switch primaryResult {
+      case .success(let response):
+        graphResponse = response
+        resultDetail = "Real Microsoft Graph refresh used /me/mailFolders/{folder}/messages for '\(folderName)'."
+      case .failure(let status, let detail) where status == .authRequired:
+        guard let fallbackURL = messagesURL(path: "https://graph.microsoft.com/v1.0/me/messages") else {
+          return MicrosoftGraphMailboxFetchResult(
+            status: .graphRejected,
+            messages: [],
+            detail: "\(detail)\nCould not create the Microsoft Graph /me/messages fallback URL. No mailbox items were changed."
+          )
+        }
+        let fallbackResult = try await executeMessagesRequest(url: fallbackURL, accessToken: accessToken, folderName: folderName, pathLabel: "fallback /me/messages")
+        switch fallbackResult {
+        case .success(let response):
+          graphResponse = response
+          resultDetail = "\(detail)\nFallback result: /me/messages succeeded as a read-only diagnostic path after the folder messages endpoint returned 401."
+        case .failure(let fallbackStatus, let fallbackDetail):
+          return MicrosoftGraphMailboxFetchResult(
+            status: fallbackStatus,
+            messages: [],
+            detail: "\(detail)\nFallback result: /me/messages also failed.\n\(fallbackDetail)"
+          )
+        }
+      case .failure(let status, let detail):
+        return MicrosoftGraphMailboxFetchResult(status: status, messages: [], detail: detail)
       }
 
-      let graphResponse = try JSONDecoder().decode(GraphMessagesResponse.self, from: data)
       let messages = graphResponse.value.map { message in
         MicrosoftGraphFetchedMessage(
           graphMessageID: message.id,
@@ -182,14 +192,14 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
         return MicrosoftGraphMailboxFetchResult(
           status: .noMessages,
           messages: [],
-          detail: "Real Microsoft Graph refresh found no messages in '\(folderName)'. No mailbox items were changed."
+          detail: "\(resultDetail)\nReal Microsoft Graph refresh found no messages. No mailbox items were changed."
         )
       }
 
       return MicrosoftGraphMailboxFetchResult(
         status: .success,
         messages: messages,
-        detail: "Real Microsoft Graph refresh fetched \(messages.count) message preview\(messages.count == 1 ? "" : "s") from '\(folderName)' using read-only fields. No mailbox items were deleted, moved, marked read, or modified."
+        detail: "\(resultDetail)\nReal Microsoft Graph refresh fetched \(messages.count) message preview\(messages.count == 1 ? "" : "s") using read-only fields. No mailbox items were deleted, moved, marked read, or modified."
       )
     } catch is DecodingError {
       return MicrosoftGraphMailboxFetchResult(status: .parseFailed, messages: [], detail: "Could not parse Microsoft Graph message response. No messages were imported.")
@@ -232,6 +242,38 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     return request
   }
 
+  private func messagesURL(path: String) -> URL? {
+    var components = URLComponents(string: path)
+    components?.queryItems = [
+      URLQueryItem(name: "$top", value: "10"),
+      URLQueryItem(name: "$select", value: "id,subject,receivedDateTime,from,bodyPreview"),
+      URLQueryItem(name: "$orderby", value: "receivedDateTime desc")
+    ]
+    return components?.url
+  }
+
+  private func executeMessagesRequest(
+    url: URL,
+    accessToken: String,
+    folderName: String,
+    pathLabel: String
+  ) async throws -> GraphRequestResult {
+    let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return .failure(.networkFailed, "Graph \(pathLabel) response was not an HTTP response.")
+    }
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let status = graphStatus(for: httpResponse.statusCode)
+      let safeErrorDetail = graphErrorDetail(from: data, response: httpResponse)
+      return .failure(
+        status,
+        "\(graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName, pathLabel: pathLabel))\n\(safeErrorDetail)"
+      )
+    }
+    let graphResponse = try JSONDecoder().decode(GraphMessagesResponse.self, from: data)
+    return .success(graphResponse)
+  }
+
   private func graphStatus(for statusCode: Int) -> MicrosoftGraphMailboxFetchStatus {
     switch statusCode {
     case 401: .authRequired
@@ -241,16 +283,16 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     }
   }
 
-  private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String) -> String {
+  private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String, pathLabel: String) -> String {
     switch status {
     case .authRequired:
-      return "Microsoft Graph returned HTTP \(statusCode). Token metadata may look valid, so use the Graph error code/message below as the source of truth. Run real Microsoft sign-in again, confirm delegated Mail.Read consent, then retry real Graph refresh. No mailbox items were changed."
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Token metadata may look valid, so use the Graph error code/message and 401 challenge metadata below as the source of truth. No mailbox items were changed."
     case .consentRequired:
-      return "Microsoft Graph returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
     case .folderNotFound:
-      return "Microsoft Graph returned HTTP \(statusCode). Folder '\(folderName)' was not found or is not accessible. Use Inbox or check the first monitored folder name. No mailbox items were changed."
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Folder '\(folderName)' was not found or is not accessible. Use Inbox or check the first monitored folder name. No mailbox items were changed."
     default:
-      return "Microsoft Graph message fetch returned HTTP \(statusCode). Check Graph permissions, selected fields, tenant policy, and mailbox access. No messages were imported and no mailbox items were changed."
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Check Graph permissions, selected fields, tenant policy, and mailbox access. No messages were imported and no mailbox items were changed."
     }
   }
 
@@ -269,8 +311,50 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       "Graph request-id: \(requestID)",
       "Graph client-request-id: \(clientRequestID)",
       "Graph response date: \(responseDate)",
+      graphChallengeDetail(from: response),
       "Authorization headers, request headers, raw tokens, and full request URLs are not logged."
     ].joined(separator: "\n")
+  }
+
+  private func graphChallengeDetail(from response: HTTPURLResponse) -> String {
+    guard let header = headerValue("WWW-Authenticate", in: response) else {
+      return "WWW-Authenticate challenge: missing"
+    }
+    let values = parsedAuthenticateValues(from: header)
+    let error = sanitizedGraphErrorValue(values["error"], fallback: "missing")
+    let description = sanitizedGraphErrorValue(values["error_description"], fallback: "missing")
+    let authorizationURI = sanitizedGraphErrorValue(values["authorization_uri"], fallback: "missing")
+    let realm = sanitizedGraphErrorValue(values["realm"], fallback: "missing")
+    let hasClaims = values["claims"]?.isEmpty == false || header.localizedCaseInsensitiveContains("claims=")
+    let lowerHeader = header.lowercased()
+    return [
+      "WWW-Authenticate challenge:",
+      "Challenge error: \(error)",
+      "Challenge description: \(description)",
+      "Challenge authorization URI: \(authorizationURI)",
+      "Challenge realm: \(realm)",
+      "Challenge has claims: \(hasClaims ? "yes" : "no")",
+      "Challenge indicates invalid_token: \(lowerHeader.contains("invalid_token") ? "yes" : "no")",
+      "Challenge indicates insufficient_claims: \(lowerHeader.contains("insufficient_claims") ? "yes" : "no")",
+      "Challenge indicates conditional access: \(lowerHeader.contains("conditional") || lowerHeader.contains("claims=") ? "yes" : "no")",
+      "Challenge indicates tenant mismatch: \(lowerHeader.contains("tenant") || lowerHeader.contains("realm") ? "yes" : "no")",
+      "Challenge indicates audience/scope issue: \(lowerHeader.contains("audience") || lowerHeader.contains("scope") ? "yes" : "no")"
+    ].joined(separator: "\n")
+  }
+
+  private func parsedAuthenticateValues(from header: String) -> [String: String] {
+    let pattern = #"([A-Za-z0-9_\-]+)="([^"]*)""#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return [:] }
+    let range = NSRange(header.startIndex..<header.endIndex, in: header)
+    var values: [String: String] = [:]
+    regex.enumerateMatches(in: header, range: range) { match, _, _ in
+      guard let match,
+            match.numberOfRanges >= 3,
+            let keyRange = Range(match.range(at: 1), in: header),
+            let valueRange = Range(match.range(at: 2), in: header) else { return }
+      values[String(header[keyRange]).lowercased()] = String(header[valueRange])
+    }
+    return values
   }
 
   private func headerValue(_ key: String, in response: HTTPURLResponse) -> String? {
@@ -292,6 +376,11 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
 
   private struct GraphMessagesResponse: Decodable {
     var value: [GraphMessage]
+  }
+
+  private enum GraphRequestResult {
+    case success(GraphMessagesResponse)
+    case failure(MicrosoftGraphMailboxFetchStatus, String)
   }
 
   private struct GraphMessage: Decodable {
