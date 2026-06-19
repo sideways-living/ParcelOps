@@ -62,6 +62,7 @@ final class ParcelOpsStore {
   private let intakeEmailRepository: IntakeEmailRepository
   private let mailboxIngestRepository: MailboxIngestRepository
   private let integrationRepository: IntegrationRepository
+  private let spaceMailIMAPClient: SpaceMailIMAPClient
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
@@ -113,6 +114,7 @@ final class ParcelOpsStore {
   init(
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
+    spaceMailIMAPClient: SpaceMailIMAPClient = MockSpaceMailIMAPClient(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
@@ -130,6 +132,7 @@ final class ParcelOpsStore {
     self.intakeEmailRepository = repository
     self.mailboxIngestRepository = repository
     self.integrationRepository = repository
+    self.spaceMailIMAPClient = spaceMailIMAPClient
     self.wishlistRepository = repository
     self.settingsRepository = repository
     self.auditRepository = repository
@@ -3904,25 +3907,20 @@ final class ParcelOpsStore {
     ]
   }
 
-  private func mockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) -> [FetchedMailboxMessage] {
-    [
-      FetchedMailboxMessage(
-        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1001",
-        sender: "orders@northline.example",
-        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
-        receivedDate: "Today 9:15 AM",
-        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.emailAddressUsername).",
-        sourceMailboxID: sourceMailboxID
-      ),
-      FetchedMailboxMessage(
-        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1002",
-        sender: "dispatch@urbancrate.example",
-        subject: "Fwd: Urban Crate order UC-7812 tracking update",
-        receivedDate: "Today 10:05 AM",
-        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
-        sourceMailboxID: sourceMailboxID
-      )
-    ]
+  private func spaceMailRefreshStatus(
+    fetchResult: SpaceMailIMAPFetchResult,
+    ingestResult: (imported: Int, duplicates: Int)
+  ) -> SpaceMailIMAPFetchStatus {
+    if fetchResult.status != .success {
+      return fetchResult.status
+    }
+    if ingestResult.imported > 0 {
+      return .success
+    }
+    if ingestResult.duplicates > 0 {
+      return .duplicateSkipped
+    }
+    return fetchResult.messages.isEmpty ? .noMessages : .success
   }
 
   private func mapGraphMessages(_ messages: [MicrosoftGraphFetchedMessage], sourceMailboxID: UUID) -> [FetchedMailboxMessage] {
@@ -8123,6 +8121,10 @@ final class ParcelOpsStore {
   }
 
   func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
+    Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
+  }
+
+  private func refreshMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
     updateSpaceMailIMAPConnection(connection) { draft in
@@ -8135,21 +8137,44 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock SpaceMail IMAP refresh started.",
-      afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: local mock only\nNo real IMAP connection was made, no password was requested or stored, and no mailbox item will be deleted, moved, marked read, sent, or modified."
+      afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: SpaceMail IMAP client boundary mock only\nNo real IMAP connection was made, no password was requested or stored, and no mailbox item will be deleted, moved, marked read, sent, or modified."
     )
 
-    let result = importFetchedMailboxMessages(mockSpaceMailIMAPMessages(for: connection, sourceMailboxID: mailbox.id))
+    let fetchResult = await spaceMailIMAPClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let result = importFetchedMailboxMessages(fetchResult.messages)
+    let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
     updateSpaceMailIMAPConnection(connection) { draft in
-      draft.connectionStatus = result.imported > 0 ? "Mock refresh imported" : "Mock refresh duplicate skipped"
+      draft.connectionStatus = "Mock IMAP: \(refreshStatus.rawValue)"
       draft.lastManualRefreshDate = Self.auditTimestamp()
     }
+
+    if fetchResult.status == .noMessages {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Mock SpaceMail IMAP fetch returned no messages.",
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nNo real IMAP network call was made and no mailbox item was modified."
+      )
+    } else if fetchResult.status != .success {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Mock SpaceMail IMAP fetch stopped before import.",
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo real IMAP network call was made, no password was stored, and no mailbox item was modified."
+      )
+    }
+
     logAudit(
       action: .evaluated,
       entityType: .spaceMailIMAPConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock SpaceMail IMAP refresh completed.",
-      afterDetail: "Fetched messages: 2\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\nNo real IMAP network call was made. No password was stored in JSON. Keychain is not implemented. No mailbox items were deleted, moved, marked read, sent, or modified."
+      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nNo real IMAP network call was made. No password was stored in JSON. Keychain is not implemented. No mailbox items were deleted, moved, marked read, sent, or modified."
     )
   }
 

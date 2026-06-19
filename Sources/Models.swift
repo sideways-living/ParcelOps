@@ -272,6 +272,25 @@ struct FetchedMailboxMessage: Identifiable, Hashable {
   var sourceMailboxID: UUID
 }
 
+struct SpaceMailIMAPFetchResult: Hashable {
+  var status: SpaceMailIMAPFetchStatus
+  var messages: [FetchedMailboxMessage]
+  var detail: String
+}
+
+enum SpaceMailIMAPFetchStatus: String, CaseIterable, Identifiable, Hashable {
+  case success = "Fetch success"
+  case noMessages = "No messages"
+  case duplicateSkipped = "Duplicate skipped"
+  case notConfigured = "Not configured"
+  case credentialMissing = "Credential missing"
+  case connectionFailedSimulated = "Connection failed simulated"
+  case folderNotFoundSimulated = "Folder not found simulated"
+  case parseFailedSimulated = "Parse failed simulated"
+
+  var id: String { rawValue }
+}
+
 struct MicrosoftGraphFetchedMessage: Identifiable, Hashable {
   var id: String { graphMessageID }
   var graphMessageID: String

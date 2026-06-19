@@ -8,6 +8,10 @@ protocol MicrosoftGraphMailboxClient {
   func fetchMessages(for connection: Microsoft365MailboxConnection, accessToken: String?) async -> MicrosoftGraphMailboxFetchResult
 }
 
+protocol SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult
+}
+
 protocol Microsoft365GraphTokenProvider {
   func acquireMailReadToken(for connection: Microsoft365MailboxConnection) async -> Microsoft365GraphTokenResult
 }
@@ -119,6 +123,88 @@ struct MockMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   }
 }
 
+struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult {
+    if connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "SpaceMail IMAP setup is missing mailbox, host, port, or folder. No real IMAP connection was made."
+      )
+    }
+
+    if connection.credentialStorageStatus.localizedCaseInsensitiveContains("missing") ||
+        connection.credentialStorageStatus.localizedCaseInsensitiveContains("required") {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client reports credentials are missing. No password was requested or stored, and Keychain is not implemented."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("connection failed") {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailedSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a connection failure. No network request was made."
+      )
+    }
+
+    if connection.folderName.localizedCaseInsensitiveContains("missing") ||
+        connection.folderName.localizedCaseInsensitiveContains("not found") {
+      return SpaceMailIMAPFetchResult(
+        status: .folderNotFoundSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a missing folder for '\(connection.folderName)'. No mailbox was contacted."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("parse failed") {
+      return SpaceMailIMAPFetchResult(
+        status: .parseFailedSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a message parse failure. No mailbox data was read."
+      )
+    }
+
+    if connection.folderName.localizedCaseInsensitiveContains("empty") {
+      return SpaceMailIMAPFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client returned no local sample messages for folder '\(connection.folderName)'."
+      )
+    }
+
+    let messages = [
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.emailAddressUsername).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: sourceMailboxID
+      )
+    ]
+
+    return SpaceMailIMAPFetchResult(
+      status: .success,
+      messages: messages,
+      detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used, and no mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
 struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   func fetchMessages(for connection: Microsoft365MailboxConnection, accessToken: String?) async -> MicrosoftGraphMailboxFetchResult {
     guard let accessToken, !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -129,12 +215,31 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       )
     }
 
+    let identityProbeDetail: String
+    do {
+      let identityProbe = try await executeIdentityProbe(accessToken: accessToken, connection: connection)
+      switch identityProbe {
+      case .success(let detail):
+        identityProbeDetail = detail
+      case .failure(let status, let detail):
+        return MicrosoftGraphMailboxFetchResult(
+          status: status,
+          messages: [],
+          detail: "\(detail)\nIdentity Graph access did not succeed, so mailbox message fetch was not attempted. If this is HTTP 401, the token/request is being rejected generally by Microsoft Graph despite valid-looking token metadata."
+        )
+      }
+    } catch is DecodingError {
+      return MicrosoftGraphMailboxFetchResult(status: .parseFailed, messages: [], detail: "Could not parse Microsoft Graph /me probe response. No mailbox fetch was attempted.")
+    } catch {
+      return MicrosoftGraphMailboxFetchResult(status: .networkFailed, messages: [], detail: "Microsoft Graph /me probe failed: \(safeNetworkError(error)). No mailbox fetch was attempted.")
+    }
+
     let folderName = firstConfiguredFolderName(from: connection.monitoredFolderNames)
     guard let folderID = await resolveFolderID(named: folderName, accessToken: accessToken) else {
       return MicrosoftGraphMailboxFetchResult(
         status: .folderNotFound,
         messages: [],
-        detail: "Could not resolve mailbox folder '\(folderName)'. No messages were imported and no mailbox items were changed."
+        detail: "\(identityProbeDetail)\nCould not resolve mailbox folder '\(folderName)'. Identity Graph access works, but mailbox folder access is blocked or unavailable. No messages were imported and no mailbox items were changed."
       )
     }
 
@@ -153,29 +258,33 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       switch primaryResult {
       case .success(let response):
         graphResponse = response
-        resultDetail = "Real Microsoft Graph refresh used /me/mailFolders/{folder}/messages for '\(folderName)'."
+        resultDetail = "\(identityProbeDetail)\nReal Microsoft Graph refresh used /me/mailFolders/{folder}/messages for '\(folderName)'."
       case .failure(let status, let detail) where status == .authRequired:
         guard let fallbackURL = messagesURL(path: "https://graph.microsoft.com/v1.0/me/messages") else {
           return MicrosoftGraphMailboxFetchResult(
             status: .graphRejected,
             messages: [],
-            detail: "\(detail)\nCould not create the Microsoft Graph /me/messages fallback URL. No mailbox items were changed."
+            detail: "\(identityProbeDetail)\n\(detail)\nCould not create the Microsoft Graph /me/messages fallback URL. Identity Graph access works, but mailbox Graph access is blocked. No mailbox items were changed."
           )
         }
         let fallbackResult = try await executeMessagesRequest(url: fallbackURL, accessToken: accessToken, folderName: folderName, pathLabel: "fallback /me/messages")
         switch fallbackResult {
         case .success(let response):
           graphResponse = response
-          resultDetail = "\(detail)\nFallback result: /me/messages succeeded as a read-only diagnostic path after the folder messages endpoint returned 401."
+          resultDetail = "\(identityProbeDetail)\n\(detail)\nFallback result: /me/messages succeeded as a read-only diagnostic path after the folder messages endpoint returned 401."
         case .failure(let fallbackStatus, let fallbackDetail):
           return MicrosoftGraphMailboxFetchResult(
             status: fallbackStatus,
             messages: [],
-            detail: "\(detail)\nFallback result: /me/messages also failed.\n\(fallbackDetail)"
+            detail: "\(identityProbeDetail)\n\(detail)\nFallback result: /me/messages also failed.\n\(fallbackDetail)\nIdentity Graph access works, but mailbox Graph access is blocked or challenged."
           )
         }
       case .failure(let status, let detail):
-        return MicrosoftGraphMailboxFetchResult(status: status, messages: [], detail: detail)
+        return MicrosoftGraphMailboxFetchResult(
+          status: status,
+          messages: [],
+          detail: "\(identityProbeDetail)\n\(detail)\nIdentity Graph access works, but mailbox Graph access is blocked or challenged."
+        )
       }
 
       let messages = graphResponse.value.map { message in
@@ -252,6 +361,35 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     return components?.url
   }
 
+  private func meProbeURL() -> URL? {
+    var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me")
+    components?.queryItems = [
+      URLQueryItem(name: "$select", value: "id,displayName,userPrincipalName,mail")
+    ]
+    return components?.url
+  }
+
+  private func executeIdentityProbe(accessToken: String, connection: Microsoft365MailboxConnection) async throws -> GraphIdentityProbeResult {
+    guard let url = meProbeURL() else {
+      return .failure(.graphRejected, "Could not create the Microsoft Graph /me probe URL. No mailbox fetch was attempted.")
+    }
+
+    let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return .failure(.networkFailed, "Microsoft Graph /me probe response was not an HTTP response. No mailbox fetch was attempted.")
+    }
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let status = graphStatus(for: httpResponse.statusCode)
+      return .failure(
+        status,
+        "\(identityProbeFailureDetail(status: status, statusCode: httpResponse.statusCode))\n\(graphErrorDetail(from: data, response: httpResponse))"
+      )
+    }
+
+    let profile = try JSONDecoder().decode(GraphMeResponse.self, from: data)
+    return .success(identityProbeSuccessDetail(for: profile, connection: connection))
+  }
+
   private func executeMessagesRequest(
     url: URL,
     accessToken: String,
@@ -296,6 +434,41 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     }
   }
 
+  private func identityProbeFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int) -> String {
+    switch status {
+    case .authRequired:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). The token/request is being rejected generally by Microsoft Graph despite valid-looking token metadata. No mailbox fetch was attempted."
+    case .consentRequired:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). Identity Graph access needs consent or tenant policy review before mailbox access can be tested. No mailbox fetch was attempted."
+    default:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). Identity Graph access did not succeed, so mailbox access was not tested."
+    }
+  }
+
+  private func identityProbeSuccessDetail(for profile: GraphMeResponse, connection: Microsoft365MailboxConnection) -> String {
+    let mailboxPlaceholder = connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let profileValues = [profile.userPrincipalName, profile.mail]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    let matchText: String
+    if mailboxPlaceholder.isEmpty || profileValues.isEmpty {
+      matchText = "unavailable"
+    } else {
+      matchText = profileValues.contains { $0.caseInsensitiveCompare(mailboxPlaceholder) == .orderedSame } ? "yes" : "no"
+    }
+
+    return [
+      "Microsoft Graph /me probe:",
+      "Probe result: succeeded",
+      "Returned id: \(profile.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned displayName: \(profile.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned userPrincipalName: \(profile.userPrincipalName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned mail: \(profile.mail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Mailbox placeholder match: \(matchText)",
+      "Identity Graph access works. If mailbox endpoints fail, mailbox Graph access is blocked or challenged."
+    ].joined(separator: "\n")
+  }
+
   private func graphErrorDetail(from data: Data, response: HTTPURLResponse) -> String {
     let decodedError = (try? JSONDecoder().decode(GraphErrorResponse.self, from: data))?.error
     let code = sanitizedGraphErrorValue(decodedError?.code, fallback: "missing")
@@ -303,6 +476,8 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     let requestID = sanitizedGraphErrorValue(headerValue("request-id", in: response) ?? decodedError?.innerError?.requestID, fallback: "missing")
     let clientRequestID = sanitizedGraphErrorValue(headerValue("client-request-id", in: response) ?? decodedError?.innerError?.clientRequestID, fallback: "missing")
     let responseDate = sanitizedGraphErrorValue(headerValue("date", in: response) ?? decodedError?.innerError?.date, fallback: "missing")
+    let contentType = sanitizedGraphErrorValue(headerValue("content-type", in: response), fallback: "missing")
+    let bodyPreview = sanitizedResponseBodyPreview(from: data)
 
     return [
       "Microsoft Graph error detail:",
@@ -311,6 +486,9 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
       "Graph request-id: \(requestID)",
       "Graph client-request-id: \(clientRequestID)",
       "Graph response date: \(responseDate)",
+      "Graph response content type: \(contentType)",
+      "Graph response body length: \(data.count)",
+      "Graph response body preview: \(bodyPreview)",
       graphChallengeDetail(from: response),
       "Authorization headers, request headers, raw tokens, and full request URLs are not logged."
     ].joined(separator: "\n")
@@ -369,6 +547,33 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
     return String(trimmed.prefix(600))
   }
 
+  private func sanitizedResponseBodyPreview(from data: Data) -> String {
+    guard !data.isEmpty else { return "empty" }
+    guard var text = String(data: data, encoding: .utf8) else {
+      return "non-UTF8 response body"
+    }
+    text = text
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    text = redactingSensitiveFragments(in: text)
+    guard !text.isEmpty else { return "empty" }
+    return String(text.prefix(600))
+  }
+
+  private func redactingSensitiveFragments(in text: String) -> String {
+    let redactions: [(String, String)] = [
+      (#"(?i)bearer\s+[A-Za-z0-9\-._~+/]+=*"#, "Bearer [redacted]"),
+      (#"(?i)"(access_token|refresh_token|id_token|client_secret|code)"\s*:\s*"[^"]*""#, #""$1":"[redacted]""#),
+      (#"(?i)(access_token|refresh_token|id_token|client_secret|code)=([^&\s]+)"#, "$1=[redacted]")
+    ]
+    return redactions.reduce(text) { current, redaction in
+      guard let regex = try? NSRegularExpression(pattern: redaction.0) else { return current }
+      let range = NSRange(current.startIndex..<current.endIndex, in: current)
+      return regex.stringByReplacingMatches(in: current, range: range, withTemplate: redaction.1)
+    }
+  }
+
   private func safeNetworkError(_ error: Error) -> String {
     let description = error.localizedDescription
     return description.isEmpty ? "network request failed" : description
@@ -381,6 +586,18 @@ struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
   private enum GraphRequestResult {
     case success(GraphMessagesResponse)
     case failure(MicrosoftGraphMailboxFetchStatus, String)
+  }
+
+  private enum GraphIdentityProbeResult {
+    case success(String)
+    case failure(MicrosoftGraphMailboxFetchStatus, String)
+  }
+
+  private struct GraphMeResponse: Decodable {
+    var id: String?
+    var displayName: String?
+    var userPrincipalName: String?
+    var mail: String?
   }
 
   private struct GraphMessage: Decodable {
