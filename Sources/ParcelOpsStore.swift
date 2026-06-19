@@ -63,6 +63,7 @@ final class ParcelOpsStore {
   private let mailboxIngestRepository: MailboxIngestRepository
   private let integrationRepository: IntegrationRepository
   private let spaceMailIMAPClient: SpaceMailIMAPClient
+  private let realSpaceMailIMAPClient: SpaceMailIMAPClient
   private let spaceMailCredentialStore: SpaceMailCredentialStore
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
@@ -116,6 +117,7 @@ final class ParcelOpsStore {
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     spaceMailIMAPClient: SpaceMailIMAPClient = MockSpaceMailIMAPClient(),
+    realSpaceMailIMAPClient: SpaceMailIMAPClient = RealSpaceMailIMAPClient(),
     spaceMailCredentialStore: SpaceMailCredentialStore = MockSpaceMailCredentialStore(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
@@ -135,6 +137,7 @@ final class ParcelOpsStore {
     self.mailboxIngestRepository = repository
     self.integrationRepository = repository
     self.spaceMailIMAPClient = spaceMailIMAPClient
+    self.realSpaceMailIMAPClient = realSpaceMailIMAPClient
     self.spaceMailCredentialStore = spaceMailCredentialStore
     self.wishlistRepository = repository
     self.settingsRepository = repository
@@ -8127,6 +8130,10 @@ final class ParcelOpsStore {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
 
+  func importRealSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
+    Task { await refreshRealSpaceMailIMAPMessages(for: connection) }
+  }
+
   func simulateSpaceMailCredentialReady(_ connection: SpaceMailIMAPConnection) {
     Task {
       let result = await spaceMailCredentialStore.simulateReady(for: connection)
@@ -8206,6 +8213,60 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Mock SpaceMail IMAP refresh completed.",
       afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nNo real IMAP network call was made. No password was stored in JSON. Keychain is not implemented. No mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+
+  private func refreshRealSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) async {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.connectionStatus = "Real refresh checking setup"
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real SpaceMail IMAP refresh started.",
+      afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: Manual real SpaceMail IMAP boundary\nLimit: at most 10 messages when credentials are available\nCredential storage: \(connection.credentialStorageStatus)\nNo password is stored in JSON or audit logs. This refresh must not delete, move, mark read, flag, send, or modify mailbox items."
+    )
+
+    let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let result = importFetchedMailboxMessages(fetchResult.messages)
+    let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.connectionStatus = "Real IMAP: \(refreshStatus.rawValue)"
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+    }
+
+    if fetchResult.status == .noMessages {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real SpaceMail IMAP fetch returned no messages.",
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nFetched messages: 0\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+      )
+    } else if fetchResult.status != .success {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real SpaceMail IMAP refresh stopped before import.",
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo password, app password, auth string, server credential, or Keychain item was stored in JSON or logged. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+      )
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real SpaceMail IMAP refresh completed.",
+      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nManual refresh only. Read-only boundary. No password was stored in JSON, no custom Keychain storage was added, and no mailbox items were deleted, moved, marked read, flagged, sent, or modified."
     )
   }
 

@@ -26,10 +26,10 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("Use this as the current mailbox path for SpaceMail. This section stores only non-secret IMAP setup fields and runs a mock refresh through the real local intake importer.")
+          Text("Use this as the current mailbox path for SpaceMail. This section stores only non-secret IMAP setup fields and can run mock refreshes or a real manual refresh boundary that stops before login until Keychain-backed credentials exist.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-          Text("No real IMAP connection is made yet. Do not enter passwords here; Keychain credential storage is planned for a later pass.")
+          Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -47,6 +47,8 @@ struct IntegrationsView: View {
               store.markSpaceMailIMAPConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockSpaceMailIMAPMessages(for: connection)
+            } onRealRefresh: {
+              store.importRealSpaceMailIMAPMessages(for: connection)
             } onCredentialReady: {
               store.simulateSpaceMailCredentialReady(connection)
             } onCredentialMissing: {
@@ -622,6 +624,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onSave: (SpaceMailIMAPConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
+  var onRealRefresh: () -> Void
   var onCredentialReady: () -> Void
   var onCredentialMissing: () -> Void
   var onCredentialError: () -> Void
@@ -663,7 +666,7 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.secondary)
       }
 
-      Text("Planning only: no real IMAP connection, no password storage, no Keychain access, and no mailbox items are deleted, moved, marked read, sent, or modified.")
+      Text("Manual real refresh now validates setup and credential readiness, but stops before login until Keychain-backed passwords are implemented. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -684,6 +687,7 @@ struct SpaceMailIMAPConnectionRow: View {
         Button("Edit setup", systemImage: "pencil") { isEditing = true }
         Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
         Button("Run Mock SpaceMail refresh", systemImage: "tray.and.arrow.down", action: onMockRefresh)
+        Button("Run real SpaceMail refresh", systemImage: "network", action: onRealRefresh)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
       }
     }

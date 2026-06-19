@@ -212,6 +212,56 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
   }
 }
 
+struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult {
+    let emailAddress = connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+    let host = connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines)
+    let portText = connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines)
+    let securityMode = connection.securityMode.trimmingCharacters(in: .whitespacesAndNewlines)
+    let folderName = connection.folderName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !emailAddress.isEmpty, !host.isEmpty, !portText.isEmpty, !folderName.isEmpty else {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh needs email/username, IMAP host, port, and folder before any connection can be attempted. No network request was made."
+      )
+    }
+
+    guard let port = Int(portText), (1...65535).contains(port) else {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh needs a valid numeric IMAP port. Use 993 for SpaceMail SSL/TLS. No network request was made."
+      )
+    }
+
+    guard securityMode.localizedCaseInsensitiveContains("ssl") ||
+        securityMode.localizedCaseInsensitiveContains("tls") else {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh currently requires SSL/TLS. Update the connection security mode before retrying. No mailbox login was attempted."
+      )
+    }
+
+    guard connection.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue ||
+        connection.credentialStorageStatus.localizedCaseInsensitiveContains("reference available") else {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh stopped before login because no password or app-password reference is available. ParcelOps did not prompt for, store, read, or log a password, and no mailbox item was touched."
+      )
+    }
+
+    return SpaceMailIMAPFetchResult(
+      status: .credentialMissing,
+      messages: [],
+      detail: "Real SpaceMail IMAP refresh validated \(emailAddress), \(host):\(port), \(securityMode), and folder '\(folderName)', but stopped before login because real Keychain password loading is not implemented in this slice. When Keychain is added, this client should select the folder read-only and fetch at most 10 messages. No password was handled and no mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+    )
+  }
+}
+
 struct MockSpaceMailCredentialStore: SpaceMailCredentialStore {
   func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
     SpaceMailCredentialStoreResult(

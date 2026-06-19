@@ -27,10 +27,10 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("SpaceMail is the current mailbox provider path. Capture non-secret IMAP settings here and run a mock refresh through the same intake importer that real IMAP will use later.")
+          Text("SpaceMail is the current mailbox provider path. Capture non-secret IMAP settings here, run mock refreshes, or run a real manual refresh boundary that stops before login until Keychain-backed credentials exist.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-          Text("No real IMAP connection is made yet. Do not enter passwords here; Keychain credential storage is planned for a later pass.")
+          Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -48,6 +48,8 @@ struct MailboxView: View {
               store.markSpaceMailIMAPConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockSpaceMailIMAPMessages(for: connection)
+            } onRealRefresh: {
+              store.importRealSpaceMailIMAPMessages(for: connection)
             } onCredentialReady: {
               store.simulateSpaceMailCredentialReady(connection)
             } onCredentialMissing: {
