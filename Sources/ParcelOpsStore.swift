@@ -63,6 +63,7 @@ final class ParcelOpsStore {
   private let mailboxIngestRepository: MailboxIngestRepository
   private let integrationRepository: IntegrationRepository
   private let spaceMailIMAPClient: SpaceMailIMAPClient
+  private let spaceMailCredentialStore: SpaceMailCredentialStore
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
@@ -115,6 +116,7 @@ final class ParcelOpsStore {
     repository: any Repository = JSONParcelOpsRepository(),
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     spaceMailIMAPClient: SpaceMailIMAPClient = MockSpaceMailIMAPClient(),
+    spaceMailCredentialStore: SpaceMailCredentialStore = MockSpaceMailCredentialStore(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
@@ -133,6 +135,7 @@ final class ParcelOpsStore {
     self.mailboxIngestRepository = repository
     self.integrationRepository = repository
     self.spaceMailIMAPClient = spaceMailIMAPClient
+    self.spaceMailCredentialStore = spaceMailCredentialStore
     self.wishlistRepository = repository
     self.settingsRepository = repository
     self.auditRepository = repository
@@ -8124,6 +8127,34 @@ final class ParcelOpsStore {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
 
+  func simulateSpaceMailCredentialReady(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.simulateReady(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: "Mock SpaceMail credential reference marked ready.")
+    }
+  }
+
+  func simulateSpaceMailCredentialMissing(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.simulateMissing(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: "Mock SpaceMail credential missing state recorded.")
+    }
+  }
+
+  func simulateSpaceMailCredentialStorageError(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.simulateStorageError(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: "Mock SpaceMail credential storage error simulated.")
+    }
+  }
+
+  func simulateSpaceMailCredentialClear(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.simulateClear(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: "Mock SpaceMail credential reference clear simulated.")
+    }
+  }
+
   private func refreshMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
@@ -8518,6 +8549,31 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  private func applySpaceMailCredentialStoreResult(_ result: SpaceMailCredentialStoreResult, to connection: SpaceMailIMAPConnection, summary: String) {
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.credentialStorageStatus = result.status.rawValue
+      if result.status == .passwordReferenceAvailable {
+        draft.connectionStatus = "Credential ready for future IMAP"
+      } else if result.status == .passwordMissing {
+        draft.connectionStatus = "Credential missing"
+      } else if result.status == .storageErrorSimulated {
+        draft.connectionStatus = "Credential storage error simulated"
+      } else if result.status == .passwordClearSimulated {
+        draft.connectionStatus = "Credential clear simulated"
+      } else {
+        draft.connectionStatus = "Keychain not configured"
+      }
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: summary,
+      afterDetail: spaceMailCredentialStoreAuditDetail(result, connection: connection)
+    )
+  }
+
   private func applyMicrosoft365AuthResult(_ result: Microsoft365AuthResult, to connection: Microsoft365MailboxConnection, isRealAuth: Bool = false, attemptID: UUID? = nil) {
     let completionDetail = microsoft365AuthCompletionDetail(for: connection, result: result, isRealAuth: isRealAuth, attemptID: attemptID)
     if isRealAuth {
@@ -8805,6 +8861,10 @@ final class ParcelOpsStore {
 
   private func spaceMailIMAPConnectionAuditDetail(_ connection: SpaceMailIMAPConnection) -> String {
     "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, real IMAP connection, or mailbox content is stored in this placeholder."
+  }
+
+  private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {
+    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nCredential status: \(result.status.rawValue)\nDetail: \(result.detailText)\nNo passwords, app passwords, tokens, auth strings, server credentials, or Keychain items are created, read, written, deleted, stored in JSON, or logged."
   }
 
   private func microsoft365OAuthImplementationPlanAuditDetail(_ plan: Microsoft365OAuthImplementationPlan) -> String {

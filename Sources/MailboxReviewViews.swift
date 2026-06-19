@@ -48,6 +48,14 @@ struct MailboxView: View {
               store.markSpaceMailIMAPConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockSpaceMailIMAPMessages(for: connection)
+            } onCredentialReady: {
+              store.simulateSpaceMailCredentialReady(connection)
+            } onCredentialMissing: {
+              store.simulateSpaceMailCredentialMissing(connection)
+            } onCredentialError: {
+              store.simulateSpaceMailCredentialStorageError(connection)
+            } onCredentialClear: {
+              store.simulateSpaceMailCredentialClear(connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }

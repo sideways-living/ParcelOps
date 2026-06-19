@@ -47,6 +47,14 @@ struct IntegrationsView: View {
               store.markSpaceMailIMAPConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockSpaceMailIMAPMessages(for: connection)
+            } onCredentialReady: {
+              store.simulateSpaceMailCredentialReady(connection)
+            } onCredentialMissing: {
+              store.simulateSpaceMailCredentialMissing(connection)
+            } onCredentialError: {
+              store.simulateSpaceMailCredentialStorageError(connection)
+            } onCredentialClear: {
+              store.simulateSpaceMailCredentialClear(connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }
@@ -614,6 +622,10 @@ struct SpaceMailIMAPConnectionRow: View {
   var onSave: (SpaceMailIMAPConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
+  var onCredentialReady: () -> Void
+  var onCredentialMissing: () -> Void
+  var onCredentialError: () -> Void
+  var onCredentialClear: () -> Void
   var onRemove: () -> Void
 
   @State private var isEditing = false
@@ -654,6 +666,19 @@ struct SpaceMailIMAPConnectionRow: View {
       Text("Planning only: no real IMAP connection, no password storage, no Keychain access, and no mailbox items are deleted, moved, marked read, sent, or modified.")
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 6) {
+        ActionGroupHeader(title: "Credential planning mock actions", symbol: "key.horizontal")
+        Text("These actions only change non-secret status labels. They do not create, read, write, delete, store, or log passwords or Keychain items.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        CompactActionRow {
+          Button("Credential ready", systemImage: "key.radiowaves.forward", action: onCredentialReady)
+          Button("Credential missing", systemImage: "key.slash", action: onCredentialMissing)
+          Button("Storage error", systemImage: "exclamationmark.triangle", action: onCredentialError)
+          Button("Clear reference", systemImage: "xmark.circle", action: onCredentialClear)
+        }
+      }
 
       CompactActionRow {
         Button("Edit setup", systemImage: "pencil") { isEditing = true }

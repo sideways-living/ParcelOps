@@ -12,6 +12,13 @@ protocol SpaceMailIMAPClient {
   func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult
 }
 
+protocol SpaceMailCredentialStore {
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+}
+
 protocol Microsoft365GraphTokenProvider {
   func acquireMailReadToken(for connection: Microsoft365MailboxConnection) async -> Microsoft365GraphTokenResult
 }
@@ -201,6 +208,36 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
       status: .success,
       messages: messages,
       detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used, and no mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
+struct MockSpaceMailCredentialStore: SpaceMailCredentialStore {
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "Mock password reference available for \(connection.displayName). No password, app password, auth string, server credential, or Keychain item was created, read, written, deleted, stored in JSON, or logged."
+    )
+  }
+
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential lookup reports no password reference for \(connection.displayName). No password prompt opened, no Keychain API was called, and no secret value was handled."
+    )
+  }
+
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock credential storage error for \(connection.displayName). This is a local error-state simulation only; no Keychain item or password value was touched."
+    )
+  }
+
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock password reference clear simulated for \(connection.displayName). No Keychain item, IMAP password, app password, or auth string was deleted."
     )
   }
 }

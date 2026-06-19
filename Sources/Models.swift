@@ -291,6 +291,21 @@ enum SpaceMailIMAPFetchStatus: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
+struct SpaceMailCredentialStoreResult: Hashable {
+  var status: SpaceMailCredentialStoreStatus
+  var detailText: String
+}
+
+enum SpaceMailCredentialStoreStatus: String, CaseIterable, Identifiable, Hashable {
+  case keychainNotConfigured = "Keychain not configured"
+  case passwordReferenceAvailable = "Password reference available"
+  case passwordMissing = "Password missing"
+  case passwordClearSimulated = "Password clear simulated"
+  case storageErrorSimulated = "Storage error simulated"
+
+  var id: String { rawValue }
+}
+
 struct MicrosoftGraphFetchedMessage: Identifiable, Hashable {
   var id: String { graphMessageID }
   var graphMessageID: String
