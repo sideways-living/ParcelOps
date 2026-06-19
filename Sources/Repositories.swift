@@ -25,6 +25,8 @@ protocol IntegrationRepository {
   func saveMailboxes(_ mailboxes: [TrackedMailbox])
   func loadMicrosoft365MailboxConnections() -> [Microsoft365MailboxConnection]
   func saveMicrosoft365MailboxConnections(_ connections: [Microsoft365MailboxConnection])
+  func loadSpaceMailIMAPConnections() -> [SpaceMailIMAPConnection]
+  func saveSpaceMailIMAPConnections(_ connections: [SpaceMailIMAPConnection])
   func loadShopifyConnections() -> [ShopifyConnection]
   func saveShopifyConnections(_ connections: [ShopifyConnection])
   func loadWatchedFolders() -> [WatchedFolder]
@@ -266,6 +268,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
 
   func saveMicrosoft365MailboxConnections(_ connections: [Microsoft365MailboxConnection]) {
     save(connections, to: .microsoft365MailboxConnections)
+  }
+
+  func loadSpaceMailIMAPConnections() -> [SpaceMailIMAPConnection] {
+    load([SpaceMailIMAPConnection].self, from: .spaceMailIMAPConnections, defaultValue: SampleData.spaceMailIMAPConnections)
+  }
+
+  func saveSpaceMailIMAPConnections(_ connections: [SpaceMailIMAPConnection]) {
+    save(connections, to: .spaceMailIMAPConnections)
   }
 
   func loadShopifyConnections() -> [ShopifyConnection] {
@@ -634,6 +644,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case mailboxIngestRecords = "mailbox-ingest-records.json"
     case mailboxes = "mailboxes.json"
     case microsoft365MailboxConnections = "microsoft365-mailbox-connections.json"
+    case spaceMailIMAPConnections = "spacemail-imap-connections.json"
     case shopifyConnections = "shopify-connections.json"
     case watchedFolders = "watched-folders.json"
     case sourceConnections = "source-connections.json"
@@ -682,6 +693,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var mailboxIngestRecords: [MailboxIngestRecord] = []
   private var mailboxes = SampleData.mailboxes
   private var microsoft365MailboxConnections = SampleData.microsoft365MailboxConnections
+  private var spaceMailIMAPConnections = SampleData.spaceMailIMAPConnections
   private var shopifyConnections = SampleData.shopifyConnections
   private var watchedFolders = SampleData.watchedFolders
   private var sourceConnections = SampleData.connections
@@ -736,6 +748,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   func saveMailboxes(_ mailboxes: [TrackedMailbox]) { self.mailboxes = mailboxes }
   func loadMicrosoft365MailboxConnections() -> [Microsoft365MailboxConnection] { microsoft365MailboxConnections }
   func saveMicrosoft365MailboxConnections(_ connections: [Microsoft365MailboxConnection]) { microsoft365MailboxConnections = connections }
+  func loadSpaceMailIMAPConnections() -> [SpaceMailIMAPConnection] { spaceMailIMAPConnections }
+  func saveSpaceMailIMAPConnections(_ connections: [SpaceMailIMAPConnection]) { spaceMailIMAPConnections = connections }
 
   func loadShopifyConnections() -> [ShopifyConnection] { shopifyConnections }
   func saveShopifyConnections(_ connections: [ShopifyConnection]) { shopifyConnections = connections }

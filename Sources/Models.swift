@@ -1296,6 +1296,21 @@ enum Microsoft365TokenStoreStatus: String, CaseIterable, Identifiable, Hashable,
   }
 }
 
+struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var displayName: String
+  var emailAddressUsername: String
+  var imapHost: String
+  var imapPort: String
+  var securityMode: String
+  var folderName: String
+  var connectionStatus: String
+  var lastManualRefreshDate: String
+  var setupNotes: String
+  var credentialStorageStatus: String
+  var reviewState: ReviewState
+}
+
 struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String
@@ -1442,6 +1457,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case acceptanceRecord = "Acceptance record"
   case reconciliationIssue = "Reconciliation issue"
   case microsoft365MailboxConnection = "Microsoft 365 mailbox"
+  case spaceMailIMAPConnection = "SpaceMail IMAP mailbox"
 
   var id: String { rawValue }
 }

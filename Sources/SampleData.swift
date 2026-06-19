@@ -191,6 +191,22 @@ enum SampleData {
     )
   ]
 
+  static var spaceMailIMAPConnections: [SpaceMailIMAPConnection] = [
+    SpaceMailIMAPConnection(
+      displayName: "SpaceMail tracking inbox",
+      emailAddressUsername: "tracking@sideways.living",
+      imapHost: "imap.spacemail.example",
+      imapPort: "993",
+      securityMode: "SSL/TLS",
+      folderName: "INBOX",
+      connectionStatus: "Mock configured",
+      lastManualRefreshDate: "Never",
+      setupNotes: "SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before enabling real refresh.",
+      credentialStorageStatus: "Password not stored; Keychain planned",
+      reviewState: .needsReview
+    )
+  ]
+
   static var shopifyConnections: [ShopifyConnection] = [
     ShopifyConnection(storeName: "Acme Parts", storeDomain: "acme-parts.myshopify.com", mappedMailbox: "field-purchasing@parcelops.example", mappedTeam: "Brisbane Field Team", status: "Synced", lastSync: "6 min ago", isEnabled: true),
     ShopifyConnection(storeName: "SafetyPro Direct", storeDomain: "safetypro-direct.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Melbourne Operations", status: "Synced", lastSync: "12 min ago", isEnabled: true),

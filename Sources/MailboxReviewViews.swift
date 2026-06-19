@@ -26,8 +26,36 @@ struct MailboxView: View {
           symbol: "envelope.open.fill"
         )
 
+        SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
+          Text("SpaceMail is the current mailbox provider path. Capture non-secret IMAP settings here and run a mock refresh through the same intake importer that real IMAP will use later.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("No real IMAP connection is made yet. Do not enter passwords here; Keychain credential storage is planned for a later pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+              .buttonStyle(.bordered)
+            Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
+          }
+          if store.spaceMailIMAPConnections.isEmpty {
+            MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder in Mailbox Monitor or Settings, then run Mock SpaceMail refresh to test intake without a real mailbox connection.", symbol: "server.rack")
+          }
+          ForEach(store.spaceMailIMAPConnections) { connection in
+            SpaceMailIMAPConnectionRow(connection: connection) { updatedConnection in
+              store.updateSpaceMailIMAPConnection(updatedConnection)
+            } onReviewed: {
+              store.markSpaceMailIMAPConnectionReviewed(connection)
+            } onMockRefresh: {
+              store.importMockSpaceMailIMAPMessages(for: connection)
+            } onRemove: {
+              store.removeSpaceMailIMAPConnection(connection)
+            }
+          }
+        }
+
         SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
-          Text("Use this setup area to prepare mailbox details, test real Microsoft sign-in when ready, and keep mailbox refresh mocked until Graph message fetching is built.")
+          Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()

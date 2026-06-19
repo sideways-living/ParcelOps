@@ -16,6 +16,7 @@ final class ParcelOpsStore {
   var mailboxIngestRecords: [MailboxIngestRecord]
   var mailboxes: [TrackedMailbox]
   var microsoft365MailboxConnections: [Microsoft365MailboxConnection]
+  var spaceMailIMAPConnections: [SpaceMailIMAPConnection]
   var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
   private var activeMicrosoft365AuthAttempts: [UUID: UUID] = [:]
   var shopifyConnections: [ShopifyConnection]
@@ -180,6 +181,7 @@ final class ParcelOpsStore {
     self.mailboxIngestRecords = repository.loadMailboxIngestRecords()
     self.mailboxes = repository.loadMailboxes()
     self.microsoft365MailboxConnections = repository.loadMicrosoft365MailboxConnections()
+    self.spaceMailIMAPConnections = repository.loadSpaceMailIMAPConnections()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
     self.connections = repository.loadSourceConnections()
@@ -3898,6 +3900,27 @@ final class ParcelOpsStore {
         receivedDate: "Today 10:05 AM",
         plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
         sourceMailboxID: mailbox.id
+      )
+    ]
+  }
+
+  private func mockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) -> [FetchedMailboxMessage] {
+    [
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.emailAddressUsername).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: sourceMailboxID
       )
     ]
   }
@@ -8026,6 +8049,110 @@ final class ParcelOpsStore {
     )
   }
 
+  func addSpaceMailIMAPConnectionPlaceholder() {
+    let connection = SpaceMailIMAPConnection(
+      displayName: "SpaceMail tracking inbox",
+      emailAddressUsername: "tracking@sideways.living",
+      imapHost: "imap.spacemail.example",
+      imapPort: "993",
+      securityMode: "SSL/TLS",
+      folderName: "INBOX",
+      connectionStatus: "Not connected",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Local SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before real refresh is implemented.",
+      credentialStorageStatus: "Password not stored; Keychain planned",
+      reviewState: .needsReview
+    )
+    spaceMailIMAPConnections.insert(connection, at: 0)
+    persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail IMAP setup placeholder created.",
+      afterDetail: spaceMailIMAPConnectionAuditDetail(connection)
+    )
+  }
+
+  func updateSpaceMailIMAPConnection(_ connection: SpaceMailIMAPConnection) {
+    guard let index = spaceMailIMAPConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = spaceMailIMAPConnectionAuditDetail(spaceMailIMAPConnections[index])
+    spaceMailIMAPConnections[index] = connection
+    persistIntegrations()
+    logAudit(
+      action: .edited,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail IMAP setup placeholder edited.",
+      beforeDetail: beforeDetail,
+      afterDetail: spaceMailIMAPConnectionAuditDetail(connection)
+    )
+  }
+
+  func markSpaceMailIMAPConnectionReviewed(_ connection: SpaceMailIMAPConnection) {
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.connectionStatus = "Ready for IMAP planning"
+      draft.reviewState = .accepted
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail IMAP setup placeholder reviewed locally.",
+      afterDetail: "No real IMAP connection was made. No password, Keychain item, or mailbox message was accessed."
+    )
+  }
+
+  func removeSpaceMailIMAPConnection(_ connection: SpaceMailIMAPConnection) {
+    guard let index = spaceMailIMAPConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = spaceMailIMAPConnectionAuditDetail(spaceMailIMAPConnections[index])
+    spaceMailIMAPConnections.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail IMAP setup placeholder removed.",
+      beforeDetail: beforeDetail,
+      afterDetail: "No real IMAP connection was made and no mailbox item was changed."
+    )
+  }
+
+  func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.connectionStatus = "Mock refresh running"
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock SpaceMail IMAP refresh started.",
+      afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: local mock only\nNo real IMAP connection was made, no password was requested or stored, and no mailbox item will be deleted, moved, marked read, sent, or modified."
+    )
+
+    let result = importFetchedMailboxMessages(mockSpaceMailIMAPMessages(for: connection, sourceMailboxID: mailbox.id))
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.connectionStatus = result.imported > 0 ? "Mock refresh imported" : "Mock refresh duplicate skipped"
+      draft.lastManualRefreshDate = Self.auditTimestamp()
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock SpaceMail IMAP refresh completed.",
+      afterDetail: "Fetched messages: 2\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\nNo real IMAP network call was made. No password was stored in JSON. Keychain is not implemented. No mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+
   func resetMicrosoft365OAuthReadiness(_ connection: Microsoft365MailboxConnection) {
     updateMicrosoft365MailboxConnection(connection) { draft in
       draft.tenantIDPlaceholder = ""
@@ -8358,6 +8485,14 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  private func updateSpaceMailIMAPConnection(_ connection: SpaceMailIMAPConnection, mutate: (inout SpaceMailIMAPConnection) -> Void) {
+    guard let index = spaceMailIMAPConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    var draft = spaceMailIMAPConnections[index]
+    mutate(&draft)
+    spaceMailIMAPConnections[index] = draft
+    persistIntegrations()
+  }
+
   private func applyMicrosoft365AuthResult(_ result: Microsoft365AuthResult, to connection: Microsoft365MailboxConnection, isRealAuth: Bool = false, attemptID: UUID? = nil) {
     let completionDetail = microsoft365AuthCompletionDetail(for: connection, result: result, isRealAuth: isRealAuth, attemptID: attemptID)
     if isRealAuth {
@@ -8616,6 +8751,18 @@ final class ParcelOpsStore {
     )
   }
 
+  private func trackedMailbox(for connection: SpaceMailIMAPConnection) -> TrackedMailbox {
+    TrackedMailbox(
+      id: connection.id,
+      address: connection.emailAddressUsername,
+      provider: .imap,
+      monitoredFolders: connection.folderName,
+      status: "SpaceMail IMAP mock refresh only",
+      lastChecked: Self.auditTimestamp(),
+      routingRule: connection.displayName
+    )
+  }
+
   private func upsertTrackedMailbox(_ mailbox: TrackedMailbox) {
     if let index = mailboxes.firstIndex(where: { $0.id == mailbox.id }) {
       mailboxes[index] = mailbox
@@ -8629,6 +8776,10 @@ final class ParcelOpsStore {
     let readiness = microsoft365OAuthReadinessSummary(for: connection)
     let plan = microsoft365OAuthImplementationPlan(for: connection)
     return "Display name: \(connection.displayName)\nTenant/domain hint: \(connection.tenantDomainHint)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nOAuth readiness: \(readiness.statusText)\nOAuth implementation plan: \(plan.statusText)\nTenant ID placeholder: \(connection.tenantIDPlaceholder)\nClient ID placeholder: \(connection.clientIDPlaceholder)\nRedirect URI placeholder: \(connection.redirectURIPlaceholder)\nScopes: \(connection.requestedScopesSummary)\nConsent/admin notes: \(connection.consentAdminNotes)\nNo OAuth, token, client secret, password, Keychain item, or Microsoft Graph connection is stored."
+  }
+
+  private func spaceMailIMAPConnectionAuditDetail(_ connection: SpaceMailIMAPConnection) -> String {
+    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, real IMAP connection, or mailbox content is stored in this placeholder."
   }
 
   private func microsoft365OAuthImplementationPlanAuditDetail(_ plan: Microsoft365OAuthImplementationPlan) -> String {
@@ -8671,6 +8822,7 @@ final class ParcelOpsStore {
   private func persistIntegrations() {
     integrationRepository.saveMailboxes(mailboxes)
     integrationRepository.saveMicrosoft365MailboxConnections(microsoft365MailboxConnections)
+    integrationRepository.saveSpaceMailIMAPConnections(spaceMailIMAPConnections)
     integrationRepository.saveShopifyConnections(shopifyConnections)
     integrationRepository.saveWatchedFolders(watchedFolders)
     integrationRepository.saveSourceConnections(connections)

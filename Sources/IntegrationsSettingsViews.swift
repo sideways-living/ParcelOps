@@ -16,6 +16,7 @@ struct IntegrationsView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
+            Button("SpaceMail IMAP setup", systemImage: "server.rack", action: store.addSpaceMailIMAPConnectionPlaceholder)
             Button("Microsoft 365 setup", systemImage: "mail.stack.fill", action: store.addMicrosoft365MailboxConnectionPlaceholder)
             Button("Mailbox placeholder", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
             Button("Shopify placeholder", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
@@ -24,8 +25,36 @@ struct IntegrationsView: View {
           }
         }
 
+        SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
+          Text("Use this as the current mailbox path for SpaceMail. This section stores only non-secret IMAP setup fields and runs a mock refresh through the real local intake importer.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("No real IMAP connection is made yet. Do not enter passwords here; Keychain credential storage is planned for a later pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+              .buttonStyle(.bordered)
+            Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
+          }
+          if store.spaceMailIMAPConnections.isEmpty {
+            MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder to capture host, port, folder, and credential-readiness notes before real IMAP is connected.", symbol: "server.rack")
+          }
+          ForEach(store.spaceMailIMAPConnections) { connection in
+            SpaceMailIMAPConnectionRow(connection: connection) { updatedConnection in
+              store.updateSpaceMailIMAPConnection(updatedConnection)
+            } onReviewed: {
+              store.markSpaceMailIMAPConnectionReviewed(connection)
+            } onMockRefresh: {
+              store.importMockSpaceMailIMAPMessages(for: connection)
+            } onRemove: {
+              store.removeSpaceMailIMAPConnection(connection)
+            }
+          }
+        }
+
         SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Prepare the mailbox connection in local placeholder records, test real Microsoft sign-in separately when ready, then keep mailbox refresh mocked until Graph message fetching is built.")
+          Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -580,6 +609,137 @@ struct ActionGroupHeader: View {
   }
 }
 
+struct SpaceMailIMAPConnectionRow: View {
+  var connection: SpaceMailIMAPConnection
+  var onSave: (SpaceMailIMAPConnection) -> Void
+  var onReviewed: () -> Void
+  var onMockRefresh: () -> Void
+  var onRemove: () -> Void
+
+  @State private var isEditing = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "server.rack")
+          .foregroundStyle(.blue)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddressUsername)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("\(connection.imapHost):\(connection.imapPort) • \(connection.securityMode) • \(connection.folderName)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Credential storage: \(connection.credentialStorageStatus)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
+      }
+
+      Text("Status: \(connection.connectionStatus) • Last refresh: \(connection.lastManualRefreshDate)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      if !connection.setupNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(connection.setupNotes)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Text("Planning only: no real IMAP connection, no password storage, no Keychain access, and no mailbox items are deleted, moved, marked read, sent, or modified.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        Button("Edit setup", systemImage: "pencil") { isEditing = true }
+        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+        Button("Run Mock SpaceMail refresh", systemImage: "tray.and.arrow.down", action: onMockRefresh)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+      }
+    }
+    .padding()
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      SpaceMailIMAPConnectionEditor(connection: connection) { updatedConnection in
+        onSave(updatedConnection)
+      }
+    }
+  }
+}
+
+struct SpaceMailIMAPConnectionEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: SpaceMailIMAPConnection
+  var onSave: (SpaceMailIMAPConnection) -> Void
+
+  init(connection: SpaceMailIMAPConnection, onSave: @escaping (SpaceMailIMAPConnection) -> Void) {
+    self._draft = State(initialValue: connection)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: 0) {
+        Form {
+          Section("1. SpaceMail mailbox") {
+            TextField("Display name", text: $draft.displayName)
+            TextField("Email address / username", text: $draft.emailAddressUsername)
+            TextField("IMAP host", text: $draft.imapHost)
+            TextField("IMAP port", text: $draft.imapPort)
+            TextField("Security mode", text: $draft.securityMode)
+            TextField("Folder name", text: $draft.folderName)
+          }
+          Section("2. Local status") {
+            TextField("Connection status", text: $draft.connectionStatus)
+            TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+            TextField("Credential storage status", text: $draft.credentialStorageStatus)
+            Picker("Review state", selection: $draft.reviewState) {
+              Text("Accepted").tag(ReviewState.accepted)
+              Text("Needs review").tag(ReviewState.needsReview)
+              Text("Monitor").tag(ReviewState.monitor)
+            }
+          }
+          Section("3. Setup notes") {
+            TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+              .lineLimit(4...8)
+            Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets. Real IMAP and Keychain storage are not implemented in this pass.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Section("Read-only plan") {
+            Text("Future SpaceMail IMAP refresh should select the configured folder read-only, fetch a small page of message headers/previews, then import through the existing provider-neutral intake path. It must not delete, move, mark read, send, or modify mailbox messages.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .formStyle(.grouped)
+
+        Divider()
+        HStack {
+          Spacer()
+          Button("Cancel") { dismiss() }
+            .keyboardShortcut(.cancelAction)
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
+        }
+        .padding()
+        .background(.background)
+      }
+      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 380, idealHeight: 600, maxHeight: 700)
+      .navigationTitle("SpaceMail IMAP")
+    }
+  }
+}
+
 struct Microsoft365MailboxConnectionEditor: View {
   @Environment(\.dismiss) private var dismiss
   @State private var draft: Microsoft365MailboxConnection
@@ -594,72 +754,83 @@ struct Microsoft365MailboxConnectionEditor: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("1. Mailbox placeholder") {
-          TextField("Display name", text: $draft.displayName)
-          TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
-          TextField("Mailbox address", text: $draft.mailboxAddress)
-          TextField("Monitored folders", text: $draft.monitoredFolderNames)
-        }
-        Section("2. Local status and notes") {
-          TextField("Connection status", text: $draft.connectionStatus)
-          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
-          Picker("Review state", selection: $draft.reviewState) {
-            Text("Accepted").tag(ReviewState.accepted)
-            Text("Needs review").tag(ReviewState.needsReview)
-            Text("Monitor").tag(ReviewState.monitor)
+      VStack(spacing: 0) {
+        Form {
+          Section("1. Mailbox placeholder") {
+            TextField("Display name", text: $draft.displayName)
+            TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
+            TextField("Mailbox address", text: $draft.mailboxAddress)
+            TextField("Monitored folders", text: $draft.monitoredFolderNames)
           }
-          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
-            .lineLimit(3...6)
-        }
-        Section("3. OAuth readiness placeholders") {
-          Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
-          TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
-          TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
-          TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
-            .lineLimit(2...4)
-          TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
-          TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
-            .lineLimit(3...6)
-        }
-        Section("4. Implementation checklist") {
-          Text(implementationPlan.statusText)
-            .font(.subheadline.weight(.semibold))
-          Text("Review these planning items before adding a real OAuth flow in a later pass.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          ForEach(implementationPlan.items) { item in
-            Label {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                Text(item.detail)
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+          Section("2. Local status and notes") {
+            TextField("Connection status", text: $draft.connectionStatus)
+            TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+            Picker("Review state", selection: $draft.reviewState) {
+              Text("Accepted").tag(ReviewState.accepted)
+              Text("Needs review").tag(ReviewState.needsReview)
+              Text("Monitor").tag(ReviewState.monitor)
+            }
+            TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+              .lineLimit(3...6)
+          }
+          Section("3. OAuth readiness placeholders") {
+            Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
+            TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
+            TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
+            TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
+              .lineLimit(2...4)
+            TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
+            TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
+              .lineLimit(3...6)
+          }
+          Section("4. Implementation checklist") {
+            Text(implementationPlan.statusText)
+              .font(.subheadline.weight(.semibold))
+            Text("Review these planning items before adding a real OAuth flow in a later pass.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(implementationPlan.items) { item in
+              Label {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(item.title)
+                  Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+              } icon: {
+                Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                  .foregroundStyle(item.isComplete ? .green : .secondary)
               }
-            } icon: {
-              Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(item.isComplete ? .green : .secondary)
             }
           }
+          Section("Not connected") {
+            Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
-        Section("Not connected") {
-          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      .navigationTitle("Microsoft 365 mailbox")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+        .formStyle(.grouped)
+
+        Divider()
+        HStack {
+          Spacer()
           Button("Cancel") { dismiss() }
+            .keyboardShortcut(.cancelAction)
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
         }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") { onSave(draft) }
-        }
+        .padding()
+        .background(.background)
       }
+      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 420, idealHeight: 680, maxHeight: 720)
+      .navigationTitle("Microsoft 365 mailbox")
     }
   }
 }

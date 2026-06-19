@@ -140,6 +140,7 @@ extension AuditEntityType {
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
     case .reconciliationIssue: "arrow.triangle.2.circlepath.circle.fill"
     case .microsoft365MailboxConnection: "mail.stack.fill"
+    case .spaceMailIMAPConnection: "server.rack"
     }
   }
 }
