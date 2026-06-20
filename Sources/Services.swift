@@ -281,7 +281,7 @@ struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
       return SpaceMailIMAPFetchResult(
         status: messages.isEmpty ? .noMessages : .success,
         messages: messages,
-        detail: "Real SpaceMail IMAP refresh connected over SSL/TLS, authenticated, selected folder '\(folderName)' read-only with EXAMINE, and fetched \(messages.count) recent message previews using BODY.PEEK. No password, auth string, server challenge, or full message body was logged or stored. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+        detail: "Real SpaceMail IMAP refresh connected over SSL/TLS, authenticated, selected folder '\(folderName)' read-only with EXAMINE, and fetched \(messages.count) recent message previews using read-only BODY.PEEK header/text/MIME part sections. No password, auth string, server challenge, or full message body was logged or stored. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
       )
     } catch SpaceMailIMAPSessionError.authFailed {
       return SpaceMailIMAPFetchResult(
@@ -375,7 +375,7 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
 
     let uidList = uids.joined(separator: ",")
     let fetchResponse = try await withTimeout("UID FETCH") {
-      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)] BODY.PEEK[TEXT]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
+      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[HEADER]<0.4096> BODY.PEEK[TEXT]<0.8192> BODY.PEEK[1]<0.8192> BODY.PEEK[1.TEXT]<0.8192> BODY.PEEK[2]<0.8192>)", failure: .parseFailed("UID FETCH did not complete."))
     }
     _ = try? await withTimeout("logout", seconds: 8) {
       try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
@@ -576,21 +576,52 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
   }
 
   private func bodyLiteralContent(from fetchPart: String) -> String {
-    sectionLiteralContent(from: fetchPart, sectionPrefix: "BODY[TEXT")
+    let candidates = [
+      "BODY[TEXT",
+      "BODY[1.TEXT",
+      "BODY[1]",
+      "BODY[2]"
+    ].flatMap { sectionLiteralContents(from: fetchPart, sectionPrefix: $0) }
+    return candidates.max { bodyPreviewScore($0) < bodyPreviewScore($1) } ?? ""
   }
 
   private func sectionLiteralContent(from fetchPart: String, sectionPrefix: String) -> String {
+    sectionLiteralContents(from: fetchPart, sectionPrefix: sectionPrefix).first ?? ""
+  }
+
+  private func sectionLiteralContents(from fetchPart: String, sectionPrefix: String) -> [String] {
     let upperFetchPart = fetchPart.uppercased()
-    guard let sectionRange = upperFetchPart.range(of: sectionPrefix) else { return "" }
-    let sectionStartOffset = upperFetchPart.distance(from: upperFetchPart.startIndex, to: sectionRange.lowerBound)
-    let originalSectionStart = fetchPart.index(fetchPart.startIndex, offsetBy: sectionStartOffset)
-    let sectionText = String(fetchPart[originalSectionStart...])
-    guard let literalRange = sectionText.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) else { return "" }
-    let lengthText = sectionText[literalRange].dropFirst().dropLast(3)
-    guard let literalLength = Int(lengthText) else { return "" }
-    let literalStart = literalRange.upperBound
-    guard let literalEnd = sectionText.index(literalStart, offsetBy: literalLength, limitedBy: sectionText.endIndex) else { return "" }
-    return String(sectionText[literalStart..<literalEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+    var searchStart = upperFetchPart.startIndex
+    var literals: [String] = []
+    while let sectionRange = upperFetchPart.range(of: sectionPrefix, range: searchStart..<upperFetchPart.endIndex) {
+      let sectionStartOffset = upperFetchPart.distance(from: upperFetchPart.startIndex, to: sectionRange.lowerBound)
+      let originalSectionStart = fetchPart.index(fetchPart.startIndex, offsetBy: sectionStartOffset)
+      let sectionText = String(fetchPart[originalSectionStart...])
+      if let literalRange = sectionText.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) {
+        let lengthText = sectionText[literalRange].dropFirst().dropLast(3)
+        if let literalLength = Int(lengthText) {
+          let literalStart = literalRange.upperBound
+          if let literalEnd = sectionText.index(literalStart, offsetBy: literalLength, limitedBy: sectionText.endIndex) {
+            literals.append(String(sectionText[literalStart..<literalEnd]).trimmingCharacters(in: .whitespacesAndNewlines))
+          }
+        }
+      }
+      searchStart = sectionRange.upperBound
+    }
+    return literals
+  }
+
+  private func bodyPreviewScore(_ value: String) -> Int {
+    let cleaned = value
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty, cleaned != "<>" else { return 0 }
+    var score = min(cleaned.count, 500)
+    if cleaned.localizedCaseInsensitiveContains("order") { score += 80 }
+    if cleaned.localizedCaseInsensitiveContains("tracking") { score += 80 }
+    if cleaned.localizedCaseInsensitiveContains("text/plain") { score += 20 }
+    if cleaned.localizedCaseInsensitiveContains("<html") { score -= 20 }
+    return score
   }
 
   private func emailLiteralContent(from fetchPart: String) -> String {

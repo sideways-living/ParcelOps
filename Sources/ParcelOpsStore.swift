@@ -4140,17 +4140,37 @@ final class ParcelOpsStore {
   }
 
   private func detectedOrderNumber(in text: String) -> String {
-    if let value = firstMatch(in: text, pattern: #"(?i)\border\s+#?([A-Z]{2,6}-?\d{3,8})\b"#) {
-      return value
+    let patterns = [
+      #"(?i)\border\s+([A-Z0-9][A-Z0-9._/-]{2,30})\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\b"#,
+      #"(?i)\b(?:order|order\s+no\.?|order\s+number|order\s+id|order\s+ref(?:erence)?|purchase\s+order|po)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
+      #"(?i)\b(?:confirmation|receipt|invoice)\s*(?:number|no\.?|id|ref(?:erence)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
+      #"\b[A-Z]{2,8}-\d{3,12}\b"#,
+      #"\b[A-Z]{2,8}\d{4,14}\b"#
+    ]
+    for pattern in patterns {
+      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+         isLikelyOrderIdentifier(value) {
+        return value
+      }
     }
-    return firstMatch(in: text, pattern: #"\b[A-Z]{2,6}-\d{3,8}\b"#) ?? "Order number needs review"
+    return "Order number needs review"
   }
 
   private func detectedTrackingNumber(in text: String, excluding orderNumber: String) -> String {
-    if let value = firstMatch(in: text, pattern: #"(?i)\btracking(?:\s+number)?\s+([A-Z0-9]{8,24})\b"#), value != orderNumber {
-      return value
+    let patterns = [
+      #"(?i)\b(?:shipped|shipping|shipment)\s+(?:with\s+)?tracking\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:tracking|tracking\s+number|tracking\s+no\.?|track\s+no\.?|shipment\s+number|shipment\s+id|parcel\s+number|consignment|consignment\s+number|awb|waybill)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:carrier|courier)\s*(?:ref(?:erence)?|number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
+      #"\b(?:1Z[0-9A-Z]{16}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{2,6}\d{6,22}[A-Z0-9]*)\b"#
+    ]
+    for pattern in patterns {
+      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+         value.normalizedValidationKey != orderNumber.normalizedValidationKey,
+         isLikelyTrackingIdentifier(value) {
+        return value
+      }
     }
-    return firstMatch(in: text, pattern: #"\b[A-Z]{2,6}\d{6,18}[A-Z0-9]*\b"#) ?? "Tracking number needs review"
+    return "Tracking number needs review"
   }
 
   private func detectedDestinationAddress(in text: String) -> String {
@@ -4174,6 +4194,44 @@ final class ParcelOpsStore {
     let captureRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
     guard let swiftRange = Range(captureRange, in: text) else { return nil }
     return String(text[swiftRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func cleanDetectedIdentifier(_ value: String) -> String? {
+    var cleaned = value
+      .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+      .trimmingCharacters(in: CharacterSet(charactersIn: " \t\r\n.,;:()[]{}<>\"'"))
+    let boilerplateMarkers = ["SENTSECURELY", "SENTFROM", "FROM", "HTTPS", "HTTP", "VIEW", "CLICK"]
+    for marker in boilerplateMarkers {
+      if let range = cleaned.range(of: marker, options: [.caseInsensitive]),
+         cleaned.distance(from: cleaned.startIndex, to: range.lowerBound) >= 5 {
+        cleaned = String(cleaned[..<range.lowerBound])
+      }
+    }
+    guard cleaned.count >= 3 else { return nil }
+    return cleaned
+  }
+
+  private func isLikelyOrderIdentifier(_ value: String) -> Bool {
+    let normalized = value.normalizedValidationKey
+    guard normalized.count >= 4, normalized.count <= 32 else { return false }
+    guard normalized.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
+    let blocked = ["ORDER", "ORDERS", "NUMBER", "CONFIRMATION", "RECEIPT", "INVOICE", "TRACKING", "SHIPMENT"]
+    return !blocked.contains(normalized)
+  }
+
+  private func isLikelyTrackingIdentifier(_ value: String) -> Bool {
+    let normalized = value.normalizedValidationKey
+    guard normalized.count >= 5, normalized.count <= 34 else { return false }
+    guard normalized.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
+    let blocked = ["TRACKING", "SHIPMENT", "CONSIGNMENT", "NUMBER", "ORDER"]
+    return !blocked.contains(normalized)
+  }
+
+  private func safeAuditPreview(_ value: String, limit: Int) -> String {
+    let cleaned = value
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? "empty" : String(cleaned.prefix(limit))
   }
 
   private func mailboxIngestAuditDetail(for record: MailboxIngestRecord) -> String {
@@ -4372,7 +4430,7 @@ final class ParcelOpsStore {
         entityID: before.id.uuidString,
         entityLabel: before.auditLabel,
         summary: "Forwarded intake email reprocessed with no field changes.",
-        afterDetail: "No detected fields changed. Stored subject/body preview was re-read locally. No mailbox fetch, duplicate metadata change, or external service call occurred."
+        afterDetail: "No detected fields changed. Stored subject/body preview was re-read locally.\nStored subject: \(safeAuditPreview(before.subject, limit: 160))\nStored preview: \(safeAuditPreview(before.rawBodyPreview, limit: 260))\nParser result: merchant \(reprocessed.detectedMerchant); order \(reprocessed.detectedOrderNumber); tracking \(reprocessed.detectedTrackingNumber); destination \(reprocessed.detectedDestinationAddress).\nNo mailbox fetch, duplicate metadata change, or external service call occurred."
       )
       return
     }
