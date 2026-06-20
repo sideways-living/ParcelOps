@@ -375,7 +375,7 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
 
     let uidList = uids.joined(separator: ",")
     let fetchResponse = try await withTimeout("UID FETCH") {
-      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
+      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)] BODY.PEEK[TEXT]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
     }
     _ = try? await withTimeout("logout", seconds: 8) {
       try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
@@ -555,7 +555,9 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
         let part = rawPart.hasPrefix("* ") ? rawPart : "* \(rawPart)"
         guard part.localizedCaseInsensitiveContains("FETCH") else { return nil }
         guard let uid = firstMatch(in: part, pattern: #"UID\s+([0-9]+)"#) else { return nil }
-        let emailContent = emailLiteralContent(from: part)
+        let headerContent = headerLiteralContent(from: part)
+        let bodyContent = bodyLiteralContent(from: part)
+        let emailContent = headerContent.isEmpty ? emailLiteralContent(from: part) : "\(headerContent)\r\n\r\n\(bodyContent)"
         let messageID = headerValue("Message-ID", in: emailContent)
         let providerID = providerMessageID(messageID: messageID, uid: uid, folderName: folderName, connectionID: connectionID)
         return FetchedMailboxMessage(
@@ -567,6 +569,28 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
           sourceMailboxID: sourceMailboxID
         )
       }
+  }
+
+  private func headerLiteralContent(from fetchPart: String) -> String {
+    sectionLiteralContent(from: fetchPart, sectionPrefix: "BODY[HEADER")
+  }
+
+  private func bodyLiteralContent(from fetchPart: String) -> String {
+    sectionLiteralContent(from: fetchPart, sectionPrefix: "BODY[TEXT")
+  }
+
+  private func sectionLiteralContent(from fetchPart: String, sectionPrefix: String) -> String {
+    let upperFetchPart = fetchPart.uppercased()
+    guard let sectionRange = upperFetchPart.range(of: sectionPrefix) else { return "" }
+    let sectionStartOffset = upperFetchPart.distance(from: upperFetchPart.startIndex, to: sectionRange.lowerBound)
+    let originalSectionStart = fetchPart.index(fetchPart.startIndex, offsetBy: sectionStartOffset)
+    let sectionText = String(fetchPart[originalSectionStart...])
+    guard let literalRange = sectionText.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) else { return "" }
+    let lengthText = sectionText[literalRange].dropFirst().dropLast(3)
+    guard let literalLength = Int(lengthText) else { return "" }
+    let literalStart = literalRange.upperBound
+    guard let literalEnd = sectionText.index(literalStart, offsetBy: literalLength, limitedBy: sectionText.endIndex) else { return "" }
+    return String(sectionText[literalStart..<literalEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func emailLiteralContent(from fetchPart: String) -> String {
@@ -681,12 +705,7 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
   }
 
   private func providerMessageID(messageID: String?, uid: String, folderName: String, connectionID: UUID) -> String {
-    let stableID = messageID?
-      .trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
-      .replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression)
-    if let stableID, !stableID.isEmpty {
-      return "spacemail-imap-\(connectionID.uuidString)-message-\(stableID)"
-    }
+    _ = messageID
     let safeFolder = folderName.replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression).lowercased()
     return "spacemail-imap-\(connectionID.uuidString)-\(safeFolder)-uid-\(uid)"
   }

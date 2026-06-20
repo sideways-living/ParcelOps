@@ -3853,12 +3853,13 @@ final class ParcelOpsStore {
     var duplicateCount = 0
 
     for message in messages {
-      if mailboxIngestRecords.contains(where: { $0.providerMessageID == message.providerMessageID && $0.sourceMailboxID == message.sourceMailboxID }) {
+      if let existingIngestRecord = preferredDuplicateIngestRecord(for: message) {
         duplicateCount += 1
+        let refreshedIntakeEmailID = refreshDuplicateIntakeEmail(from: message, existingIngestRecord: existingIngestRecord)
         let duplicateRecord = MailboxIngestRecord(
           providerMessageID: message.providerMessageID,
           sourceMailboxID: message.sourceMailboxID,
-          intakeEmailID: nil,
+          intakeEmailID: refreshedIntakeEmailID ?? existingIngestRecord.intakeEmailID,
           capturedDate: Self.auditTimestamp(),
           status: .duplicateSkipped,
         summary: "Skipped duplicate fetched mailbox message: \(message.subject)"
@@ -3890,6 +3891,96 @@ final class ParcelOpsStore {
       persistMailboxIngestRecords()
     }
     return (importedCount, duplicateCount)
+  }
+
+  private func preferredDuplicateIngestRecord(for message: FetchedMailboxMessage) -> MailboxIngestRecord? {
+    let matches = mailboxIngestRecords.filter {
+      $0.providerMessageID == message.providerMessageID && $0.sourceMailboxID == message.sourceMailboxID
+    }
+    return matches.first(where: { $0.intakeEmailID != nil && $0.status == .imported })
+      ?? matches.first(where: { $0.intakeEmailID != nil })
+      ?? matches.first
+  }
+
+  @discardableResult
+  private func refreshDuplicateIntakeEmail(from message: FetchedMailboxMessage, existingIngestRecord: MailboxIngestRecord) -> UUID? {
+    let linkedIndex = existingIngestRecord.intakeEmailID.flatMap { intakeEmailID in
+      intakeEmails.firstIndex { $0.id == intakeEmailID }
+    }
+    let fallbackIndex = linkedIndex ?? staleDuplicateIntakeIndex(for: message)
+    guard let index = fallbackIndex else {
+      logAudit(
+        action: .evaluated,
+        entityType: .intakeEmail,
+        entityID: message.providerMessageID,
+        entityLabel: message.subject,
+        summary: "Duplicate fetched mailbox message had no linked intake email to refresh.",
+        afterDetail: "Provider message ID: \(message.providerMessageID)\nNo intake email was created or duplicated. Duplicate tracking metadata was preserved."
+      )
+      return nil
+    }
+    let usedFallback = linkedIndex == nil
+
+    let before = intakeEmails[index]
+    var refreshed = makeForwardedEmailIntake(from: message)
+    refreshed.id = before.id
+    refreshed.linkedOrderID = before.linkedOrderID ?? matchedOrderID(for: refreshed.detectedOrderNumber)
+    if before.reviewState == .ignored {
+      refreshed.reviewState = .ignored
+    } else if refreshed.linkedOrderID != nil {
+      refreshed.reviewState = .reviewed
+    } else {
+      refreshed.reviewState = .needsReview
+    }
+
+    let changes = intakeReprocessChanges(before: before, after: refreshed)
+    if changes.isEmpty {
+      logAudit(
+        action: .evaluated,
+        entityType: .intakeEmail,
+        entityID: before.id.uuidString,
+        entityLabel: before.auditLabel,
+        summary: "Duplicate fetched mailbox message refreshed with no intake field changes.",
+        afterDetail: "Provider message ID: \(message.providerMessageID)\nNo detected fields changed. No intake email was duplicated. Duplicate tracking metadata was preserved.\(usedFallback ? "\nRefresh used the older messy intake fallback because the existing ingest record did not have a usable intake link." : "")"
+      )
+      return before.id
+    }
+
+    intakeEmails[index] = refreshed
+    persistIntakeEmails()
+    logAudit(
+      action: .edited,
+      entityType: .intakeEmail,
+      entityID: refreshed.id.uuidString,
+      entityLabel: refreshed.auditLabel,
+      summary: "Duplicate fetched mailbox message refreshed existing intake email.",
+      beforeDetail: before.auditDetail,
+      afterDetail: "\(refreshed.auditDetail)\nChanged fields: \(changes.joined(separator: ", ")).\nProvider message ID: \(message.providerMessageID)\nExisting intake email was updated from the newly parsed fetched message. No duplicate intake email was created and duplicate tracking metadata was preserved.\(usedFallback ? "\nRefresh used the older messy intake fallback because the existing ingest record did not have a usable intake link." : "")"
+    )
+    return refreshed.id
+  }
+
+  private func staleDuplicateIntakeIndex(for message: FetchedMailboxMessage) -> Int? {
+    if let uid = imapUID(from: message.providerMessageID),
+       let uidMatch = intakeEmails.firstIndex(where: { isStaleFetchedIntake($0) && $0.rawBodyPreview.contains("UID \(uid)") }) {
+      return uidMatch
+    }
+
+    return intakeEmails.firstIndex { isStaleFetchedIntake($0) }
+  }
+
+  private func imapUID(from providerMessageID: String) -> String? {
+    guard let range = providerMessageID.range(of: "-uid-", options: [.backwards]) else { return nil }
+    let suffix = providerMessageID[range.upperBound...]
+    let uid = suffix.prefix { $0.isNumber }
+    return uid.isEmpty ? nil : String(uid)
+  }
+
+  private func isStaleFetchedIntake(_ email: ForwardedEmailIntake) -> Bool {
+    let body = email.rawBodyPreview.lowercased()
+    let hasIMAPWrapper = body.contains(" fetch ") || body.contains("body[]") || body.contains("return-path:") || body.contains("dovecot")
+    let hasPlaceholderSummary = email.subject == "No subject" || email.sender == "Unknown Sender" || email.detectedMerchant == "Unknown Sender"
+    return hasIMAPWrapper && hasPlaceholderSummary
   }
 
   private func simulatedFetchedMailboxMessages(for mailbox: TrackedMailbox) -> [FetchedMailboxMessage] {
