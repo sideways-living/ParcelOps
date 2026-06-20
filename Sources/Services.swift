@@ -435,19 +435,35 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
     seconds: UInt64 = 20,
     operation: @escaping @Sendable () async throws -> T
   ) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-      group.addTask {
-        try await operation()
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+      let lock = NSLock()
+      let resumeState = ResumeState()
+
+      func complete(_ result: Result<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resumeState.didResume else { return }
+        resumeState.didResume = true
+        switch result {
+        case .success(let value):
+          continuation.resume(returning: value)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        }
       }
-      group.addTask {
-        try await Task.sleep(for: .seconds(seconds))
-        throw SpaceMailIMAPSessionError.timedOut(phase)
+
+      Task {
+        do {
+          complete(.success(try await operation()))
+        } catch {
+          complete(.failure(error))
+        }
       }
-      guard let result = try await group.next() else {
-        throw SpaceMailIMAPSessionError.timedOut(phase)
+
+      queue.asyncAfter(deadline: .now() + .seconds(Int(seconds))) { [weak self] in
+        self?.close()
+        complete(.failure(SpaceMailIMAPSessionError.timedOut(phase)))
       }
-      group.cancelAll()
-      return result
     }
   }
 
