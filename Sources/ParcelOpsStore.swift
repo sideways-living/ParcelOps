@@ -65,6 +65,19 @@ final class ParcelOpsStore {
   private let spaceMailIMAPClient: SpaceMailIMAPClient
   private let realSpaceMailIMAPClient: SpaceMailIMAPClient
   private let spaceMailCredentialStore: SpaceMailCredentialStore
+
+  private struct MailboxRelevanceFilterResult {
+    var importMessages: [FetchedMailboxMessage]
+    var filteredNonOrderCount: Int
+    var uncertainCount: Int
+    var detail: String
+  }
+
+  private enum MailboxRelevanceDecision {
+    case likelyOrder
+    case uncertain
+    case nonOrder
+  }
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
@@ -4002,6 +4015,104 @@ final class ParcelOpsStore {
         sourceMailboxID: mailbox.id
       )
     ]
+  }
+
+  private func filteredSpaceMailMessages(
+    _ messages: [FetchedMailboxMessage],
+    for connection: SpaceMailIMAPConnection
+  ) -> MailboxRelevanceFilterResult {
+    guard connection.mailboxMode == .mixedFiltered else {
+      return MailboxRelevanceFilterResult(
+        importMessages: messages,
+        filteredNonOrderCount: 0,
+        uncertainCount: 0,
+        detail: "Mailbox mode is dedicated order mailbox, so all fetched messages were passed to intake duplicate/import handling."
+      )
+    }
+
+    var importMessages: [FetchedMailboxMessage] = []
+    var filteredSubjects: [String] = []
+    var uncertainSubjects: [String] = []
+
+    for message in messages {
+      let relevance = classifyMailboxMessageRelevance(message)
+      switch relevance.decision {
+      case .likelyOrder:
+        importMessages.append(message)
+      case .uncertain:
+        uncertainSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.score))")
+      case .nonOrder:
+        filteredSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.score))")
+      }
+    }
+
+    var detailLines = [
+      "Mixed mailbox filtering is enabled. Only likely order/order update messages were passed into primary Inbox intake.",
+      "Filtered non-order messages are counted locally and not imported into ForwardedEmailIntake.",
+      "Uncertain messages are counted for review in Audit, but are not added to primary Inbox triage in this first mixed-mailbox pass."
+    ]
+    if !filteredSubjects.isEmpty {
+      detailLines.append("Filtered examples: \(filteredSubjects.prefix(3).joined(separator: "; ")).")
+    }
+    if !uncertainSubjects.isEmpty {
+      detailLines.append("Uncertain examples: \(uncertainSubjects.prefix(3).joined(separator: "; ")).")
+    }
+
+    return MailboxRelevanceFilterResult(
+      importMessages: importMessages,
+      filteredNonOrderCount: filteredSubjects.count,
+      uncertainCount: uncertainSubjects.count,
+      detail: detailLines.joined(separator: "\n")
+    )
+  }
+
+  private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: MailboxRelevanceDecision, score: Int) {
+    let text = "\(message.sender)\n\(message.subject)\n\(message.plainTextBodyPreview)"
+    let lowercasedText = text.lowercased()
+    let orderNumber = detectedOrderNumber(in: text)
+    let trackingNumber = detectedTrackingNumber(in: text, excluding: orderNumber)
+    var score = 0
+
+    let orderSignals = [
+      "order", "order number", "order no", "order id", "purchase order", "po ",
+      "receipt", "invoice", "confirmation", "refund", "return", "replacement", "claim"
+    ]
+    let shipmentSignals = [
+      "tracking", "tracking number", "shipment", "shipped", "shipping", "dispatch",
+      "dispatched", "delivery", "delivered", "parcel", "package", "courier", "carrier",
+      "consignment", "waybill", "awb", "in transit", "out for delivery"
+    ]
+    let merchantSignals = [
+      "shop", "store", "merchant", "supplier", "warehouse", "fulfilment", "fulfillment"
+    ]
+    let nonOrderSignals = [
+      "newsletter", "unsubscribe", "promotion", "marketing", "sale ends", "final days",
+      "password reset", "security alert", "verification code", "calendar", "invitation",
+      "webinar", "social", "follow us", "privacy policy", "terms of service",
+      "view this email", "sent securely from spacemail"
+    ]
+
+    for signal in orderSignals where lowercasedText.contains(signal) { score += 9 }
+    for signal in shipmentSignals where lowercasedText.contains(signal) { score += 11 }
+    for signal in merchantSignals where lowercasedText.contains(signal) { score += 4 }
+    for signal in nonOrderSignals where lowercasedText.contains(signal) { score -= 18 }
+
+    if !orderNumber.isPlaceholderValidationValue { score += 32 }
+    if !trackingNumber.isPlaceholderValidationValue { score += 28 }
+    if lowercasedText.contains("order ") && lowercasedText.contains("tracking") { score += 18 }
+    if lowercasedText.contains("shipped") && lowercasedText.contains("tracking") { score += 14 }
+    if lowercasedText.contains("refund") || lowercasedText.contains("return") { score += 10 }
+
+    if (!orderNumber.isPlaceholderValidationValue || !trackingNumber.isPlaceholderValidationValue) && score >= 42 {
+      return (.likelyOrder, score)
+    }
+    if score >= 58 {
+      return (.likelyOrder, score)
+    }
+    if score >= 22 {
+      return (.uncertain, score)
+    }
+    return (.nonOrder, score)
   }
 
   private func spaceMailRefreshStatus(
@@ -8321,6 +8432,7 @@ final class ParcelOpsStore {
       lastManualRefreshDate: "Never",
       setupNotes: "Local SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before real refresh is implemented.",
       credentialStorageStatus: "Password not stored; Keychain planned",
+      mailboxMode: .mixedFiltered,
       reviewState: .needsReview
     )
     spaceMailIMAPConnections.insert(connection, at: 0)
@@ -8530,7 +8642,8 @@ final class ParcelOpsStore {
     }
 
     let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connectionForRefresh, sourceMailboxID: mailbox.id, password: credentialResult.password)
-    let result = importFetchedMailboxMessages(fetchResult.messages)
+    let filterResult = filteredSpaceMailMessages(fetchResult.messages, for: connectionForRefresh)
+    let result = importFetchedMailboxMessages(filterResult.importMessages)
     let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.connectionStatus = "Real IMAP: \(refreshStatus.rawValue)"
@@ -8544,7 +8657,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: "Real SpaceMail IMAP fetch returned no messages.",
-        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nFetched messages: 0\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nFetched messages: 0\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredNonOrderCount)\nUncertain: \(filterResult.uncertainCount)\nNo mailbox item was deleted, moved, marked read, flagged, sent, or modified."
       )
     } else if fetchResult.status != .success {
       logAudit(
@@ -8553,7 +8666,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: "Real SpaceMail IMAP refresh stopped before import.",
-        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo password, app password, auth string, server credential, or Keychain item was stored in JSON or logged. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+        afterDetail: "Status: \(fetchResult.status.rawValue)\n\(fetchResult.detail)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredNonOrderCount)\nUncertain: \(filterResult.uncertainCount)\n\(filterResult.detail)\nNo password, app password, auth string, server credential, or Keychain item was stored in JSON or logged. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
       )
     }
 
@@ -8563,7 +8676,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real SpaceMail IMAP refresh completed.",
-      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nManual refresh only. Read-only boundary. No password was stored in JSON, no custom Keychain storage was added, and no mailbox items were deleted, moved, marked read, flagged, sent, or modified."
+      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nMailbox mode: \(connectionForRefresh.mailboxMode.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredNonOrderCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(filterResult.detail)\n\(fetchResult.detail)\nManual refresh only. Read-only boundary. Filtered non-order messages are counted only; their full bodies are not stored in intake. No password was stored in JSON, no custom Keychain storage was added, and no mailbox items were deleted, moved, marked read, flagged, sent, or modified."
     )
   }
 

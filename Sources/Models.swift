@@ -1354,7 +1354,78 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var lastManualRefreshDate: String
   var setupNotes: String
   var credentialStorageStatus: String
+  var mailboxMode: SpaceMailMailboxMode
   var reviewState: ReviewState
+
+  init(
+    id: UUID = UUID(),
+    displayName: String,
+    emailAddressUsername: String,
+    imapHost: String,
+    imapPort: String,
+    securityMode: String,
+    folderName: String,
+    connectionStatus: String,
+    lastManualRefreshDate: String,
+    setupNotes: String,
+    credentialStorageStatus: String,
+    mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
+    reviewState: ReviewState
+  ) {
+    self.id = id
+    self.displayName = displayName
+    self.emailAddressUsername = emailAddressUsername
+    self.imapHost = imapHost
+    self.imapPort = imapPort
+    self.securityMode = securityMode
+    self.folderName = folderName
+    self.connectionStatus = connectionStatus
+    self.lastManualRefreshDate = lastManualRefreshDate
+    self.setupNotes = setupNotes
+    self.credentialStorageStatus = credentialStorageStatus
+    self.mailboxMode = mailboxMode
+    self.reviewState = reviewState
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case displayName
+    case emailAddressUsername
+    case imapHost
+    case imapPort
+    case securityMode
+    case folderName
+    case connectionStatus
+    case lastManualRefreshDate
+    case setupNotes
+    case credentialStorageStatus
+    case mailboxMode
+    case reviewState
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+    displayName = try container.decode(String.self, forKey: .displayName)
+    emailAddressUsername = try container.decode(String.self, forKey: .emailAddressUsername)
+    imapHost = try container.decode(String.self, forKey: .imapHost)
+    imapPort = try container.decode(String.self, forKey: .imapPort)
+    securityMode = try container.decode(String.self, forKey: .securityMode)
+    folderName = try container.decode(String.self, forKey: .folderName)
+    connectionStatus = try container.decode(String.self, forKey: .connectionStatus)
+    lastManualRefreshDate = try container.decode(String.self, forKey: .lastManualRefreshDate)
+    setupNotes = try container.decode(String.self, forKey: .setupNotes)
+    credentialStorageStatus = try container.decode(String.self, forKey: .credentialStorageStatus)
+    mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
+    reviewState = try container.decode(ReviewState.self, forKey: .reviewState)
+  }
+}
+
+enum SpaceMailMailboxMode: String, CaseIterable, Identifiable, Hashable, Codable {
+  case dedicatedOrderMailbox = "Dedicated order mailbox"
+  case mixedFiltered = "Mixed mailbox, filter likely order emails only"
+
+  var id: String { rawValue }
 }
 
 struct ShopifyConnection: Identifiable, Hashable, Codable {

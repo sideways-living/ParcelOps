@@ -203,6 +203,7 @@ enum SampleData {
       lastManualRefreshDate: "Never",
       setupNotes: "SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before enabling real refresh.",
       credentialStorageStatus: "Password not stored; Keychain planned",
+      mailboxMode: .mixedFiltered,
       reviewState: .needsReview
     )
   ]

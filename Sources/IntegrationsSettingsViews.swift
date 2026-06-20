@@ -658,6 +658,9 @@ struct SpaceMailIMAPConnectionRow: View {
           Text("\(connection.imapHost):\(connection.imapPort) • \(connection.securityMode) • \(connection.folderName)")
             .font(.caption)
             .foregroundStyle(.secondary)
+          Text("Mailbox mode: \(connection.mailboxMode.rawValue)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
           Text("Credential storage: \(connection.credentialStorageStatus)")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -676,7 +679,7 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.secondary)
       }
 
-      Text("Manual real refresh now validates setup and checks Keychain credential readiness, but full IMAP login and message fetch are still not implemented. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
+      Text("Manual real refresh uses read-only IMAP. Mixed mailbox mode filters likely non-order messages before they reach Inbox, while dedicated mode passes fetched messages straight to intake duplicate handling. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -799,6 +802,11 @@ struct SpaceMailIMAPConnectionEditor: View {
             TextField("IMAP port", text: $draft.imapPort)
             TextField("Security mode", text: $draft.securityMode)
             TextField("Folder name", text: $draft.folderName)
+            Picker("Mailbox mode", selection: $draft.mailboxMode) {
+              ForEach(SpaceMailMailboxMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+              }
+            }
           }
           Section("2. Local status") {
             TextField("Connection status", text: $draft.connectionStatus)
@@ -818,7 +826,7 @@ struct SpaceMailIMAPConnectionEditor: View {
               .foregroundStyle(.secondary)
           }
           Section("Read-only plan") {
-            Text("Future SpaceMail IMAP refresh should select the configured folder read-only, fetch a small page of message headers/previews, then import through the existing provider-neutral intake path. It must not delete, move, mark read, send, or modify mailbox messages.")
+            Text("SpaceMail IMAP refresh selects the configured folder read-only, fetches a small page of message headers/previews, then imports likely order messages through the provider-neutral intake path. Mixed mailbox mode keeps obvious non-order messages out of the primary Inbox. It must not delete, move, mark read, send, or modify mailbox messages.")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
