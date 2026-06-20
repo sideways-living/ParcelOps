@@ -289,6 +289,11 @@ private struct InboxTriageRow: View {
             feedbackMessage = "Email ignored locally."
           }
           .buttonStyle(.bordered)
+          Button("Reprocess", systemImage: "arrow.triangle.2.circlepath") {
+            store.reprocessIntakeEmail(email)
+            feedbackMessage = "Email reprocessed from stored preview."
+          }
+          .buttonStyle(.bordered)
           Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: email)
             feedbackMessage = "Follow-up task created. Check Tasks."

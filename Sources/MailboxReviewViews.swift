@@ -137,6 +137,13 @@ struct MailboxView: View {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
           } else {
+            CompactActionRow {
+              Button("Reprocess all needing review", systemImage: "arrow.triangle.2.circlepath") {
+                store.reprocessReviewIntakeEmails()
+              }
+              .buttonStyle(.bordered)
+              Badge("\(store.reviewIntakeEmails.count) need review", color: .orange)
+            }
             ForEach(store.intakeEmails) { email in
               IntakeEmailRow(email: email, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
                 store.updateIntakeEmail(updatedEmail)
@@ -148,6 +155,8 @@ struct MailboxView: View {
                 store.markIntakeEmailReviewed(email)
               } onIgnore: {
                 store.ignoreIntakeEmail(email)
+              } onReprocess: {
+                store.reprocessIntakeEmail(email)
               } onAddEvidence: {
                 store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
               } onReviewEvidence: { attachment in
@@ -205,6 +214,7 @@ struct IntakeEmailRow: View {
   var onCreateOrder: () -> Void
   var onReviewed: () -> Void
   var onIgnore: () -> Void
+  var onReprocess: () -> Void = {}
   var onAddEvidence: () -> Void
   var onReviewEvidence: (EvidenceAttachment) -> Void
   var onRemoveEvidence: (EvidenceAttachment) -> Void
@@ -286,6 +296,8 @@ struct IntakeEmailRow: View {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Ignore", systemImage: "trash", action: onIgnore)
+          .buttonStyle(.bordered)
+        Button("Reprocess", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
@@ -713,6 +725,8 @@ struct NeedsReviewView: View {
               store.markIntakeEmailReviewed(email)
             } onIgnore: {
               store.ignoreIntakeEmail(email)
+            } onReprocess: {
+              store.reprocessIntakeEmail(email)
             } onAddEvidence: {
               store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
             } onReviewEvidence: { attachment in

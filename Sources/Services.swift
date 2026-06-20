@@ -555,34 +555,129 @@ private final class SpaceMailIMAPSession: @unchecked Sendable {
         let part = rawPart.hasPrefix("* ") ? rawPart : "* \(rawPart)"
         guard part.localizedCaseInsensitiveContains("FETCH") else { return nil }
         guard let uid = firstMatch(in: part, pattern: #"UID\s+([0-9]+)"#) else { return nil }
-        let messageID = headerValue("Message-ID", in: part)
+        let emailContent = emailLiteralContent(from: part)
+        let messageID = headerValue("Message-ID", in: emailContent)
         let providerID = providerMessageID(messageID: messageID, uid: uid, folderName: folderName, connectionID: connectionID)
         return FetchedMailboxMessage(
           providerMessageID: providerID,
-          sender: headerValue("From", in: part) ?? "Unknown sender",
-          subject: headerValue("Subject", in: part) ?? "No subject",
-          receivedDate: headerValue("Date", in: part) ?? "Unknown date",
-          plainTextBodyPreview: bodyPreview(from: part),
+          sender: headerValue("From", in: emailContent) ?? "Unknown sender",
+          subject: headerValue("Subject", in: emailContent) ?? "No subject",
+          receivedDate: headerValue("Date", in: emailContent) ?? "Unknown date",
+          plainTextBodyPreview: bodyPreview(from: emailContent),
           sourceMailboxID: sourceMailboxID
         )
       }
+  }
+
+  private func emailLiteralContent(from fetchPart: String) -> String {
+    guard let literalRange = fetchPart.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) else {
+      return fetchPart
+    }
+    var content = String(fetchPart[literalRange.upperBound...])
+    if let closingRange = content.range(of: #"\r\n\)\r\n[A-Z][0-9]{3} "#, options: .regularExpression) {
+      content = String(content[..<closingRange.lowerBound])
+    } else if content.hasSuffix("\r\n)") {
+      content.removeLast(3)
+    }
+    return content.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func headerValue(_ name: String, in text: String) -> String? {
     let unfolded = text.replacingOccurrences(of: "\r\n\t", with: " ").replacingOccurrences(of: "\r\n ", with: " ")
     let escaped = NSRegularExpression.escapedPattern(for: name)
     guard let match = firstMatch(in: unfolded, pattern: #"(?im)^\#(escaped):\s*(.+)$"#) else { return nil }
-    return sanitizeHeader(match)
+    return decodeHeaderValue(sanitizeHeader(match))
   }
 
   private func bodyPreview(from text: String) -> String {
-    let split = text.components(separatedBy: "\r\n\r\n")
-    let body = split.count > 1 ? split.dropFirst().joined(separator: "\n") : text
-    let cleaned = body
+    let body = preferredPlainTextBody(from: text)
+    let cleaned = decodeQuotedPrintable(body)
       .replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"(?im)^--[A-Za-z0-9'()+_,\-./:=?]+(--)?$"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"(?im)^Content-[A-Za-z-]+:\s*.+$"#, with: " ", options: .regularExpression)
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return String(cleaned.prefix(700))
+  }
+
+  private func preferredPlainTextBody(from text: String) -> String {
+    let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+    let split = normalized.components(separatedBy: "\n\n")
+    let headers = split.first ?? ""
+    let body = split.count > 1 ? split.dropFirst().joined(separator: "\n\n") : normalized
+
+    if let boundary = firstMatch(in: headers, pattern: #"(?i)boundary="?([^";\r\n]+)"?"#) {
+      let parts = body.components(separatedBy: "--\(boundary)")
+      if let plainPart = parts.first(where: { $0.localizedCaseInsensitiveContains("Content-Type: text/plain") }) {
+        return stripPartHeaders(plainPart)
+      }
+      if let htmlPart = parts.first(where: { $0.localizedCaseInsensitiveContains("Content-Type: text/html") }) {
+        return stripPartHeaders(htmlPart)
+      }
+    }
+
+    return body
+  }
+
+  private func stripPartHeaders(_ part: String) -> String {
+    let split = part.components(separatedBy: "\n\n")
+    return split.count > 1 ? split.dropFirst().joined(separator: "\n\n") : part
+  }
+
+  private func decodeHeaderValue(_ value: String) -> String {
+    var decoded = value
+    decoded = decodeEncodedWords(in: decoded, encodingMarker: "B") { data in
+      String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+    }
+    decoded = decodeEncodedWords(in: decoded, encodingMarker: "Q") { data in
+      String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+    }
+    return decoded
+  }
+
+  private func decodeEncodedWords(in value: String, encodingMarker: String, transform: (Data) -> String?) -> String {
+    let pattern = #"=\?([^?]+)\?\#(encodingMarker)\?([^?]+)\?="#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return value }
+    var result = value
+    let matches = regex.matches(in: value, range: NSRange(value.startIndex..<value.endIndex, in: value)).reversed()
+    for match in matches {
+      guard let fullRange = Range(match.range(at: 0), in: value),
+            let payloadRange = Range(match.range(at: 3), in: value) else { continue }
+      let payload = String(value[payloadRange])
+      let data: Data?
+      if encodingMarker.caseInsensitiveCompare("B") == .orderedSame {
+        data = Data(base64Encoded: payload)
+      } else {
+        data = decodeQuotedPrintable(payload.replacingOccurrences(of: "_", with: " ")).data(using: .utf8)
+      }
+      guard let data, let replacement = transform(data) else { continue }
+      result.replaceSubrange(fullRange, with: replacement)
+    }
+    return result
+  }
+
+  private func decodeQuotedPrintable(_ value: String) -> String {
+    var bytes: [UInt8] = []
+    let scalars = Array(value.utf8)
+    var index = 0
+    while index < scalars.count {
+      if scalars[index] == 61, index + 2 < scalars.count {
+        let first = scalars[index + 1]
+        let second = scalars[index + 2]
+        if first == 13 || first == 10 {
+          index += first == 13 && second == 10 ? 3 : 2
+          continue
+        }
+        if let decoded = UInt8(String(bytes: [first, second], encoding: .utf8) ?? "", radix: 16) {
+          bytes.append(decoded)
+          index += 3
+          continue
+        }
+      }
+      bytes.append(scalars[index])
+      index += 1
+    }
+    return String(decoding: bytes, as: UTF8.self)
   }
 
   private func providerMessageID(messageID: String?, uid: String, folderName: String, connectionID: UUID) -> String {

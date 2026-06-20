@@ -4002,6 +4002,40 @@ final class ParcelOpsStore {
     )
   }
 
+  private func reprocessedIntakeEmail(from email: ForwardedEmailIntake) -> ForwardedEmailIntake {
+    let message = FetchedMailboxMessage(
+      providerMessageID: email.id.uuidString,
+      sender: email.sender,
+      subject: email.subject,
+      receivedDate: email.receivedDate,
+      plainTextBodyPreview: email.rawBodyPreview,
+      sourceMailboxID: UUID()
+    )
+    var reprocessed = makeForwardedEmailIntake(from: message)
+    reprocessed.id = email.id
+    reprocessed.rawBodyPreview = email.rawBodyPreview
+    reprocessed.linkedOrderID = email.linkedOrderID ?? matchedOrderID(for: reprocessed.detectedOrderNumber)
+    if email.reviewState == .ignored {
+      reprocessed.reviewState = .ignored
+    } else if reprocessed.linkedOrderID != nil {
+      reprocessed.reviewState = .reviewed
+    } else {
+      reprocessed.reviewState = .needsReview
+    }
+    return reprocessed
+  }
+
+  private func intakeReprocessChanges(before: ForwardedEmailIntake, after: ForwardedEmailIntake) -> [String] {
+    var changes: [String] = []
+    if before.detectedMerchant != after.detectedMerchant { changes.append("merchant") }
+    if before.detectedOrderNumber != after.detectedOrderNumber { changes.append("order number") }
+    if before.detectedTrackingNumber != after.detectedTrackingNumber { changes.append("tracking number") }
+    if before.detectedDestinationAddress != after.detectedDestinationAddress { changes.append("destination address") }
+    if before.linkedOrderID != after.linkedOrderID { changes.append("linked order") }
+    if before.reviewState != after.reviewState { changes.append("review state") }
+    return changes
+  }
+
   private func detectedMerchant(from message: FetchedMailboxMessage) -> String {
     let subject = message.subject.replacingOccurrences(of: "Fwd:", with: "", options: [.caseInsensitive]).trimmingCharacters(in: .whitespacesAndNewlines)
     if let orderRange = subject.range(of: " order ", options: [.caseInsensitive]) {
@@ -4231,6 +4265,79 @@ final class ParcelOpsStore {
       summary: "Forwarded intake email details corrected.",
       beforeDetail: beforeDetail,
       afterDetail: email.auditDetail
+    )
+  }
+
+  func reprocessIntakeEmail(_ email: ForwardedEmailIntake) {
+    guard let index = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let before = intakeEmails[index]
+    let reprocessed = reprocessedIntakeEmail(from: before)
+    let changes = intakeReprocessChanges(before: before, after: reprocessed)
+
+    if changes.isEmpty {
+      logAudit(
+        action: .evaluated,
+        entityType: .intakeEmail,
+        entityID: before.id.uuidString,
+        entityLabel: before.auditLabel,
+        summary: "Forwarded intake email reprocessed with no field changes.",
+        afterDetail: "No detected fields changed. Stored subject/body preview was re-read locally. No mailbox fetch, duplicate metadata change, or external service call occurred."
+      )
+      return
+    }
+
+    intakeEmails[index] = reprocessed
+    persistIntakeEmails()
+    logAudit(
+      action: .edited,
+      entityType: .intakeEmail,
+      entityID: reprocessed.id.uuidString,
+      entityLabel: reprocessed.auditLabel,
+      summary: "Forwarded intake email reprocessed locally.",
+      beforeDetail: before.auditDetail,
+      afterDetail: "\(reprocessed.auditDetail)\nChanged fields: \(changes.joined(separator: ", ")).\nReprocessed from stored subject/body preview only. No mailbox fetch, duplicate metadata change, or external service call occurred."
+    )
+  }
+
+  func reprocessReviewIntakeEmails() {
+    let candidates = intakeEmails.filter { $0.reviewState == .needsReview }
+    logAudit(
+      action: .evaluated,
+      entityType: .intakeEmail,
+      entityID: "bulk-intake-reprocess",
+      entityLabel: "Forwarded intake reprocess",
+      summary: "Bulk reprocess of intake emails needing review started.",
+      afterDetail: "Candidates: \(candidates.count). Reprocessing uses stored subject/body previews only and does not fetch mailbox messages or change duplicate metadata."
+    )
+
+    var changedCount = 0
+    var unchangedCount = 0
+    var changedLabels: [String] = []
+
+    for candidate in candidates {
+      guard let index = intakeEmails.firstIndex(where: { $0.id == candidate.id }) else { continue }
+      let before = intakeEmails[index]
+      let reprocessed = reprocessedIntakeEmail(from: before)
+      let changes = intakeReprocessChanges(before: before, after: reprocessed)
+      if changes.isEmpty {
+        unchangedCount += 1
+      } else {
+        intakeEmails[index] = reprocessed
+        changedCount += 1
+        changedLabels.append("\(reprocessed.auditLabel): \(changes.joined(separator: ", "))")
+      }
+    }
+
+    if changedCount > 0 {
+      persistIntakeEmails()
+    }
+    logAudit(
+      action: changedCount > 0 ? .edited : .evaluated,
+      entityType: .intakeEmail,
+      entityID: "bulk-intake-reprocess",
+      entityLabel: "Forwarded intake reprocess",
+      summary: "Bulk reprocess of intake emails needing review completed.",
+      afterDetail: "Candidates: \(candidates.count)\nChanged: \(changedCount)\nNo change: \(unchangedCount)\nChanged fields: \(changedLabels.prefix(20).joined(separator: "\n"))\nNo intake emails were deleted or duplicated. Duplicate tracking metadata was not changed. No mailbox messages were fetched or modified."
     )
   }
 
