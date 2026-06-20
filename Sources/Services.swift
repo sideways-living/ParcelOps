@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Security
 
 protocol MailboxIngestionService {
@@ -10,7 +11,7 @@ protocol MicrosoftGraphMailboxClient {
 }
 
 protocol SpaceMailIMAPClient {
-  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String?) async -> SpaceMailIMAPFetchResult
 }
 
 protocol SpaceMailCredentialStore {
@@ -136,7 +137,7 @@ struct MockMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
 }
 
 struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
-  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String? = nil) async -> SpaceMailIMAPFetchResult {
     if connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -218,7 +219,7 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
 }
 
 struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
-  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID) async -> SpaceMailIMAPFetchResult {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String? = nil) async -> SpaceMailIMAPFetchResult {
     let emailAddress = connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines)
     let host = connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines)
     let portText = connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,11 +260,294 @@ struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
       )
     }
 
-    return SpaceMailIMAPFetchResult(
-      status: .credentialAvailable,
-      messages: [],
-      detail: "Real SpaceMail IMAP refresh validated \(emailAddress), \(host):\(port), \(securityMode), folder '\(folderName)', and a Keychain credential reference. Full IMAP login and message fetch are intentionally not implemented in this slice. No password was logged, and no mailbox item was deleted, moved, marked read, flagged, sent, or modified."
-    )
+    guard let password, !password.isEmpty else {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh found a credential reference label but no in-memory password was available from Keychain. No mailbox login was attempted."
+      )
+    }
+
+    do {
+      let session = SpaceMailIMAPSession(host: host, port: port)
+      let messages = try await session.fetchRecentMessages(
+        username: emailAddress,
+        password: password,
+        folderName: folderName,
+        sourceMailboxID: sourceMailboxID,
+        connectionID: connection.id,
+        limit: 10
+      )
+      return SpaceMailIMAPFetchResult(
+        status: messages.isEmpty ? .noMessages : .success,
+        messages: messages,
+        detail: "Real SpaceMail IMAP refresh connected over SSL/TLS, authenticated, selected folder '\(folderName)' read-only with EXAMINE, and fetched \(messages.count) recent message previews using BODY.PEEK. No password, auth string, server challenge, or full message body was logged or stored. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+      )
+    } catch SpaceMailIMAPSessionError.authFailed {
+      return SpaceMailIMAPFetchResult(
+        status: .authFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP login failed. Check the SpaceMail username and app password. The password and server authentication details were not logged or stored."
+      )
+    } catch SpaceMailIMAPSessionError.folderNotFound {
+      return SpaceMailIMAPFetchResult(
+        status: .folderNotFound,
+        messages: [],
+        detail: "Real SpaceMail IMAP connected and authenticated, but the configured folder '\(folderName)' could not be selected read-only. No mailbox messages were fetched or modified."
+      )
+    } catch SpaceMailIMAPSessionError.parseFailed(let detail) {
+      return SpaceMailIMAPFetchResult(
+        status: .parseFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP fetched a response but could not safely parse message previews. \(detail) No credentials or full message bodies were logged."
+      )
+    } catch {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP connection or fetch failed before import. \(SpaceMailIMAPSession.safeErrorSummary(error)) No password, auth string, server challenge, or mailbox mutation was logged or stored."
+      )
+    }
+  }
+}
+
+private enum SpaceMailIMAPSessionError: Error {
+  case connectionFailed(String)
+  case authFailed
+  case folderNotFound
+  case parseFailed(String)
+}
+
+private final class SpaceMailIMAPSession {
+  private let host: String
+  private let port: Int
+  private let queue = DispatchQueue(label: "ParcelOps.SpaceMailIMAPSession")
+  private var connection: NWConnection?
+  private var commandIndex = 0
+
+  private final class ResumeState {
+    var didResume = false
+  }
+
+  init(host: String, port: Int) {
+    self.host = host
+    self.port = port
+  }
+
+  func fetchRecentMessages(
+    username: String,
+    password: String,
+    folderName: String,
+    sourceMailboxID: UUID,
+    connectionID: UUID,
+    limit: Int
+  ) async throws -> [FetchedMailboxMessage] {
+    try await connect()
+    _ = try await readUntilLinePrefix("*")
+    _ = try await sendCommand("LOGIN \(quote(username)) \(quote(password))", failure: .authFailed)
+    _ = try await sendCommand("EXAMINE \(quote(folderName))", failure: .folderNotFound)
+    let searchResponse = try await sendCommand("UID SEARCH ALL", failure: .parseFailed("UID SEARCH did not complete."))
+    let uids = parseUIDSearch(searchResponse).suffix(limit)
+    guard !uids.isEmpty else {
+      _ = try? await sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+      close()
+      return []
+    }
+
+    let uidList = uids.joined(separator: ",")
+    let fetchResponse = try await sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
+    _ = try? await sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+    close()
+    return parseFetchedMessages(fetchResponse, folderName: folderName, sourceMailboxID: sourceMailboxID, connectionID: connectionID)
+  }
+
+  static func safeErrorSummary(_ error: Error) -> String {
+    if let imapError = error as? SpaceMailIMAPSessionError {
+      switch imapError {
+      case .connectionFailed(let detail): return detail
+      case .authFailed: return "Authentication failed."
+      case .folderNotFound: return "Folder not found."
+      case .parseFailed(let detail): return detail
+      }
+    }
+    return "The IMAP session ended unexpectedly."
+  }
+
+  private func connect() async throws {
+    let tls = NWProtocolTLS.Options()
+    let parameters = NWParameters(tls: tls)
+    let endpointHost = NWEndpoint.Host(host)
+    guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
+      throw SpaceMailIMAPSessionError.connectionFailed("Invalid IMAP port.")
+    }
+    let connection = NWConnection(host: endpointHost, port: endpointPort, using: parameters)
+    self.connection = connection
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      let lock = NSLock()
+      let resumeState = ResumeState()
+      connection.stateUpdateHandler = { state in
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resumeState.didResume else { return }
+        switch state {
+        case .ready:
+          resumeState.didResume = true
+          continuation.resume()
+        case .failed:
+          resumeState.didResume = true
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("TLS connection failed."))
+        case .waiting:
+          break
+        default:
+          break
+        }
+      }
+      connection.start(queue: queue)
+    }
+  }
+
+  private func sendCommand(_ command: String, failure: SpaceMailIMAPSessionError) async throws -> String {
+    commandIndex += 1
+    let tag = "A\(String(format: "%03d", commandIndex))"
+    guard let data = "\(tag) \(command)\r\n".data(using: .utf8), let connection else {
+      throw SpaceMailIMAPSessionError.connectionFailed("IMAP command could not be encoded.")
+    }
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      connection.send(content: data, completion: .contentProcessed { error in
+        if error != nil {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP command send failed."))
+        } else {
+          continuation.resume()
+        }
+      })
+    }
+
+    let response = try await readUntilTagged(tag)
+    guard let taggedLine = response
+      .components(separatedBy: .newlines)
+      .last(where: { $0.hasPrefix("\(tag) ") }) else {
+      throw failure
+    }
+    if taggedLine.localizedCaseInsensitiveContains("\(tag) OK") {
+      return response
+    }
+    throw failure
+  }
+
+  private func readUntilLinePrefix(_ prefix: String) async throws -> String {
+    var response = ""
+    while !response.components(separatedBy: .newlines).contains(where: { $0.hasPrefix(prefix) }) {
+      response += try await receiveChunk()
+    }
+    return response
+  }
+
+  private func readUntilTagged(_ tag: String) async throws -> String {
+    var response = ""
+    while !response.components(separatedBy: .newlines).contains(where: { $0.hasPrefix("\(tag) ") }) {
+      response += try await receiveChunk()
+    }
+    return response
+  }
+
+  private func receiveChunk() async throws -> String {
+    guard let connection else {
+      throw SpaceMailIMAPSessionError.connectionFailed("IMAP connection was not open.")
+    }
+    return try await withCheckedThrowingContinuation { continuation in
+      connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, isComplete, error in
+        if error != nil {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP receive failed."))
+        } else if let data, !data.isEmpty {
+          continuation.resume(returning: String(decoding: data, as: UTF8.self))
+        } else if isComplete {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP connection closed."))
+        } else {
+          continuation.resume(returning: "")
+        }
+      }
+    }
+  }
+
+  private func close() {
+    connection?.cancel()
+    connection = nil
+  }
+
+  private func quote(_ value: String) -> String {
+    "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
+  }
+
+  private func parseUIDSearch(_ response: String) -> [String] {
+    response
+      .components(separatedBy: .newlines)
+      .first(where: { $0.localizedCaseInsensitiveContains("* SEARCH") })?
+      .components(separatedBy: .whitespaces)
+      .filter { !$0.isEmpty && Int($0) != nil } ?? []
+  }
+
+  private func parseFetchedMessages(_ response: String, folderName: String, sourceMailboxID: UUID, connectionID: UUID) -> [FetchedMailboxMessage] {
+    response
+      .components(separatedBy: "\r\n* ")
+      .compactMap { rawPart -> FetchedMailboxMessage? in
+        let part = rawPart.hasPrefix("* ") ? rawPart : "* \(rawPart)"
+        guard part.localizedCaseInsensitiveContains("FETCH") else { return nil }
+        guard let uid = firstMatch(in: part, pattern: #"UID\s+([0-9]+)"#) else { return nil }
+        let messageID = headerValue("Message-ID", in: part)
+        let providerID = providerMessageID(messageID: messageID, uid: uid, folderName: folderName, connectionID: connectionID)
+        return FetchedMailboxMessage(
+          providerMessageID: providerID,
+          sender: headerValue("From", in: part) ?? "Unknown sender",
+          subject: headerValue("Subject", in: part) ?? "No subject",
+          receivedDate: headerValue("Date", in: part) ?? "Unknown date",
+          plainTextBodyPreview: bodyPreview(from: part),
+          sourceMailboxID: sourceMailboxID
+        )
+      }
+  }
+
+  private func headerValue(_ name: String, in text: String) -> String? {
+    let unfolded = text.replacingOccurrences(of: "\r\n\t", with: " ").replacingOccurrences(of: "\r\n ", with: " ")
+    let escaped = NSRegularExpression.escapedPattern(for: name)
+    guard let match = firstMatch(in: unfolded, pattern: #"(?im)^\#(escaped):\s*(.+)$"#) else { return nil }
+    return sanitizeHeader(match)
+  }
+
+  private func bodyPreview(from text: String) -> String {
+    let split = text.components(separatedBy: "\r\n\r\n")
+    let body = split.count > 1 ? split.dropFirst().joined(separator: "\n") : text
+    let cleaned = body
+      .replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return String(cleaned.prefix(700))
+  }
+
+  private func providerMessageID(messageID: String?, uid: String, folderName: String, connectionID: UUID) -> String {
+    let stableID = messageID?
+      .trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+      .replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression)
+    if let stableID, !stableID.isEmpty {
+      return "spacemail-imap-\(connectionID.uuidString)-message-\(stableID)"
+    }
+    let safeFolder = folderName.replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression).lowercased()
+    return "spacemail-imap-\(connectionID.uuidString)-\(safeFolder)-uid-\(uid)"
+  }
+
+  private func firstMatch(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: range), match.numberOfRanges > 1 else { return nil }
+    guard let swiftRange = Range(match.range(at: 1), in: text) else { return nil }
+    return String(text[swiftRange])
+  }
+
+  private func sanitizeHeader(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
 

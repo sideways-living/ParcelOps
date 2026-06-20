@@ -8199,7 +8199,7 @@ final class ParcelOpsStore {
       afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: SpaceMail IMAP client boundary mock only\nNo real IMAP connection was made, no password was requested or stored, and no mailbox item will be deleted, moved, marked read, sent, or modified."
     )
 
-    let fetchResult = await spaceMailIMAPClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let fetchResult = await spaceMailIMAPClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id, password: nil)
     let result = importFetchedMailboxMessages(fetchResult.messages)
     let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
     updateSpaceMailIMAPConnection(connection) { draft in
@@ -8273,7 +8273,7 @@ final class ParcelOpsStore {
       )
     }
 
-    let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connectionForRefresh, sourceMailboxID: mailbox.id)
+    let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connectionForRefresh, sourceMailboxID: mailbox.id, password: credentialResult.password)
     let result = importFetchedMailboxMessages(fetchResult.messages)
     let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
     updateSpaceMailIMAPConnection(connection) { draft in
