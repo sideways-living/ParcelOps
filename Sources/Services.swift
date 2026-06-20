@@ -295,6 +295,12 @@ struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
         messages: [],
         detail: "Real SpaceMail IMAP connected and authenticated, but the configured folder '\(folderName)' could not be selected read-only. No mailbox messages were fetched or modified."
       )
+    } catch SpaceMailIMAPSessionError.timedOut(let phase) {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh timed out during \(phase). No password, auth string, server challenge, full message body, or mailbox mutation was logged or stored."
+      )
     } catch SpaceMailIMAPSessionError.parseFailed(let detail) {
       return SpaceMailIMAPFetchResult(
         status: .parseFailed,
@@ -315,10 +321,11 @@ private enum SpaceMailIMAPSessionError: Error {
   case connectionFailed(String)
   case authFailed
   case folderNotFound
+  case timedOut(String)
   case parseFailed(String)
 }
 
-private final class SpaceMailIMAPSession {
+private final class SpaceMailIMAPSession: @unchecked Sendable {
   private let host: String
   private let port: Int
   private let queue = DispatchQueue(label: "ParcelOps.SpaceMailIMAPSession")
@@ -342,22 +349,37 @@ private final class SpaceMailIMAPSession {
     connectionID: UUID,
     limit: Int
   ) async throws -> [FetchedMailboxMessage] {
-    try await connect()
-    _ = try await readUntilLinePrefix("*")
-    _ = try await sendCommand("LOGIN \(quote(username)) \(quote(password))", failure: .authFailed)
-    _ = try await sendCommand("EXAMINE \(quote(folderName))", failure: .folderNotFound)
-    let searchResponse = try await sendCommand("UID SEARCH ALL", failure: .parseFailed("UID SEARCH did not complete."))
+    defer { close() }
+    try await withTimeout("TLS connect") {
+      try await self.connect()
+    }
+    _ = try await withTimeout("greeting read") {
+      try await self.readUntilLinePrefix("*")
+    }
+    _ = try await withTimeout("login") {
+      try await self.sendCommand("LOGIN \(self.quote(username)) \(self.quote(password))", failure: .authFailed)
+    }
+    _ = try await withTimeout("folder EXAMINE") {
+      try await self.sendCommand("EXAMINE \(self.quote(folderName))", failure: .folderNotFound)
+    }
+    let searchResponse = try await withTimeout("UID SEARCH") {
+      try await self.sendCommand("UID SEARCH ALL", failure: .parseFailed("UID SEARCH did not complete."))
+    }
     let uids = parseUIDSearch(searchResponse).suffix(limit)
     guard !uids.isEmpty else {
-      _ = try? await sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
-      close()
+      _ = try? await withTimeout("logout", seconds: 8) {
+        try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+      }
       return []
     }
 
     let uidList = uids.joined(separator: ",")
-    let fetchResponse = try await sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
-    _ = try? await sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
-    close()
+    let fetchResponse = try await withTimeout("UID FETCH") {
+      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[]<0.4096>)", failure: .parseFailed("UID FETCH did not complete."))
+    }
+    _ = try? await withTimeout("logout", seconds: 8) {
+      try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+    }
     return parseFetchedMessages(fetchResponse, folderName: folderName, sourceMailboxID: sourceMailboxID, connectionID: connectionID)
   }
 
@@ -367,6 +389,7 @@ private final class SpaceMailIMAPSession {
       case .connectionFailed(let detail): return detail
       case .authFailed: return "Authentication failed."
       case .folderNotFound: return "Folder not found."
+      case .timedOut(let phase): return "Timed out during \(phase)."
       case .parseFailed(let detail): return detail
       }
     }
@@ -404,6 +427,27 @@ private final class SpaceMailIMAPSession {
         }
       }
       connection.start(queue: queue)
+    }
+  }
+
+  private func withTimeout<T>(
+    _ phase: String,
+    seconds: UInt64 = 20,
+    operation: @escaping @Sendable () async throws -> T
+  ) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+      group.addTask {
+        try await operation()
+      }
+      group.addTask {
+        try await Task.sleep(for: .seconds(seconds))
+        throw SpaceMailIMAPSessionError.timedOut(phase)
+      }
+      guard let result = try await group.next() else {
+        throw SpaceMailIMAPSessionError.timedOut(phase)
+      }
+      group.cancelAll()
+      return result
     }
   }
 
