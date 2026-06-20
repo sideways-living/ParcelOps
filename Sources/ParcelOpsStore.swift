@@ -118,7 +118,7 @@ final class ParcelOpsStore {
     mailboxIngestionService: MailboxIngestionService = MockMailboxIngestionService(),
     spaceMailIMAPClient: SpaceMailIMAPClient = MockSpaceMailIMAPClient(),
     realSpaceMailIMAPClient: SpaceMailIMAPClient = RealSpaceMailIMAPClient(),
-    spaceMailCredentialStore: SpaceMailCredentialStore = MockSpaceMailCredentialStore(),
+    spaceMailCredentialStore: SpaceMailCredentialStore = KeychainSpaceMailCredentialStore(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
@@ -8134,6 +8134,27 @@ final class ParcelOpsStore {
     Task { await refreshRealSpaceMailIMAPMessages(for: connection) }
   }
 
+  func saveSpaceMailCredential(_ password: String, for connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.savePassword(password, for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: result.status == .passwordReferenceAvailable ? "SpaceMail credential saved to Keychain." : "SpaceMail credential save failed or was skipped.")
+    }
+  }
+
+  func checkSpaceMailCredential(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.checkPassword(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: result.status == .passwordReferenceAvailable ? "SpaceMail credential check succeeded." : "SpaceMail credential check did not find a usable password reference.")
+    }
+  }
+
+  func clearSpaceMailCredential(_ connection: SpaceMailIMAPConnection) {
+    Task {
+      let result = await spaceMailCredentialStore.clearPassword(for: connection)
+      applySpaceMailCredentialStoreResult(result, to: connection, summary: result.status == .passwordCleared ? "SpaceMail credential cleared from Keychain." : "SpaceMail credential clear failed.")
+    }
+  }
+
   func simulateSpaceMailCredentialReady(_ connection: SpaceMailIMAPConnection) {
     Task {
       let result = await spaceMailCredentialStore.simulateReady(for: connection)
@@ -8212,7 +8233,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock SpaceMail IMAP refresh completed.",
-      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nNo real IMAP network call was made. No password was stored in JSON. Keychain is not implemented. No mailbox items were deleted, moved, marked read, sent, or modified."
+      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(fetchResult.detail)\nNo real IMAP network call was made. No password was stored in JSON. Keychain was not used by the mock refresh. No mailbox items were deleted, moved, marked read, sent, or modified."
     )
   }
 
@@ -8232,7 +8253,27 @@ final class ParcelOpsStore {
       afterDetail: "Mailbox: \(connection.emailAddressUsername)\nHost: \(connection.imapHost)\nPort: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMode: Manual real SpaceMail IMAP boundary\nLimit: at most 10 messages when credentials are available\nCredential storage: \(connection.credentialStorageStatus)\nNo password is stored in JSON or audit logs. This refresh must not delete, move, mark read, flag, send, or modify mailbox items."
     )
 
-    let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let credentialResult = await spaceMailCredentialStore.loadPassword(for: connection)
+    let connectionForRefresh: SpaceMailIMAPConnection
+    if credentialResult.status == .passwordReferenceAvailable {
+      var updatedConnection = connection
+      updatedConnection.credentialStorageStatus = SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue
+      connectionForRefresh = updatedConnection
+      applySpaceMailCredentialStoreResult(
+        SpaceMailCredentialStoreResult(status: credentialResult.status, detailText: credentialResult.detailText),
+        to: connection,
+        summary: "SpaceMail credential check succeeded for real refresh."
+      )
+    } else {
+      connectionForRefresh = connection
+      applySpaceMailCredentialStoreResult(
+        SpaceMailCredentialStoreResult(status: credentialResult.status, detailText: credentialResult.detailText),
+        to: connection,
+        summary: "SpaceMail credential missing for real refresh."
+      )
+    }
+
+    let fetchResult = await realSpaceMailIMAPClient.fetchMessages(for: connectionForRefresh, sourceMailboxID: mailbox.id)
     let result = importFetchedMailboxMessages(fetchResult.messages)
     let refreshStatus = spaceMailRefreshStatus(fetchResult: fetchResult, ingestResult: result)
     updateSpaceMailIMAPConnection(connection) { draft in
@@ -8619,6 +8660,8 @@ final class ParcelOpsStore {
         draft.connectionStatus = "Credential missing"
       } else if result.status == .storageErrorSimulated {
         draft.connectionStatus = "Credential storage error simulated"
+      } else if result.status == .passwordCleared {
+        draft.connectionStatus = "Credential cleared"
       } else if result.status == .passwordClearSimulated {
         draft.connectionStatus = "Credential clear simulated"
       } else {

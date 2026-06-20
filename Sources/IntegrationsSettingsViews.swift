@@ -26,7 +26,7 @@ struct IntegrationsView: View {
         }
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("Use this as the current mailbox path for SpaceMail. This section stores only non-secret IMAP setup fields and can run mock refreshes or a real manual refresh boundary that stops before login until Keychain-backed credentials exist.")
+          Text("Use this as the current mailbox path for SpaceMail. This section stores non-secret IMAP setup fields, manages the password/app-password in Keychain, and keeps mock refresh separate from the real manual refresh boundary.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
@@ -49,6 +49,12 @@ struct IntegrationsView: View {
               store.importMockSpaceMailIMAPMessages(for: connection)
             } onRealRefresh: {
               store.importRealSpaceMailIMAPMessages(for: connection)
+            } onSaveCredential: { password in
+              store.saveSpaceMailCredential(password, for: connection)
+            } onCheckCredential: {
+              store.checkSpaceMailCredential(connection)
+            } onClearCredential: {
+              store.clearSpaceMailCredential(connection)
             } onCredentialReady: {
               store.simulateSpaceMailCredentialReady(connection)
             } onCredentialMissing: {
@@ -625,6 +631,9 @@ struct SpaceMailIMAPConnectionRow: View {
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
   var onRealRefresh: () -> Void
+  var onSaveCredential: (String) -> Void
+  var onCheckCredential: () -> Void
+  var onClearCredential: () -> Void
   var onCredentialReady: () -> Void
   var onCredentialMissing: () -> Void
   var onCredentialError: () -> Void
@@ -632,6 +641,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onRemove: () -> Void
 
   @State private var isEditing = false
+  @State private var isCredentialSheetPresented = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -666,13 +676,25 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.secondary)
       }
 
-      Text("Manual real refresh now validates setup and credential readiness, but stops before login until Keychain-backed passwords are implemented. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
+      Text("Manual real refresh now validates setup and checks Keychain credential readiness, but full IMAP login and message fetch are still not implemented. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       VStack(alignment: .leading, spacing: 6) {
-        ActionGroupHeader(title: "Credential planning mock actions", symbol: "key.horizontal")
-        Text("These actions only change non-secret status labels. They do not create, read, write, delete, store, or log passwords or Keychain items.")
+        ActionGroupHeader(title: "Keychain credential", symbol: "key.horizontal")
+        Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        CompactActionRow {
+          Button("Set/update password", systemImage: "key.fill") { isCredentialSheetPresented = true }
+          Button("Check credential", systemImage: "checkmark.seal", action: onCheckCredential)
+          Button("Clear credential", systemImage: "xmark.circle", role: .destructive, action: onClearCredential)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        ActionGroupHeader(title: "Credential state test actions", symbol: "wrench.and.screwdriver")
+        Text("These mock actions only change non-secret status labels for testing error states. They do not create, read, write, delete, store, or log passwords or Keychain items.")
           .font(.caption)
           .foregroundStyle(.secondary)
         CompactActionRow {
@@ -696,6 +718,61 @@ struct SpaceMailIMAPConnectionRow: View {
     .sheet(isPresented: $isEditing) {
       SpaceMailIMAPConnectionEditor(connection: connection) { updatedConnection in
         onSave(updatedConnection)
+      }
+    }
+    .sheet(isPresented: $isCredentialSheetPresented) {
+      SpaceMailCredentialSheet(connection: connection) { password in
+        onSaveCredential(password)
+      }
+    }
+  }
+}
+
+struct SpaceMailCredentialSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  var connection: SpaceMailIMAPConnection
+  var onSave: (String) -> Void
+
+  @State private var password = ""
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddressUsername)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("The password/app-password is sent to Keychain only. It is not stored in ParcelOps JSON or Audit.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        SecureField("SpaceMail password or app password", text: $password)
+          .textFieldStyle(.roundedBorder)
+
+        Text("Use this only for the configured SpaceMail inbox. Clearing or checking credentials can be done from the setup row after saving.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        Spacer()
+      }
+      .padding()
+      .frame(minWidth: 420, idealWidth: 520, maxWidth: 620, minHeight: 220, idealHeight: 280, maxHeight: 360)
+      .navigationTitle("SpaceMail Credential")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save to Keychain") {
+            onSave(password)
+            password = ""
+            dismiss()
+          }
+          .disabled(password.isEmpty)
+        }
       }
     }
   }
@@ -736,7 +813,7 @@ struct SpaceMailIMAPConnectionEditor: View {
           Section("3. Setup notes") {
             TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
               .lineLimit(4...8)
-            Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets. Real IMAP and Keychain storage are not implemented in this pass.")
+            Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets here. Use the secure credential prompt on the setup row for SpaceMail passwords.")
               .font(.caption)
               .foregroundStyle(.secondary)
           }

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 protocol MailboxIngestionService {
   func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage]
@@ -13,6 +14,10 @@ protocol SpaceMailIMAPClient {
 }
 
 protocol SpaceMailCredentialStore {
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
   func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
   func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
   func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
@@ -148,7 +153,7 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
       return SpaceMailIMAPFetchResult(
         status: .credentialMissing,
         messages: [],
-        detail: "Mock SpaceMail IMAP client reports credentials are missing. No password was requested or stored, and Keychain is not implemented."
+        detail: "Mock SpaceMail IMAP client reports credentials are missing. No password was requested or stored, and no real Keychain item was read by the mock refresh."
       )
     }
 
@@ -207,7 +212,7 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
     return SpaceMailIMAPFetchResult(
       status: .success,
       messages: messages,
-      detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used, and no mailbox items were deleted, moved, marked read, sent, or modified."
+      detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used by the mock refresh, and no mailbox items were deleted, moved, marked read, sent, or modified."
     )
   }
 }
@@ -255,14 +260,45 @@ struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
     }
 
     return SpaceMailIMAPFetchResult(
-      status: .credentialMissing,
+      status: .credentialAvailable,
       messages: [],
-      detail: "Real SpaceMail IMAP refresh validated \(emailAddress), \(host):\(port), \(securityMode), and folder '\(folderName)', but stopped before login because real Keychain password loading is not implemented in this slice. When Keychain is added, this client should select the folder read-only and fetch at most 10 messages. No password was handled and no mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+      detail: "Real SpaceMail IMAP refresh validated \(emailAddress), \(host):\(port), \(securityMode), folder '\(folderName)', and a Keychain credential reference. Full IMAP login and message fetch are intentionally not implemented in this slice. No password was logged, and no mailbox item was deleted, moved, marked read, flagged, sent, or modified."
     )
   }
 }
 
 struct MockSpaceMailCredentialStore: SpaceMailCredentialStore {
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: password.isEmpty ? .passwordMissing : .passwordReferenceAvailable,
+      detailText: password.isEmpty
+        ? "Mock credential save received an empty password for \(connection.displayName). No secret value was stored."
+        : "Mock credential save recorded a non-secret password-reference status for \(connection.displayName). No password value was stored or logged."
+    )
+  }
+
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult {
+    SpaceMailCredentialLoadResult(
+      status: .passwordMissing,
+      password: nil,
+      detailText: "Mock credential load has no password for \(connection.displayName). No secret value was read."
+    )
+  }
+
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential check found no password reference for \(connection.displayName). No secret value was read."
+    )
+  }
+
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock credential clear recorded a clear status for \(connection.displayName). No secret value was deleted."
+    )
+  }
+
   func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
     SpaceMailCredentialStoreResult(
       status: .passwordReferenceAvailable,
@@ -289,6 +325,162 @@ struct MockSpaceMailCredentialStore: SpaceMailCredentialStore {
       status: .passwordClearSimulated,
       detailText: "Mock password reference clear simulated for \(connection.displayName). No Keychain item, IMAP password, app password, or auth string was deleted."
     )
+  }
+}
+
+struct KeychainSpaceMailCredentialStore: SpaceMailCredentialStore {
+  private let service = "app.bitrig.parcelops.spacemail.imap"
+
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPassword.isEmpty else {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordMissing,
+        detailText: "No SpaceMail password was saved because the secure password field was empty. No Keychain item was created or updated."
+      )
+    }
+
+    guard let passwordData = password.data(using: .utf8) else {
+      return SpaceMailCredentialStoreResult(
+        status: .storageErrorSimulated,
+        detailText: "SpaceMail password could not be prepared for Keychain storage. The password value was not logged or stored in JSON."
+      )
+    }
+
+    let query = baseQuery(for: connection)
+    SecItemDelete(query as CFDictionary)
+
+    var attributes = query
+    attributes[kSecValueData as String] = passwordData
+    #if os(iOS)
+    attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    #endif
+
+    let status = SecItemAdd(attributes as CFDictionary, nil)
+    guard status == errSecSuccess else {
+      return SpaceMailCredentialStoreResult(
+        status: .storageErrorSimulated,
+        detailText: "SpaceMail password reference could not be saved to Keychain. Keychain status: \(status). No password value was stored in JSON or logged."
+      )
+    }
+
+    return SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "SpaceMail password reference saved in Keychain for \(safeAccountLabel(for: connection)). ParcelOps stored only this non-secret status in JSON and audit logs."
+    )
+  }
+
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult {
+    var query = baseQuery(for: connection)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound {
+      return SpaceMailCredentialLoadResult(
+        status: .passwordMissing,
+        password: nil,
+        detailText: "No SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection))."
+      )
+    }
+    guard status == errSecSuccess, let data = item as? Data, let password = String(data: data, encoding: .utf8) else {
+      return SpaceMailCredentialLoadResult(
+        status: .storageErrorSimulated,
+        password: nil,
+        detailText: "SpaceMail password reference could not be loaded from Keychain. Keychain status: \(status). No password value was logged or stored in JSON."
+      )
+    }
+
+    return SpaceMailCredentialLoadResult(
+      status: .passwordReferenceAvailable,
+      password: password,
+      detailText: "SpaceMail password reference is available in Keychain for \(safeAccountLabel(for: connection)). The password value was loaded only into memory for this manual operation and was not logged or stored in JSON."
+    )
+  }
+
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    var query = baseQuery(for: connection)
+    query[kSecReturnData as String] = false
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+    let status = SecItemCopyMatching(query as CFDictionary, nil)
+    if status == errSecSuccess {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordReferenceAvailable,
+        detailText: "SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection)). No password value was read, logged, or stored in JSON."
+      )
+    }
+    if status == errSecItemNotFound {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordMissing,
+        detailText: "No SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection))."
+      )
+    }
+    return SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "SpaceMail Keychain credential check failed. Keychain status: \(status). No password value was read, logged, or stored in JSON."
+    )
+  }
+
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    let status = SecItemDelete(baseQuery(for: connection) as CFDictionary)
+    if status == errSecSuccess || status == errSecItemNotFound {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordCleared,
+        detailText: "SpaceMail password reference cleared from Keychain for \(safeAccountLabel(for: connection)). No password value was logged or stored in JSON."
+      )
+    }
+    return SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "SpaceMail password reference could not be cleared from Keychain. Keychain status: \(status). No password value was logged or stored in JSON."
+    )
+  }
+
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "Mock password reference available for \(connection.displayName). No password, app password, auth string, server credential, or Keychain item was created, read, written, deleted, stored in JSON, or logged."
+    )
+  }
+
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential lookup reports no password reference for \(connection.displayName). No password prompt opened, no Keychain API was called, and no secret value was handled."
+    )
+  }
+
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock credential storage error for \(connection.displayName). This is a local error-state simulation only; no Keychain item or password value was touched."
+    )
+  }
+
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock password reference clear simulated for \(connection.displayName). No Keychain item, IMAP password, app password, or auth string was deleted."
+    )
+  }
+
+  private func baseQuery(for connection: SpaceMailIMAPConnection) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: accountKey(for: connection)
+    ]
+  }
+
+  private func accountKey(for connection: SpaceMailIMAPConnection) -> String {
+    "\(connection.id.uuidString)|\(connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+  }
+
+  private func safeAccountLabel(for connection: SpaceMailIMAPConnection) -> String {
+    connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? connection.displayName
+      : connection.emailAddressUsername
   }
 }
 

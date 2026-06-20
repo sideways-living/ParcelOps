@@ -283,6 +283,7 @@ enum SpaceMailIMAPFetchStatus: String, CaseIterable, Identifiable, Hashable {
   case noMessages = "No messages"
   case duplicateSkipped = "Duplicate skipped"
   case notConfigured = "Not configured"
+  case credentialAvailable = "Credential available"
   case credentialMissing = "Credential missing"
   case connectionFailed = "Connection failed"
   case authFailed = "Auth failed"
@@ -300,10 +301,17 @@ struct SpaceMailCredentialStoreResult: Hashable {
   var detailText: String
 }
 
+struct SpaceMailCredentialLoadResult {
+  var status: SpaceMailCredentialStoreStatus
+  var password: String?
+  var detailText: String
+}
+
 enum SpaceMailCredentialStoreStatus: String, CaseIterable, Identifiable, Hashable {
   case keychainNotConfigured = "Keychain not configured"
   case passwordReferenceAvailable = "Password reference available"
   case passwordMissing = "Password missing"
+  case passwordCleared = "Password cleared"
   case passwordClearSimulated = "Password clear simulated"
   case storageErrorSimulated = "Storage error simulated"
 
