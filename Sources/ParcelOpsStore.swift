@@ -4164,6 +4164,28 @@ final class ParcelOpsStore {
     return fetchResult.messages.isEmpty ? .noMessages : .success
   }
 
+  private func spaceMailRefreshSummaryText(
+    status: SpaceMailIMAPFetchStatus,
+    connection: SpaceMailIMAPConnection,
+    fetched: Int,
+    imported: Int,
+    duplicates: Int,
+    filtered: Int,
+    uncertain: Int
+  ) -> String {
+    var parts = [
+      "Real refresh \(status.rawValue.lowercased()): \(fetched) fetched, \(imported) imported, \(duplicates) duplicates"
+    ]
+    if connection.mailboxMode == .mixedFiltered {
+      parts.append("\(filtered) filtered non-order")
+      parts.append("\(uncertain) uncertain")
+      parts.append("Filtered messages were counted only and were not imported into Inbox.")
+    } else {
+      parts.append("Dedicated mailbox mode passed fetched messages to intake duplicate/import handling.")
+    }
+    return parts.joined(separator: ". ")
+  }
+
   private func mapGraphMessages(_ messages: [MicrosoftGraphFetchedMessage], sourceMailboxID: UUID) -> [FetchedMailboxMessage] {
     messages.map { message in
       FetchedMailboxMessage(
@@ -8606,6 +8628,12 @@ final class ParcelOpsStore {
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.connectionStatus = "Mock IMAP: \(refreshStatus.rawValue)"
       draft.lastManualRefreshDate = Self.auditTimestamp()
+      draft.lastRefreshFetchedCount = fetchResult.messages.count
+      draft.lastRefreshImportedCount = result.imported
+      draft.lastRefreshDuplicateCount = result.duplicates
+      draft.lastRefreshFilteredNonOrderCount = 0
+      draft.lastRefreshUncertainCount = 0
+      draft.lastRefreshSummary = "Mock refresh \(refreshStatus.rawValue.lowercased()): \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. Mock refresh does not apply mixed-mailbox filtering."
     }
 
     if fetchResult.status == .noMessages {
@@ -8681,6 +8709,20 @@ final class ParcelOpsStore {
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.connectionStatus = "Real IMAP: \(refreshStatus.rawValue)"
       draft.lastManualRefreshDate = Self.auditTimestamp()
+      draft.lastRefreshFetchedCount = fetchResult.messages.count
+      draft.lastRefreshImportedCount = result.imported
+      draft.lastRefreshDuplicateCount = result.duplicates
+      draft.lastRefreshFilteredNonOrderCount = filterResult.filteredNonOrderCount
+      draft.lastRefreshUncertainCount = filterResult.uncertainCount
+      draft.lastRefreshSummary = spaceMailRefreshSummaryText(
+        status: refreshStatus,
+        connection: connectionForRefresh,
+        fetched: fetchResult.messages.count,
+        imported: result.imported,
+        duplicates: result.duplicates,
+        filtered: filterResult.filteredNonOrderCount,
+        uncertain: filterResult.uncertainCount
+      )
     }
 
     if fetchResult.status == .noMessages {

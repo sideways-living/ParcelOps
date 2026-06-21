@@ -1355,6 +1355,12 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var setupNotes: String
   var credentialStorageStatus: String
   var mailboxMode: SpaceMailMailboxMode
+  var lastRefreshFetchedCount: Int
+  var lastRefreshImportedCount: Int
+  var lastRefreshDuplicateCount: Int
+  var lastRefreshFilteredNonOrderCount: Int
+  var lastRefreshUncertainCount: Int
+  var lastRefreshSummary: String
   var reviewState: ReviewState
 
   init(
@@ -1370,6 +1376,12 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     setupNotes: String,
     credentialStorageStatus: String,
     mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
+    lastRefreshFetchedCount: Int = 0,
+    lastRefreshImportedCount: Int = 0,
+    lastRefreshDuplicateCount: Int = 0,
+    lastRefreshFilteredNonOrderCount: Int = 0,
+    lastRefreshUncertainCount: Int = 0,
+    lastRefreshSummary: String = "No refresh has run yet.",
     reviewState: ReviewState
   ) {
     self.id = id
@@ -1384,6 +1396,12 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     self.setupNotes = setupNotes
     self.credentialStorageStatus = credentialStorageStatus
     self.mailboxMode = mailboxMode
+    self.lastRefreshFetchedCount = lastRefreshFetchedCount
+    self.lastRefreshImportedCount = lastRefreshImportedCount
+    self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
+    self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
+    self.lastRefreshUncertainCount = lastRefreshUncertainCount
+    self.lastRefreshSummary = lastRefreshSummary
     self.reviewState = reviewState
   }
 
@@ -1400,6 +1418,12 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     case setupNotes
     case credentialStorageStatus
     case mailboxMode
+    case lastRefreshFetchedCount
+    case lastRefreshImportedCount
+    case lastRefreshDuplicateCount
+    case lastRefreshFilteredNonOrderCount
+    case lastRefreshUncertainCount
+    case lastRefreshSummary
     case reviewState
   }
 
@@ -1417,6 +1441,12 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     setupNotes = try container.decode(String.self, forKey: .setupNotes)
     credentialStorageStatus = try container.decode(String.self, forKey: .credentialStorageStatus)
     mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
+    lastRefreshFetchedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFetchedCount) ?? 0
+    lastRefreshImportedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshImportedCount) ?? 0
+    lastRefreshDuplicateCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshDuplicateCount) ?? 0
+    lastRefreshFilteredNonOrderCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFilteredNonOrderCount) ?? 0
+    lastRefreshUncertainCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshUncertainCount) ?? 0
+    lastRefreshSummary = try container.decodeIfPresent(String.self, forKey: .lastRefreshSummary) ?? "No refresh has run yet."
     reviewState = try container.decode(ReviewState.self, forKey: .reviewState)
   }
 }

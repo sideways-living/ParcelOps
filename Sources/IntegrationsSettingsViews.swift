@@ -683,6 +683,8 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      spaceMailRefreshSummary
+
       VStack(alignment: .leading, spacing: 6) {
         ActionGroupHeader(title: "Keychain credential", symbol: "key.horizontal")
         Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
@@ -728,6 +730,42 @@ struct SpaceMailIMAPConnectionRow: View {
         onSaveCredential(password)
       }
     }
+  }
+
+  private var spaceMailRefreshSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Latest SpaceMail refresh", systemImage: "tray.and.arrow.down.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(spaceMailRefreshColor)
+      CompactMetadataGrid(minimumWidth: 120) {
+        Badge("\(connection.lastRefreshFetchedCount) fetched", color: .blue)
+        Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        Badge("\(connection.lastRefreshDuplicateCount) duplicates", color: connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+        Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+        Badge("\(connection.lastRefreshUncertainCount) uncertain", color: connection.lastRefreshUncertainCount > 0 ? .orange : .secondary)
+      }
+      Text(connection.lastRefreshSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if connection.mailboxMode == .mixedFiltered {
+        Text("Mixed mailbox mode keeps filtered non-order messages out of Inbox. Open Audit only when you need the detailed reason labels.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.teal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(spaceMailRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailRefreshColor: Color {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("success") { return .green }
+    if status.localizedCaseInsensitiveContains("duplicate") { return .teal }
+    if status.localizedCaseInsensitiveContains("failed") || status.localizedCaseInsensitiveContains("missing") { return .orange }
+    return .secondary
   }
 }
 
