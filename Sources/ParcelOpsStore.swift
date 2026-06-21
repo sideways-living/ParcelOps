@@ -4031,6 +4031,7 @@ final class ParcelOpsStore {
     }
 
     var importMessages: [FetchedMailboxMessage] = []
+    var importedSubjects: [String] = []
     var filteredSubjects: [String] = []
     var uncertainSubjects: [String] = []
 
@@ -4039,10 +4040,11 @@ final class ParcelOpsStore {
       switch relevance.decision {
       case .likelyOrder:
         importMessages.append(message)
+        importedSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       case .uncertain:
-        uncertainSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.score))")
+        uncertainSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       case .nonOrder:
-        filteredSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.score))")
+        filteredSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       }
     }
 
@@ -4051,6 +4053,9 @@ final class ParcelOpsStore {
       "Filtered non-order messages are counted locally and not imported into ForwardedEmailIntake.",
       "Uncertain messages are counted for review in Audit, but are not added to primary Inbox triage in this first mixed-mailbox pass."
     ]
+    if !importedSubjects.isEmpty {
+      detailLines.append("Imported examples: \(importedSubjects.prefix(3).joined(separator: "; ")).")
+    }
     if !filteredSubjects.isEmpty {
       detailLines.append("Filtered examples: \(filteredSubjects.prefix(3).joined(separator: "; ")).")
     }
@@ -4066,53 +4071,81 @@ final class ParcelOpsStore {
     )
   }
 
-  private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: MailboxRelevanceDecision, score: Int) {
+  private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
     let text = "\(message.sender)\n\(message.subject)\n\(message.plainTextBodyPreview)"
     let lowercasedText = text.lowercased()
     let orderNumber = detectedOrderNumber(in: text)
     let trackingNumber = detectedTrackingNumber(in: text, excluding: orderNumber)
-    var score = 0
+    let hasOrderNumber = !orderNumber.isPlaceholderValidationValue
+    let hasTrackingNumber = !trackingNumber.isPlaceholderValidationValue
 
-    let orderSignals = [
-      "order", "order number", "order no", "order id", "purchase order", "po ",
-      "receipt", "invoice", "confirmation", "refund", "return", "replacement", "claim"
+    let strongOrderSignals = [
+      "order ", "order:", "order #", "order number", "order no", "order id",
+      "purchase order", "po ", "refund", "return", "replacement", "claim"
     ]
-    let shipmentSignals = [
+    let strongShipmentSignals = [
       "tracking", "tracking number", "shipment", "shipped", "shipping", "dispatch",
       "dispatched", "delivery", "delivered", "parcel", "package", "courier", "carrier",
       "consignment", "waybill", "awb", "in transit", "out for delivery"
     ]
-    let merchantSignals = [
-      "shop", "store", "merchant", "supplier", "warehouse", "fulfilment", "fulfillment"
-    ]
-    let nonOrderSignals = [
-      "newsletter", "unsubscribe", "promotion", "marketing", "sale ends", "final days",
+    let hardNonOrderSignals = [
+      "newsletter", "promotion", "marketing", "sale ends", "final days",
       "password reset", "security alert", "verification code", "calendar", "invitation",
-      "webinar", "social", "follow us", "privacy policy", "terms of service",
-      "view this email", "sent securely from spacemail"
+      "webinar", "social", "follow us"
     ]
+    let footerSignals = ["unsubscribe", "privacy policy", "terms of service", "view this email", "sent securely from spacemail"]
 
-    for signal in orderSignals where lowercasedText.contains(signal) { score += 9 }
-    for signal in shipmentSignals where lowercasedText.contains(signal) { score += 11 }
-    for signal in merchantSignals where lowercasedText.contains(signal) { score += 4 }
-    for signal in nonOrderSignals where lowercasedText.contains(signal) { score -= 18 }
+    let hasStrongOrderSignal = strongOrderSignals.contains { lowercasedText.contains($0) }
+    let hasStrongShipmentSignal = strongShipmentSignals.contains { lowercasedText.contains($0) }
+    let hasHardNonOrderSignal = hardNonOrderSignals.contains { lowercasedText.contains($0) }
+    let hasFooterSignal = footerSignals.contains { lowercasedText.contains($0) }
+    let hasClearShipmentPhrase = firstMatch(
+      in: text,
+      pattern: #"(?i)\border\s+[A-Z0-9][A-Z0-9._/-]{2,30}\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\s+(?:with\s+)?tracking\s+[A-Z0-9][A-Z0-9 -]{4,34}"#
+    ) != nil
 
-    if !orderNumber.isPlaceholderValidationValue { score += 32 }
-    if !trackingNumber.isPlaceholderValidationValue { score += 28 }
-    if lowercasedText.contains("order ") && lowercasedText.contains("tracking") { score += 18 }
-    if lowercasedText.contains("shipped") && lowercasedText.contains("tracking") { score += 14 }
-    if lowercasedText.contains("refund") || lowercasedText.contains("return") { score += 10 }
+    var score = 0
+    if hasOrderNumber { score += 35 }
+    if hasTrackingNumber { score += 35 }
+    if hasStrongOrderSignal { score += 18 }
+    if hasStrongShipmentSignal { score += 18 }
+    if hasClearShipmentPhrase { score += 30 }
+    if hasHardNonOrderSignal { score -= 45 }
+    if hasFooterSignal { score -= 8 }
 
-    if (!orderNumber.isPlaceholderValidationValue || !trackingNumber.isPlaceholderValidationValue) && score >= 42 {
-      return (.likelyOrder, score)
+    if hasClearShipmentPhrase {
+      return (.likelyOrder, score, "clear order-shipped-tracking phrase")
     }
-    if score >= 58 {
-      return (.likelyOrder, score)
+
+    if hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber) {
+      return (.nonOrder, score, "non-order signal without order/tracking id")
     }
-    if score >= 22 {
-      return (.uncertain, score)
+
+    if hasHardNonOrderSignal && !(hasStrongOrderSignal && (hasOrderNumber || hasTrackingNumber)) {
+      return (.nonOrder, score, "marketing/security/social signal")
     }
-    return (.nonOrder, score)
+
+    if hasStrongOrderSignal && hasStrongShipmentSignal && (hasOrderNumber || hasTrackingNumber) {
+      return (.likelyOrder, score, "order/shipping signal with detected id")
+    }
+
+    if hasStrongShipmentSignal && hasTrackingNumber {
+      return (.likelyOrder, score, "tracking/shipping signal with tracking id")
+    }
+
+    if hasStrongOrderSignal && hasOrderNumber {
+      return (.likelyOrder, score, "order/refund signal with order id")
+    }
+
+    if (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal) {
+      return (.uncertain, score, "weak order signal with detected id")
+    }
+
+    if hasStrongOrderSignal || hasStrongShipmentSignal {
+      return (.uncertain, score, "order/shipping words without detected id")
+    }
+
+    return (.nonOrder, score, "no strong order evidence")
   }
 
   private func spaceMailRefreshStatus(
