@@ -42,7 +42,7 @@ struct MailboxView: View {
             MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder in Mailbox Monitor or Settings, then run Mock SpaceMail refresh to test intake without a real mailbox connection.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
-            SpaceMailIMAPConnectionRow(connection: connection) { updatedConnection in
+            SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
               store.markSpaceMailIMAPConnectionReviewed(connection)
@@ -50,6 +50,34 @@ struct MailboxView: View {
               store.importMockSpaceMailIMAPMessages(for: connection)
             } onRealRefresh: {
               store.importRealSpaceMailIMAPMessages(for: connection)
+            } onImportUncertain: { uncertainMessage in
+              store.importUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onDismissUncertain: { uncertainMessage in
+              store.dismissUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onImportFiltered: { filteredMessage in
+              store.importFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onDismissFiltered: { filteredMessage in
+              store.dismissFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onTaskFromUncertain: { uncertainMessage in
+              store.createReviewTask(from: uncertainMessage, connection: connection)
+            } onDraftFromUncertain: { uncertainMessage in
+              store.createDraftMessage(from: uncertainMessage, connection: connection)
+            } onTaskFromFiltered: { filteredMessage in
+              store.createReviewTask(from: filteredMessage, connection: connection)
+            } onDraftFromFiltered: { filteredMessage in
+              store.createDraftMessage(from: filteredMessage, connection: connection)
+            } onAddUncertainHint: { uncertainMessage, target in
+              store.addSpaceMailHintFromUncertain(uncertainMessage, target: target, for: connection)
+            } onAddFilteredHint: { filteredMessage, target in
+              store.addSpaceMailHintFromFiltered(filteredMessage, target: target, for: connection)
+            } onTestClassifier: {
+              store.testSpaceMailAmbiguousClassifier(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testSpaceMailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runSpaceMailClassifierTestSuite(for: connection)
+            } onApplyFilterPreset: { preset in
+              store.applySpaceMailFilterPreset(preset, to: connection)
             } onSaveCredential: { password in
               store.saveSpaceMailCredential(password, for: connection)
             } onCheckCredential: {
@@ -133,6 +161,32 @@ struct MailboxView: View {
           }
         }
 
+        if !store.intakeParserDiagnostics.isEmpty {
+          SettingsPanel(title: "Parser review queue", symbol: "text.magnifyingglass") {
+            Text("Local diagnostics for already-captured intake emails. These checks do not fetch mail or change duplicate metadata.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+            CompactActionRow {
+              Button("Reprocess all needing review", systemImage: "arrow.triangle.2.circlepath") {
+                store.reprocessReviewIntakeEmails()
+              }
+              .buttonStyle(.bordered)
+              Badge("\(store.intakeParserDiagnostics.count) diagnostics", color: .orange)
+            }
+            ForEach(store.intakeParserDiagnostics.prefix(8)) { diagnostic in
+              IntakeParserDiagnosticRow(diagnostic: diagnostic) {
+                if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+                  store.reprocessIntakeEmail(email)
+                }
+              } onCreateTask: {
+                if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+                  store.createReviewTask(from: email)
+                }
+              }
+            }
+          }
+        }
+
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
@@ -194,6 +248,115 @@ struct MailboxView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+struct IntakeParserDiagnosticRow: View {
+  var diagnostic: IntakeParserDiagnostic
+  var onReprocess: () -> Void
+  var onCreateTask: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        Label(diagnostic.title, systemImage: "text.magnifyingglass")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Badge(diagnostic.severity.rawValue, color: severityColor)
+      }
+      Text(diagnostic.summary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge(diagnostic.detectedMerchant, color: diagnostic.detectedMerchant.isPlaceholderValidationValue ? .secondary : .green)
+        Badge(diagnostic.detectedOrderNumber, color: diagnostic.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .blue)
+        Badge(diagnostic.detectedTrackingNumber, color: diagnostic.detectedTrackingNumber.isPlaceholderValidationValue ? .orange : .purple)
+        Badge(diagnostic.detectedDestination, color: diagnostic.detectedDestination.isPlaceholderValidationValue ? .secondary : .teal)
+      }
+      Text("Subject: \(diagnostic.subjectPreview)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      Text("Sender: \(diagnostic.senderPreview)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      Text(diagnostic.recommendedAction)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(severityColor)
+      CompactActionRow {
+        Button("Reprocess", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(severityColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var severityColor: Color {
+    switch diagnostic.severity {
+    case .critical:
+      return .red
+    case .high:
+      return .orange
+    case .warning:
+      return .yellow
+    case .info:
+      return .secondary
+    }
+  }
+}
+
+struct SpaceMailNeedsReviewPreviewRow: View {
+  var title: String
+  var sender: String
+  var receivedDate: String
+  var bodyPreview: String
+  var reason: String
+  var badge: String
+  var color: Color
+  var onImport: () -> Void
+  var onDismiss: () -> Void
+  var onCreateTask: () -> Void
+  var onCreateDraft: () -> Void
+  var onTrustSender: () -> Void
+  var onImportHint: () -> Void
+  var onFilterHint: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 3) {
+          Label(title.isEmpty ? "No subject" : title, systemImage: "questionmark.folder.fill")
+            .font(.subheadline.weight(.semibold))
+          Text("\(sender.isEmpty ? "Unknown sender" : sender) • \(receivedDate)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(badge, color: color)
+      }
+      Text(bodyPreview)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Reason: \(reason)")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(color)
+      CompactActionRow {
+        Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
+        Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Trust sender", systemImage: "person.badge.shield.checkmark", action: onTrustSender)
+        Button("Import hint", systemImage: "plus.circle", action: onImportHint)
+        Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle", action: onFilterHint)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -709,6 +872,85 @@ struct NeedsReviewView: View {
                 summary: "Follow up mailbox event from \(event.sender): \(event.summary)",
                 priority: event.severity == .critical ? .urgent : .high
               )
+            }
+          }
+        }
+
+        if !store.intakeParserDiagnostics.isEmpty {
+          SettingsPanel(title: "Intake parser checks", symbol: "text.magnifyingglass") {
+            Text("These forwarded emails reached intake, but the local parser still needs a person to confirm order, tracking, merchant, or destination details.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(Array(store.intakeParserDiagnostics.prefix(8))) { diagnostic in
+              IntakeParserDiagnosticRow(diagnostic: diagnostic) {
+                if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+                  store.reprocessIntakeEmail(email)
+                }
+              } onCreateTask: {
+                if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+                  store.createReviewTask(from: email)
+                }
+              }
+            }
+          }
+        }
+
+        if store.spaceMailIMAPConnections.contains(where: { !$0.uncertainMessages.isEmpty || !$0.filteredMessages.isEmpty }) {
+          SettingsPanel(title: "SpaceMail mixed-mailbox review", symbol: "questionmark.folder.fill") {
+            Text("These previews were held out of the primary Inbox by the mixed-mailbox filter. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(store.spaceMailIMAPConnections) { connection in
+              ForEach(connection.uncertainMessages.prefix(5)) { message in
+                SpaceMailNeedsReviewPreviewRow(
+                  title: message.subject,
+                  sender: message.sender,
+                  receivedDate: message.receivedDate,
+                  bodyPreview: message.bodyPreview,
+                  reason: message.reason,
+                  badge: "Uncertain",
+                  color: .orange
+                ) {
+                  store.importUncertainSpaceMailMessage(message, for: connection)
+                } onDismiss: {
+                  store.dismissUncertainSpaceMailMessage(message, for: connection)
+                } onCreateTask: {
+                  store.createReviewTask(from: message, connection: connection)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: message, connection: connection)
+                } onTrustSender: {
+                  store.addSpaceMailHintFromUncertain(message, target: .trustedSender, for: connection)
+                } onImportHint: {
+                  store.addSpaceMailHintFromUncertain(message, target: .importKeyword, for: connection)
+                } onFilterHint: {
+                  store.addSpaceMailHintFromUncertain(message, target: .filterKeyword, for: connection)
+                }
+              }
+              ForEach(connection.filteredMessages.prefix(3)) { message in
+                SpaceMailNeedsReviewPreviewRow(
+                  title: message.subject,
+                  sender: message.sender,
+                  receivedDate: message.receivedDate,
+                  bodyPreview: message.bodyPreview,
+                  reason: message.reason,
+                  badge: "Filtered",
+                  color: .teal
+                ) {
+                  store.importFilteredSpaceMailMessage(message, for: connection)
+                } onDismiss: {
+                  store.dismissFilteredSpaceMailMessage(message, for: connection)
+                } onCreateTask: {
+                  store.createReviewTask(from: message, connection: connection)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: message, connection: connection)
+                } onTrustSender: {
+                  store.addSpaceMailHintFromFiltered(message, target: .trustedSender, for: connection)
+                } onImportHint: {
+                  store.addSpaceMailHintFromFiltered(message, target: .importKeyword, for: connection)
+                } onFilterHint: {
+                  store.addSpaceMailHintFromFiltered(message, target: .filterKeyword, for: connection)
+                }
+              }
             }
           }
         }

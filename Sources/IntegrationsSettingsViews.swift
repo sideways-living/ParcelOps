@@ -41,7 +41,7 @@ struct IntegrationsView: View {
             MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder to capture host, port, folder, and credential-readiness notes before real IMAP is connected.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
-            SpaceMailIMAPConnectionRow(connection: connection) { updatedConnection in
+            SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
               store.markSpaceMailIMAPConnectionReviewed(connection)
@@ -49,6 +49,34 @@ struct IntegrationsView: View {
               store.importMockSpaceMailIMAPMessages(for: connection)
             } onRealRefresh: {
               store.importRealSpaceMailIMAPMessages(for: connection)
+            } onImportUncertain: { uncertainMessage in
+              store.importUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onDismissUncertain: { uncertainMessage in
+              store.dismissUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onImportFiltered: { filteredMessage in
+              store.importFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onDismissFiltered: { filteredMessage in
+              store.dismissFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onTaskFromUncertain: { uncertainMessage in
+              store.createReviewTask(from: uncertainMessage, connection: connection)
+            } onDraftFromUncertain: { uncertainMessage in
+              store.createDraftMessage(from: uncertainMessage, connection: connection)
+            } onTaskFromFiltered: { filteredMessage in
+              store.createReviewTask(from: filteredMessage, connection: connection)
+            } onDraftFromFiltered: { filteredMessage in
+              store.createDraftMessage(from: filteredMessage, connection: connection)
+            } onAddUncertainHint: { uncertainMessage, target in
+              store.addSpaceMailHintFromUncertain(uncertainMessage, target: target, for: connection)
+            } onAddFilteredHint: { filteredMessage, target in
+              store.addSpaceMailHintFromFiltered(filteredMessage, target: target, for: connection)
+            } onTestClassifier: {
+              store.testSpaceMailAmbiguousClassifier(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testSpaceMailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runSpaceMailClassifierTestSuite(for: connection)
+            } onApplyFilterPreset: { preset in
+              store.applySpaceMailFilterPreset(preset, to: connection)
             } onSaveCredential: { password in
               store.saveSpaceMailCredential(password, for: connection)
             } onCheckCredential: {
@@ -627,10 +655,25 @@ struct ActionGroupHeader: View {
 
 struct SpaceMailIMAPConnectionRow: View {
   var connection: SpaceMailIMAPConnection
+  var healthSummary: SpaceMailIntakeHealthSummary
   var onSave: (SpaceMailIMAPConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
   var onRealRefresh: () -> Void
+  var onImportUncertain: (SpaceMailUncertainMessage) -> Void
+  var onDismissUncertain: (SpaceMailUncertainMessage) -> Void
+  var onImportFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDismissFiltered: (SpaceMailFilteredMessage) -> Void
+  var onTaskFromUncertain: (SpaceMailUncertainMessage) -> Void
+  var onDraftFromUncertain: (SpaceMailUncertainMessage) -> Void
+  var onTaskFromFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDraftFromFiltered: (SpaceMailFilteredMessage) -> Void
+  var onAddUncertainHint: (SpaceMailUncertainMessage, SpaceMailHintTarget) -> Void
+  var onAddFilteredHint: (SpaceMailFilteredMessage, SpaceMailHintTarget) -> Void
+  var onTestClassifier: () -> Void
+  var onTestCustomClassifier: (String, String, String) -> Void
+  var onRunClassifierSuite: () -> Void
+  var onApplyFilterPreset: (SpaceMailFilterPreset) -> Void
   var onSaveCredential: (String) -> Void
   var onCheckCredential: () -> Void
   var onClearCredential: () -> Void
@@ -642,6 +685,9 @@ struct SpaceMailIMAPConnectionRow: View {
 
   @State private var isEditing = false
   @State private var isCredentialSheetPresented = false
+  @State private var classifierSender = "customer@example.com"
+  @State private var classifierSubject = "Delivery question"
+  @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -683,7 +729,29 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      SpaceMailIntakeHealthCard(summary: healthSummary)
+
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailFilterTuningSummary
+      }
+
       spaceMailRefreshSummary
+
+      if !connection.refreshHistory.isEmpty {
+        spaceMailRefreshHistory
+      }
+
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailClassifierTest
+      }
+
+      if !connection.uncertainMessages.isEmpty {
+        uncertainMessagesReview
+      }
+
+      if !connection.filteredMessages.isEmpty {
+        filteredMessagesReview
+      }
 
       VStack(alignment: .leading, spacing: 6) {
         ActionGroupHeader(title: "Keychain credential", symbol: "key.horizontal")
@@ -754,10 +822,277 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.teal)
           .fixedSize(horizontal: false, vertical: true)
       }
+      if !connection.lastRefreshFilteredExamples.isEmpty {
+        Text("Filtered examples: \(connection.lastRefreshFilteredExamples.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if !connection.lastRefreshUncertainExamples.isEmpty {
+        Text("Uncertain examples: \(connection.lastRefreshUncertainExamples.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if !connection.lastRefreshReasonBreakdown.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Classifier reasons")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(Array(connection.lastRefreshReasonBreakdown.prefix(6))) { item in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Badge(item.decision, color: classifierReasonColor(item.decision))
+              Text("\(item.count)x \(item.reason)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(spaceMailRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
+  }
+
+  private func parserStatusColor(_ status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if status.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
+  private var spaceMailFilterTuningSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Mixed mailbox filter tuning", systemImage: "line.3.horizontal.decrease.circle")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.purple)
+      Text("These local hints tune the built-in classifier before messages reach Inbox. They do not call external AI and do not change mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(connection.trustedSenderHints.count) trusted senders", color: connection.trustedSenderHints.isEmpty ? .secondary : .purple)
+        Badge("\(connection.importKeywordHints.count) import hints", color: connection.importKeywordHints.isEmpty ? .secondary : .green)
+        Badge("\(connection.uncertainKeywordHints.count) uncertain hints", color: connection.uncertainKeywordHints.isEmpty ? .secondary : .orange)
+        Badge("\(connection.filterKeywordHints.count) filter hints", color: connection.filterKeywordHints.isEmpty ? .secondary : .teal)
+      }
+      if !connection.trustedSenderHints.isEmpty {
+        Text("Trusted senders: \(connection.trustedSenderHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.importKeywordHints.isEmpty {
+        Text("Import hints: \(connection.importKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.uncertainKeywordHints.isEmpty {
+        Text("Uncertain hints: \(connection.uncertainKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.filterKeywordHints.isEmpty {
+        Text("Filter hints: \(connection.filterKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      CompactActionRow {
+        ForEach(SpaceMailFilterPreset.allCases) { preset in
+          Button(presetButtonTitle(preset), systemImage: presetSymbol(preset)) {
+            onApplyFilterPreset(preset)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func presetButtonTitle(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "Conservative"
+    case .balanced: "Balanced"
+    case .forwardedOrders: "Forwarded orders"
+    }
+  }
+
+  private func presetSymbol(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "line.3.horizontal.decrease.circle"
+    case .balanced: "slider.horizontal.3"
+    case .forwardedOrders: "envelope.badge.fill"
+    }
+  }
+
+  private var spaceMailRefreshHistory: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Recent SpaceMail activity", systemImage: "clock.arrow.circlepath")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        Spacer()
+        Badge("\(connection.refreshHistory.count) saved", color: .blue)
+      }
+      Text("Local history keeps the latest refresh and review outcomes here, so Audit can stay for deeper investigation.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(Array(connection.refreshHistory.prefix(6))) { entry in
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(entry.eventType)
+                .font(.caption.weight(.semibold))
+              Text(entry.timestamp)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge(entry.status, color: historyColor(for: entry.status))
+          }
+          CompactMetadataGrid(minimumWidth: 96) {
+            Badge("\(entry.fetchedCount) fetched", color: .blue)
+            Badge("\(entry.importedCount) imported", color: entry.importedCount > 0 ? .green : .secondary)
+            Badge("\(entry.duplicateCount) dupes", color: entry.duplicateCount > 0 ? .orange : .secondary)
+            Badge("\(entry.filteredNonOrderCount) filtered", color: entry.filteredNonOrderCount > 0 ? .teal : .secondary)
+            Badge("\(entry.uncertainCount) uncertain", color: entry.uncertainCount > 0 ? .orange : .secondary)
+          }
+          Text(entry.summary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func historyColor(for status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("success") || status.localizedCaseInsensitiveContains("imported") { return .green }
+    if status.localizedCaseInsensitiveContains("duplicate") || status.localizedCaseInsensitiveContains("filtered") { return .teal }
+    if status.localizedCaseInsensitiveContains("uncertain") || status.localizedCaseInsensitiveContains("dismissed") { return .orange }
+    if status.localizedCaseInsensitiveContains("failed") || status.localizedCaseInsensitiveContains("missing") { return .red }
+    return .secondary
+  }
+
+  private var spaceMailClassifierTest: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Classifier test", systemImage: "questionmark.diamond.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+        Spacer()
+        classifierTestBadge
+      }
+      Text("Built-in sample: Delivery question / Can you check whether this relates to an order? I do not have the tracking number yet.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Result includes the local filter decision plus the intake fields ParcelOps would detect from the same sample.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(connection.classifierTestSummary)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(classifierTestColor)
+        .fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: 6) {
+        TextField("Sender", text: $classifierSender)
+          .textFieldStyle(.roundedBorder)
+        TextField("Subject", text: $classifierSubject)
+          .textFieldStyle(.roundedBorder)
+        TextField("Body preview", text: $classifierPreview, axis: .vertical)
+          .lineLimit(2...4)
+          .textFieldStyle(.roundedBorder)
+      }
+      CompactActionRow {
+        Button("Run built-in test", systemImage: "play.circle", action: onTestClassifier)
+        Button("Run custom test", systemImage: "text.magnifyingglass") {
+          onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
+        }
+        .disabled(classifierSubject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && classifierPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        Button("Run test suite", systemImage: "checklist") {
+          onRunClassifierSuite()
+        }
+      }
+      if !connection.classifierTestResults.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Classifier test results")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(connection.classifierTestResults) { result in
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(alignment: .firstTextBaseline) {
+                Text(result.sampleName)
+                  .font(.caption.weight(.semibold))
+                Spacer()
+                Badge(result.decision, color: classifierReasonColor(result.decision))
+              }
+              Text("\(result.reason) • score \(result.score)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              Text(result.parserStatus)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(parserStatusColor(result.parserStatus))
+                .fixedSize(horizontal: false, vertical: true)
+              CompactMetadataGrid(minimumWidth: 120) {
+                Badge(result.detectedOrderNumber, color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
+                Badge(result.detectedTrackingNumber, color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
+                Badge(result.detectedMerchant, color: .secondary)
+                if result.expectedOrderNumber != "No expected order" {
+                  Badge("Expected \(result.expectedOrderNumber)", color: .blue)
+                }
+                if result.expectedTrackingNumber != "No expected tracking" {
+                  Badge("Expected \(result.expectedTrackingNumber)", color: .purple)
+                }
+              }
+            }
+            .padding(8)
+            .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var classifierTestBadge: some View {
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") {
+      Badge("Uncertain", color: .orange)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") {
+      Badge("Imported", color: .green)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Filtered") {
+      Badge("Filtered", color: .teal)
+    } else {
+      Badge("Not run", color: .secondary)
+    }
+  }
+
+  private var classifierTestColor: Color {
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") { return .green }
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    return .secondary
   }
 
   private var spaceMailRefreshColor: Color {
@@ -766,6 +1101,213 @@ struct SpaceMailIMAPConnectionRow: View {
     if status.localizedCaseInsensitiveContains("duplicate") { return .teal }
     if status.localizedCaseInsensitiveContains("failed") || status.localizedCaseInsensitiveContains("missing") { return .orange }
     return .secondary
+  }
+
+  private var uncertainMessagesReview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Uncertain SpaceMail messages", systemImage: "questionmark.folder.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+      Text("These previews looked possibly order-related, but not strong enough for automatic Inbox import. Import only if the preview is relevant, or dismiss it locally.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      ForEach(connection.uncertainMessages) { message in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(message.subject)
+                .font(.caption.weight(.semibold))
+              Text("\(message.sender) • \(message.receivedDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("Uncertain", color: .orange)
+          }
+          Text(message.bodyPreview)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+          Text("Reason: \(message.reason)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.orange)
+          CompactActionRow {
+            Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+              onImportUncertain(message)
+            }
+            Button("Task", systemImage: "checklist") {
+              onTaskFromUncertain(message)
+            }
+            Button("Draft", systemImage: "envelope.open.fill") {
+              onDraftFromUncertain(message)
+            }
+            Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+              onAddUncertainHint(message, .trustedSender)
+            }
+            Button("Uncertain hint", systemImage: "questionmark.diamond") {
+              onAddUncertainHint(message, .uncertainKeyword)
+            }
+            Button("Import hint", systemImage: "plus.circle") {
+              onAddUncertainHint(message, .importKeyword)
+            }
+            Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+              onDismissUncertain(message)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var filteredMessagesReview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Filtered SpaceMail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.teal)
+      Text("These previews were filtered out of Inbox. Import one only if the classifier was too strict, or dismiss it locally to clear the review list.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      ForEach(connection.filteredMessages) { message in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(message.subject)
+                .font(.caption.weight(.semibold))
+              Text("\(message.sender) • \(message.receivedDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("Filtered", color: .teal)
+          }
+          Text(message.bodyPreview)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text("Reason: \(message.reason)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+          CompactActionRow {
+            Button("Import anyway", systemImage: "tray.and.arrow.down.fill") {
+              onImportFiltered(message)
+            }
+            Button("Task", systemImage: "checklist") {
+              onTaskFromFiltered(message)
+            }
+            Button("Draft", systemImage: "envelope.open.fill") {
+              onDraftFromFiltered(message)
+            }
+            Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+              onAddFilteredHint(message, .trustedSender)
+            }
+            Button("Import hint", systemImage: "plus.circle") {
+              onAddFilteredHint(message, .importKeyword)
+            }
+            Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+              onAddFilteredHint(message, .filterKeyword)
+            }
+            Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+              onDismissFiltered(message)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct SpaceMailIntakeHealthCard: View {
+  var summary: SpaceMailIntakeHealthSummary
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Intake health", systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(toneColor)
+        Spacer()
+        Badge(summary.verdict, color: toneColor)
+      }
+      Text(summary.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(summary.nextAction)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(toneColor)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 112) {
+        Badge("\(summary.fetchedCount) fetched", color: .blue)
+        Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
+        Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
+        Badge("\(summary.uncertainCount) uncertain", color: summary.uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(summary.parserIssueCount) parser checks", color: summary.parserIssueCount > 0 ? .orange : .secondary)
+        Badge("\(summary.linkedIntakeCount) linked intake", color: summary.linkedIntakeCount > 0 ? .blue : .secondary)
+      }
+      if summary.pendingUncertainReviewCount > 0 || summary.pendingFilteredReviewCount > 0 {
+        Text("Pending local review: \(summary.pendingUncertainReviewCount) uncertain, \(summary.pendingFilteredReviewCount) filtered examples.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+      }
+      if !summary.topReasonLabels.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Latest reason labels")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(summary.topReasonLabels, id: \.self) { reason in
+            Text(reason)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+      Text("Last refresh: \(summary.lastRefreshDate)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(toneColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var toneColor: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  private var symbol: String {
+    switch summary.tone {
+    case "success":
+      return "checkmark.seal.fill"
+    case "attention":
+      return "exclamationmark.triangle.fill"
+    case "warning":
+      return "xmark.octagon.fill"
+    default:
+      return "waveform.path.ecg"
+    }
   }
 }
 
@@ -863,6 +1405,19 @@ struct SpaceMailIMAPConnectionEditor: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
+          Section("4. Mixed mailbox filter hints") {
+            TextField("Trusted sender hints", text: listBinding(\.trustedSenderHints), axis: .vertical)
+              .lineLimit(1...3)
+            TextField("Import keyword hints", text: listBinding(\.importKeywordHints), axis: .vertical)
+              .lineLimit(1...3)
+            TextField("Uncertain keyword hints", text: listBinding(\.uncertainKeywordHints), axis: .vertical)
+              .lineLimit(1...3)
+            TextField("Filter keyword hints", text: listBinding(\.filterKeywordHints), axis: .vertical)
+              .lineLimit(1...3)
+            Text("Separate hints with commas. Import hints only help messages that already look order-related; uncertain hints keep ambiguous order/delivery questions out of Inbox but available for review; filter hints suppress obvious non-order mail.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
           Section("Read-only plan") {
             Text("SpaceMail IMAP refresh selects the configured folder read-only, fetches a small page of message headers/previews, then imports likely order messages through the provider-neutral intake path. Mixed mailbox mode keeps obvious non-order messages out of the primary Inbox. It must not delete, move, mark read, send, or modify mailbox messages.")
               .font(.caption)
@@ -889,6 +1444,20 @@ struct SpaceMailIMAPConnectionEditor: View {
       .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 380, idealHeight: 600, maxHeight: 700)
       .navigationTitle("SpaceMail IMAP")
     }
+  }
+
+  private func listBinding(_ keyPath: WritableKeyPath<SpaceMailIMAPConnection, [String]>) -> Binding<String> {
+    Binding(
+      get: { draft[keyPath: keyPath].joined(separator: ", ") },
+      set: { draft[keyPath: keyPath] = Self.parseHintList($0) }
+    )
+  }
+
+  private static func parseHintList(_ value: String) -> [String] {
+    value
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
   }
 }
 

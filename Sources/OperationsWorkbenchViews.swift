@@ -274,7 +274,7 @@ struct OperationsWorkbenchView: View {
     switch item.source {
     case .reviewTask, .handoffNote:
       TasksView(store: store)
-    case .intakeEmail, .importQueue, .acceptanceReview:
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
       InboxView(store: store)
     case .reconciliation:
       ReconciliationView(store: store)

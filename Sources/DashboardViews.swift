@@ -12,7 +12,12 @@ struct DashboardView: View {
     Array(repeating: GridItem(.flexible(), spacing: 14), count: isCompact ? 1 : 2)
   }
   private var incomingAttentionCount: Int {
-    store.reviewIntakeEmails.count + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
+    store.reviewIntakeEmails.count + store.intakeParserDiagnostics.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
+  }
+  private var spaceMailHealthAttentionCount: Int {
+    store.spaceMailIntakeHealthSummaries.filter {
+      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
+    }.count
   }
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
@@ -432,7 +437,7 @@ struct DashboardView: View {
           OperatorDashboardCard(
             title: "Inbox",
             count: incomingAttentionCount,
-            detail: "Forwarded emails, import items, and acceptance records waiting for triage.",
+            detail: "Forwarded emails, parser diagnostics, import items, and acceptance records waiting for triage.",
             nextAction: incomingAttentionCount == 0 ? "Inbox is clear" : "Triage incoming work",
             symbol: "tray.full.fill",
             tint: incomingAttentionCount == 0 ? .green : .orange
@@ -502,9 +507,11 @@ struct DashboardView: View {
           MetricStrip(items: [
             ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
             ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
+            ("Mailbox", "\(spaceMailHealthAttentionCount)", spaceMailHealthAttentionCount == 0 ? .green : .orange),
             ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
             ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
           ])
+          CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
           CompactIntakeList(emails: store.newestIntakeEmails)
         }
 
@@ -721,6 +728,45 @@ struct CompactIntakeList: View {
           color: email.reviewState.color
         )
       }
+    }
+  }
+}
+
+struct CompactSpaceMailHealthList: View {
+  var summaries: [SpaceMailIntakeHealthSummary]
+
+  var body: some View {
+    CompactList(title: "Mailbox intake health", symbol: "server.rack") {
+      if summaries.isEmpty {
+        CompactRow(
+          title: "No SpaceMail mailbox",
+          detail: "Add a SpaceMail setup when you are ready to use real IMAP intake.",
+          badge: "Setup",
+          color: .secondary
+        )
+      } else {
+        ForEach(summaries.prefix(3)) { summary in
+          CompactRow(
+            title: summary.verdict,
+            detail: "\(summary.displayName) • \(summary.nextAction)",
+            badge: "\(summary.importedCount) in / \(summary.filteredCount) filtered",
+            color: color(for: summary)
+          )
+        }
+      }
+    }
+  }
+
+  private func color(for summary: SpaceMailIntakeHealthSummary) -> Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
     }
   }
 }

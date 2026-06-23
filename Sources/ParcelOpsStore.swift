@@ -68,6 +68,11 @@ final class ParcelOpsStore {
 
   private struct MailboxRelevanceFilterResult {
     var importMessages: [FetchedMailboxMessage]
+    var uncertainMessages: [SpaceMailUncertainMessage]
+    var filteredMessages: [SpaceMailFilteredMessage]
+    var reasonBreakdown: [SpaceMailClassifierReasonCount]
+    var filteredExamples: [String]
+    var uncertainExamples: [String]
     var filteredNonOrderCount: Int
     var uncertainCount: Int
     var detail: String
@@ -268,12 +273,105 @@ final class ParcelOpsStore {
     intakeEmails.filter { $0.reviewState == .needsReview }
   }
 
+  var intakeParserDiagnostics: [IntakeParserDiagnostic] {
+    intakeEmails.compactMap(intakeParserDiagnostic(for:))
+      .sorted { lhs, rhs in
+        if lhs.severity != rhs.severity {
+          return lhs.severity.sortRank > rhs.severity.sortRank
+        }
+        return lhs.title < rhs.title
+      }
+  }
+
+  var spaceMailIntakeHealthSummaries: [SpaceMailIntakeHealthSummary] {
+    spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
+  }
+
+  func spaceMailIntakeHealthSummary(for connection: SpaceMailIMAPConnection) -> SpaceMailIntakeHealthSummary {
+    let mailboxID = connection.id
+    let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }
+    let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
+    let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
+    let parserIssueCount = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }.count
+    let reasonLabels = connection.lastRefreshReasonBreakdown
+      .prefix(4)
+      .map { "\($0.decision): \($0.reason) x\($0.count)" }
+
+    let status = connection.connectionStatus
+    let verdict: String
+    let detail: String
+    let nextAction: String
+    let tone: String
+
+    if status.localizedCaseInsensitiveContains("missing") || status.localizedCaseInsensitiveContains("failed") {
+      verdict = "Setup needs attention"
+      detail = "The latest SpaceMail state did not reach a clean read-only refresh."
+      nextAction = "Check host, folder, SSL/TLS, and Keychain credential status, then run real SpaceMail refresh."
+      tone = "warning"
+    } else if connection.lastRefreshFetchedCount == 0 && connection.lastManualRefreshDate == "Never" {
+      verdict = "Ready for first refresh"
+      detail = "SpaceMail setup exists, but no real refresh has been recorded yet."
+      nextAction = "Set/check the Keychain credential, then run a manual real refresh."
+      tone = "neutral"
+    } else if connection.lastRefreshUncertainCount > 0 || !connection.uncertainMessages.isEmpty {
+      verdict = "Uncertain messages need review"
+      detail = "Some mixed-mailbox messages looked order-related but not strong enough for automatic Inbox import."
+      nextAction = "Review uncertain previews, import true order mail, or dismiss/filter non-order mail locally."
+      tone = "attention"
+    } else if parserIssueCount > 0 {
+      verdict = "Parser review needed"
+      detail = "Imported intake exists, but local parsing still needs a person to confirm order or tracking fields."
+      nextAction = "Open the parser review queue, reprocess if needed, or create a follow-up task."
+      tone = "attention"
+    } else if connection.lastRefreshImportedCount > 0 {
+      verdict = "Order intake captured"
+      detail = "The latest refresh imported likely order-related messages into Inbox without mailbox mutation."
+      nextAction = "Review the imported Inbox rows and create or link orders where appropriate."
+      tone = "success"
+    } else if connection.lastRefreshFilteredNonOrderCount > 0 && connection.lastRefreshDuplicateCount == 0 {
+      verdict = "Filter working"
+      detail = "The mixed mailbox filter kept fetched non-order messages out of Inbox."
+      nextAction = "No action needed unless filtered examples look order-related."
+      tone = "success"
+    } else if connection.lastRefreshDuplicateCount > 0 {
+      verdict = "No new order mail"
+      detail = "The latest refresh found messages ParcelOps had already captured or reviewed."
+      nextAction = "Wait for new mail or review filtered/parsed examples if something looks wrong."
+      tone = "neutral"
+    } else {
+      verdict = "Monitor mailbox"
+      detail = "SpaceMail is configured, but the latest refresh did not produce actionable intake."
+      nextAction = "Run a manual refresh after forwarding a known order update."
+      tone = "neutral"
+    }
+
+    return SpaceMailIntakeHealthSummary(
+      connectionID: connection.id,
+      displayName: connection.displayName,
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      fetchedCount: connection.lastRefreshFetchedCount,
+      importedCount: connection.lastRefreshImportedCount,
+      duplicateCount: connection.lastRefreshDuplicateCount,
+      filteredCount: connection.lastRefreshFilteredNonOrderCount,
+      uncertainCount: connection.lastRefreshUncertainCount,
+      parserIssueCount: parserIssueCount,
+      linkedIntakeCount: linkedIntakeCount,
+      pendingFilteredReviewCount: connection.filteredMessages.count,
+      pendingUncertainReviewCount: connection.uncertainMessages.count,
+      lastRefreshDate: connection.lastManualRefreshDate,
+      topReasonLabels: reasonLabels
+    )
+  }
+
   var microsoft365OAuthReadinessSummaries: [Microsoft365OAuthReadinessSummary] {
     microsoft365MailboxConnections.map { microsoft365OAuthReadinessSummary(for: $0) }
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + intakeParserDiagnostics.count + spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count } + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -957,6 +1055,8 @@ final class ParcelOpsStore {
     (reviewTaskWorkbenchItems()
       + handoffNoteWorkbenchItems()
       + intakeWorkbenchItems()
+      + intakeParserWorkbenchItems()
+      + spaceMailIntakeWorkbenchItems()
       + importQueueWorkbenchItems()
       + acceptanceWorkbenchItems()
       + reconciliationWorkbenchItems()
@@ -2416,7 +2516,7 @@ final class ParcelOpsStore {
         id: "intake-\(email.id.uuidString)",
         title: email.detectedOrderNumber,
         summary: "\(email.detectedMerchant): \(email.subject)",
-        linkedEntityType: .intakeEmail,
+        linkedEntityType: .integration,
         linkedEntityID: email.id.uuidString,
         prioritySeverity: "High",
         status: email.reviewState.rawValue,
@@ -2425,6 +2525,63 @@ final class ParcelOpsStore {
         reviewState: .needsReview,
         source: .intakeEmail,
         suggestedNextAction: "Link or create order"
+      )
+    }
+  }
+
+  private func intakeParserWorkbenchItems() -> [WorkbenchItem] {
+    intakeParserDiagnostics.map { diagnostic in
+      WorkbenchItem(
+        id: "intake-parser-\(diagnostic.intakeEmailID.uuidString)",
+        title: diagnostic.title,
+        summary: diagnostic.summary,
+        linkedEntityType: .intakeEmail,
+        linkedEntityID: diagnostic.intakeEmailID.uuidString,
+        prioritySeverity: diagnostic.severity.rawValue,
+        status: "Parser review",
+        assignee: "Mailbox team",
+        dueDateText: diagnostic.capturedDate,
+        reviewState: .needsReview,
+        source: .intakeParser,
+        suggestedNextAction: diagnostic.recommendedAction
+      )
+    }
+  }
+
+  private func spaceMailIntakeWorkbenchItems() -> [WorkbenchItem] {
+    spaceMailIntakeHealthSummaries.compactMap { summary in
+      guard summary.tone != "success"
+        || summary.importedCount > 0
+        || summary.pendingUncertainReviewCount > 0
+        || summary.parserIssueCount > 0
+      else { return nil }
+
+      let priority: String
+      let reviewState: ReviewState?
+      if summary.tone == "warning" {
+        priority = "High"
+        reviewState = .needsReview
+      } else if summary.pendingUncertainReviewCount > 0 || summary.parserIssueCount > 0 {
+        priority = "Medium"
+        reviewState = .needsReview
+      } else {
+        priority = "Normal"
+        reviewState = .monitor
+      }
+
+      return WorkbenchItem(
+        id: "spacemail-health-\(summary.connectionID.uuidString)",
+        title: summary.verdict,
+        summary: "\(summary.displayName): \(summary.detail)",
+        linkedEntityType: .intakeEmail,
+        linkedEntityID: summary.connectionID.uuidString,
+        prioritySeverity: priority,
+        status: summary.verdict,
+        assignee: "Mailbox team",
+        dueDateText: summary.lastRefreshDate,
+        reviewState: reviewState,
+        source: .spaceMailIntake,
+        suggestedNextAction: summary.nextAction
       )
     }
   }
@@ -4024,6 +4181,11 @@ final class ParcelOpsStore {
     guard connection.mailboxMode == .mixedFiltered else {
       return MailboxRelevanceFilterResult(
         importMessages: messages,
+        uncertainMessages: [],
+        filteredMessages: [],
+        reasonBreakdown: [],
+        filteredExamples: [],
+        uncertainExamples: [],
         filteredNonOrderCount: 0,
         uncertainCount: 0,
         detail: "Mailbox mode is dedicated order mailbox, so all fetched messages were passed to intake duplicate/import handling."
@@ -4031,21 +4193,53 @@ final class ParcelOpsStore {
     }
 
     var importMessages: [FetchedMailboxMessage] = []
+    var uncertainMessages: [SpaceMailUncertainMessage] = []
+    var filteredMessages: [SpaceMailFilteredMessage] = []
     var importedSubjects: [String] = []
     var filteredSubjects: [String] = []
     var uncertainSubjects: [String] = []
+    var reasonCounts: [String: Int] = [:]
 
     for message in messages {
-      let relevance = classifyMailboxMessageRelevance(message)
+      let relevance = classifyMailboxMessageRelevance(message, for: connection)
+      let decisionLabel: String
       switch relevance.decision {
       case .likelyOrder:
+        decisionLabel = "Imported"
         importMessages.append(message)
         importedSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       case .uncertain:
+        decisionLabel = "Uncertain"
         uncertainSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+        uncertainMessages.append(
+          SpaceMailUncertainMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
+            reason: relevance.reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       case .nonOrder:
+        decisionLabel = "Filtered"
         filteredSubjects.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+        filteredMessages.append(
+          SpaceMailFilteredMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 220),
+            reason: relevance.reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       }
+      reasonCounts["\(decisionLabel)|\(relevance.reason)", default: 0] += 1
     }
 
     var detailLines = [
@@ -4062,22 +4256,36 @@ final class ParcelOpsStore {
     if !uncertainSubjects.isEmpty {
       detailLines.append("Uncertain examples: \(uncertainSubjects.prefix(3).joined(separator: "; ")).")
     }
+    let reasonBreakdown = spaceMailReasonBreakdown(from: reasonCounts)
+    if !reasonBreakdown.isEmpty {
+      detailLines.append("Classifier reasons: \(reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; ")).")
+    }
 
     return MailboxRelevanceFilterResult(
       importMessages: importMessages,
+      uncertainMessages: uncertainMessages,
+      filteredMessages: filteredMessages,
+      reasonBreakdown: reasonBreakdown,
+      filteredExamples: Array(filteredSubjects.prefix(5)),
+      uncertainExamples: Array(uncertainSubjects.prefix(5)),
       filteredNonOrderCount: filteredSubjects.count,
       uncertainCount: uncertainSubjects.count,
       detail: detailLines.joined(separator: "\n")
     )
   }
 
-  private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
+  private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage, for connection: SpaceMailIMAPConnection) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
     let text = "\(message.sender)\n\(message.subject)\n\(message.plainTextBodyPreview)"
     let lowercasedText = text.lowercased()
+    let lowercasedSender = message.sender.lowercased()
     let orderNumber = detectedOrderNumber(in: text)
     let trackingNumber = detectedTrackingNumber(in: text, excluding: orderNumber)
     let hasOrderNumber = !orderNumber.isPlaceholderValidationValue
     let hasTrackingNumber = !trackingNumber.isPlaceholderValidationValue
+    let trustedSenderHint = firstConfiguredHint(in: lowercasedSender, hints: connection.trustedSenderHints)
+    let importKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.importKeywordHints)
+    let uncertainKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.uncertainKeywordHints)
+    let filterKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.filterKeywordHints)
 
     let strongOrderSignals = [
       "order ", "order:", "order #", "order number", "order no", "order id",
@@ -4094,11 +4302,18 @@ final class ParcelOpsStore {
       "webinar", "social", "follow us"
     ]
     let footerSignals = ["unsubscribe", "privacy policy", "terms of service", "view this email", "sent securely from spacemail"]
+    let orderQuestionSignals = [
+      "delivery question", "order question", "relates to an order", "related to an order",
+      "about an order", "where is my order", "do not have the tracking", "don't have the tracking",
+      "tracking number yet", "tracking yet", "missing tracking"
+    ]
 
     let hasStrongOrderSignal = strongOrderSignals.contains { lowercasedText.contains($0) }
-    let hasStrongShipmentSignal = strongShipmentSignals.contains { lowercasedText.contains($0) }
+      let hasStrongShipmentSignal = strongShipmentSignals.contains { lowercasedText.contains($0) }
     let hasHardNonOrderSignal = hardNonOrderSignals.contains { lowercasedText.contains($0) }
     let hasFooterSignal = footerSignals.contains { lowercasedText.contains($0) }
+    let hasOrderQuestionSignal = orderQuestionSignals.contains { lowercasedText.contains($0) }
+      || firstMatch(in: text, pattern: #"(?i)\border\s*(?:\?|\.|,|$)"#) != nil
     let hasClearShipmentPhrase = firstMatch(
       in: text,
       pattern: #"(?i)\border\s+[A-Z0-9][A-Z0-9._/-]{2,30}\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\s+(?:with\s+)?tracking\s+[A-Z0-9][A-Z0-9 -]{4,34}"#
@@ -4109,12 +4324,29 @@ final class ParcelOpsStore {
     if hasTrackingNumber { score += 35 }
     if hasStrongOrderSignal { score += 18 }
     if hasStrongShipmentSignal { score += 18 }
+    if hasOrderQuestionSignal { score += 16 }
     if hasClearShipmentPhrase { score += 30 }
+    if trustedSenderHint != nil { score += 10 }
+    if importKeywordHint != nil { score += 14 }
+    if uncertainKeywordHint != nil { score += 10 }
+    if filterKeywordHint != nil { score -= 50 }
     if hasHardNonOrderSignal { score -= 45 }
     if hasFooterSignal { score -= 8 }
 
+    if let filterKeywordHint, !(hasClearShipmentPhrase || ((hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal || importKeywordHint != nil))) {
+      return (.nonOrder, score, "local filter hint: \(filterKeywordHint)")
+    }
+
     if hasClearShipmentPhrase {
       return (.likelyOrder, score, "clear order-shipped-tracking phrase")
+    }
+
+    if let importKeywordHint, (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal || trustedSenderHint != nil) {
+      return (.likelyOrder, score, "local import hint with detected id: \(importKeywordHint)")
+    }
+
+    if let trustedSenderHint, (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal) {
+      return (.likelyOrder, score, "trusted sender hint with detected id: \(trustedSenderHint)")
     }
 
     if hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber) {
@@ -4141,11 +4373,47 @@ final class ParcelOpsStore {
       return (.uncertain, score, "weak order signal with detected id")
     }
 
+    if let uncertainKeywordHint, hasStrongOrderSignal || hasStrongShipmentSignal || hasOrderQuestionSignal || lowercasedText.contains("order") || lowercasedText.contains("tracking") || lowercasedText.contains("delivery") {
+      return (.uncertain, score, "local uncertain hint: \(uncertainKeywordHint)")
+    }
+
+    if let trustedSenderHint, hasStrongOrderSignal || hasStrongShipmentSignal || hasOrderQuestionSignal {
+      return (.uncertain, score, "trusted sender hint without detected id: \(trustedSenderHint)")
+    }
+
+    if hasOrderQuestionSignal && (hasStrongOrderSignal || hasStrongShipmentSignal || lowercasedText.contains("order") || lowercasedText.contains("tracking")) {
+      return (.uncertain, score, "order/delivery question without detected id")
+    }
+
     if hasStrongOrderSignal || hasStrongShipmentSignal {
       return (.uncertain, score, "order/shipping words without detected id")
     }
 
     return (.nonOrder, score, "no strong order evidence")
+  }
+
+  private func firstConfiguredHint(in text: String, hints: [String]) -> String? {
+    hints
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .first { text.contains($0.lowercased()) }
+  }
+
+  private func spaceMailReasonBreakdown(from counts: [String: Int]) -> [SpaceMailClassifierReasonCount] {
+    counts
+      .map { key, count in
+        let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
+        return SpaceMailClassifierReasonCount(
+          decision: parts.first ?? "Unknown",
+          reason: parts.count > 1 ? parts[1] : "unknown reason",
+          count: count
+        )
+      }
+      .sorted {
+        if $0.count != $1.count { return $0.count > $1.count }
+        if $0.decision != $1.decision { return $0.decision < $1.decision }
+        return $0.reason < $1.reason
+      }
   }
 
   private func spaceMailRefreshStatus(
@@ -4256,6 +4524,72 @@ final class ParcelOpsStore {
       detectedDestinationAddress: detectedDestinationAddress(in: combinedText),
       linkedOrderID: matchedOrderID(for: orderNumber),
       reviewState: .needsReview
+    )
+  }
+
+  private func intakeParserDiagnostic(for email: ForwardedEmailIntake) -> IntakeParserDiagnostic? {
+    let combinedText = "\(email.subject)\n\(email.rawBodyPreview)"
+    let reprocessed = reprocessedIntakeEmail(from: email)
+    var issues: [String] = []
+    var severity: ValidationSeverity = .info
+
+    if email.detectedOrderNumber.isPlaceholderValidationValue {
+      issues.append("order number missing")
+      severity = .high
+    }
+    if email.detectedTrackingNumber.isPlaceholderValidationValue {
+      issues.append("tracking number missing")
+      if severity != .high { severity = .warning }
+    }
+    if email.detectedMerchant.isPlaceholderValidationValue {
+      issues.append("merchant missing")
+      if severity == .info { severity = .warning }
+    }
+    if email.detectedDestinationAddress.isPlaceholderValidationValue {
+      issues.append("destination missing")
+      if severity == .info { severity = .warning }
+    }
+
+    var parserHints: [String] = []
+    if reprocessed.detectedOrderNumber != email.detectedOrderNumber {
+      parserHints.append("reprocess can update order to \(reprocessed.detectedOrderNumber)")
+      severity = .high
+    }
+    if reprocessed.detectedTrackingNumber != email.detectedTrackingNumber {
+      parserHints.append("reprocess can update tracking to \(reprocessed.detectedTrackingNumber)")
+      severity = .high
+    }
+    if combinedText.localizedCaseInsensitiveContains("tracking") && email.detectedTrackingNumber.isPlaceholderValidationValue {
+      parserHints.append("text mentions tracking but no tracking ID was accepted")
+    }
+    if combinedText.localizedCaseInsensitiveContains("order") && email.detectedOrderNumber.isPlaceholderValidationValue {
+      parserHints.append("text mentions order but no order ID was accepted")
+    }
+
+    guard !issues.isEmpty || !parserHints.isEmpty || email.reviewState == .needsReview else { return nil }
+
+    let emailLabel = email.detectedOrderNumber.isPlaceholderValidationValue ? safeAuditPreview(email.subject, limit: 80) : email.detectedOrderNumber
+    let title: String
+    if !parserHints.isEmpty {
+      title = "Parser review: \(emailLabel)"
+    } else {
+      title = "Intake fields need review: \(emailLabel)"
+    }
+    let summaryParts = (issues + parserHints).prefix(5)
+    return IntakeParserDiagnostic(
+      id: "intake-parser-\(email.id.uuidString)",
+      intakeEmailID: email.id,
+      title: title,
+      summary: summaryParts.joined(separator: "; "),
+      severity: severity,
+      capturedDate: email.receivedDate,
+      subjectPreview: safeAuditPreview(email.subject, limit: 120),
+      senderPreview: safeAuditPreview(email.sender, limit: 100),
+      detectedMerchant: email.detectedMerchant,
+      detectedOrderNumber: email.detectedOrderNumber,
+      detectedTrackingNumber: email.detectedTrackingNumber,
+      detectedDestination: email.detectedDestinationAddress,
+      recommendedAction: parserHints.isEmpty ? "Review or edit the detected fields before accepting." : "Run Reprocess, then review the updated detected fields."
     )
   }
 
@@ -8212,9 +8546,13 @@ final class ParcelOpsStore {
       if let note = handoffNotes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markHandoffNoteReviewed(note)
       }
-    case .intakeEmail:
+    case .intakeEmail, .intakeParser:
       if let email = intakeEmails.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markIntakeEmailReviewed(email)
+      }
+    case .spaceMailIntake:
+      if let connection = spaceMailIMAPConnections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markSpaceMailIMAPConnectionReviewed(connection)
       }
     case .reconciliation:
       if let issue = reconciliationIssues.first(where: { $0.id == item.linkedEntityID }) {
@@ -8488,6 +8826,9 @@ final class ParcelOpsStore {
       setupNotes: "Local SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before real refresh is implemented.",
       credentialStorageStatus: "Password not stored; Keychain planned",
       mailboxMode: .mixedFiltered,
+      importKeywordHints: ["order shipped", "tracking number", "dispatch confirmation"],
+      uncertainKeywordHints: ["delivery question", "relates to an order", "tracking number yet"],
+      filterKeywordHints: ["newsletter", "promotion", "security alert", "calendar", "final days"],
       reviewState: .needsReview
     )
     spaceMailIMAPConnections.insert(connection, at: 0)
@@ -8516,6 +8857,44 @@ final class ParcelOpsStore {
       beforeDetail: beforeDetail,
       afterDetail: spaceMailIMAPConnectionAuditDetail(connection)
     )
+  }
+
+  func applySpaceMailFilterPreset(_ preset: SpaceMailFilterPreset, to connection: SpaceMailIMAPConnection) {
+    let beforeDetail = spaceMailIMAPConnectionAuditDetail(connection)
+    let config = spaceMailFilterPresetConfiguration(preset)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.mailboxMode = .mixedFiltered
+      draft.trustedSenderHints = config.trustedSenders
+      draft.importKeywordHints = config.importKeywords
+      draft.uncertainKeywordHints = config.uncertainKeywords
+      draft.filterKeywordHints = config.filterKeywords
+      draft.classifierTestSummary = "\(preset.rawValue) preset applied. Run the built-in or custom classifier test to preview behavior before real refresh."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filter preset",
+          status: preset.rawValue,
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.lastRefreshFilteredNonOrderCount,
+          uncertainCount: draft.lastRefreshUncertainCount,
+          summary: "Applied \(preset.rawValue) local hints. No mailbox fetch, import, credential, or mailbox mutation occurred."
+        ),
+        to: &draft
+      )
+    }
+    if let updated = spaceMailIMAPConnections.first(where: { $0.id == connection.id }) {
+      logAudit(
+        action: .edited,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "SpaceMail mixed-mailbox filter preset applied.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(spaceMailIMAPConnectionAuditDetail(updated))\nPreset: \(preset.rawValue)\nNo mailbox fetch, import, credential, password, auth string, or mailbox mutation occurred."
+      )
+    }
   }
 
   func markSpaceMailIMAPConnectionReviewed(_ connection: SpaceMailIMAPConnection) {
@@ -8555,6 +8934,474 @@ final class ParcelOpsStore {
 
   func importRealSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
     Task { await refreshRealSpaceMailIMAPMessages(for: connection) }
+  }
+
+  func importUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, for connection: SpaceMailIMAPConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: uncertainMessage.providerMessageID,
+      sender: uncertainMessage.sender,
+      subject: uncertainMessage.subject,
+      receivedDate: uncertainMessage.receivedDate,
+      plainTextBodyPreview: uncertainMessage.bodyPreview,
+      sourceMailboxID: uncertainMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    removeUncertainSpaceMailMessage(uncertainMessage, from: connection)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain import",
+          status: result.imported > 0 ? "Imported to Inbox" : "Duplicate skipped",
+          fetchedCount: 0,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: draft.lastRefreshFilteredNonOrderCount,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Imported an uncertain preview into intake locally. \(draft.uncertainMessages.count) uncertain messages remain."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain SpaceMail message imported into intake locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nStored preview only was used. No mailbox fetch, mailbox mutation, password, auth string, or full message body was logged."
+    )
+  }
+
+  func importFilteredSpaceMailMessage(_ filteredMessage: SpaceMailFilteredMessage, for connection: SpaceMailIMAPConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: filteredMessage.providerMessageID,
+      sender: filteredMessage.sender,
+      subject: filteredMessage.subject,
+      receivedDate: filteredMessage.receivedDate,
+      plainTextBodyPreview: filteredMessage.bodyPreview,
+      sourceMailboxID: filteredMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    removeFilteredSpaceMailMessage(filteredMessage, from: connection)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered import",
+          status: result.imported > 0 ? "Imported to Inbox" : "Duplicate skipped",
+          fetchedCount: 0,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Imported a filtered preview into intake locally. \(draft.filteredMessages.count) filtered previews remain."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered SpaceMail message imported into intake locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nStored preview only was used. No mailbox fetch, mailbox mutation, password, auth string, or full message body was logged."
+    )
+  }
+
+  func createReviewTask(from uncertainMessage: SpaceMailUncertainMessage, connection: SpaceMailIMAPConnection) {
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: uncertainMessage.subject.isEmpty ? connection.displayName : uncertainMessage.subject,
+      summary: "Review uncertain SpaceMail preview from \(uncertainMessage.sender): \(uncertainMessage.reason)",
+      priority: .normal,
+      assignee: "Mailbox team"
+    )
+  }
+
+  func createReviewTask(from filteredMessage: SpaceMailFilteredMessage, connection: SpaceMailIMAPConnection) {
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: filteredMessage.subject.isEmpty ? connection.displayName : filteredMessage.subject,
+      summary: "Review filtered SpaceMail preview from \(filteredMessage.sender): \(filteredMessage.reason)",
+      priority: .low,
+      assignee: "Mailbox team"
+    )
+  }
+
+  func createDraftMessage(from uncertainMessage: SpaceMailUncertainMessage, connection: SpaceMailIMAPConnection) {
+    createDraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: uncertainMessage.subject.isEmpty ? connection.displayName : uncertainMessage.subject,
+      recipient: uncertainMessage.sender.isEmpty ? "operations@parcelops.example" : uncertainMessage.sender
+    )
+  }
+
+  func createDraftMessage(from filteredMessage: SpaceMailFilteredMessage, connection: SpaceMailIMAPConnection) {
+    createDraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: filteredMessage.subject.isEmpty ? connection.displayName : filteredMessage.subject,
+      recipient: filteredMessage.sender.isEmpty ? "operations@parcelops.example" : filteredMessage.sender
+    )
+  }
+
+  func dismissUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, for connection: SpaceMailIMAPConnection) {
+    removeUncertainSpaceMailMessage(uncertainMessage, from: connection)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain dismiss",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.lastRefreshFilteredNonOrderCount,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Dismissed one uncertain preview locally. \(draft.uncertainMessages.count) uncertain messages remain."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain SpaceMail message dismissed locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nThe message was removed from the local uncertain review list only. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+    )
+  }
+
+  func dismissFilteredSpaceMailMessage(_ filteredMessage: SpaceMailFilteredMessage, for connection: SpaceMailIMAPConnection) {
+    removeFilteredSpaceMailMessage(filteredMessage, from: connection)
+    updateSpaceMailIMAPConnection(connection) { draft in
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered dismiss",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Dismissed one filtered preview locally. \(draft.filteredMessages.count) filtered previews remain."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered SpaceMail message dismissed locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nThe message was removed from the local filtered preview list only. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+    )
+  }
+
+  func addSpaceMailHintFromUncertain(_ uncertainMessage: SpaceMailUncertainMessage, target: SpaceMailHintTarget, for connection: SpaceMailIMAPConnection) {
+    addSpaceMailHint(
+      target: target,
+      sender: uncertainMessage.sender,
+      subject: uncertainMessage.subject,
+      bodyPreview: uncertainMessage.bodyPreview,
+      sourceReason: uncertainMessage.reason,
+      connection: connection
+    )
+  }
+
+  func addSpaceMailHintFromFiltered(_ filteredMessage: SpaceMailFilteredMessage, target: SpaceMailHintTarget, for connection: SpaceMailIMAPConnection) {
+    addSpaceMailHint(
+      target: target,
+      sender: filteredMessage.sender,
+      subject: filteredMessage.subject,
+      bodyPreview: filteredMessage.bodyPreview,
+      sourceReason: filteredMessage.reason,
+      connection: connection
+    )
+  }
+
+  func testSpaceMailAmbiguousClassifier(for connection: SpaceMailIMAPConnection) {
+    let sample = FetchedMailboxMessage(
+      providerMessageID: "local-classifier-test-\(connection.id.uuidString)",
+      sender: connection.emailAddressUsername,
+      subject: "Delivery question",
+      receivedDate: Self.auditTimestamp(),
+      plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+      sourceMailboxID: trackedMailbox(for: connection).id
+    )
+    evaluateSpaceMailClassifierSample(
+      sample,
+      for: connection,
+      eventType: "Classifier test",
+      auditSummary: "SpaceMail mixed-mailbox classifier sample tested locally."
+    )
+  }
+
+  func testSpaceMailCustomClassifier(for connection: SpaceMailIMAPConnection, sender: String, subject: String, preview: String) {
+    let safeSender = safeAuditPreview(sender.isEmpty ? connection.emailAddressUsername : sender, limit: 120)
+    let safeSubject = safeAuditPreview(subject.isEmpty ? "No subject" : subject, limit: 160)
+    let safePreview = safeAuditPreview(preview, limit: 280)
+    let sample = FetchedMailboxMessage(
+      providerMessageID: "local-custom-classifier-test-\(connection.id.uuidString)",
+      sender: safeSender,
+      subject: safeSubject,
+      receivedDate: Self.auditTimestamp(),
+      plainTextBodyPreview: safePreview,
+      sourceMailboxID: trackedMailbox(for: connection).id
+    )
+    evaluateSpaceMailClassifierSample(
+      sample,
+      for: connection,
+      eventType: "Custom classifier test",
+      auditSummary: "SpaceMail custom mixed-mailbox classifier sample tested locally."
+    )
+  }
+
+  func runSpaceMailClassifierTestSuite(for connection: SpaceMailIMAPConnection) {
+    let mailboxID = trackedMailbox(for: connection).id
+    let samples: [(name: String, expectedOrder: String, expectedTracking: String, message: FetchedMailboxMessage)] = [
+      (
+        "Clear order shipped",
+        "TEST-123",
+        "ABC123",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-clear-order-\(connection.id.uuidString)",
+          sender: "orders@example-shop.test",
+          subject: "Order TEST-123 shipped tracking ABC123",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123 to Melbourne. Please watch for delivery.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Delivery question",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-delivery-question-\(connection.id.uuidString)",
+          sender: "customer@example.com",
+          subject: "Delivery question",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Marketing final days",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-marketing-\(connection.id.uuidString)",
+          sender: "offers@example-shop.test",
+          subject: "Final Days",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Final days for our promotion. View this email or unsubscribe.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Security alert",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-security-\(connection.id.uuidString)",
+          sender: "security@example.com",
+          subject: "Security alert",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Verification code requested for your account. This is not an order update.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Refund with order",
+        "REF-8821",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-refund-\(connection.id.uuidString)",
+          sender: "support@example-shop.test",
+          subject: "Refund request for order REF-8821",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Customer requested refund for order REF-8821 after delivery issue.",
+          sourceMailboxID: mailboxID
+        )
+      )
+    ]
+    let results = samples.map { sample in
+      spaceMailClassifierTestResult(
+        name: sample.name,
+        message: sample.message,
+        connection: connection,
+        expectedOrderNumber: sample.expectedOrder,
+        expectedTrackingNumber: sample.expectedTracking
+      )
+    }
+    let imported = results.filter { $0.decision == "Imported" }.count
+    let uncertain = results.filter { $0.decision == "Uncertain" }.count
+    let filtered = results.filter { $0.decision == "Filtered" }.count
+    let parserPasses = results.filter { $0.parserStatus.lowercased().hasPrefix("parser passed") }.count
+    let parserChecks = results.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }.count
+    let summary = "Classifier suite: \(imported) imported, \(uncertain) uncertain, \(filtered) filtered across \(results.count) local samples. Parser expectations: \(parserPasses)/\(parserChecks) passed. No mailbox fetch or import occurred."
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.classifierTestResults = results
+      draft.classifierTestSummary = summary
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Classifier suite",
+          status: "Completed",
+          fetchedCount: 0,
+          importedCount: imported,
+          duplicateCount: 0,
+          filteredNonOrderCount: filtered,
+          uncertainCount: uncertain,
+          summary: summary
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail classifier test suite ran locally.",
+      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber), parser \($0.parserStatus)" }.joined(separator: "\n"))\nNo mailbox fetch, mailbox mutation, external service call, import, password, auth string, or full message body logging occurred."
+    )
+  }
+
+  private func evaluateSpaceMailClassifierSample(
+    _ sample: FetchedMailboxMessage,
+    for connection: SpaceMailIMAPConnection,
+    eventType: String,
+    auditSummary: String
+  ) {
+    let relevance = classifyMailboxMessageRelevance(sample, for: connection)
+    let testResult = spaceMailClassifierTestResult(name: eventType, message: sample, connection: connection)
+    let decision = testResult.decision
+    let parsingPreview = makeForwardedEmailIntake(from: sample)
+    let linkedOrderText = parsingPreview.linkedOrderID == nil ? "No local order link" : "Would link to local order"
+    let parserDetail = [
+      "Detected merchant: \(testResult.detectedMerchant)",
+      "Detected order: \(testResult.detectedOrderNumber)",
+      "Detected tracking: \(testResult.detectedTrackingNumber)",
+      "Detected destination: \(testResult.detectedDestination)",
+      "Linked order preview: \(linkedOrderText)"
+    ].joined(separator: "\n")
+    let summary = "\(eventType) result: \(decision). Reason: \(relevance.reason). Score: \(relevance.score).\n\(parserDetail)\nNo mailbox fetch or import occurred."
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.classifierTestSummary = summary
+      draft.classifierTestResults = [testResult]
+      if relevance.decision == .uncertain {
+        let uncertainSample = SpaceMailUncertainMessage(
+          providerMessageID: sample.providerMessageID,
+          sourceMailboxID: sample.sourceMailboxID,
+          sender: sample.sender,
+          subject: sample.subject,
+          receivedDate: sample.receivedDate,
+          bodyPreview: sample.plainTextBodyPreview,
+          reason: relevance.reason,
+          capturedDate: Self.auditTimestamp()
+        )
+        draft.uncertainMessages.removeAll { $0.providerMessageID == sample.providerMessageID }
+        draft.uncertainMessages.insert(uncertainSample, at: 0)
+        draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+        draft.lastRefreshUncertainExamples = ["\(uncertainSample.subject) (\(uncertainSample.reason))"]
+        draft.lastRefreshSummary = "\(eventType) added one uncertain sample preview for review. No mailbox fetch or import occurred."
+      }
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: eventType,
+          status: decision,
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.lastRefreshFilteredNonOrderCount,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: summary
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: auditSummary,
+      afterDetail: "Sender: \(safeAuditPreview(sample.sender, limit: 120))\nSubject: \(safeAuditPreview(sample.subject, limit: 160))\nPreview: \(safeAuditPreview(sample.plainTextBodyPreview, limit: 280))\n\(summary)\nNo mailbox fetch, mailbox mutation, external service call, import, password, auth string, or full message body logging occurred."
+    )
+  }
+
+  private func spaceMailClassifierTestResult(
+    name: String,
+    message: FetchedMailboxMessage,
+    connection: SpaceMailIMAPConnection,
+    expectedOrderNumber: String = "No expected order",
+    expectedTrackingNumber: String = "No expected tracking"
+  ) -> SpaceMailClassifierTestResult {
+    let relevance = classifyMailboxMessageRelevance(message, for: connection)
+    let parsingPreview = makeForwardedEmailIntake(from: message)
+    let decision: String
+    switch relevance.decision {
+    case .likelyOrder:
+      decision = "Imported"
+    case .uncertain:
+      decision = "Uncertain"
+    case .nonOrder:
+      decision = "Filtered"
+    }
+    return SpaceMailClassifierTestResult(
+      sampleName: name,
+      decision: decision,
+      reason: relevance.reason,
+      score: relevance.score,
+      subjectPreview: safeAuditPreview(message.subject, limit: 120),
+      detectedOrderNumber: parsingPreview.detectedOrderNumber,
+      detectedTrackingNumber: parsingPreview.detectedTrackingNumber,
+      detectedMerchant: parsingPreview.detectedMerchant,
+      detectedDestination: parsingPreview.detectedDestinationAddress,
+      expectedOrderNumber: expectedOrderNumber,
+      expectedTrackingNumber: expectedTrackingNumber,
+      parserStatus: spaceMailParserStatus(
+        detectedOrderNumber: parsingPreview.detectedOrderNumber,
+        detectedTrackingNumber: parsingPreview.detectedTrackingNumber,
+        expectedOrderNumber: expectedOrderNumber,
+        expectedTrackingNumber: expectedTrackingNumber
+      )
+    )
+  }
+
+  private func spaceMailParserStatus(
+    detectedOrderNumber: String,
+    detectedTrackingNumber: String,
+    expectedOrderNumber: String,
+    expectedTrackingNumber: String
+  ) -> String {
+    var checks: [String] = []
+    if expectedOrderNumber != "No expected order" {
+      let passed = detectedOrderNumber.normalizedValidationKey == expectedOrderNumber.normalizedValidationKey
+      checks.append(passed ? "order passed" : "order expected \(expectedOrderNumber), got \(detectedOrderNumber)")
+    }
+    if expectedTrackingNumber != "No expected tracking" {
+      let passed = detectedTrackingNumber.normalizedValidationKey == expectedTrackingNumber.normalizedValidationKey
+      checks.append(passed ? "tracking passed" : "tracking expected \(expectedTrackingNumber), got \(detectedTrackingNumber)")
+    }
+    if checks.isEmpty {
+      return "No parser expectation"
+    }
+    if checks.allSatisfy({ $0.localizedCaseInsensitiveContains("passed") }) {
+      return "Parser passed: \(checks.joined(separator: ", "))"
+    }
+    return "Parser needs review: \(checks.joined(separator: ", "))"
   }
 
   func saveSpaceMailCredential(_ password: String, for connection: SpaceMailIMAPConnection) {
@@ -8634,6 +9481,25 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredNonOrderCount = 0
       draft.lastRefreshUncertainCount = 0
       draft.lastRefreshSummary = "Mock refresh \(refreshStatus.rawValue.lowercased()): \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. Mock refresh does not apply mixed-mailbox filtering."
+      draft.lastRefreshFilteredExamples = []
+      draft.lastRefreshUncertainExamples = []
+      draft.uncertainMessages = []
+      draft.filteredMessages = []
+      draft.lastRefreshReasonBreakdown = []
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: draft.lastManualRefreshDate,
+          eventType: "Mock refresh",
+          status: refreshStatus.rawValue,
+          fetchedCount: fetchResult.messages.count,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: 0,
+          uncertainCount: 0,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
 
     if fetchResult.status == .noMessages {
@@ -8714,6 +9580,8 @@ final class ParcelOpsStore {
       draft.lastRefreshDuplicateCount = result.duplicates
       draft.lastRefreshFilteredNonOrderCount = filterResult.filteredNonOrderCount
       draft.lastRefreshUncertainCount = filterResult.uncertainCount
+      draft.lastRefreshFilteredExamples = filterResult.filteredExamples
+      draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.lastRefreshSummary = spaceMailRefreshSummaryText(
         status: refreshStatus,
         connection: connectionForRefresh,
@@ -8722,6 +9590,23 @@ final class ParcelOpsStore {
         duplicates: result.duplicates,
         filtered: filterResult.filteredNonOrderCount,
         uncertain: filterResult.uncertainCount
+      )
+      draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
+      draft.lastRefreshReasonBreakdown = Array(filterResult.reasonBreakdown.prefix(12))
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: draft.lastManualRefreshDate,
+          eventType: "Real refresh",
+          status: refreshStatus.rawValue,
+          fetchedCount: fetchResult.messages.count,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: filterResult.filteredNonOrderCount,
+          uncertainCount: filterResult.uncertainCount,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
       )
     }
 
@@ -9095,6 +9980,147 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  private func removeUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, from connection: SpaceMailIMAPConnection) {
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.uncertainMessages.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
+      draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+      draft.lastRefreshSummary = "Uncertain review updated locally. \(draft.uncertainMessages.count) uncertain messages remain. Filtered messages remain out of Inbox."
+    }
+  }
+
+  private func removeFilteredSpaceMailMessage(_ filteredMessage: SpaceMailFilteredMessage, from connection: SpaceMailIMAPConnection) {
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.filteredMessages.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      draft.lastRefreshFilteredNonOrderCount = draft.filteredMessages.count
+      draft.lastRefreshSummary = "Filtered review updated locally. \(draft.filteredMessages.count) filtered previews remain. Filtered messages remain out of Inbox unless imported manually."
+    }
+  }
+
+  private func addSpaceMailHint(
+    target: SpaceMailHintTarget,
+    sender: String,
+    subject: String,
+    bodyPreview: String,
+    sourceReason: String,
+    connection: SpaceMailIMAPConnection
+  ) {
+    guard let hint = spaceMailHintCandidate(target: target, sender: sender, subject: subject, bodyPreview: bodyPreview) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "SpaceMail hint was not added.",
+        afterDetail: "Target: \(target.rawValue)\nReason: No safe hint could be derived from the local preview. No mailbox fetch, import, credential access, or mailbox mutation occurred."
+      )
+      return
+    }
+    var added = false
+    updateSpaceMailIMAPConnection(connection) { draft in
+      switch target {
+      case .trustedSender:
+        added = appendUniqueSpaceMailHint(hint, to: &draft.trustedSenderHints)
+      case .importKeyword:
+        added = appendUniqueSpaceMailHint(hint, to: &draft.importKeywordHints)
+      case .uncertainKeyword:
+        added = appendUniqueSpaceMailHint(hint, to: &draft.uncertainKeywordHints)
+      case .filterKeyword:
+        added = appendUniqueSpaceMailHint(hint, to: &draft.filterKeywordHints)
+      }
+      draft.mailboxMode = .mixedFiltered
+      draft.classifierTestSummary = added
+        ? "Added \(target.rawValue.lowercased()) hint '\(hint)'. Run the classifier test suite to preview the effect."
+        : "\(target.rawValue) hint '\(hint)' already exists. No duplicate hint was added."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filter hint",
+          status: added ? "Added" : "Already existed",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "\(target.rawValue): \(hint). Source reason: \(sourceReason)."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: added ? .edited : .evaluated,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: added ? "SpaceMail filter hint added locally." : "SpaceMail filter hint already existed.",
+      afterDetail: "Target: \(target.rawValue)\nHint: \(hint)\nSource reason: \(sourceReason)\nNo mailbox fetch, import, credential access, password, auth string, or mailbox mutation occurred."
+    )
+  }
+
+  private func appendUniqueSpaceMailHint(_ hint: String, to hints: inout [String]) -> Bool {
+    let normalized = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard !normalized.isEmpty else { return false }
+    if hints.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized }) {
+      return false
+    }
+    hints.append(hint)
+    return true
+  }
+
+  private func spaceMailHintCandidate(target: SpaceMailHintTarget, sender: String, subject: String, bodyPreview: String) -> String? {
+    switch target {
+    case .trustedSender:
+      let cleanedSender = safeAuditPreview(sender, limit: 80)
+      if let domain = cleanedSender.split(separator: "@").last, domain.contains(".") {
+        return String(domain).lowercased()
+      }
+      return cleanedSender == "empty" ? nil : cleanedSender.lowercased()
+    case .importKeyword, .uncertainKeyword, .filterKeyword:
+      let subjectCandidate = spaceMailPhraseCandidate(from: subject)
+      if let subjectCandidate { return subjectCandidate }
+      return spaceMailPhraseCandidate(from: bodyPreview)
+    }
+  }
+
+  private func spaceMailPhraseCandidate(from value: String) -> String? {
+    let cleaned = safeAuditPreview(value, limit: 80)
+      .replacingOccurrences(of: #"[^\p{L}\p{N}\s#:/._-]+"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.count >= 4, cleaned != "empty" else { return nil }
+    return String(cleaned.prefix(60)).lowercased()
+  }
+
+  private func appendSpaceMailRefreshHistory(_ entry: SpaceMailRefreshHistoryEntry, to connection: inout SpaceMailIMAPConnection) {
+    connection.refreshHistory.insert(entry, at: 0)
+    connection.refreshHistory = Array(connection.refreshHistory.prefix(12))
+  }
+
+  private func spaceMailFilterPresetConfiguration(_ preset: SpaceMailFilterPreset) -> (trustedSenders: [String], importKeywords: [String], uncertainKeywords: [String], filterKeywords: [String]) {
+    switch preset {
+    case .conservative:
+      return (
+        trustedSenders: [],
+        importKeywords: ["order shipped", "tracking number", "dispatch confirmation", "shipment confirmation"],
+        uncertainKeywords: ["delivery question", "relates to an order", "tracking number yet", "missing tracking"],
+        filterKeywords: ["newsletter", "promotion", "sale ends", "final days", "security alert", "calendar", "webinar", "social", "unsubscribe"]
+      )
+    case .balanced:
+      return (
+        trustedSenders: ["shop", "orders", "dispatch", "shipping", "support"],
+        importKeywords: ["order shipped", "tracking number", "your order", "shipment update", "delivery update", "refund", "return"],
+        uncertainKeywords: ["delivery question", "order question", "where is my order", "relates to an order", "tracking number yet", "invoice question"],
+        filterKeywords: ["newsletter", "promotion", "sale ends", "final days", "security alert", "calendar", "webinar"]
+      )
+    case .forwardedOrders:
+      return (
+        trustedSenders: ["caught@", "orders@", "tracking@", "dispatch@", "shipping@"],
+        importKeywords: ["fwd:", "fw:", "order", "tracking", "shipped", "dispatched", "delivered", "parcel", "package"],
+        uncertainKeywords: ["delivery question", "order question", "tracking question", "missing tracking", "relates to an order"],
+        filterKeywords: ["newsletter", "promotion", "calendar", "webinar", "password reset", "verification code"]
+      )
+    }
+  }
+
   private func applySpaceMailCredentialStoreResult(_ result: SpaceMailCredentialStoreResult, to connection: SpaceMailIMAPConnection, summary: String) {
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.credentialStorageStatus = result.status.rawValue
@@ -9408,7 +10434,7 @@ final class ParcelOpsStore {
   }
 
   private func spaceMailIMAPConnectionAuditDetail(_ connection: SpaceMailIMAPConnection) -> String {
-    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, real IMAP connection, or mailbox content is stored in this placeholder."
+    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMailbox mode: \(connection.mailboxMode.rawValue)\nTrusted sender hints: \(connection.trustedSenderHints.joined(separator: ", "))\nImport keyword hints: \(connection.importKeywordHints.joined(separator: ", "))\nUncertain keyword hints: \(connection.uncertainKeywordHints.joined(separator: ", "))\nFilter keyword hints: \(connection.filterKeywordHints.joined(separator: ", "))\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, real IMAP connection, or mailbox content is stored in this placeholder."
   }
 
   private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {
@@ -10286,6 +11312,15 @@ private extension DispatchReadinessChecklist {
 }
 
 private extension ValidationSeverity {
+  var sortRank: Int {
+    switch self {
+    case .critical: 4
+    case .high: 3
+    case .warning: 2
+    case .info: 1
+    }
+  }
+
   var shipmentRiskLevel: ShipmentRiskLevel? {
     switch self {
     case .info: .low

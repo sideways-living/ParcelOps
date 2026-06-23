@@ -19,7 +19,9 @@ struct InboxView: View {
       .filter { !acceptanceKeys.contains(InboxTriageItem.sourceKey(sourceType: .importQueueItem, sourceID: $0.id)) }
       .map(InboxTriageItem.importQueue)
 
-    return (acceptanceItems.map(InboxTriageItem.acceptance) + emailItems + importItems)
+    let parserItems = store.intakeParserDiagnostics.map(InboxTriageItem.parserDiagnostic)
+
+    return (acceptanceItems.map(InboxTriageItem.acceptance) + parserItems + emailItems + importItems)
       .sorted { lhs, rhs in
         if lhs.sortPriority == rhs.sortPriority {
           return lhs.capturedDate > rhs.capturedDate
@@ -32,6 +34,7 @@ struct InboxView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
+        mailboxHealthPanel
         triagePanel
         detailRoutes
       }
@@ -56,6 +59,29 @@ struct InboxView: View {
         } else {
           ForEach(triageItems.prefix(12)) { item in
             InboxTriageRow(item: item, store: store)
+          }
+        }
+      }
+    }
+  }
+
+  private var mailboxHealthPanel: some View {
+    SettingsPanel(title: "Mailbox intake health", symbol: "server.rack") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("SpaceMail is a mixed-use mailbox, so ParcelOps filters likely non-order messages before they reach triage. Use this panel to see whether the latest refresh produced actionable intake or simply filtered normal mail.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if store.spaceMailIntakeHealthSummaries.isEmpty {
+          MVPEmptyState(
+            title: "No SpaceMail mailbox configured",
+            detail: "Add a SpaceMail setup in Mailbox Monitor or Settings when you are ready to use real IMAP intake.",
+            symbol: "server.rack"
+          )
+        } else {
+          ForEach(store.spaceMailIntakeHealthSummaries) { summary in
+            InboxMailboxHealthRow(summary: summary)
           }
         }
       }
@@ -90,6 +116,8 @@ struct InboxView: View {
       MetricStrip(items: [
         ("Triage", "\(triageItems.count)", .red),
         ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
+        ("Parser", "\(store.intakeParserDiagnostics.count)", .orange),
+        ("Mailbox", "\(store.spaceMailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0 }.count)", .purple),
         ("Imports", "\(store.importQueueItemsNeedingReview.count)", .teal),
         ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .orange),
         ("All records", "\(store.intakeEmails.count + store.importQueueItems.count)", .gray)
@@ -105,6 +133,59 @@ struct InboxView: View {
       unique.append(item)
     }
     return unique
+  }
+}
+
+private struct InboxMailboxHealthRow: View {
+  var summary: SpaceMailIntakeHealthSummary
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(summary.displayName, systemImage: "server.rack")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Badge(summary.verdict, color: color)
+      }
+      Text(summary.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 110) {
+        Badge("\(summary.fetchedCount) fetched", color: .blue)
+        Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
+        Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
+        Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.uncertainCount) uncertain", color: summary.uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(summary.parserIssueCount) parser checks", color: summary.parserIssueCount > 0 ? .orange : .secondary)
+      }
+      Text(summary.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+      if !summary.topReasonLabels.isEmpty {
+        Text("Latest reasons: \(summary.topReasonLabels.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
+    }
   }
 }
 
@@ -177,6 +258,24 @@ private struct InboxTriageItem: Identifiable {
     )
   }
 
+  static func parserDiagnostic(_ diagnostic: IntakeParserDiagnostic) -> InboxTriageItem {
+    InboxTriageItem(
+      id: "parser-\(diagnostic.id)",
+      source: .parserDiagnostic(diagnostic),
+      sourceLabel: "Parser",
+      title: diagnostic.title,
+      subtitle: diagnostic.subjectPreview,
+      detail: diagnostic.summary,
+      capturedDate: diagnostic.capturedDate,
+      confidenceScore: nil,
+      reviewLabel: diagnostic.severity.rawValue,
+      linkedOrderID: nil,
+      linkedShipmentGroupID: nil,
+      nextAction: diagnostic.recommendedAction,
+      sortPriority: diagnostic.severity == .critical ? 98 : diagnostic.severity == .high ? 92 : 72
+    )
+  }
+
   static func sourceKey(sourceType: AcceptanceSourceType, sourceID: UUID) -> String {
     "\(sourceType.rawValue)-\(sourceID.uuidString)"
   }
@@ -186,12 +285,14 @@ private enum InboxTriageSource {
   case email(ForwardedEmailIntake)
   case importQueue(ImportQueueItem)
   case acceptance(AcceptanceCandidate)
+  case parserDiagnostic(IntakeParserDiagnostic)
 
   var symbol: String {
     switch self {
     case .email: "envelope.open.fill"
     case .importQueue: "tray.and.arrow.down.fill"
     case .acceptance: "checkmark.rectangle.stack.fill"
+    case .parserDiagnostic: "text.magnifyingglass"
     }
   }
 
@@ -203,6 +304,8 @@ private enum InboxTriageSource {
       item.importStatus.color
     case .acceptance(let candidate):
       candidate.decision.color
+    case .parserDiagnostic(let diagnostic):
+      diagnostic.severity.color
     }
   }
 }
@@ -358,6 +461,22 @@ private struct InboxTriageRow: View {
             feedbackMessage = "Draft message created locally."
           }
           .buttonStyle(.bordered)
+
+        case .parserDiagnostic(let diagnostic):
+          Button("Reprocess", systemImage: "arrow.triangle.2.circlepath") {
+            if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+              store.reprocessIntakeEmail(email)
+              feedbackMessage = "Email reprocessed from stored preview."
+            }
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Create task", systemImage: "checklist") {
+            if let email = store.intakeEmails.first(where: { $0.id == diagnostic.intakeEmailID }) {
+              store.createReviewTask(from: email)
+              feedbackMessage = "Parser follow-up task created. Check Tasks."
+            }
+          }
+          .buttonStyle(.bordered)
         }
       }
 
@@ -388,6 +507,8 @@ private struct InboxTriageRow: View {
       ImportQueueView(store: store)
     case .acceptance:
       AcceptanceReviewView(store: store)
+    case .parserDiagnostic:
+      MailboxView(store: store)
     }
   }
 

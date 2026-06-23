@@ -272,6 +272,133 @@ struct FetchedMailboxMessage: Identifiable, Hashable {
   var sourceMailboxID: UUID
 }
 
+struct SpaceMailUncertainMessage: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var providerMessageID: String
+  var sourceMailboxID: UUID
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var bodyPreview: String
+  var reason: String
+  var capturedDate: String
+}
+
+struct SpaceMailFilteredMessage: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var providerMessageID: String
+  var sourceMailboxID: UUID
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var bodyPreview: String
+  var reason: String
+  var capturedDate: String
+}
+
+struct SpaceMailClassifierReasonCount: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var decision: String
+  var reason: String
+  var count: Int
+}
+
+struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sampleName: String
+  var decision: String
+  var reason: String
+  var score: Int
+  var subjectPreview: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var detectedMerchant: String
+  var detectedDestination: String
+
+  var expectedOrderNumber: String
+  var expectedTrackingNumber: String
+  var parserStatus: String
+
+  init(
+    id: UUID = UUID(),
+    sampleName: String,
+    decision: String,
+    reason: String,
+    score: Int,
+    subjectPreview: String,
+    detectedOrderNumber: String,
+    detectedTrackingNumber: String,
+    detectedMerchant: String,
+    detectedDestination: String,
+    expectedOrderNumber: String = "No expected order",
+    expectedTrackingNumber: String = "No expected tracking",
+    parserStatus: String = "No parser expectation"
+  ) {
+    self.id = id
+    self.sampleName = sampleName
+    self.decision = decision
+    self.reason = reason
+    self.score = score
+    self.subjectPreview = subjectPreview
+    self.detectedOrderNumber = detectedOrderNumber
+    self.detectedTrackingNumber = detectedTrackingNumber
+    self.detectedMerchant = detectedMerchant
+    self.detectedDestination = detectedDestination
+    self.expectedOrderNumber = expectedOrderNumber
+    self.expectedTrackingNumber = expectedTrackingNumber
+    self.parserStatus = parserStatus
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case sampleName
+    case decision
+    case reason
+    case score
+    case subjectPreview
+    case detectedOrderNumber
+    case detectedTrackingNumber
+    case detectedMerchant
+    case detectedDestination
+    case expectedOrderNumber
+    case expectedTrackingNumber
+    case parserStatus
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+    sampleName = try container.decode(String.self, forKey: .sampleName)
+    decision = try container.decode(String.self, forKey: .decision)
+    reason = try container.decode(String.self, forKey: .reason)
+    score = try container.decode(Int.self, forKey: .score)
+    subjectPreview = try container.decode(String.self, forKey: .subjectPreview)
+    detectedOrderNumber = try container.decode(String.self, forKey: .detectedOrderNumber)
+    detectedTrackingNumber = try container.decode(String.self, forKey: .detectedTrackingNumber)
+    detectedMerchant = try container.decode(String.self, forKey: .detectedMerchant)
+    detectedDestination = try container.decode(String.self, forKey: .detectedDestination)
+    expectedOrderNumber = try container.decodeIfPresent(String.self, forKey: .expectedOrderNumber) ?? "No expected order"
+    expectedTrackingNumber = try container.decodeIfPresent(String.self, forKey: .expectedTrackingNumber) ?? "No expected tracking"
+    parserStatus = try container.decodeIfPresent(String.self, forKey: .parserStatus) ?? "No parser expectation"
+  }
+}
+
+struct IntakeParserDiagnostic: Identifiable, Hashable {
+  var id: String
+  var intakeEmailID: UUID
+  var title: String
+  var summary: String
+  var severity: ValidationSeverity
+  var capturedDate: String
+  var subjectPreview: String
+  var senderPreview: String
+  var detectedMerchant: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var detectedDestination: String
+  var recommendedAction: String
+}
+
 struct SpaceMailIMAPFetchResult: Hashable {
   var status: SpaceMailIMAPFetchStatus
   var messages: [FetchedMailboxMessage]
@@ -1342,6 +1469,40 @@ enum Microsoft365TokenStoreStatus: String, CaseIterable, Identifiable, Hashable,
   }
 }
 
+struct SpaceMailRefreshHistoryEntry: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var timestamp: String
+  var eventType: String
+  var status: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var filteredNonOrderCount: Int
+  var uncertainCount: Int
+  var summary: String
+}
+
+struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var displayName: String
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var filteredCount: Int
+  var uncertainCount: Int
+  var parserIssueCount: Int
+  var linkedIntakeCount: Int
+  var pendingFilteredReviewCount: Int
+  var pendingUncertainReviewCount: Int
+  var lastRefreshDate: String
+  var topReasonLabels: [String]
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String
@@ -1355,12 +1516,24 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var setupNotes: String
   var credentialStorageStatus: String
   var mailboxMode: SpaceMailMailboxMode
+  var trustedSenderHints: [String]
+  var importKeywordHints: [String]
+  var uncertainKeywordHints: [String]
+  var filterKeywordHints: [String]
   var lastRefreshFetchedCount: Int
   var lastRefreshImportedCount: Int
   var lastRefreshDuplicateCount: Int
   var lastRefreshFilteredNonOrderCount: Int
   var lastRefreshUncertainCount: Int
   var lastRefreshSummary: String
+  var lastRefreshFilteredExamples: [String]
+  var lastRefreshUncertainExamples: [String]
+  var classifierTestSummary: String
+  var uncertainMessages: [SpaceMailUncertainMessage]
+  var filteredMessages: [SpaceMailFilteredMessage]
+  var lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount]
+  var classifierTestResults: [SpaceMailClassifierTestResult]
+  var refreshHistory: [SpaceMailRefreshHistoryEntry]
   var reviewState: ReviewState
 
   init(
@@ -1376,12 +1549,24 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     setupNotes: String,
     credentialStorageStatus: String,
     mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
+    trustedSenderHints: [String] = [],
+    importKeywordHints: [String] = [],
+    uncertainKeywordHints: [String] = [],
+    filterKeywordHints: [String] = [],
     lastRefreshFetchedCount: Int = 0,
     lastRefreshImportedCount: Int = 0,
     lastRefreshDuplicateCount: Int = 0,
     lastRefreshFilteredNonOrderCount: Int = 0,
     lastRefreshUncertainCount: Int = 0,
     lastRefreshSummary: String = "No refresh has run yet.",
+    lastRefreshFilteredExamples: [String] = [],
+    lastRefreshUncertainExamples: [String] = [],
+    classifierTestSummary: String = "Classifier test has not run.",
+    uncertainMessages: [SpaceMailUncertainMessage] = [],
+    filteredMessages: [SpaceMailFilteredMessage] = [],
+    lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = [],
+    classifierTestResults: [SpaceMailClassifierTestResult] = [],
+    refreshHistory: [SpaceMailRefreshHistoryEntry] = [],
     reviewState: ReviewState
   ) {
     self.id = id
@@ -1396,12 +1581,24 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     self.setupNotes = setupNotes
     self.credentialStorageStatus = credentialStorageStatus
     self.mailboxMode = mailboxMode
+    self.trustedSenderHints = trustedSenderHints
+    self.importKeywordHints = importKeywordHints
+    self.uncertainKeywordHints = uncertainKeywordHints
+    self.filterKeywordHints = filterKeywordHints
     self.lastRefreshFetchedCount = lastRefreshFetchedCount
     self.lastRefreshImportedCount = lastRefreshImportedCount
     self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
     self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
     self.lastRefreshUncertainCount = lastRefreshUncertainCount
     self.lastRefreshSummary = lastRefreshSummary
+    self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
+    self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
+    self.classifierTestSummary = classifierTestSummary
+    self.uncertainMessages = uncertainMessages
+    self.filteredMessages = filteredMessages
+    self.lastRefreshReasonBreakdown = lastRefreshReasonBreakdown
+    self.classifierTestResults = classifierTestResults
+    self.refreshHistory = refreshHistory
     self.reviewState = reviewState
   }
 
@@ -1418,12 +1615,24 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     case setupNotes
     case credentialStorageStatus
     case mailboxMode
+    case trustedSenderHints
+    case importKeywordHints
+    case uncertainKeywordHints
+    case filterKeywordHints
     case lastRefreshFetchedCount
     case lastRefreshImportedCount
     case lastRefreshDuplicateCount
     case lastRefreshFilteredNonOrderCount
     case lastRefreshUncertainCount
     case lastRefreshSummary
+    case lastRefreshFilteredExamples
+    case lastRefreshUncertainExamples
+    case classifierTestSummary
+    case uncertainMessages
+    case filteredMessages
+    case lastRefreshReasonBreakdown
+    case classifierTestResults
+    case refreshHistory
     case reviewState
   }
 
@@ -1441,12 +1650,24 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
     setupNotes = try container.decode(String.self, forKey: .setupNotes)
     credentialStorageStatus = try container.decode(String.self, forKey: .credentialStorageStatus)
     mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
+    trustedSenderHints = try container.decodeIfPresent([String].self, forKey: .trustedSenderHints) ?? []
+    importKeywordHints = try container.decodeIfPresent([String].self, forKey: .importKeywordHints) ?? []
+    uncertainKeywordHints = try container.decodeIfPresent([String].self, forKey: .uncertainKeywordHints) ?? []
+    filterKeywordHints = try container.decodeIfPresent([String].self, forKey: .filterKeywordHints) ?? []
     lastRefreshFetchedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFetchedCount) ?? 0
     lastRefreshImportedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshImportedCount) ?? 0
     lastRefreshDuplicateCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshDuplicateCount) ?? 0
     lastRefreshFilteredNonOrderCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFilteredNonOrderCount) ?? 0
     lastRefreshUncertainCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshUncertainCount) ?? 0
     lastRefreshSummary = try container.decodeIfPresent(String.self, forKey: .lastRefreshSummary) ?? "No refresh has run yet."
+    lastRefreshFilteredExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshFilteredExamples) ?? []
+    lastRefreshUncertainExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshUncertainExamples) ?? []
+    classifierTestSummary = try container.decodeIfPresent(String.self, forKey: .classifierTestSummary) ?? "Classifier test has not run."
+    uncertainMessages = try container.decodeIfPresent([SpaceMailUncertainMessage].self, forKey: .uncertainMessages) ?? []
+    filteredMessages = try container.decodeIfPresent([SpaceMailFilteredMessage].self, forKey: .filteredMessages) ?? []
+    lastRefreshReasonBreakdown = try container.decodeIfPresent([SpaceMailClassifierReasonCount].self, forKey: .lastRefreshReasonBreakdown) ?? []
+    classifierTestResults = try container.decodeIfPresent([SpaceMailClassifierTestResult].self, forKey: .classifierTestResults) ?? []
+    refreshHistory = try container.decodeIfPresent([SpaceMailRefreshHistoryEntry].self, forKey: .refreshHistory) ?? []
     reviewState = try container.decode(ReviewState.self, forKey: .reviewState)
   }
 }
@@ -1454,6 +1675,23 @@ struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
 enum SpaceMailMailboxMode: String, CaseIterable, Identifiable, Hashable, Codable {
   case dedicatedOrderMailbox = "Dedicated order mailbox"
   case mixedFiltered = "Mixed mailbox, filter likely order emails only"
+
+  var id: String { rawValue }
+}
+
+enum SpaceMailFilterPreset: String, CaseIterable, Identifiable, Hashable, Codable {
+  case conservative = "Conservative mixed mailbox"
+  case balanced = "Balanced order triage"
+  case forwardedOrders = "Forwarded order updates"
+
+  var id: String { rawValue }
+}
+
+enum SpaceMailHintTarget: String, CaseIterable, Identifiable, Hashable {
+  case trustedSender = "Trusted sender"
+  case importKeyword = "Import keyword"
+  case uncertainKeyword = "Uncertain keyword"
+  case filterKeyword = "Filter keyword"
 
   var id: String { rawValue }
 }
@@ -1952,6 +2190,8 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case reviewTask = "Review task"
   case handoffNote = "Handoff note"
   case intakeEmail = "Forwarded email"
+  case intakeParser = "Intake parser"
+  case spaceMailIntake = "SpaceMail intake"
   case importQueue = "Import queue"
   case acceptanceReview = "Acceptance review"
   case reconciliation = "Reconciliation"
