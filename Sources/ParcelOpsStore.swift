@@ -83,6 +83,12 @@ final class ParcelOpsStore {
     case uncertain
     case nonOrder
   }
+
+  private struct SpaceMailClassifierEvidence {
+    var positiveLabels: [String]
+    var cautionLabels: [String]
+    var nextAction: String
+  }
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
@@ -4390,6 +4396,90 @@ final class ParcelOpsStore {
     }
 
     return (.nonOrder, score, "no strong order evidence")
+  }
+
+  private func spaceMailClassifierEvidence(
+    for message: FetchedMailboxMessage,
+    connection: SpaceMailIMAPConnection,
+    decision: MailboxRelevanceDecision,
+    reason: String,
+    score: Int
+  ) -> SpaceMailClassifierEvidence {
+    let text = "\(message.sender)\n\(message.subject)\n\(message.plainTextBodyPreview)"
+    let lowercasedText = text.lowercased()
+    let lowercasedSender = message.sender.lowercased()
+    let orderNumber = detectedOrderNumber(in: text)
+    let trackingNumber = detectedTrackingNumber(in: text, excluding: orderNumber)
+
+    var positive: [String] = []
+    var cautions: [String] = []
+
+    if !orderNumber.isPlaceholderValidationValue {
+      positive.append("Detected order ID")
+    }
+    if !trackingNumber.isPlaceholderValidationValue {
+      positive.append("Detected tracking ID")
+    }
+    if lowercasedText.contains("order") || lowercasedText.contains("purchase order") || lowercasedText.contains("refund") || lowercasedText.contains("return") {
+      positive.append("Order/refund wording")
+    }
+    if lowercasedText.contains("tracking") || lowercasedText.contains("shipped") || lowercasedText.contains("shipment") || lowercasedText.contains("delivery") || lowercasedText.contains("dispatch") {
+      positive.append("Shipping/delivery wording")
+    }
+    if firstMatch(in: text, pattern: #"(?i)\border\s+[A-Z0-9][A-Z0-9._/-]{2,30}\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\s+(?:with\s+)?tracking\s+[A-Z0-9][A-Z0-9 -]{4,34}"#) != nil {
+      positive.append("Order-shipped-tracking phrase")
+    }
+    if let trustedSenderHint = firstConfiguredHint(in: lowercasedSender, hints: connection.trustedSenderHints) {
+      positive.append("Trusted sender hint: \(trustedSenderHint)")
+    }
+    if let importKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.importKeywordHints) {
+      positive.append("Import hint: \(importKeywordHint)")
+    }
+    if let uncertainKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.uncertainKeywordHints) {
+      positive.append("Uncertain hint: \(uncertainKeywordHint)")
+    }
+
+    let nonOrderSignals = [
+      "newsletter", "promotion", "marketing", "sale ends", "final days",
+      "password reset", "security alert", "verification code", "calendar",
+      "invitation", "webinar", "social", "follow us"
+    ]
+    if let matchedSignal = nonOrderSignals.first(where: { lowercasedText.contains($0) }) {
+      cautions.append("Non-order signal: \(matchedSignal)")
+    }
+    if let filterKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.filterKeywordHints) {
+      cautions.append("Filter hint: \(filterKeywordHint)")
+    }
+    if orderNumber.isPlaceholderValidationValue && trackingNumber.isPlaceholderValidationValue {
+      cautions.append("No order/tracking ID detected")
+    }
+    if lowercasedText.contains("unsubscribe") || lowercasedText.contains("view this email") {
+      cautions.append("Marketing/footer wording")
+    }
+    if positive.isEmpty {
+      cautions.append("No strong order evidence")
+    }
+
+    let nextAction: String
+    switch decision {
+    case .likelyOrder:
+      nextAction = "Would import to Inbox. If this is wrong, add a filter hint or use a stricter preset."
+    case .uncertain:
+      nextAction = "Would stay out of Inbox and appear in Uncertain SpaceMail messages for manual import or dismissal."
+    case .nonOrder:
+      nextAction = "Would be filtered out of Inbox. Import manually only if the preview is actually order-related."
+    }
+
+    var cappedPositive = Array(NSOrderedSet(array: positive).array.compactMap { $0 as? String }.prefix(8))
+    var cappedCautions = Array(NSOrderedSet(array: cautions).array.compactMap { $0 as? String }.prefix(8))
+    cappedPositive.insert("Decision: \(reason)", at: 0)
+    cappedCautions.append("Score: \(score)")
+
+    return SpaceMailClassifierEvidence(
+      positiveLabels: cappedPositive,
+      cautionLabels: cappedCautions,
+      nextAction: nextAction
+    )
   }
 
   private func firstConfiguredHint(in text: String, hints: [String]) -> String? {
@@ -9359,6 +9449,13 @@ final class ParcelOpsStore {
     case .nonOrder:
       decision = "Filtered"
     }
+    let evidence = spaceMailClassifierEvidence(
+      for: message,
+      connection: connection,
+      decision: relevance.decision,
+      reason: relevance.reason,
+      score: relevance.score
+    )
     return SpaceMailClassifierTestResult(
       sampleName: name,
       decision: decision,
@@ -9376,7 +9473,10 @@ final class ParcelOpsStore {
         detectedTrackingNumber: parsingPreview.detectedTrackingNumber,
         expectedOrderNumber: expectedOrderNumber,
         expectedTrackingNumber: expectedTrackingNumber
-      )
+      ),
+      positiveEvidenceLabels: evidence.positiveLabels,
+      cautionLabels: evidence.cautionLabels,
+      nextActionText: evidence.nextAction
     )
   }
 

@@ -318,6 +318,9 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
   var expectedOrderNumber: String
   var expectedTrackingNumber: String
   var parserStatus: String
+  var positiveEvidenceLabels: [String]
+  var cautionLabels: [String]
+  var nextActionText: String
 
   init(
     id: UUID = UUID(),
@@ -332,7 +335,10 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     detectedDestination: String,
     expectedOrderNumber: String = "No expected order",
     expectedTrackingNumber: String = "No expected tracking",
-    parserStatus: String = "No parser expectation"
+    parserStatus: String = "No parser expectation",
+    positiveEvidenceLabels: [String] = [],
+    cautionLabels: [String] = [],
+    nextActionText: String = "Review the classifier result before changing hints."
   ) {
     self.id = id
     self.sampleName = sampleName
@@ -347,6 +353,9 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     self.expectedOrderNumber = expectedOrderNumber
     self.expectedTrackingNumber = expectedTrackingNumber
     self.parserStatus = parserStatus
+    self.positiveEvidenceLabels = positiveEvidenceLabels
+    self.cautionLabels = cautionLabels
+    self.nextActionText = nextActionText
   }
 
   enum CodingKeys: String, CodingKey {
@@ -363,6 +372,9 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     case expectedOrderNumber
     case expectedTrackingNumber
     case parserStatus
+    case positiveEvidenceLabels
+    case cautionLabels
+    case nextActionText
   }
 
   init(from decoder: Decoder) throws {
@@ -380,6 +392,9 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     expectedOrderNumber = try container.decodeIfPresent(String.self, forKey: .expectedOrderNumber) ?? "No expected order"
     expectedTrackingNumber = try container.decodeIfPresent(String.self, forKey: .expectedTrackingNumber) ?? "No expected tracking"
     parserStatus = try container.decodeIfPresent(String.self, forKey: .parserStatus) ?? "No parser expectation"
+    positiveEvidenceLabels = try container.decodeIfPresent([String].self, forKey: .positiveEvidenceLabels) ?? []
+    cautionLabels = try container.decodeIfPresent([String].self, forKey: .cautionLabels) ?? []
+    nextActionText = try container.decodeIfPresent(String.self, forKey: .nextActionText) ?? "Review the classifier result before changing hints."
   }
 }
 

@@ -866,6 +866,12 @@ struct SpaceMailIMAPConnectionRow: View {
     return .secondary
   }
 
+  private func classifierCautionColor(_ label: String) -> Color {
+    if label.localizedCaseInsensitiveContains("score") { return .secondary }
+    if label.localizedCaseInsensitiveContains("no order") || label.localizedCaseInsensitiveContains("no strong") { return .orange }
+    return .teal
+  }
+
   private func parserStatusColor(_ status: String) -> Color {
     if status.localizedCaseInsensitiveContains("needs review") { return .orange }
     if status.localizedCaseInsensitiveContains("passed") { return .green }
@@ -1048,6 +1054,24 @@ struct SpaceMailIMAPConnectionRow: View {
               Text("\(result.reason) • score \(result.score)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+              if !result.positiveEvidenceLabels.isEmpty {
+                CompactMetadataGrid(minimumWidth: 150) {
+                  ForEach(result.positiveEvidenceLabels, id: \.self) { label in
+                    Badge(label, color: .green)
+                  }
+                }
+              }
+              if !result.cautionLabels.isEmpty {
+                CompactMetadataGrid(minimumWidth: 150) {
+                  ForEach(result.cautionLabels, id: \.self) { label in
+                    Badge(label, color: classifierCautionColor(label))
+                  }
+                }
+              }
+              Text(result.nextActionText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(classifierReasonColor(result.decision))
+                .fixedSize(horizontal: false, vertical: true)
               Text(result.parserStatus)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(parserStatusColor(result.parserStatus))
