@@ -725,25 +725,15 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.secondary)
       }
 
-      Text("Manual real refresh uses read-only IMAP. Mixed mailbox mode filters likely non-order messages before they reach Inbox, while dedicated mode passes fetched messages straight to intake duplicate handling. No mailbox items are deleted, moved, marked read, flagged, sent, or modified.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      spaceMailSetupFlow
+
+      setupActions
+
+      keychainCredentialSection
 
       SpaceMailIntakeHealthCard(summary: healthSummary)
 
-      if connection.mailboxMode == .mixedFiltered {
-        spaceMailFilterTuningSummary
-      }
-
       spaceMailRefreshSummary
-
-      if !connection.refreshHistory.isEmpty {
-        spaceMailRefreshHistory
-      }
-
-      if connection.mailboxMode == .mixedFiltered {
-        spaceMailClassifierTest
-      }
 
       if !connection.uncertainMessages.isEmpty {
         uncertainMessagesReview
@@ -753,38 +743,21 @@ struct SpaceMailIMAPConnectionRow: View {
         filteredMessagesReview
       }
 
-      VStack(alignment: .leading, spacing: 6) {
-        ActionGroupHeader(title: "Keychain credential", symbol: "key.horizontal")
-        Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        CompactActionRow {
-          Button("Set/update password", systemImage: "key.fill") { isCredentialSheetPresented = true }
-          Button("Check credential", systemImage: "checkmark.seal", action: onCheckCredential)
-          Button("Clear credential", systemImage: "xmark.circle", role: .destructive, action: onClearCredential)
-        }
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailFilterTuningSummary
       }
 
-      VStack(alignment: .leading, spacing: 6) {
-        ActionGroupHeader(title: "Credential state test actions", symbol: "wrench.and.screwdriver")
-        Text("These mock actions only change non-secret status labels for testing error states. They do not create, read, write, delete, store, or log passwords or Keychain items.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        CompactActionRow {
-          Button("Credential ready", systemImage: "key.radiowaves.forward", action: onCredentialReady)
-          Button("Credential missing", systemImage: "key.slash", action: onCredentialMissing)
-          Button("Storage error", systemImage: "exclamationmark.triangle", action: onCredentialError)
-          Button("Clear reference", systemImage: "xmark.circle", action: onCredentialClear)
-        }
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailClassifierTest
       }
 
-      CompactActionRow {
-        Button("Edit setup", systemImage: "pencil") { isEditing = true }
-        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
-        Button("Run Mock SpaceMail refresh", systemImage: "tray.and.arrow.down", action: onMockRefresh)
-        Button("Run real SpaceMail refresh", systemImage: "network", action: onRealRefresh)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+      if !connection.refreshHistory.isEmpty {
+        spaceMailRefreshHistory
       }
+
+      credentialStateTestSection
+
+      maintenanceActions
     }
     .padding()
     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -800,11 +773,96 @@ struct SpaceMailIMAPConnectionRow: View {
     }
   }
 
+  private var spaceMailSetupFlow: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("SpaceMail operator flow", systemImage: "list.number")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+      Text("Use this row from top to bottom: confirm setup, set the Keychain password, choose the mailbox mode, run a manual refresh, review the results, then tune the classifier only if the result looks wrong.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 170) {
+        Badge("1 Confirm setup", color: .blue)
+        Badge("2 Keychain password", color: .purple)
+        Badge("3 Mailbox mode", color: .teal)
+        Badge("4 Manual refresh", color: .green)
+        Badge("5 Review results", color: .orange)
+        Badge("6 Tune classifier", color: .secondary)
+      }
+      Text("Real refresh is read-only IMAP. ParcelOps must not delete, move, mark read, flag, send, or modify mailbox items.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var setupActions: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "1. Confirm mailbox settings", symbol: "server.rack")
+      Text("Check email address, host, port, SSL/TLS mode, folder, and mixed-mailbox mode before running a real refresh.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Edit setup", systemImage: "pencil") { isEditing = true }
+        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+      }
+    }
+  }
+
+  private var keychainCredentialSection: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "2. Set Keychain credential", symbol: "key.horizontal")
+      Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Set/update password", systemImage: "key.fill") { isCredentialSheetPresented = true }
+        Button("Check credential", systemImage: "checkmark.seal", action: onCheckCredential)
+        Button("Clear credential", systemImage: "xmark.circle", role: .destructive, action: onClearCredential)
+      }
+    }
+  }
+
+  private var credentialStateTestSection: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "Advanced local test controls", symbol: "wrench.and.screwdriver")
+      Text("Use these only to simulate credential status labels while testing UI states. They do not create, read, write, delete, store, or log passwords or Keychain items.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Credential ready", systemImage: "key.radiowaves.forward", action: onCredentialReady)
+        Button("Credential missing", systemImage: "key.slash", action: onCredentialMissing)
+        Button("Storage error", systemImage: "exclamationmark.triangle", action: onCredentialError)
+        Button("Clear reference", systemImage: "xmark.circle", action: onCredentialClear)
+        Button("Run mock refresh", systemImage: "tray.and.arrow.down", action: onMockRefresh)
+      }
+    }
+  }
+
+  private var maintenanceActions: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "Maintenance", symbol: "gearshape")
+      CompactActionRow {
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+      }
+    }
+  }
+
   private var spaceMailRefreshSummary: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Latest SpaceMail refresh", systemImage: "tray.and.arrow.down.fill")
+      Label("4. Run manual refresh", systemImage: "tray.and.arrow.down.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(spaceMailRefreshColor)
+      CompactActionRow {
+        Button("Run real SpaceMail refresh", systemImage: "network", action: onRealRefresh)
+      }
       CompactMetadataGrid(minimumWidth: 120) {
         Badge("\(connection.lastRefreshFetchedCount) fetched", color: .blue)
         Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
@@ -817,7 +875,7 @@ struct SpaceMailIMAPConnectionRow: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
       if connection.mailboxMode == .mixedFiltered {
-        Text("Mixed mailbox mode keeps filtered non-order messages out of Inbox. Open Audit only when you need the detailed reason labels.")
+        Text("Mixed mailbox mode keeps filtered non-order messages out of Inbox. Uncertain previews stay here for review; Audit remains available for detailed reason labels.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.teal)
           .fixedSize(horizontal: false, vertical: true)
@@ -880,10 +938,10 @@ struct SpaceMailIMAPConnectionRow: View {
 
   private var spaceMailFilterTuningSummary: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Mixed mailbox filter tuning", systemImage: "line.3.horizontal.decrease.circle")
+      Label("6. Tune mixed-mailbox classifier", systemImage: "line.3.horizontal.decrease.circle")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.purple)
-      Text("These local hints tune the built-in classifier before messages reach Inbox. They do not call external AI and do not change mailbox messages.")
+      Text("Use this after reviewing refresh results. Presets and hints tune the built-in classifier before messages reach Inbox. They do not call external AI and do not change mailbox messages.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1001,7 +1059,7 @@ struct SpaceMailIMAPConnectionRow: View {
   private var spaceMailClassifierTest: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline) {
-        Label("Classifier test", systemImage: "questionmark.diamond.fill")
+        Label("6. Test classifier decisions", systemImage: "questionmark.diamond.fill")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
         Spacer()
@@ -1129,7 +1187,7 @@ struct SpaceMailIMAPConnectionRow: View {
 
   private var uncertainMessagesReview: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Uncertain SpaceMail messages", systemImage: "questionmark.folder.fill")
+      Label("5. Review uncertain SpaceMail messages", systemImage: "questionmark.folder.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.orange)
       Text("These previews looked possibly order-related, but not strong enough for automatic Inbox import. Import only if the preview is relevant, or dismiss it locally.")
@@ -1190,7 +1248,7 @@ struct SpaceMailIMAPConnectionRow: View {
 
   private var filteredMessagesReview: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Filtered SpaceMail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+      Label("5. Review filtered SpaceMail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.teal)
       Text("These previews were filtered out of Inbox. Import one only if the classifier was too strict, or dismiss it locally to clear the review list.")
