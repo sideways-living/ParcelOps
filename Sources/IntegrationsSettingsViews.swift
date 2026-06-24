@@ -1073,6 +1073,7 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      spaceMailClassifierRuleGuide
       Text(connection.classifierTestSummary)
         .font(.caption2.weight(.semibold))
         .foregroundStyle(classifierTestColor)
@@ -1155,6 +1156,26 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailClassifierRuleGuide: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Decision guide")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+      CompactMetadataGrid(minimumWidth: 180) {
+        Badge("Import: signal + order/tracking ID", color: .green)
+        Badge("Uncertain: order-ish, missing ID", color: .orange)
+        Badge("Filter: marketing/security/social", color: .teal)
+        Badge("Manual review: safe previews only", color: .secondary)
+      }
+      Text("Use the built-in suite after changing presets or hints. It should import clear order/refund samples, keep delivery questions uncertain, and filter obvious marketing or security messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 
   @ViewBuilder

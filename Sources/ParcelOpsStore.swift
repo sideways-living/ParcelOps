@@ -9259,7 +9259,7 @@ final class ParcelOpsStore {
     let mailboxID = trackedMailbox(for: connection).id
     let samples: [(name: String, expectedOrder: String, expectedTracking: String, message: FetchedMailboxMessage)] = [
       (
-        "Clear order shipped",
+        "Expected import: clear order shipped",
         "TEST-123",
         "ABC123",
         FetchedMailboxMessage(
@@ -9272,7 +9272,7 @@ final class ParcelOpsStore {
         )
       ),
       (
-        "Delivery question",
+        "Expected uncertain: delivery question",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -9285,7 +9285,7 @@ final class ParcelOpsStore {
         )
       ),
       (
-        "Marketing final days",
+        "Expected filter: marketing final days",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -9298,7 +9298,7 @@ final class ParcelOpsStore {
         )
       ),
       (
-        "Security alert",
+        "Expected filter: security alert",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -9311,7 +9311,7 @@ final class ParcelOpsStore {
         )
       ),
       (
-        "Refund with order",
+        "Expected import: refund with order",
         "REF-8821",
         "No expected tracking",
         FetchedMailboxMessage(
