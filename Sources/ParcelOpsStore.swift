@@ -4658,6 +4658,20 @@ final class ParcelOpsStore {
 
     guard !issues.isEmpty || !parserHints.isEmpty || email.reviewState == .needsReview else { return nil }
 
+    var nextSteps: [String] = []
+    if !parserHints.isEmpty {
+      nextSteps.append("Run Reprocess")
+    }
+    if !issues.isEmpty {
+      nextSteps.append("Edit detected fields")
+    }
+    if email.linkedOrderID == nil {
+      nextSteps.append("Link or create order")
+    }
+    if email.reviewState == .needsReview {
+      nextSteps.append("Mark reviewed when corrected")
+    }
+
     let emailLabel = email.detectedOrderNumber.isPlaceholderValidationValue ? safeAuditPreview(email.subject, limit: 80) : email.detectedOrderNumber
     let title: String
     if !parserHints.isEmpty {
@@ -4679,7 +4693,10 @@ final class ParcelOpsStore {
       detectedOrderNumber: email.detectedOrderNumber,
       detectedTrackingNumber: email.detectedTrackingNumber,
       detectedDestination: email.detectedDestinationAddress,
-      recommendedAction: parserHints.isEmpty ? "Review or edit the detected fields before accepting." : "Run Reprocess, then review the updated detected fields."
+      recommendedAction: parserHints.isEmpty ? "Review or edit the detected fields before accepting." : "Run Reprocess, then review the updated detected fields.",
+      issueLabels: issues,
+      parserHintLabels: parserHints,
+      nextStepLabels: nextSteps
     )
   }
 

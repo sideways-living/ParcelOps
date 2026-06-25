@@ -268,6 +268,30 @@ struct IntakeParserDiagnosticRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      if !diagnostic.issueLabels.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Missing or weak fields")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactMetadataGrid(minimumWidth: 140) {
+            ForEach(diagnostic.issueLabels, id: \.self) { label in
+              Badge(label, color: .orange)
+            }
+          }
+        }
+      }
+      if !diagnostic.parserHintLabels.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Parser can help")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactMetadataGrid(minimumWidth: 150) {
+            ForEach(diagnostic.parserHintLabels, id: \.self) { label in
+              Badge(label, color: .blue)
+            }
+          }
+        }
+      }
       CompactMetadataGrid(minimumWidth: 130) {
         Badge(diagnostic.detectedMerchant, color: diagnostic.detectedMerchant.isPlaceholderValidationValue ? .secondary : .green)
         Badge(diagnostic.detectedOrderNumber, color: diagnostic.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .blue)
@@ -283,6 +307,13 @@ struct IntakeParserDiagnosticRow: View {
       Text(diagnostic.recommendedAction)
         .font(.caption2.weight(.semibold))
         .foregroundStyle(severityColor)
+      if !diagnostic.nextStepLabels.isEmpty {
+        CompactMetadataGrid(minimumWidth: 130) {
+          ForEach(diagnostic.nextStepLabels, id: \.self) { label in
+            Badge(label, color: severityColor)
+          }
+        }
+      }
       CompactActionRow {
         Button("Reprocess", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
         Button("Task", systemImage: "checklist", action: onCreateTask)

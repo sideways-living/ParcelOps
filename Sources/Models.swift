@@ -412,6 +412,9 @@ struct IntakeParserDiagnostic: Identifiable, Hashable {
   var detectedTrackingNumber: String
   var detectedDestination: String
   var recommendedAction: String
+  var issueLabels: [String]
+  var parserHintLabels: [String]
+  var nextStepLabels: [String]
 }
 
 struct SpaceMailIMAPFetchResult: Hashable {
