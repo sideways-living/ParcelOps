@@ -490,6 +490,12 @@ private struct InboxTriageRow: View {
 
         switch item.source {
         case .email(let email):
+          Button("Create order", systemImage: "plus.circle.fill") {
+            store.createOrder(from: email)
+            feedbackMessage = "Order created and linked locally. Check Orders."
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(email.linkedOrderID != nil)
           Button("Reviewed", systemImage: "checkmark.circle.fill") {
             store.markIntakeEmailReviewed(email)
             feedbackMessage = "Email marked reviewed locally."
@@ -517,6 +523,12 @@ private struct InboxTriageRow: View {
           .buttonStyle(.bordered)
 
         case .importQueue(let importItem):
+          Button("Create order", systemImage: "plus.circle.fill") {
+            store.createOrder(from: importItem)
+            feedbackMessage = "Order created from import. Check Orders."
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(importItem.suggestedLinkedOrderID != nil)
           Button("Accept import", systemImage: "checkmark.seal.fill") {
             store.markImportQueueItemAccepted(importItem)
             feedbackMessage = "Import accepted locally."
@@ -544,6 +556,12 @@ private struct InboxTriageRow: View {
           .buttonStyle(.bordered)
 
         case .acceptance(let candidate):
+          Button("Create order", systemImage: "plus.circle.fill") {
+            store.createOrder(from: candidate)
+            feedbackMessage = "Order created from acceptance. Check Orders."
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(candidate.suggestedLinkedOrderID != nil)
           Button("Accept record", systemImage: "checkmark.circle.fill") {
             store.acceptCandidate(candidate)
             feedbackMessage = "Acceptance record accepted locally."
