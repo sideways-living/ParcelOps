@@ -47,9 +47,20 @@ struct TasksView: View {
         ("Overdue", "\(queueItems.filter(\.isOverdue).count)", .red),
         ("Blocked", "\(queueItems.filter { $0.status == .blocked }.count)", .red),
         ("Urgent", "\(queueItems.filter { $0.priority == .urgent }.count)", .pink),
+        ("Inbox orders", "\(inboxOrderActionCount)", inboxOrderActionCount == 0 ? .green : .teal),
         ("Review", "\(queueItems.filter { $0.reviewState != .accepted }.count)", .purple)
       ])
     }
+  }
+
+  private var inboxOrderActionCount: Int {
+    queueItems.filter { item in
+      guard item.linkedEntityType == .order,
+        let orderID = UUID(uuidString: item.linkedEntityID),
+        let order = store.orders.first(where: { $0.id == orderID })
+      else { return false }
+      return order.isInboxCreatedForOperations
+    }.count
   }
 
   private var taskQueuePanel: some View {
@@ -200,6 +211,13 @@ private struct TaskQueueRow: View {
   @State private var editingTask: ReviewTask?
   @State private var editingHandoff: HandoffNote?
 
+  private var linkedOrder: TrackedOrder? {
+    guard item.linkedEntityType == .order,
+      let orderID = UUID(uuidString: item.linkedEntityID)
+    else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
@@ -224,6 +242,25 @@ private struct TaskQueueRow: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .lineLimit(3)
+
+          if let linkedOrder {
+            VStack(alignment: .leading, spacing: 4) {
+              Label("\(linkedOrder.store) \(linkedOrder.orderNumber) • \(linkedOrder.customer)", systemImage: "shippingbox.fill")
+                .font(.caption.weight(.semibold))
+              Text("\(linkedOrder.carrier) • \(linkedOrder.trackingNumber) • \(linkedOrder.destination)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+              if linkedOrder.isInboxCreatedForOperations {
+                Label("Inbox-created order follow-up", systemImage: "tray.and.arrow.down.fill")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.teal)
+              }
+            }
+            .padding(10)
+            .background(.thinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+          }
 
           CompactMetadataGrid {
             Badge(item.priority.rawValue, color: item.priority.color)
@@ -330,22 +367,41 @@ private struct TaskQueueRow: View {
 
   @ViewBuilder
   private var openLink: some View {
-    switch item.source {
-    case .task:
+    if let linkedOrder {
       NavigationLink {
-        ReviewTasksDetailView(store: store)
+        OrderDetailView(order: linkedOrder, store: store)
       } label: {
-        Label("Open", systemImage: "arrow.right.circle.fill")
+        Label("Open order", systemImage: "arrow.up.right.square.fill")
       }
       .buttonStyle(.bordered)
-    case .handoff:
-      NavigationLink {
-        HandoffNotesView(store: store)
-      } label: {
-        Label("Open", systemImage: "arrow.right.circle.fill")
+    } else {
+      switch item.source {
+      case .task:
+        NavigationLink {
+          ReviewTasksDetailView(store: store)
+        } label: {
+          Label("Open task", systemImage: "arrow.right.circle.fill")
+        }
+        .buttonStyle(.bordered)
+      case .handoff:
+        NavigationLink {
+          HandoffNotesView(store: store)
+        } label: {
+          Label("Open handoff", systemImage: "arrow.right.circle.fill")
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+}
+
+private extension TrackedOrder {
+  var isInboxCreatedForOperations: Bool {
+    source == .forwardedMailbox
+      || checkedMailbox == "manual-import"
+      || latestStatus.localizedCaseInsensitiveContains("import queue")
+      || latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 }
 
