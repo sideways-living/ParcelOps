@@ -202,10 +202,14 @@ private struct InboxTriageItem: Identifiable {
   var linkedOrderID: UUID?
   var linkedShipmentGroupID: UUID?
   var nextAction: String
+  var readinessLabel: String
+  var readinessDetail: String
+  var readinessTone: InboxTriageTone
   var sortPriority: Int
 
   static func email(_ email: ForwardedEmailIntake) -> InboxTriageItem {
-    InboxTriageItem(
+    let readiness = emailReadiness(email)
+    return InboxTriageItem(
       id: "email-\(email.id.uuidString)",
       source: .email(email),
       sourceLabel: "Mailbox",
@@ -218,12 +222,16 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: email.linkedOrderID,
       linkedShipmentGroupID: nil,
       nextAction: email.linkedOrderID == nil ? "Link or create order" : "Review detected fields",
+      readinessLabel: readiness.label,
+      readinessDetail: readiness.detail,
+      readinessTone: readiness.tone,
       sortPriority: email.reviewState == .needsReview ? 80 : 35
     )
   }
 
   static func importQueue(_ item: ImportQueueItem) -> InboxTriageItem {
-    InboxTriageItem(
+    let readiness = importReadiness(item)
+    return InboxTriageItem(
       id: "import-\(item.id.uuidString)",
       source: .importQueue(item),
       sourceLabel: "Import",
@@ -236,12 +244,16 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: item.suggestedLinkedOrderID,
       linkedShipmentGroupID: item.suggestedShipmentGroupID,
       nextAction: item.importStatus == .blocked ? "Resolve blocked import" : item.confidenceScore < 70 ? "Check low-confidence fields" : "Accept or link import",
+      readinessLabel: readiness.label,
+      readinessDetail: readiness.detail,
+      readinessTone: readiness.tone,
       sortPriority: item.importStatus == .blocked ? 95 : item.confidenceScore < 70 ? 85 : 65
     )
   }
 
   static func acceptance(_ candidate: AcceptanceCandidate) -> InboxTriageItem {
-    InboxTriageItem(
+    let readiness = acceptanceReadiness(candidate)
+    return InboxTriageItem(
       id: "acceptance-\(candidate.id)",
       source: .acceptance(candidate),
       sourceLabel: "Acceptance",
@@ -254,12 +266,16 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: candidate.suggestedLinkedOrderID,
       linkedShipmentGroupID: candidate.suggestedShipmentGroupID,
       nextAction: candidate.suggestedLinkedOrderID == nil ? "Choose order or create one" : "Accept into operations",
+      readinessLabel: readiness.label,
+      readinessDetail: readiness.detail,
+      readinessTone: readiness.tone,
       sortPriority: candidate.decision == .blocked ? 100 : candidate.reviewState == .needsReview ? 90 : 70
     )
   }
 
   static func parserDiagnostic(_ diagnostic: IntakeParserDiagnostic) -> InboxTriageItem {
-    InboxTriageItem(
+    let readiness = parserReadiness(diagnostic)
+    return InboxTriageItem(
       id: "parser-\(diagnostic.id)",
       source: .parserDiagnostic(diagnostic),
       sourceLabel: "Parser",
@@ -272,12 +288,98 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: nil,
       linkedShipmentGroupID: nil,
       nextAction: diagnostic.recommendedAction,
+      readinessLabel: readiness.label,
+      readinessDetail: readiness.detail,
+      readinessTone: readiness.tone,
       sortPriority: diagnostic.severity == .critical ? 98 : diagnostic.severity == .high ? 92 : 72
     )
   }
 
   static func sourceKey(sourceType: AcceptanceSourceType, sourceID: UUID) -> String {
     "\(sourceType.rawValue)-\(sourceID.uuidString)"
+  }
+
+  private static func emailReadiness(_ email: ForwardedEmailIntake) -> (label: String, detail: String, tone: InboxTriageTone) {
+    if email.reviewState == .ignored {
+      return ("Ignored locally", "This email is not active unless reopened from the detailed mailbox view.", .muted)
+    }
+
+    let missingFields = missingDetectedFields(
+      merchant: email.detectedMerchant,
+      order: email.detectedOrderNumber,
+      tracking: email.detectedTrackingNumber,
+      destination: email.detectedDestinationAddress
+    )
+    if !missingFields.isEmpty {
+      return ("Needs correction", "Check \(missingFields.joined(separator: ", ")) before creating or linking an order.", .warning)
+    }
+    if email.linkedOrderID == nil {
+      return ("Ready to link", "Detected order details look usable; link to an existing order or create a new one.", .attention)
+    }
+    return ("Ready to review", "Linked order context exists; review once and move it forward.", .success)
+  }
+
+  private static func importReadiness(_ item: ImportQueueItem) -> (label: String, detail: String, tone: InboxTriageTone) {
+    if item.importStatus == .blocked {
+      return ("Blocked", "Resolve the blocked import before accepting it into operations.", .warning)
+    }
+    if item.confidenceScore < 70 {
+      return ("Low confidence", "Check detected fields before accepting this staged import.", .attention)
+    }
+    if item.suggestedLinkedOrderID == nil {
+      return ("Ready to link", "Choose an existing order or create a new local order from this import.", .attention)
+    }
+    return ("Ready to accept", "Suggested order context exists; accept when the fields look right.", .success)
+  }
+
+  private static func acceptanceReadiness(_ candidate: AcceptanceCandidate) -> (label: String, detail: String, tone: InboxTriageTone) {
+    if candidate.decision == .blocked {
+      return ("Blocked", "Resolve the acceptance blocker before moving this record forward.", .warning)
+    }
+    if candidate.confidenceScore < 70 {
+      return ("Check fields", "Compare detected fields before accepting this source record.", .attention)
+    }
+    if candidate.suggestedLinkedOrderID == nil {
+      return ("Choose order", "Select an existing order or create one during acceptance.", .attention)
+    }
+    return ("Ready to accept", "Linked order context is present; accept when the comparison looks right.", .success)
+  }
+
+  private static func parserReadiness(_ diagnostic: IntakeParserDiagnostic) -> (label: String, detail: String, tone: InboxTriageTone) {
+    let hints = (diagnostic.issueLabels + diagnostic.parserHintLabels + diagnostic.nextStepLabels)
+      .prefix(3)
+      .joined(separator: ", ")
+    let detail = hints.isEmpty ? diagnostic.summary : hints
+    return ("Parser check", detail, diagnostic.severity == .critical || diagnostic.severity == .high ? .warning : .attention)
+  }
+
+  private static func missingDetectedFields(merchant: String, order: String, tracking: String, destination: String) -> [String] {
+    [
+      merchant.isPlaceholderValidationValue ? "merchant" : nil,
+      order.isPlaceholderValidationValue ? "order number" : nil,
+      tracking.isPlaceholderValidationValue ? "tracking number" : nil,
+      destination.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+  }
+}
+
+private enum InboxTriageTone {
+  case success
+  case attention
+  case warning
+  case muted
+
+  var color: Color {
+    switch self {
+    case .success:
+      return .green
+    case .attention:
+      return .orange
+    case .warning:
+      return .red
+    case .muted:
+      return .secondary
+    }
   }
 }
 
@@ -354,6 +456,7 @@ private struct InboxTriageRow: View {
               Badge("\(confidenceScore)% confidence", color: confidenceColor(confidenceScore))
             }
             Badge(item.reviewLabel, color: item.source.color)
+            Badge(item.readinessLabel, color: item.readinessTone.color)
             if let linkedOrderLabel {
               Label(linkedOrderLabel, systemImage: "shippingbox.fill")
                 .font(.caption)
@@ -366,9 +469,14 @@ private struct InboxTriageRow: View {
             }
           }
 
+          Text(item.readinessDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(item.source.color)
+            .foregroundStyle(item.readinessTone.color)
         }
       }
 
