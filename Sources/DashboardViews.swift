@@ -22,6 +22,9 @@ struct DashboardView: View {
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(isInboxCreatedOrder)
+  }
   private var dispatchAttentionCount: Int {
     store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count
   }
@@ -448,10 +451,10 @@ struct DashboardView: View {
           OperatorDashboardCard(
             title: "Orders",
             count: problemOrdersCount,
-            detail: "Review-needed orders, exceptions, and warning or critical tracking events.",
-            nextAction: problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders",
+            detail: "Review-needed orders, exceptions, warning tracking events, and orders newly created from Inbox.",
+            nextAction: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders",
             symbol: "shippingbox.fill",
-            tint: problemOrdersCount == 0 ? .green : .red
+            tint: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple
           ) {
             OrdersView(store: store)
           }
@@ -519,9 +522,11 @@ struct DashboardView: View {
           MetricStrip(items: [
             ("Active", "\(store.activeCount)", .teal),
             ("Review", "\(store.reviewOrders.count)", .orange),
+            ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
             ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
             ("Delivered", "\(store.deliveredCount)", .green)
           ])
+          CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)))
           CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
         }
 
@@ -555,6 +560,13 @@ struct DashboardView: View {
         }
       }
     }
+  }
+
+  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
   }
 }
 
@@ -790,6 +802,32 @@ struct CompactOrderList: View {
             detail: "\(order.customer) • \(order.carrier) • \(order.trackingNumber)",
             badge: order.status.rawValue,
             color: order.status.color
+          )
+        }
+      }
+    }
+  }
+}
+
+struct CompactInboxCreatedOrderList: View {
+  var orders: [TrackedOrder]
+
+  var body: some View {
+    CompactList(title: "Inbox-created orders", symbol: "tray.and.arrow.down.fill") {
+      if orders.isEmpty {
+        CompactRow(
+          title: "No Inbox-created orders waiting",
+          detail: "Orders created from Inbox triage will appear here for quick follow-up.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(orders) { order in
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: "\(order.latestStatus) • \(order.trackingNumber)",
+            badge: order.reviewState.rawValue,
+            color: order.reviewState.color
           )
         }
       }
