@@ -7,21 +7,19 @@ struct OrdersView: View {
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var orderItems: [OrderQueueItem] {
     store.filteredOrders
-      .map { order in
-        OrderQueueItem(
-          order: order,
-          trackingEvents: store.trackingEvents(for: order.id),
-          tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
-          manifests: store.suggestedShipmentManifestRecords(for: order),
-          checklists: store.suggestedDispatchReadinessChecklists(for: order)
-        )
-      }
+      .map(queueItem)
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
           return first.order.orderNumber.localizedCaseInsensitiveCompare(second.order.orderNumber) == .orderedAscending
         }
         return first.sortPriority > second.sortPriority
       }
+  }
+  private var inboxCreatedOrderItems: [OrderQueueItem] {
+    store.orders
+      .filter(isInboxCreatedOrder)
+      .prefix(4)
+      .map(queueItem)
   }
 
   var body: some View {
@@ -41,6 +39,21 @@ struct OrdersView: View {
           ],
           symbol: "shippingbox.fill"
         )
+
+        if !inboxCreatedOrderItems.isEmpty {
+          SettingsPanel(title: "Created from Inbox", symbol: "tray.and.arrow.down.fill") {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("Newest orders created or linked from mailbox intake, import queue, or acceptance review. Start here after using Create order in Inbox.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              ForEach(inboxCreatedOrderItems) { item in
+                OrderQueueRow(item: item, store: store)
+              }
+            }
+          }
+        }
 
         SettingsPanel(title: "Order queue", symbol: "shippingbox.fill") {
           VStack(alignment: .leading, spacing: 12) {
@@ -76,6 +89,7 @@ struct OrdersView: View {
         ("Queue", "\(orderItems.count)", .blue),
         ("Active", "\(store.orders.filter { $0.status != .delivered }.count)", .teal),
         ("Review", "\(store.orders.filter { $0.reviewState != .accepted }.count)", .orange),
+        ("From Inbox", "\(store.orders.filter(isInboxCreatedOrder).count)", .purple),
         ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
         ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
       ])
@@ -107,6 +121,23 @@ struct OrdersView: View {
         Text(status.rawValue).tag(status as OrderStatus?)
       }
     }
+  }
+
+  private func queueItem(for order: TrackedOrder) -> OrderQueueItem {
+    OrderQueueItem(
+      order: order,
+      trackingEvents: store.trackingEvents(for: order.id),
+      tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
+      manifests: store.suggestedShipmentManifestRecords(for: order),
+      checklists: store.suggestedDispatchReadinessChecklists(for: order)
+    )
+  }
+
+  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
   }
 }
 
