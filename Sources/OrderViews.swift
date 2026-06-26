@@ -394,6 +394,10 @@ struct OrderDetailView: View {
           }
         }
 
+        if isInboxCreatedOrder(order) {
+          inboxHandoffChecklist(order)
+        }
+
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
           DetailCell("Recipient email", order.recipientEmail, symbol: "at")
           DetailCell("Checked mailbox", order.checkedMailbox, symbol: "envelope.badge.fill")
@@ -872,6 +876,100 @@ struct OrderDetailView: View {
         Badge(order.reviewState.rawValue, color: order.reviewState.color)
       }
     }
+  }
+
+  private func inboxHandoffChecklist(_ order: TrackedOrder) -> some View {
+    let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+    let manifests = store.suggestedShipmentManifestRecords(for: order)
+    let checklists = store.suggestedDispatchReadinessChecklists(for: order)
+    let missingTracking = order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
+    let missingDestination = order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
+    let needsDispatchSetup = [.shipped, .inTransit, .exception].contains(order.status) && manifests.isEmpty && checklists.isEmpty
+
+    return Panel(title: "Inbox handoff checklist", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This order was created from intake. Confirm the detected details before it moves deeper into dispatch or customer follow-up.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge(missingTracking ? "Tracking needs check" : "Tracking captured", color: missingTracking ? .orange : .green)
+          Badge(missingDestination ? "Destination needs check" : "Destination captured", color: missingDestination ? .orange : .green)
+          Badge("\(tasks.count) tasks", color: tasks.isEmpty ? .secondary : .purple)
+          Badge("\(manifests.count + checklists.count) dispatch links", color: needsDispatchSetup ? .orange : .teal)
+        }
+
+        VStack(alignment: .leading, spacing: 6) {
+          checklistLine(
+            title: missingTracking ? "Confirm tracking number" : "Tracking number is ready",
+            detail: missingTracking ? "Edit the order if the intake parser could not extract a carrier tracking value." : "\(order.carrier) • \(order.trackingNumber)",
+            symbol: "barcode.viewfinder",
+            color: missingTracking ? .orange : .green
+          )
+          checklistLine(
+            title: missingDestination ? "Confirm destination" : "Destination is ready",
+            detail: missingDestination ? "Edit the order or create a destination address before dispatch setup." : order.destination,
+            symbol: "mappin.and.ellipse",
+            color: missingDestination ? .orange : .green
+          )
+          checklistLine(
+            title: tasks.isEmpty ? "Create follow-up ownership" : "Follow-up task exists",
+            detail: tasks.isEmpty ? "Create a task when someone needs to verify this Inbox-created order." : tasks.prefix(2).map(\.title).joined(separator: "; "),
+            symbol: "checklist",
+            color: tasks.isEmpty ? .orange : .purple
+          )
+          checklistLine(
+            title: needsDispatchSetup ? "Dispatch setup is missing" : "Dispatch context is present or not needed yet",
+            detail: needsDispatchSetup ? "Open Dispatch, Manifests, or Readiness to plan outbound work for this order." : "Manifest/readiness links: \(manifests.count + checklists.count).",
+            symbol: "shippingbox.and.arrow.backward.fill",
+            color: needsDispatchSetup ? .orange : .teal
+          )
+        }
+
+        CompactActionRow {
+          Button("Edit order", systemImage: "pencil") {
+            isEditing = true
+          }
+          .buttonStyle(.bordered)
+
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: order)
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
+  private func checklistLine(title: String, detail: String, symbol: String, color: Color) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+    }
+  }
+
+  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 
   @ViewBuilder
