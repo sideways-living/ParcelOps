@@ -46,6 +46,14 @@ struct OperationsWorkbenchView: View {
     hasActiveFilters ? filteredItems : store.openWorkbenchItems
   }
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    Array(
+      store.orders
+        .filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }
+        .prefix(5)
+    )
+  }
+
   private var operatorSections: [WorkbenchItemGroup] {
     let urgent = unique(queueItems.filter { $0.isDueOrOverdue || $0.rank >= 3 })
     let blocked = unique(queueItems.filter { $0.isBlocked }, excluding: urgent)
@@ -83,6 +91,7 @@ struct OperationsWorkbenchView: View {
           symbol: "rectangle.stack.badge.person.crop.fill"
         )
         operatorSummary
+        inboxCreatedOrderFollowUp
         operatorQueue
         advancedFilters
       }
@@ -113,11 +122,26 @@ struct OperationsWorkbenchView: View {
         ("Urgent", "\(store.overdueWorkbenchItems.count + store.highPriorityWorkbenchItems.count)", .red),
         ("Blocked", "\(store.blockedWorkbenchItems.count)", .orange),
         ("Review", "\(store.workbenchItemsNeedingReview.count)", .purple),
+        ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
         ("Open", "\(store.openWorkbenchItems.count)", .blue)
       ])
       Text("Use this queue to turn local exceptions into tasks, drafts, reviews, or the right detailed workspace.")
         .font(.callout)
         .foregroundStyle(.secondary)
+    }
+  }
+
+  @ViewBuilder
+  private var inboxCreatedOrderFollowUp: some View {
+    if !inboxCreatedOrders.isEmpty {
+      SettingsPanel(title: "Inbox-created order follow-up", symbol: "tray.and.arrow.down.fill") {
+        Text("Orders created from Inbox, Import Queue, or Acceptance Review stay here until someone confirms the operational details.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+        ForEach(inboxCreatedOrders) { order in
+          WorkbenchInboxOrderRow(order: order, store: store)
+        }
+      }
     }
   }
 
@@ -240,6 +264,14 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+
   @ViewBuilder
   private func workbenchRow(for item: WorkbenchItem) -> some View {
     WorkbenchItemRow(
@@ -327,6 +359,86 @@ struct OperationsWorkbenchView: View {
     case .vendorProfile:
       VendorProfilesView(store: store)
     }
+  }
+}
+
+private struct WorkbenchInboxOrderRow: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "shippingbox.fill")
+          .foregroundStyle(order.status == .exception ? .orange : .teal)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("\(order.store) \(order.orderNumber)")
+            .font(.headline)
+          Text("\(order.customer) • \(order.destination)")
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text("Next: confirm tracking, destination, and linked follow-up from the order detail.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+        }
+
+        Spacer()
+
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(order.status.rawValue, color: order.status == .exception ? .orange : .blue)
+          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+        }
+      }
+
+      CompactMetadataGrid {
+        Label(order.trackingNumber, systemImage: "number")
+        Label(order.carrier, systemImage: "truck.box.fill")
+        Label(order.latestStatus, systemImage: "waveform.path.ecg")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: order, store: store)
+        } label: {
+          Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Task", systemImage: "checklist") {
+          store.createReviewTask(from: order)
+          feedbackMessage = "Review task created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: order)
+          feedbackMessage = "Draft created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          var reviewedOrder = order
+          reviewedOrder.reviewState = .accepted
+          store.updateOrder(reviewedOrder)
+          feedbackMessage = "Order marked reviewed."
+        }
+        .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.thinMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
