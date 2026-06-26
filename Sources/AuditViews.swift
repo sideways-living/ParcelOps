@@ -26,6 +26,10 @@ struct AuditView: View {
     recentEvents.filter(\.isRecordChange)
   }
 
+  private var inboxOrderHandoffEvents: [AuditEvent] {
+    store.auditEvents.filter(\.isInboxOrderHandoff)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -76,6 +80,7 @@ struct AuditView: View {
       MetricStrip(items: [
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
+        ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
@@ -93,6 +98,10 @@ struct AuditView: View {
         if recentEvents.isEmpty {
           MVPEmptyState(title: "No audit activity yet", detail: "Create, edit, review, or complete a local record and the action will appear here.", symbol: "list.clipboard.fill")
         } else {
+          AuditFeedSection(title: "Inbox-to-order handoff", detail: "Order creation and review events from Inbox, Import Queue, and Acceptance Review.", events: inboxOrderHandoffEvents.prefix(8).map { $0 }, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
           AuditFeedSection(title: "Workflow actions", detail: "Reviews, links, completions, acknowledgements, task and draft work.", events: workflowEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
@@ -330,6 +339,31 @@ struct AuditDetailBlock: View {
 }
 
 private extension AuditEvent {
+  var isInboxOrderHandoff: Bool {
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? ""
+    ].joined(separator: " ")
+
+    let mentionsOrderCreation =
+      searchableText.localizedCaseInsensitiveContains("created from forwarded")
+        || searchableText.localizedCaseInsensitiveContains("forwarded intake email")
+        || searchableText.localizedCaseInsensitiveContains("import queue item")
+        || searchableText.localizedCaseInsensitiveContains("acceptance review")
+        || searchableText.localizedCaseInsensitiveContains("acceptance workflow")
+        || searchableText.localizedCaseInsensitiveContains("after order creation")
+
+    let relevantEntity =
+      entityType == .order
+        || entityType == .intakeEmail
+        || entityType == .importQueueItem
+        || entityType == .acceptanceRecord
+
+    return relevantEntity && mentionsOrderCreation
+  }
+
   var isWorkflowAction: Bool {
     switch action {
     case .linked, .reviewed, .ignored, .cleared, .acknowledged, .completed, .reopened, .evaluated:
