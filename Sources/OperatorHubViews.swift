@@ -696,10 +696,25 @@ struct DispatchView: View {
       }
   }
 
+  private var inboxDispatchSetupOrders: [TrackedOrder] {
+    Array(
+      store.orders
+        .filter { order in
+          order.isInboxCreatedForDispatch
+            && [.shipped, .inTransit, .exception].contains(order.status)
+            && order.reviewState != .accepted
+            && store.suggestedShipmentManifestRecords(for: order).isEmpty
+            && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+        }
+        .prefix(5)
+    )
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
+        inboxDispatchSetupPanel
         dispatchQueuePanel
         detailRoutes
       }
@@ -730,6 +745,23 @@ struct DispatchView: View {
     }
   }
 
+  @ViewBuilder
+  private var inboxDispatchSetupPanel: some View {
+    if !inboxDispatchSetupOrders.isEmpty {
+      SettingsPanel(title: "Inbox-created orders needing dispatch setup", symbol: "tray.and.arrow.down.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("These orders came from Inbox intake and look dispatch-relevant, but no manifest or readiness checklist is linked yet.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+
+          ForEach(inboxDispatchSetupOrders) { order in
+            DispatchInboxOrderRow(order: order, store: store)
+          }
+        }
+      }
+    }
+  }
+
   private var detailRoutes: some View {
     SettingsPanel(title: "Detailed dispatch views", symbol: "rectangle.stack.fill") {
       LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
@@ -753,6 +785,7 @@ struct DispatchView: View {
 
       MetricStrip(items: [
         ("Queue", "\(dispatchItems.count)", .red),
+        ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
         ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .purple),
         ("Blocked", "\(store.blockedShipmentManifests.count)", .red),
         ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
@@ -779,6 +812,112 @@ struct DispatchView: View {
       unique.append(checklist)
     }
     return unique
+  }
+}
+
+private struct DispatchInboxOrderRow: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "shippingbox.fill")
+          .foregroundStyle(rowColor)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("\(order.store) • \(order.orderNumber)")
+                .font(.headline)
+              Text("\(order.customer) • \(order.destination)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Badge("Inbox order", color: .teal)
+          }
+
+          Text("Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+
+          CompactMetadataGrid {
+            Badge(order.status.rawValue, color: rowColor)
+            Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            Label(order.carrier, systemImage: "truck.box.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Label(order.trackingNumber, systemImage: "number")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: order, store: store)
+        } label: {
+          Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          ShipmentManifestsView(store: store)
+        } label: {
+          Label("Manifests", systemImage: "list.bullet.clipboard.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          DispatchReadinessView(store: store)
+        } label: {
+          Label("Readiness", systemImage: "checkmark.rectangle.stack.fill")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Task", systemImage: "checklist") {
+          store.createReviewTask(from: order)
+          feedbackMessage = "Dispatch setup task created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: order)
+          feedbackMessage = "Draft created."
+        }
+        .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var rowColor: Color {
+    order.status == .exception ? .orange : .teal
+  }
+}
+
+private extension TrackedOrder {
+  var isInboxCreatedForDispatch: Bool {
+    source == .forwardedMailbox
+      || checkedMailbox == "manual-import"
+      || latestStatus.localizedCaseInsensitiveContains("import queue")
+      || latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 }
 
