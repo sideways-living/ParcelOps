@@ -58,7 +58,7 @@ struct AccountsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAccounts) { account in
-              AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
+              AccountCredentialRow(account: account, store: store, linkedOrder: linkedOrder(for: account), contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
                 store.updateAccountCredentialRecord(updatedAccount)
               } onToggle: {
                 store.toggleAccountCredentialRecord(account)
@@ -149,10 +149,17 @@ struct AccountsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for account: AccountCredentialRecord) -> TrackedOrder? {
+    guard account.linkedEntityType == .order, let orderID = UUID(uuidString: account.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct AccountCredentialRow: View {
   var account: AccountCredentialRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var contacts: [ContactDirectoryEntry] = []
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
@@ -219,6 +226,14 @@ struct AccountCredentialRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(account.isEnabled ? "Disable" : "Enable", systemImage: account.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)

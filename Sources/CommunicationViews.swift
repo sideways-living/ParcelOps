@@ -86,7 +86,7 @@ struct CommunicationView: View {
             }
 
             ForEach(filteredDrafts) { draft in
-              DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
+              DraftMessageRow(draft: draft, store: store, linkedOrder: linkedOrder(for: draft), destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
                 store.updateDraftMessage(updatedDraft)
               } onReady: {
                 store.markDraftMessageReady(draft)
@@ -133,6 +133,11 @@ struct CommunicationView: View {
       }
       .buttonStyle(.bordered)
     }
+  }
+
+  private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
+    guard draft.linkedEntityType == .order, let orderID = UUID(uuidString: draft.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
   }
 }
 
@@ -217,6 +222,8 @@ struct CommunicationTemplateRow: View {
 
 struct DraftMessageRow: View {
   var draft: DraftMessage
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
   var packageContents: [PackageContentRecord] = []
@@ -278,6 +285,14 @@ struct DraftMessageRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Ready", systemImage: "checkmark.circle.fill", action: onReady)

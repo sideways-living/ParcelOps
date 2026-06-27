@@ -56,7 +56,7 @@ struct ContactsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact, suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
+              ContactDirectoryRow(contact: contact, store: store, linkedOrder: linkedOrder(for: contact), suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -140,10 +140,17 @@ struct ContactsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for contact: ContactDirectoryEntry) -> TrackedOrder? {
+    guard contact.linkedEntityType == .order, let orderID = UUID(uuidString: contact.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct ContactDirectoryRow: View {
   var contact: ContactDirectoryEntry
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
@@ -202,6 +209,14 @@ struct ContactDirectoryRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(contact.isEnabled ? "Disable" : "Enable", systemImage: contact.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
