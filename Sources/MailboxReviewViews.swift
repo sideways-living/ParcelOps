@@ -850,6 +850,7 @@ struct NeedsReviewView: View {
           }.prefix(8))) { candidate in
             AcceptanceCandidateRow(
               candidate: candidate,
+              store: store,
               orders: store.orders,
               shipmentGroups: store.shipmentGroups,
               linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },

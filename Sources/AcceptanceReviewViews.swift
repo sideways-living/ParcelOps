@@ -47,6 +47,7 @@ struct AcceptanceReviewView: View {
                 ForEach(group.candidates) { candidate in
                   AcceptanceCandidateRow(
                     candidate: candidate,
+                    store: store,
                     orders: store.orders,
                     shipmentGroups: store.shipmentGroups,
                     linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
@@ -131,6 +132,7 @@ struct AcceptanceReviewView: View {
 
 struct AcceptanceCandidateRow: View {
   var candidate: AcceptanceCandidate
+  var store: ParcelOpsStore
   var orders: [TrackedOrder]
   var shipmentGroups: [ShipmentGroup]
   var linkedOrderLabel: String?
@@ -151,6 +153,12 @@ struct AcceptanceCandidateRow: View {
   var onReopen: () -> Void
   var onTask: () -> Void
   var onDraft: () -> Void
+
+  private var linkedOrder: TrackedOrder? {
+    candidate.suggestedLinkedOrderID.flatMap { orderID in
+      orders.first { $0.id == orderID }
+    }
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -235,6 +243,13 @@ struct AcceptanceCandidateRow: View {
         }
 
         Button("Create order", systemImage: "plus.square.fill", action: onCreateOrder)
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
         Button("Create group", systemImage: "square.stack.3d.up.fill", action: onCreateShipmentGroup)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
