@@ -728,6 +728,14 @@ struct NeedsReviewView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    Array(
+      store.orders
+        .filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }
+        .prefix(8)
+    )
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -740,6 +748,17 @@ struct NeedsReviewView: View {
           }
           Spacer()
           Badge("\(store.reviewQueueCount)", color: .orange)
+        }
+
+        if !inboxCreatedOrders.isEmpty {
+          SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
+            Text("Orders created from Inbox, Import Queue, or Acceptance Review stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+            ForEach(inboxCreatedOrders) { order in
+              NeedsReviewInboxOrderRow(order: order, store: store)
+            }
+          }
         }
 
         SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
@@ -1559,6 +1578,114 @@ struct NeedsReviewView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+}
+
+private struct NeedsReviewInboxOrderRow: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+  @State private var isEditing = false
+  @State private var feedbackMessage: String?
+
+  private var missingTracking: Bool {
+    order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
+  }
+
+  private var missingDestination: Bool {
+    order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "shippingbox.fill")
+          .foregroundStyle(order.reviewState.color)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("\(order.store) \(order.orderNumber)")
+            .font(.headline)
+          Text("\(order.customer) • \(order.destination)")
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text("Next: confirm order details, then mark reviewed or create a follow-up task.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+        }
+
+        Spacer()
+
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(order.status.rawValue, color: order.status.color)
+          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+        }
+      }
+
+      CompactMetadataGrid {
+        Label(missingTracking ? "Tracking needs check" : order.trackingNumber, systemImage: "barcode.viewfinder")
+        Label(missingDestination ? "Destination needs check" : order.destination, systemImage: "mappin.and.ellipse")
+        Label(order.carrier, systemImage: "truck.box.fill")
+        Label(order.latestStatus, systemImage: "waveform.path.ecg")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: order, store: store)
+        } label: {
+          Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Edit", systemImage: "pencil") {
+          isEditing = true
+        }
+        .buttonStyle(.bordered)
+
+        Button("Task", systemImage: "checklist") {
+          store.createReviewTask(from: order)
+          feedbackMessage = "Review task created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: order)
+          feedbackMessage = "Draft created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          var reviewedOrder = order
+          reviewedOrder.reviewState = .accepted
+          store.updateOrder(reviewedOrder)
+          feedbackMessage = "Order marked reviewed."
+        }
+        .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.thinMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      OrderEditView(order: order) { updatedOrder in
+        store.updateOrder(updatedOrder)
+      }
     }
   }
 }
