@@ -396,6 +396,7 @@ struct OrderDetailView: View {
 
         if isInboxCreatedOrder(order) {
           inboxHandoffChecklist(order)
+          inboxSourceTrail(order)
         }
 
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: isCompact ? 1 : 2), alignment: .leading, spacing: 12) {
@@ -964,6 +965,70 @@ struct OrderDetailView: View {
     }
   }
 
+  private func inboxSourceTrail(_ order: TrackedOrder) -> some View {
+    let emails = linkedIntakeEmails(for: order)
+    let imports = store.importQueueItems(for: order)
+    let acceptance = store.acceptanceRecords(for: order)
+
+    return Panel(title: "Inbox source trail", symbol: "envelope.open.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Trace the local intake, import, and acceptance records that led to this order. Use this before editing operational details or marking the handoff reviewed.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge("\(emails.count) intake emails", color: emails.isEmpty ? .secondary : .teal)
+          Badge("\(imports.count) import items", color: imports.isEmpty ? .secondary : .blue)
+          Badge("\(acceptance.count) acceptance records", color: acceptance.isEmpty ? .secondary : .purple)
+        }
+
+        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty {
+          MVPEmptyState(
+            title: "No source records matched",
+            detail: "This order still looks Inbox-created, but no linked intake, import, or acceptance records matched the current order number.",
+            symbol: "tray.and.arrow.down.fill"
+          )
+        } else {
+          ForEach(emails) { email in
+            OrderIntakeSourceRow(email: email, store: store)
+          }
+
+          if !imports.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Import queue")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ImportQueueContextStrip(items: imports)
+            }
+          }
+
+          if !acceptance.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Acceptance history")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              AcceptanceHistoryStrip(records: acceptance)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return Array(
+      store.intakeEmails
+        .filter { email in
+          email.linkedOrderID == order.id
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+        }
+        .prefix(5)
+    )
+  }
+
   private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
     order.source == .forwardedMailbox
       || order.checkedMailbox == "manual-import"
@@ -986,6 +1051,76 @@ struct OrderDetailView: View {
       store.createDraftMessage(from: order)
     }
     .buttonStyle(.bordered)
+  }
+}
+
+private struct OrderIntakeSourceRow: View {
+  var email: ForwardedEmailIntake
+  var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.open.fill")
+          .foregroundStyle(email.reviewState.color)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(email.subject.isEmpty ? "No subject" : email.subject)
+            .font(.callout.weight(.semibold))
+            .lineLimit(2)
+          Text("\(email.sender) • \(email.receivedDate)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(email.rawBodyPreview)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+        }
+
+        Spacer()
+        Badge(email.reviewState.rawValue, color: email.reviewState.color)
+      }
+
+      CompactMetadataGrid {
+        Label(email.detectedMerchant, systemImage: "storefront.fill")
+        Label(email.detectedOrderNumber, systemImage: "number")
+        Label(email.detectedTrackingNumber, systemImage: "barcode.viewfinder")
+        Label(email.detectedDestinationAddress, systemImage: "mappin.and.ellipse")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        Button("Reprocess", systemImage: "arrow.triangle.2.circlepath") {
+          store.reprocessIntakeEmail(email)
+          feedbackMessage = "Intake email reprocessed."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Task", systemImage: "checklist") {
+          store.createReviewTask(from: email)
+          feedbackMessage = "Review task created."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: email)
+          feedbackMessage = "Draft created."
+        }
+        .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
