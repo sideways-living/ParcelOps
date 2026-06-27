@@ -31,6 +31,8 @@ struct ReconciliationView: View {
             ForEach(group.issues) { issue in
               ReconciliationIssueRow(
                 issue: issue,
+                store: store,
+                linkedOrder: linkedOrder(for: issue),
                 shipmentGroups: store.suggestedShipmentGroups(for: issue),
                 importQueueItems: store.importQueueItems(for: issue),
                 acceptanceRecords: store.acceptanceRecords(for: issue),
@@ -120,10 +122,25 @@ struct ReconciliationView: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
+
+  private func linkedOrder(for issue: ReconciliationIssue) -> TrackedOrder? {
+    let orderID: String?
+    if issue.sourceEntityType == .order {
+      orderID = issue.sourceEntityID
+    } else if issue.targetEntityType == .order {
+      orderID = issue.targetEntityID
+    } else {
+      orderID = nil
+    }
+    guard let orderID, let id = UUID(uuidString: orderID) else { return nil }
+    return store.orders.first { $0.id == id }
+  }
 }
 
 struct ReconciliationIssueRow: View {
   var issue: ReconciliationIssue
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var shipmentGroups: [ShipmentGroup] = []
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
@@ -207,6 +224,14 @@ struct ReconciliationIssueRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
       }
       .font(.caption)
     }

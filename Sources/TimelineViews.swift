@@ -27,7 +27,7 @@ struct TimelineView: View {
         ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
           SettingsPanel(title: group.title, symbol: group.symbol) {
             ForEach(group.activities) { activity in
-              TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
+              TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
                 store.createReviewTask(from: activity)
               } onCreateDraft: {
                 store.createDraftMessage(from: activity)
@@ -91,10 +91,17 @@ struct TimelineView: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
+
+  private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {
+    guard activity.entityType == .order, let id = UUID(uuidString: activity.entityID) else { return nil }
+    return store.orders.first { $0.id == id }
+  }
 }
 
 struct TimelineActivityRow: View {
   var activity: TimelineActivity
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var shipmentGroups: [ShipmentGroup] = []
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
@@ -144,6 +151,14 @@ struct TimelineActivityRow: View {
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
           .disabled(!activity.supportsDraftMessage)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
       }
 
       if !shipmentGroups.isEmpty {

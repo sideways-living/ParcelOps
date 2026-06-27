@@ -784,7 +784,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
-            TimelineActivityRow(activity: activity, shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
+            TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
               store.createReviewTask(from: activity)
             } onCreateDraft: {
               store.createDraftMessage(from: activity)
@@ -794,7 +794,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
+            ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
               store.createReviewTask(from: issue)
             } onCreateDraft: {
               store.createDraftMessage(from: issue)
@@ -806,6 +806,8 @@ struct NeedsReviewView: View {
           ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
             ReconciliationIssueRow(
               issue: issue,
+              store: store,
+              linkedOrder: linkedOrder(for: issue),
               shipmentGroups: store.suggestedShipmentGroups(for: issue),
               importQueueItems: store.importQueueItems(for: issue),
               acceptanceRecords: store.acceptanceRecords(for: issue),
@@ -1076,7 +1078,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+            TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
               store.markTrackingEventReviewed(event)
             } onRemove: {
               store.removeTrackingEvent(event)
@@ -1598,6 +1600,30 @@ struct NeedsReviewView: View {
       || order.latestStatus.localizedCaseInsensitiveContains("import queue")
       || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
       || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+
+  private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {
+    guard activity.entityType == .order, let id = UUID(uuidString: activity.entityID) else { return nil }
+    return store.orders.first { $0.id == id }
+  }
+
+  private func linkedOrder(for issue: ValidationIssue) -> TrackedOrder? {
+    guard issue.entityType == .order || issue.linkedEntityType == .order,
+          let id = UUID(uuidString: issue.entityID) else { return nil }
+    return store.orders.first { $0.id == id }
+  }
+
+  private func linkedOrder(for issue: ReconciliationIssue) -> TrackedOrder? {
+    let orderID: String?
+    if issue.sourceEntityType == .order {
+      orderID = issue.sourceEntityID
+    } else if issue.targetEntityType == .order {
+      orderID = issue.targetEntityID
+    } else {
+      orderID = nil
+    }
+    guard let orderID, let id = UUID(uuidString: orderID) else { return nil }
+    return store.orders.first { $0.id == id }
   }
 }
 
