@@ -421,6 +421,12 @@ private struct InboxTriageRow: View {
     item.linkedOrderID.flatMap { store.orderLabel(for: $0) }
   }
 
+  private var linkedOrder: TrackedOrder? {
+    item.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+  }
+
   private var linkedShipmentGroupLabel: String? {
     item.linkedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) }
   }
@@ -487,6 +493,15 @@ private struct InboxTriageRow: View {
           Label("Open", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
+
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "shippingbox.fill")
+          }
+          .buttonStyle(.borderedProminent)
+        }
 
         switch item.source {
         case .email(let email):
