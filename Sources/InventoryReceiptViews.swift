@@ -47,7 +47,7 @@ struct InventoryReceiptsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredReceipts) { receipt in
-              InventoryReceiptRow(receipt: receipt, storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt), shipmentManifests: store.suggestedShipmentManifestRecords(for: receipt), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: receipt)) { updatedReceipt in
+              InventoryReceiptRow(receipt: receipt, store: store, linkedOrder: linkedOrder(for: receipt), storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt), shipmentManifests: store.suggestedShipmentManifestRecords(for: receipt), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: receipt)) { updatedReceipt in
                 store.updateInventoryReceipt(updatedReceipt)
               } onStocked: {
                 store.markInventoryReceiptStocked(receipt)
@@ -149,10 +149,18 @@ struct InventoryReceiptsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for receipt: InventoryReceiptRecord) -> TrackedOrder? {
+    let orderID = receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct InventoryReceiptRow: View {
   var receipt: InventoryReceiptRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
@@ -232,6 +240,14 @@ struct InventoryReceiptRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

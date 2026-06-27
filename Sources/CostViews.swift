@@ -51,7 +51,7 @@ struct CostsBudgetsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredCosts) { cost in
-              CostRecordRow(cost: cost, returnClaims: store.suggestedReturnClaims(for: cost), procurementRequests: store.suggestedProcurementRequests(for: cost)) { updatedCost in
+              CostRecordRow(cost: cost, store: store, linkedOrder: linkedOrder(for: cost), returnClaims: store.suggestedReturnClaims(for: cost), procurementRequests: store.suggestedProcurementRequests(for: cost)) { updatedCost in
                 store.updateCostRecord(updatedCost)
               } onApproved: {
                 store.markCostRecordApproved(cost)
@@ -165,10 +165,18 @@ struct CostsBudgetsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for cost: CostRecord) -> TrackedOrder? {
+    let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct CostRecordRow: View {
   var cost: CostRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var returnClaims: [ReturnClaimRecord] = []
   var procurementRequests: [ProcurementRequest] = []
   var onSave: (CostRecord) -> Void
@@ -237,6 +245,14 @@ struct CostRecordRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

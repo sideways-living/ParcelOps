@@ -49,7 +49,7 @@ struct ReceivingInspectionsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredInspections) { inspection in
-              ReceivingInspectionRow(inspection: inspection, inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: inspection)) { updatedInspection in
+              ReceivingInspectionRow(inspection: inspection, store: store, linkedOrder: linkedOrder(for: inspection), inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: inspection)) { updatedInspection in
                 store.updateReceivingInspection(updatedInspection)
               } onInspected: {
                 store.markReceivingInspectionInspected(inspection)
@@ -160,10 +160,18 @@ struct ReceivingInspectionsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for inspection: ReceivingInspectionRecord) -> TrackedOrder? {
+    let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct ReceivingInspectionRow: View {
   var inspection: ReceivingInspectionRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var inventoryReceipts: [InventoryReceiptRecord] = []
   var storageLocations: [StorageLocationRecord] = []
   var custodyRecords: [CustodyRecord] = []
@@ -246,6 +254,14 @@ struct ReceivingInspectionRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

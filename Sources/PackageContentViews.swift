@@ -47,7 +47,7 @@ struct PackageContentsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredContents) { content in
-              PackageContentRow(content: content, costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content), scanSessions: store.suggestedScanSessionRecords(for: content), shipmentManifests: store.suggestedShipmentManifestRecords(for: content), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: content)) { updatedContent in
+              PackageContentRow(content: content, store: store, linkedOrder: linkedOrder(for: content), costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content), scanSessions: store.suggestedScanSessionRecords(for: content), shipmentManifests: store.suggestedShipmentManifestRecords(for: content), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: content)) { updatedContent in
                 store.updatePackageContent(updatedContent)
               } onVerified: {
                 store.markPackageContentVerified(content)
@@ -149,10 +149,18 @@ struct PackageContentsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for content: PackageContentRecord) -> TrackedOrder? {
+    let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct PackageContentRow: View {
   var content: PackageContentRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var costRecords: [CostRecord] = []
   var returnClaims: [ReturnClaimRecord] = []
   var procurementRequests: [ProcurementRequest] = []
@@ -236,6 +244,14 @@ struct PackageContentRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

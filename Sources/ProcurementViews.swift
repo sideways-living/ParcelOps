@@ -51,7 +51,7 @@ struct ProcurementView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRequests) { request in
-              ProcurementRequestRow(request: request, receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request), shipmentManifests: store.suggestedShipmentManifestRecords(for: request), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: request)) { updatedRequest in
+              ProcurementRequestRow(request: request, store: store, linkedOrder: linkedOrder(for: request), receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request), shipmentManifests: store.suggestedShipmentManifestRecords(for: request), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: request)) { updatedRequest in
                 store.updateProcurementRequest(updatedRequest)
               } onApproved: {
                 store.markProcurementRequestApproved(request)
@@ -163,10 +163,18 @@ struct ProcurementView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for request: ProcurementRequest) -> TrackedOrder? {
+    guard request.linkedEntityType == .order,
+          let orderID = UUID(uuidString: request.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct ProcurementRequestRow: View {
   var request: ProcurementRequest
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var receivingInspections: [ReceivingInspectionRecord] = []
   var inventoryReceipts: [InventoryReceiptRecord] = []
   var storageLocations: [StorageLocationRecord] = []
@@ -248,6 +256,14 @@ struct ProcurementRequestRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
