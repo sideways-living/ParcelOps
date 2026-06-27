@@ -42,7 +42,7 @@ struct LabelReferencesView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredRecords) { record in
-              LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
+              LabelReferenceRow(record: record, store: store, linkedOrder: linkedOrder(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateLabelReferenceRecord(updatedRecord)
               } onPrinted: {
                 store.markLabelReferencePrinted(record)
@@ -142,10 +142,18 @@ struct LabelReferencesView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for record: LabelReferenceRecord) -> TrackedOrder? {
+    let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct LabelReferenceRow: View {
   var record: LabelReferenceRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
   var dispatchChecklists: [DispatchReadinessChecklist] = []
@@ -214,6 +222,14 @@ struct LabelReferenceRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

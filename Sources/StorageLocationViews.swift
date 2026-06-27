@@ -49,7 +49,7 @@ struct StorageLocationsView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredLocations) { location in
-              StorageLocationRow(location: location, custodyRecords: store.suggestedCustodyRecords(for: location), labelReferences: store.suggestedLabelReferenceRecords(for: location), scanSessions: store.suggestedScanSessionRecords(for: location), shipmentManifests: store.suggestedShipmentManifestRecords(for: location), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: location)) { updatedLocation in
+              StorageLocationRow(location: location, store: store, linkedOrder: linkedOrder(for: location), custodyRecords: store.suggestedCustodyRecords(for: location), labelReferences: store.suggestedLabelReferenceRecords(for: location), scanSessions: store.suggestedScanSessionRecords(for: location), shipmentManifests: store.suggestedShipmentManifestRecords(for: location), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: location)) { updatedLocation in
                 store.updateStorageLocation(updatedLocation)
               } onToggle: {
                 store.toggleStorageLocation(location)
@@ -149,10 +149,18 @@ struct StorageLocationsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for location: StorageLocationRecord) -> TrackedOrder? {
+    let orderID = location.orderIDs.first ?? (location.linkedEntityType == .order ? UUID(uuidString: location.linkedEntityID) : nil)
+    guard let orderID else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct StorageLocationRow: View {
   var location: StorageLocationRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var custodyRecords: [CustodyRecord] = []
   var labelReferences: [LabelReferenceRecord] = []
   var scanSessions: [ScanSessionRecord] = []
@@ -221,6 +229,14 @@ struct StorageLocationRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
