@@ -26,7 +26,7 @@ struct ShipmentGroupsView: View {
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
+            ShipmentGroupRow(group: group, store: store, linkedOrders: linkedOrders(for: group), importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
               store.updateShipmentGroup(updatedGroup)
             } onReviewed: {
               store.markShipmentGroupReviewed(group)
@@ -88,10 +88,23 @@ struct ShipmentGroupsView: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
+
+  private func linkedOrders(for group: ShipmentGroup) -> [TrackedOrder] {
+    let orderIDs = ([group.primaryOrderID].compactMap { $0 } + group.relatedOrderIDs).reduce(into: [UUID]()) { result, orderID in
+      if !result.contains(orderID) {
+        result.append(orderID)
+      }
+    }
+    return orderIDs.compactMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+  }
 }
 
 struct ShipmentGroupRow: View {
   var group: ShipmentGroup
+  var store: ParcelOpsStore? = nil
+  var linkedOrders: [TrackedOrder] = []
   var importQueueItems: [ImportQueueItem] = []
   var acceptanceRecords: [AcceptanceRecord] = []
   var playbooks: [ExceptionPlaybook] = []
@@ -110,6 +123,8 @@ struct ShipmentGroupRow: View {
 
   init(
     group: ShipmentGroup,
+    store: ParcelOpsStore? = nil,
+    linkedOrders: [TrackedOrder] = [],
     importQueueItems: [ImportQueueItem] = [],
     acceptanceRecords: [AcceptanceRecord] = [],
     playbooks: [ExceptionPlaybook] = [],
@@ -125,6 +140,8 @@ struct ShipmentGroupRow: View {
     onRemove: @escaping () -> Void
   ) {
     self.group = group
+    self.store = store
+    self.linkedOrders = linkedOrders
     self.importQueueItems = importQueueItems
     self.acceptanceRecords = acceptanceRecords
     self.playbooks = playbooks
@@ -205,6 +222,16 @@ struct ShipmentGroupRow: View {
       }
 
       HStack {
+        if let store {
+          ForEach(linkedOrders.prefix(3)) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
         Button(isEditing ? "Save" : "Edit", systemImage: isEditing ? "checkmark" : "pencil") {
           if isEditing {
             onSave(draft)

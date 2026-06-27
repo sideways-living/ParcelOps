@@ -36,7 +36,7 @@ struct EvidenceView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
           } else {
             ForEach(filteredAttachments) { attachment in
-              EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
+              EvidenceAttachmentRow(attachment: attachment, store: store, linkedOrder: linkedOrder(for: attachment), shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                 store.markEvidenceReviewed(attachment)
               } onRemove: {
                 store.removeEvidence(attachment)
@@ -53,6 +53,11 @@ struct EvidenceView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+
+  private func linkedOrder(for attachment: EvidenceAttachment) -> TrackedOrder? {
+    guard attachment.linkedEntityType == .order else { return nil }
+    return store.orders.first { $0.id == attachment.linkedEntityID }
   }
 
   private var filterBar: some View {
@@ -86,6 +91,8 @@ struct EvidenceView: View {
 
 struct EvidenceAttachmentRow: View {
   var attachment: EvidenceAttachment
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var shipmentGroups: [ShipmentGroup] = []
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
@@ -152,6 +159,14 @@ struct EvidenceAttachmentRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
