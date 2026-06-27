@@ -47,7 +47,7 @@ struct ShipmentManifestsView: View {
             MVPEmptyState(title: "No manifests match this view", detail: "Clear filters or add a placeholder manifest to test dispatch batching.", symbol: "list.bullet.clipboard.fill", actionTitle: "Add manifest", action: store.addShipmentManifestPlaceholder)
           } else {
             ForEach(filteredRecords) { record in
-              ShipmentManifestRow(record: record, dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
+              ShipmentManifestRow(record: record, store: store, linkedOrders: linkedOrders(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateShipmentManifestRecord(updatedRecord)
               } onPrepared: {
                 store.markShipmentManifestPrepared(record)
@@ -140,10 +140,25 @@ struct ShipmentManifestsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrders(for record: ShipmentManifestRecord) -> [TrackedOrder] {
+    var ids = record.includedOrderIDs
+    if record.linkedEntityType == .order, let id = UUID(uuidString: record.linkedEntityID) {
+      ids.append(id)
+    }
+    let uniqueIDs = ids.reduce(into: [UUID]()) { result, id in
+      if !result.contains(id) { result.append(id) }
+    }
+    return uniqueIDs.compactMap { id in
+      store.orders.first { $0.id == id }
+    }
+  }
 }
 
 struct ShipmentManifestRow: View {
   var record: ShipmentManifestRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrders: [TrackedOrder] = []
   var dispatchChecklists: [DispatchReadinessChecklist] = []
   var onSave: (ShipmentManifestRecord) -> Void
   var onPrepared: () -> Void
@@ -212,6 +227,16 @@ struct ShipmentManifestRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store {
+          ForEach(linkedOrders.prefix(3)) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

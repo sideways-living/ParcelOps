@@ -46,7 +46,7 @@ struct DispatchReadinessView: View {
             MVPEmptyState(title: "No readiness checklists match this view", detail: "Clear filters or add a placeholder checklist to test local dispatch checks.", symbol: "checkmark.rectangle.stack.fill", actionTitle: "Add checklist", action: store.addDispatchReadinessChecklistPlaceholder)
           } else {
             ForEach(filteredChecklists) { checklist in
-              DispatchReadinessRow(checklist: checklist) { updatedChecklist in
+              DispatchReadinessRow(checklist: checklist, store: store, linkedOrders: linkedOrders(for: checklist)) { updatedChecklist in
                 store.updateDispatchReadinessChecklist(updatedChecklist)
               } onReady: {
                 store.markDispatchChecklistReady(checklist)
@@ -134,10 +134,25 @@ struct DispatchReadinessView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrders(for checklist: DispatchReadinessChecklist) -> [TrackedOrder] {
+    var ids = checklist.orderIDs
+    if checklist.linkedEntityType == .order, let id = UUID(uuidString: checklist.linkedEntityID) {
+      ids.append(id)
+    }
+    let uniqueIDs = ids.reduce(into: [UUID]()) { result, id in
+      if !result.contains(id) { result.append(id) }
+    }
+    return uniqueIDs.compactMap { id in
+      store.orders.first { $0.id == id }
+    }
+  }
 }
 
 struct DispatchReadinessRow: View {
   var checklist: DispatchReadinessChecklist
+  var store: ParcelOpsStore? = nil
+  var linkedOrders: [TrackedOrder] = []
   var onSave: (DispatchReadinessChecklist) -> Void
   var onReady: () -> Void
   var onBlocked: () -> Void
@@ -204,6 +219,16 @@ struct DispatchReadinessRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
+        if let store {
+          ForEach(linkedOrders.prefix(3)) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

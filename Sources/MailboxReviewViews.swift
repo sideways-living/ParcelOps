@@ -1502,7 +1502,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
           ForEach(Array(Set(store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans))) { record in
-            ShipmentManifestRow(record: record) { updatedRecord in
+            ShipmentManifestRow(record: record, store: store, linkedOrders: linkedOrders(for: record)) { updatedRecord in
               store.updateShipmentManifestRecord(updatedRecord)
             } onPrepared: {
               store.markShipmentManifestPrepared(record)
@@ -1528,7 +1528,7 @@ struct NeedsReviewView: View {
 
         SettingsPanel(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
           ForEach(Array(Set(store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests))) { checklist in
-            DispatchReadinessRow(checklist: checklist) { updatedChecklist in
+            DispatchReadinessRow(checklist: checklist, store: store, linkedOrders: linkedOrders(for: checklist)) { updatedChecklist in
               store.updateDispatchReadinessChecklist(updatedChecklist)
             } onReady: {
               store.markDispatchChecklistReady(checklist)
@@ -1624,6 +1624,32 @@ struct NeedsReviewView: View {
     }
     guard let orderID, let id = UUID(uuidString: orderID) else { return nil }
     return store.orders.first { $0.id == id }
+  }
+
+  private func linkedOrders(for record: ShipmentManifestRecord) -> [TrackedOrder] {
+    var ids = record.includedOrderIDs
+    if record.linkedEntityType == .order, let id = UUID(uuidString: record.linkedEntityID) {
+      ids.append(id)
+    }
+    let uniqueIDs = ids.reduce(into: [UUID]()) { result, id in
+      if !result.contains(id) { result.append(id) }
+    }
+    return uniqueIDs.compactMap { id in
+      store.orders.first { $0.id == id }
+    }
+  }
+
+  private func linkedOrders(for checklist: DispatchReadinessChecklist) -> [TrackedOrder] {
+    var ids = checklist.orderIDs
+    if checklist.linkedEntityType == .order, let id = UUID(uuidString: checklist.linkedEntityID) {
+      ids.append(id)
+    }
+    let uniqueIDs = ids.reduce(into: [UUID]()) { result, id in
+      if !result.contains(id) { result.append(id) }
+    }
+    return uniqueIDs.compactMap { id in
+      store.orders.first { $0.id == id }
+    }
   }
 }
 
