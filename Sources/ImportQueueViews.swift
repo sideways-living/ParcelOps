@@ -49,6 +49,7 @@ struct ImportQueueView: View {
             ForEach(filteredItems) { item in
               ImportQueueItemRow(
                 item: item,
+                store: store,
                 orders: store.orders,
                 shipmentGroups: store.shipmentGroups,
                 playbooks: store.suggestedPlaybooks(for: item),
@@ -123,6 +124,7 @@ struct ImportQueueView: View {
 
 struct ImportQueueItemRow: View {
   var item: ImportQueueItem
+  var store: ParcelOpsStore
   var orders: [TrackedOrder] = []
   var shipmentGroups: [ShipmentGroup] = []
   var playbooks: [ExceptionPlaybook] = []
@@ -150,8 +152,15 @@ struct ImportQueueItemRow: View {
     Array(repeating: GridItem(.flexible()), count: horizontalSizeClass == .compact ? 1 : 2)
   }
 
+  private var linkedOrder: TrackedOrder? {
+    item.suggestedLinkedOrderID.flatMap { orderID in
+      orders.first { $0.id == orderID }
+    }
+  }
+
   init(
     item: ImportQueueItem,
+    store: ParcelOpsStore,
     orders: [TrackedOrder] = [],
     shipmentGroups: [ShipmentGroup] = [],
     playbooks: [ExceptionPlaybook] = [],
@@ -173,6 +182,7 @@ struct ImportQueueItemRow: View {
     onCreateDraft: @escaping () -> Void = {}
   ) {
     self.item = item
+    self.store = store
     self.orders = orders
     self.shipmentGroups = shipmentGroups
     self.playbooks = playbooks
@@ -284,6 +294,14 @@ struct ImportQueueItemRow: View {
         }
         Button("Order", systemImage: "shippingbox.fill", action: onCreateOrder)
           .buttonStyle(.bordered)
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.borderedProminent)
+        }
         Button("Group", systemImage: "shippingbox.and.arrow.backward.fill", action: onCreateShipmentGroup)
           .buttonStyle(.bordered)
       }

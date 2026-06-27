@@ -878,6 +878,7 @@ struct NeedsReviewView: View {
           ForEach(Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)) { item in
             ImportQueueItemRow(
               item: item,
+              store: store,
               orders: store.orders,
               shipmentGroups: store.shipmentGroups,
               playbooks: store.suggestedPlaybooks(for: item),
