@@ -730,10 +730,54 @@ struct DispatchView: View {
     )
   }
 
+  private var blockedDispatchCount: Int {
+    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+  }
+
+  private var readyDispatchCount: Int {
+    store.shipmentManifestRecords.filter { $0.dispatchStatus == .prepared }.count
+      + store.dispatchReadinessChecklists.filter { $0.checklistStatus == .ready }.count
+  }
+
+  private var openDispatchCount: Int {
+    dispatchItems.count + inboxDispatchSetupOrders.count
+  }
+
+  private var dispatchSummaryTone: Color {
+    if blockedDispatchCount > 0 { return .red }
+    if readyDispatchCount > 0 || openDispatchCount > 0 { return .orange }
+    return .green
+  }
+
+  private var dispatchSummaryTitle: String {
+    if blockedDispatchCount > 0 { return "Dispatch has blockers" }
+    if readyDispatchCount > 0 { return "Dispatch has work ready to move" }
+    if !inboxDispatchSetupOrders.isEmpty { return "Inbox orders need dispatch setup" }
+    if !dispatchItems.isEmpty { return "Dispatch queue needs review" }
+    return "Dispatch flow is clear"
+  }
+
+  private var dispatchSummaryDetail: String {
+    if blockedDispatchCount > 0 {
+      return "Clear blocked manifests and readiness checklists before preparing new outbound work."
+    }
+    if readyDispatchCount > 0 {
+      return "Prepared manifests or ready checklists can move to dispatch, completion, handoff, or review."
+    }
+    if !inboxDispatchSetupOrders.isEmpty {
+      return "Create or link manifest/readiness context for Inbox-created orders before treating them as dispatch-ready."
+    }
+    if !dispatchItems.isEmpty {
+      return "Work the highest-risk queue rows first, then open detailed views only when you need the full record."
+    }
+    return "No blocked, incomplete, or high-risk dispatch records are currently waiting in the primary queue."
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
+        dispatchSummaryPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel
         detailRoutes
@@ -741,6 +785,35 @@ struct DispatchView: View {
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var dispatchSummaryPanel: some View {
+    SettingsPanel(title: "Dispatch next action", symbol: "arrow.forward.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: blockedDispatchCount > 0 ? "exclamationmark.triangle.fill" : "shippingbox.and.arrow.backward.fill")
+            .foregroundStyle(dispatchSummaryTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(dispatchSummaryTitle)
+              .font(.headline)
+            Text(dispatchSummaryDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(openDispatchCount == 0 ? "Clear" : "\(openDispatchCount) open", color: dispatchSummaryTone)
+        }
+
+        MetricStrip(items: [
+          ("Blocked", "\(blockedDispatchCount)", blockedDispatchCount == 0 ? .green : .red),
+          ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
+          ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
+          ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
+        ])
+      }
+    }
   }
 
   private var dispatchQueuePanel: some View {
