@@ -25,6 +25,7 @@ struct TasksView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        taskNextActionPanel
         taskQueuePanel
         detailRoutes
       }
@@ -61,6 +62,98 @@ struct TasksView: View {
       else { return false }
       return order.isInboxCreatedForOperations
     }.count
+  }
+
+  private var overdueActionCount: Int {
+    queueItems.filter(\.isOverdue).count
+  }
+
+  private var blockedActionCount: Int {
+    queueItems.filter { $0.status == .blocked }.count
+  }
+
+  private var urgentActionCount: Int {
+    queueItems.filter { $0.priority == .urgent || $0.priority == .high }.count
+  }
+
+  private var handoffActionCount: Int {
+    queueItems.filter { item in
+      if case .handoff = item.source { return true }
+      return false
+    }.count
+  }
+
+  private var reviewActionCount: Int {
+    queueItems.filter { $0.reviewState != .accepted }.count
+  }
+
+  private var nextActionTone: Color {
+    if overdueActionCount > 0 || blockedActionCount > 0 { return .red }
+    if urgentActionCount > 0 || inboxOrderActionCount > 0 { return .orange }
+    if reviewActionCount > 0 { return .purple }
+    if !queueItems.isEmpty { return .teal }
+    return .green
+  }
+
+  private var nextActionTitle: String {
+    if overdueActionCount > 0 { return "Start with overdue follow-up" }
+    if blockedActionCount > 0 { return "Clear blocked work first" }
+    if urgentActionCount > 0 { return "Handle high-priority work" }
+    if inboxOrderActionCount > 0 { return "Finish Inbox-created order handoffs" }
+    if reviewActionCount > 0 { return "Review open task context" }
+    if !queueItems.isEmpty { return "Work the open queue" }
+    return "Task queue is clear"
+  }
+
+  private var nextActionDetail: String {
+    if overdueActionCount > 0 {
+      return "\(overdueActionCount) open task or handoff is overdue. Complete it, reassign it, or create a draft so the follow-up is visible."
+    }
+    if blockedActionCount > 0 {
+      return "\(blockedActionCount) item is blocked. Open the row, resolve the blocker, or create a draft/task for the owner."
+    }
+    if urgentActionCount > 0 {
+      return "\(urgentActionCount) high-priority item needs attention before routine handoffs."
+    }
+    if inboxOrderActionCount > 0 {
+      return "\(inboxOrderActionCount) task is linked to an Inbox-created order. Open the order, confirm dispatch context, then complete the follow-up."
+    }
+    if reviewActionCount > 0 {
+      return "\(reviewActionCount) item still needs local review. Check the row summary and mark reviewed once the context is clear."
+    }
+    if !queueItems.isEmpty {
+      return "No overdue or blocked work is at the top of the queue. Continue completing open tasks and handoffs."
+    }
+    return "There are no open review tasks or handoff notes waiting for daily operator action."
+  }
+
+  private var taskNextActionPanel: some View {
+    SettingsPanel(title: "Task next action", symbol: "arrow.forward.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: nextActionTone == .green ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(nextActionTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(nextActionTitle)
+              .font(.headline)
+            Text(nextActionDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Overdue", "\(overdueActionCount)", overdueActionCount == 0 ? .green : .red),
+          ("Blocked", "\(blockedActionCount)", blockedActionCount == 0 ? .green : .red),
+          ("High priority", "\(urgentActionCount)", urgentActionCount == 0 ? .green : .orange),
+          ("Handoffs", "\(handoffActionCount)", handoffActionCount == 0 ? .green : .blue),
+          ("Needs review", "\(reviewActionCount)", reviewActionCount == 0 ? .green : .purple)
+        ])
+      }
+    }
   }
 
   private var taskQueuePanel: some View {
