@@ -91,6 +91,7 @@ struct OperationsWorkbenchView: View {
           symbol: "rectangle.stack.badge.person.crop.fill"
         )
         operatorSummary
+        SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailOperatorGuidanceStack(store: store, showTestRun: false, showRunbook: false, showReleaseSnapshot: false)
         inboxCreatedOrderFollowUp
         operatorQueue

@@ -34,6 +34,7 @@ struct InboxView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
+        SpaceMailPrimaryStatusStrip(store: store)
         mailboxHealthPanel
         triagePanel
         detailRoutes

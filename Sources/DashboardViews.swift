@@ -514,7 +514,7 @@ struct DashboardView: View {
             ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
             ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
           ])
-          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+          SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
           CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
           CompactIntakeList(emails: store.newestIntakeEmails)
         }

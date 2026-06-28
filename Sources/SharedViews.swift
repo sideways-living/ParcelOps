@@ -2819,6 +2819,136 @@ struct SpaceMailOperatorGuidanceStack: View {
   }
 }
 
+struct SpaceMailPrimaryStatusStrip: View {
+  var store: ParcelOpsStore
+  var title: String = "SpaceMail intake status"
+  var showTitle: Bool = true
+
+  private var plan: SpaceMailPostRefreshActionPlan {
+    store.spaceMailPostRefreshActionPlan
+  }
+
+  private var handoff: SpaceMailShiftHandoffSummary {
+    store.spaceMailShiftHandoffSummary
+  }
+
+  private var trend: SpaceMailRefreshTrendSummary {
+    store.spaceMailRefreshTrendSummary
+  }
+
+  private var healthSummaries: [SpaceMailIntakeHealthSummary] {
+    store.spaceMailIntakeHealthSummaries
+  }
+
+  private var fetchedCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var importedCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var filteredCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var uncertainCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var color: Color {
+    color(for: plan.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      if showTitle {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label(title, systemImage: "server.rack")
+            .font(.headline)
+          Spacer()
+          Badge(plan.primaryAction, color: color)
+        }
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(fetchedCount)", fetchedCount == 0 ? .secondary : .blue),
+        ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green),
+        ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
+        ("Uncertain", "\(uncertainCount)", uncertainCount == 0 ? .secondary : .orange)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        statusTile(
+          title: plan.title,
+          detail: plan.detail,
+          footer: "Next: \(plan.primaryAction)",
+          symbol: "arrow.triangle.branch",
+          tone: plan.tone
+        )
+
+        statusTile(
+          title: handoff.title,
+          detail: handoff.detail,
+          footer: handoff.lastRefreshText,
+          symbol: "arrow.left.arrow.right.square.fill",
+          tone: handoff.tone
+        )
+
+        statusTile(
+          title: trend.title,
+          detail: trend.detail,
+          footer: trend.entries.first.map { "Latest: \($0.status)" } ?? "No refresh history yet",
+          symbol: "chart.line.uptrend.xyaxis",
+          tone: trend.tone
+        )
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(color.opacity(0.18)))
+  }
+
+  private func statusTile(title: String, detail: String, footer: String, symbol: String, tone: String) -> some View {
+    let tileColor = color(for: tone)
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: symbol)
+          .foregroundStyle(tileColor)
+          .frame(width: 18)
+        Text(title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+      }
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(footer)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(tileColor)
+        .lineLimit(3)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String
