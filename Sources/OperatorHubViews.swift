@@ -5,6 +5,7 @@ struct InboxView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+
   private var triageItems: [InboxTriageItem] {
     let acceptanceItems = store.acceptanceRecordsNeedingReview.compactMap { record in
       store.acceptanceCandidates.first { $0.sourceType == record.sourceType && $0.sourceID == record.sourceID }
@@ -30,10 +31,61 @@ struct InboxView: View {
       }
   }
 
+  private var parserIssueCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var uncertainSpaceMailCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  private var blockedIncomingCount: Int {
+    store.blockedImportQueueItems.count
+  }
+
+  private var readyAcceptanceCount: Int {
+    store.acceptanceRecordsNeedingReview.count
+  }
+
+  private var inboxSummaryTone: Color {
+    if blockedIncomingCount > 0 || parserIssueCount > 0 { return .orange }
+    if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount > 0 { return .teal }
+    return .green
+  }
+
+  private var inboxSummaryTitle: String {
+    if blockedIncomingCount > 0 { return "Clear blocked incoming records" }
+    if parserIssueCount > 0 { return "Review parser diagnostics" }
+    if readyAcceptanceCount > 0 { return "Accept or link ready intake" }
+    if uncertainSpaceMailCount > 0 { return "Review uncertain SpaceMail messages" }
+    if !triageItems.isEmpty { return "Work the triage queue" }
+    return "Inbox is clear"
+  }
+
+  private var inboxSummaryDetail: String {
+    if blockedIncomingCount > 0 {
+      return "Start with blocked import rows because they can prevent otherwise valid intake from becoming orders."
+    }
+    if parserIssueCount > 0 {
+      return "Parser diagnostics explain why a mailbox message did not produce a clean order, tracking number, or destination."
+    }
+    if readyAcceptanceCount > 0 {
+      return "Acceptance rows are closest to becoming operational records. Link to an existing order or create a new local order."
+    }
+    if uncertainSpaceMailCount > 0 {
+      return "Uncertain mixed-mailbox messages stay out of Inbox until you explicitly import or dismiss them in Mailbox Monitor."
+    }
+    if !triageItems.isEmpty {
+      return "Use the top triage row first, then create/link orders, mark reviewed, or create follow-up tasks as needed."
+    }
+    return "No forwarded emails, staged imports, acceptance records, or parser checks currently need operator action."
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
+        inboxSummaryPanel
         SpaceMailPrimaryStatusStrip(store: store)
         mailboxHealthPanel
         triagePanel
@@ -42,6 +94,36 @@ struct InboxView: View {
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var inboxSummaryPanel: some View {
+    SettingsPanel(title: "Inbox next action", symbol: "arrow.forward.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: inboxSummaryTone == .green ? "checkmark.seal.fill" : "tray.full.fill")
+            .foregroundStyle(inboxSummaryTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(inboxSummaryTitle)
+              .font(.headline)
+            Text(inboxSummaryDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(triageItems.isEmpty ? "Clear" : "\(triageItems.count) open", color: inboxSummaryTone)
+        }
+
+        MetricStrip(items: [
+          ("Triage rows", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
+          ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
+          ("Acceptance", "\(readyAcceptanceCount)", readyAcceptanceCount == 0 ? .green : .blue),
+          ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
+          ("Blocked", "\(blockedIncomingCount)", blockedIncomingCount == 0 ? .green : .red)
+        ])
+      }
+    }
   }
 
   private var triagePanel: some View {
