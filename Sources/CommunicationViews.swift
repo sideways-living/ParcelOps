@@ -3,7 +3,7 @@ import SwiftUI
 struct CommunicationView: View {
   var store: ParcelOpsStore
 
-  @State private var selectedMode: CommunicationMode = .templates
+  @State private var selectedMode: CommunicationMode = .drafts
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -24,6 +24,34 @@ struct CommunicationView: View {
     }
   }
 
+  private var openDrafts: [DraftMessage] {
+    store.draftMessages.filter { $0.status != .sentLocally }
+  }
+
+  private var readyDrafts: [DraftMessage] {
+    store.draftMessages.filter { $0.status == .ready }
+  }
+
+  private var draftNextActionTitle: String {
+    if !readyDrafts.isEmpty { return "Send ready drafts outside ParcelOps" }
+    if !store.draftMessagesNeedingReview.isEmpty { return "Review draft follow-up" }
+    if openDrafts.isEmpty { return "No open draft follow-up" }
+    return "Continue open draft work"
+  }
+
+  private var draftNextActionDetail: String {
+    if !readyDrafts.isEmpty {
+      return "\(readyDrafts.count) draft is marked ready. Send it in the real mail client, then mark it sent locally here."
+    }
+    if !store.draftMessagesNeedingReview.isEmpty {
+      return "\(store.draftMessagesNeedingReview.count) draft needs review, readiness, sending, or reopening before its related work is closed."
+    }
+    if openDrafts.isEmpty {
+      return "All local drafts are either sent locally or no drafts have been created yet. ParcelOps still does not send outbound email."
+    }
+    return "\(openDrafts.count) draft is still open. Use the status controls to keep follow-up visible on Dashboard, Workbench, and Tasks."
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -34,6 +62,7 @@ struct CommunicationView: View {
             .foregroundStyle(.secondary)
         }
 
+        draftSummaryPanel
         filterBar
 
         Picker("Communication mode", selection: $selectedMode) {
@@ -73,6 +102,13 @@ struct CommunicationView: View {
                 store.removeCommunicationTemplate(template)
               }
             }
+            if filteredTemplates.isEmpty {
+              MVPEmptyState(
+                title: "No templates match this view",
+                detail: "Clear filters or add a local template. Templates are only local message starters; they do not send mail.",
+                symbol: "text.badge.checkmark"
+              )
+            }
           }
         } else {
           SettingsPanel(title: "Draft messages", symbol: "envelope.open.fill") {
@@ -100,10 +136,48 @@ struct CommunicationView: View {
                 store.removeDraftMessage(draft)
               }
             }
+            if filteredDrafts.isEmpty {
+              MVPEmptyState(
+                title: "No drafts match this view",
+                detail: "Clear filters or add a draft. Drafts stay local until you send the message outside ParcelOps and mark it sent locally.",
+                symbol: "envelope.open.fill"
+              )
+            }
           }
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var draftSummaryPanel: some View {
+    SettingsPanel(title: "Draft operator follow-up", symbol: "paperplane.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: readyDrafts.isEmpty && store.draftMessagesNeedingReview.isEmpty ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            .foregroundStyle(readyDrafts.isEmpty && store.draftMessagesNeedingReview.isEmpty ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(draftNextActionTitle)
+              .font(.headline)
+            Text(draftNextActionDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Needs review", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .orange),
+          ("Ready", "\(readyDrafts.count)", readyDrafts.isEmpty ? .green : .blue),
+          ("Open", "\(openDrafts.count)", openDrafts.isEmpty ? .green : .purple),
+          ("All drafts", "\(store.draftMessages.count)", store.draftMessages.isEmpty ? .secondary : .teal)
+        ])
+
+        Text("Use this screen to manage local draft state only. ParcelOps does not send outbound email, store SMTP credentials, or contact a mail provider for sending.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
     }
   }
 
