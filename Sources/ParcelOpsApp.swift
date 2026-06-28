@@ -37,6 +37,24 @@ struct ParcelOpsRootView: View {
     ParcelNavigationGroup.desktopGroupsMatching(sidebarSearchText)
   }
 
+  private var dailyAttentionCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.importQueueItemsNeedingReview.count
+      + store.blockedImportQueueItems.count
+      + store.acceptanceRecordsNeedingReview.count
+      + store.reviewOrders.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+  }
+
+  private var advancedBacklogCount: Int {
+    max(store.reviewQueueCount - dailyAttentionCount, 0)
+  }
+
   var body: some View {
     GeometryReader { proxy in
       let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
@@ -110,16 +128,7 @@ struct ParcelOpsRootView: View {
           .navigationTitle("ParcelOps")
           .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
           .safeAreaInset(edge: .bottom) {
-            VStack(alignment: .leading, spacing: 10) {
-              Label("Review required", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.orange)
-              Text("\(store.reviewQueueCount) items are waiting for review.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            sidebarReviewFooter
           }
         } detail: {
           content(for: selection)
@@ -131,6 +140,39 @@ struct ParcelOpsRootView: View {
     .onOpenURL { url in
       store.handleMicrosoft365AuthCallback(url)
     }
+  }
+
+  private var sidebarReviewFooter: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label("Review workload", systemImage: "exclamationmark.triangle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(dailyAttentionCount == 0 ? .green : .orange)
+
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          Text("Daily attention")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
+        }
+        HStack {
+          Text("Advanced backlog")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Badge("\(advancedBacklogCount)", color: advancedBacklogCount == 0 ? .green : .secondary)
+        }
+      }
+
+      Text(dailyAttentionCount == 0 ? "Primary workflow is clear; advanced records can be reviewed when needed." : "Start with Inbox, Orders, Workbench, Dispatch, and Tasks.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding()
+    .background(.bar)
   }
 
   private func desktopGroupBinding(for group: ParcelNavigationGroup) -> Binding<Bool> {
