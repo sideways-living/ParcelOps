@@ -34,6 +34,9 @@ struct DashboardView: View {
   private var attentionNowCount: Int {
     incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + store.highPriorityWorkbenchItems.count
   }
+  private var advancedBacklogCount: Int {
+    max(store.reviewQueueCount - attentionNowCount, 0)
+  }
 
   var body: some View {
     ScrollView {
@@ -436,6 +439,12 @@ struct DashboardView: View {
   private var dailyOperatorStart: some View {
     VStack(alignment: .leading, spacing: 16) {
       AnalyticsSection(title: "What needs attention now", symbol: "exclamationmark.triangle.fill") {
+        DailyWorkloadSummary(
+          dailyAttentionCount: attentionNowCount,
+          advancedBacklogCount: advancedBacklogCount,
+          reviewQueueCount: store.reviewQueueCount
+        )
+
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 12) {
           OperatorDashboardCard(
             title: "Inbox",
@@ -568,6 +577,46 @@ struct DashboardView: View {
       || order.checkedMailbox == "manual-import"
       || order.latestStatus.localizedCaseInsensitiveContains("import queue")
       || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+  }
+}
+
+private struct DailyWorkloadSummary: View {
+  var dailyAttentionCount: Int
+  var advancedBacklogCount: Int
+  var reviewQueueCount: Int
+
+  private var tone: Color {
+    dailyAttentionCount == 0 ? .green : .orange
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: dailyAttentionCount == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(dailyAttentionCount == 0 ? "Primary workflow is clear" : "Daily operator work needs attention")
+            .font(.headline)
+          Text(dailyAttentionCount == 0 ? "The main Inbox, Orders, Workbench, Dispatch, and Tasks flow has no immediate workload. Advanced records can be reviewed when needed." : "Start with the cards below. The advanced backlog is still available, but it is not the first daily operating queue.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(dailyAttentionCount == 0 ? "Clear" : "Action needed", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Daily attention", "\(dailyAttentionCount)", tone),
+        ("Advanced backlog", "\(advancedBacklogCount)", advancedBacklogCount == 0 ? .green : .secondary),
+        ("Total review signals", "\(reviewQueueCount)", reviewQueueCount == 0 ? .green : .orange)
+      ])
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(tone.opacity(0.18)))
   }
 }
 
