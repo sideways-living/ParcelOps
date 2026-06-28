@@ -38,10 +38,48 @@ struct DashboardView: View {
     max(store.reviewQueueCount - attentionNowCount, 0)
   }
 
+  private var dailyStartTone: Color {
+    if incomingAttentionCount > 0 { return .orange }
+    if problemOrdersCount > 0 { return .red }
+    if store.highPriorityWorkbenchItems.count > 0 { return .purple }
+    if dispatchAttentionCount > 0 { return .blue }
+    if taskAttentionCount > 0 { return .orange }
+    return .green
+  }
+
+  private var dailyStartTitle: String {
+    if incomingAttentionCount > 0 { return "Start in Inbox" }
+    if problemOrdersCount > 0 { return "Start with Orders" }
+    if store.highPriorityWorkbenchItems.count > 0 { return "Start in Workbench" }
+    if dispatchAttentionCount > 0 { return "Start with Dispatch" }
+    if taskAttentionCount > 0 { return "Start with Tasks" }
+    return "Daily queue is clear"
+  }
+
+  private var dailyStartDetail: String {
+    if incomingAttentionCount > 0 {
+      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, parser diagnostics, import queue, or acceptance review."
+    }
+    if problemOrdersCount > 0 {
+      return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or Inbox-created order handoff."
+    }
+    if store.highPriorityWorkbenchItems.count > 0 {
+      return "\(store.highPriorityWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
+    }
+    if dispatchAttentionCount > 0 {
+      return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
+    }
+    if taskAttentionCount > 0 {
+      return "\(taskAttentionCount) review task or handoff note needs ownership, completion, or review."
+    }
+    return "No primary daily operator queue has promoted work right now. Use Audit or advanced routes only when checking detailed history."
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
+        dailyStartDecisionPanel
         MVPWorkflowGuide(
           title: "First run path",
           detail: "Use these screens in order when testing the local-only app in Xcode.",
@@ -432,6 +470,36 @@ struct DashboardView: View {
           .buttonStyle(.borderedProminent)
         Button("Refresh local placeholders", systemImage: "arrow.clockwise", action: store.syncSources)
           .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var dailyStartDecisionPanel: some View {
+    SettingsPanel(title: "Start here", symbol: "arrow.forward.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: dailyStartTone == .green ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(dailyStartTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(dailyStartTitle)
+              .font(.headline)
+            Text(dailyStartDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Inbox", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
+          ("Orders", "\(problemOrdersCount)", problemOrdersCount == 0 ? .green : .red),
+          ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
+          ("Dispatch", "\(dispatchAttentionCount)", dispatchAttentionCount == 0 ? .green : .blue),
+          ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
+        ])
       }
     }
   }
