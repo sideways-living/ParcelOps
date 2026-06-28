@@ -73,6 +73,46 @@ struct OperationsWorkbenchView: View {
     max(store.reviewQueueCount - dailyAttentionCount, 0)
   }
 
+  private var urgentWorkbenchCount: Int {
+    store.overdueWorkbenchItems.count + store.highPriorityWorkbenchItems.count
+  }
+
+  private var workbenchNextActionTone: Color {
+    if urgentWorkbenchCount > 0 || store.blockedWorkbenchItems.count > 0 { return .red }
+    if !inboxCreatedOrders.isEmpty { return .teal }
+    if store.workbenchItemsNeedingReview.count > 0 { return .purple }
+    if store.openWorkbenchItems.isEmpty { return .green }
+    return .blue
+  }
+
+  private var workbenchNextActionTitle: String {
+    if urgentWorkbenchCount > 0 { return "Start with urgent work" }
+    if store.blockedWorkbenchItems.count > 0 { return "Clear blocked work" }
+    if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
+    if store.workbenchItemsNeedingReview.count > 0 { return "Review open exceptions" }
+    if store.openWorkbenchItems.isEmpty { return "Workbench is clear" }
+    return "Work the open exception queue"
+  }
+
+  private var workbenchNextActionDetail: String {
+    if urgentWorkbenchCount > 0 {
+      return "\(urgentWorkbenchCount) overdue or high-priority item is promoted. Open the first row, create a task or draft, then mark reviewed where supported."
+    }
+    if store.blockedWorkbenchItems.count > 0 {
+      return "\(store.blockedWorkbenchItems.count) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
+    }
+    if !inboxCreatedOrders.isEmpty {
+      return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation before it disappears from daily follow-up."
+    }
+    if store.workbenchItemsNeedingReview.count > 0 {
+      return "\(store.workbenchItemsNeedingReview.count) item still needs local review after context is checked."
+    }
+    if store.openWorkbenchItems.isEmpty {
+      return "No open workbench exceptions are promoted. Use filters only when you need supporting record detail."
+    }
+    return "\(store.openWorkbenchItems.count) open item is available for routine exception review."
+  }
+
   private var operatorSections: [WorkbenchItemGroup] {
     let urgent = unique(queueItems.filter { $0.isDueOrOverdue || $0.rank >= 3 })
     let blocked = unique(queueItems.filter { $0.isBlocked }, excluding: urgent)
@@ -147,16 +187,31 @@ struct OperationsWorkbenchView: View {
 
   private var operatorSummary: some View {
     SettingsPanel(title: "Exception queue summary", symbol: "exclamationmark.triangle.fill") {
-      MetricStrip(items: [
-        ("Urgent", "\(store.overdueWorkbenchItems.count + store.highPriorityWorkbenchItems.count)", .red),
-        ("Blocked", "\(store.blockedWorkbenchItems.count)", .orange),
-        ("Review", "\(store.workbenchItemsNeedingReview.count)", .purple),
-        ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
-        ("Open", "\(store.openWorkbenchItems.count)", .blue)
-      ])
-      Text("Use this queue to turn local exceptions into tasks, drafts, reviews, or the right detailed workspace.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: workbenchNextActionTone == .green ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(workbenchNextActionTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(workbenchNextActionTitle)
+              .font(.headline)
+            Text(workbenchNextActionDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Urgent", "\(urgentWorkbenchCount)", urgentWorkbenchCount == 0 ? .green : .red),
+          ("Blocked", "\(store.blockedWorkbenchItems.count)", store.blockedWorkbenchItems.isEmpty ? .green : .orange),
+          ("Review", "\(store.workbenchItemsNeedingReview.count)", store.workbenchItemsNeedingReview.isEmpty ? .green : .purple),
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
+          ("Open", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
+        ])
+      }
     }
   }
 
