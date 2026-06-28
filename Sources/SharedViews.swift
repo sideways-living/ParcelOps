@@ -2949,6 +2949,100 @@ struct SpaceMailPrimaryStatusStrip: View {
   }
 }
 
+struct LocalDataSafetyCard: View {
+  var store: ParcelOpsStore
+  var compact: Bool = false
+
+  private var localRecordCount: Int {
+    store.orders.count
+      + store.intakeEmails.count
+      + store.importQueueItems.count
+      + store.acceptanceRecords.count
+      + store.reviewTasks.count
+      + store.handoffNotes.count
+      + store.shipmentManifestRecords.count
+      + store.dispatchReadinessChecklists.count
+      + store.auditEvents.count
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "internaldrive.fill")
+          .foregroundStyle(.green)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Local data safety")
+            .font(.headline)
+          Text("ParcelOps keeps the MVP usable without a live service by saving operational records as local JSON and keeping sensitive mailbox credentials out of those JSON files.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Local", color: .green)
+      }
+
+      MetricStrip(items: [
+        ("Tracked local records", "\(localRecordCount)", .blue),
+        ("Audit events", "\(store.auditEvents.count)", .purple),
+        ("Review queue", "\(store.reviewQueueCount)", store.reviewQueueCount == 0 ? .green : .orange),
+        ("Open work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .teal)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 180 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        safetyLine(
+          title: "Stored in local JSON",
+          detail: "Orders, intake rows, import/acceptance records, tasks, handoffs, dispatch records, settings, and audit events.",
+          symbol: "doc.text.fill",
+          color: .blue
+        )
+        safetyLine(
+          title: "Not stored in JSON",
+          detail: "SpaceMail passwords, app passwords, auth strings, access tokens, refresh tokens, client secrets, and raw callback URLs.",
+          symbol: "lock.shield.fill",
+          color: .green
+        )
+        safetyLine(
+          title: "No mailbox mutation",
+          detail: "Real SpaceMail refresh remains manual and read-only. ParcelOps does not delete, move, flag, send, or mark mailbox messages read.",
+          symbol: "envelope.badge.shield.half.filled",
+          color: .teal
+        )
+        safetyLine(
+          title: "Still disconnected",
+          detail: "Shopify, carrier APIs, background sync, notifications, OCR, scanners, calendars, file pickers, and outbound email remain inactive.",
+          symbol: "network.slash",
+          color: .orange
+        )
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private func safetyLine(title: String, detail: String, symbol: String, color: Color) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

@@ -1885,6 +1885,8 @@ struct SettingsView: View {
           Text("ParcelOps currently stores local JSON records and sample operational data. These controls describe intended workflows; they do not connect to live services yet.")
             .foregroundStyle(.secondary)
 
+          LocalDataSafetyCard(store: store, compact: isCompact)
+
           LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             IntegrationStatusRow(title: "Email mailbox", status: "Not connected", symbol: "envelope.badge.fill", color: .orange)
             IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)

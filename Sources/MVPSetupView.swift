@@ -28,6 +28,8 @@ struct MVPSetupView: View {
 
         SpaceMailOperatorGuidanceStack(store: store)
 
+        LocalDataSafetyCard(store: store, compact: isCompact)
+
         LazyVGrid(columns: statusColumns, spacing: 12) {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
