@@ -66,6 +66,7 @@ struct OperationsWorkbenchView: View {
       + store.blockedDispatchChecklists.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
+      + store.draftMessagesNeedingReview.count
       + store.highPriorityWorkbenchItems.count
   }
 

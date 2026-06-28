@@ -58,6 +58,7 @@ struct ParcelOpsRootView: View {
       + store.blockedDispatchChecklists.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
+      + store.draftMessagesNeedingReview.count
   }
 
   private var advancedBacklogCount: Int {
@@ -265,7 +266,9 @@ struct ParcelOpsRootView: View {
         + store.blockedDispatchChecklists.count
         + store.incompleteDispatchChecklists.count
     case .tasks:
-      return store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+      return store.reviewTasksNeedingAttention.count
+        + store.handoffNotesNeedingAttention.count
+        + store.draftMessagesNeedingReview.count
     case .review:
       return dailyAttentionCount
     default:
