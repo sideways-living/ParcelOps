@@ -735,6 +735,7 @@ struct SpaceMailIMAPConnectionRow: View {
       SpaceMailIntakeHealthCard(summary: healthSummary)
 
       spaceMailRefreshSummary
+      spaceMailNextSteps
 
       if !connection.uncertainMessages.isEmpty {
         uncertainMessagesReview
@@ -916,6 +917,92 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(spaceMailRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailNextSteps: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("5. What to do after refresh", systemImage: "arrow.turn.down.right")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+
+      ForEach(Array(spaceMailNextStepItems.enumerated()), id: \.offset) { _, item in
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: item.symbol)
+            .foregroundStyle(item.color)
+            .frame(width: 18)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+              .font(.caption.weight(.semibold))
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailNextStepItems: [(title: String, detail: String, symbol: String, color: Color)] {
+    if connection.lastManualRefreshDate == "Never" {
+      return [
+        ("Run a manual refresh", "After setup and Keychain credential checks pass, run the real read-only refresh from this row.", "tray.and.arrow.down.fill", .blue),
+        ("Then review results here", "Imported messages go to Inbox; uncertain and filtered examples stay in this Mailbox Monitor section.", "list.bullet.clipboard.fill", .teal)
+      ]
+    }
+
+    var items: [(title: String, detail: String, symbol: String, color: Color)] = []
+
+    if connection.lastRefreshImportedCount > 0 {
+      items.append((
+        "Review imported Inbox rows",
+        "\(connection.lastRefreshImportedCount) likely order message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Confirm fields, then link or create orders.",
+        "tray.full.fill",
+        .green
+      ))
+    }
+
+    if !connection.uncertainMessages.isEmpty || connection.lastRefreshUncertainCount > 0 {
+      let count = max(connection.uncertainMessages.count, connection.lastRefreshUncertainCount)
+      items.append((
+        "Review uncertain previews",
+        "\(count) message\(count == 1 ? "" : "s") looked order-adjacent but lacked strong identifiers. Import only true order updates.",
+        "questionmark.folder.fill",
+        .orange
+      ))
+    }
+
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      items.append((
+        "Filtered mail stayed out of Inbox",
+        "\(connection.lastRefreshFilteredNonOrderCount) message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were treated as non-order mail. Check filtered examples only if expected order mail is missing.",
+        "line.3.horizontal.decrease.circle.fill",
+        .teal
+      ))
+    }
+
+    if connection.lastRefreshImportedCount == 0 && connection.lastRefreshUncertainCount == 0 && connection.lastRefreshFilteredNonOrderCount == 0 {
+      items.append((
+        "No operator action from latest refresh",
+        "The latest refresh did not produce imported, uncertain, or filtered messages. Check host/folder only if this is unexpected.",
+        "checkmark.seal.fill",
+        .green
+      ))
+    }
+
+    if connection.lastRefreshDuplicateCount > 0 {
+      items.append((
+        "Duplicates were not re-added",
+        "\(connection.lastRefreshDuplicateCount) already-seen message\(connection.lastRefreshDuplicateCount == 1 ? "" : "s") were skipped or refreshed in place, so Inbox should not be duplicated.",
+        "doc.on.doc.fill",
+        .secondary
+      ))
+    }
+
+    return Array(items.prefix(4))
   }
 
   private func classifierReasonColor(_ decision: String) -> Color {
