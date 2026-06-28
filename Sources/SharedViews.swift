@@ -2271,6 +2271,78 @@ struct SpaceMailMVPReadinessCard: View {
   }
 }
 
+struct SpaceMailTestRunGuide: View {
+  var summary: SpaceMailMVPReadinessSummary
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  private var steps: [String] {
+    [
+      "Confirm the SpaceMail row shows host, folder, SSL/TLS, mixed mailbox mode, and a Keychain password reference.",
+      "Run real SpaceMail refresh manually. It must stay read-only and should show fetched, imported, duplicate, filtered, and uncertain counts.",
+      "Review imported Inbox rows. Check the readiness strip before creating or linking an order.",
+      "Review uncertain or filtered examples if a genuine order email did not import automatically.",
+      "Create or link one order from Inbox, then confirm the order appears in Orders, Dashboard, Workbench, Tasks, and Audit.",
+      "Quit and reopen the app to confirm local JSON state still shows the same intake, order, and audit trail."
+    ]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("SpaceMail supervised test run")
+            .font(.headline)
+          Text("Use this short path to decide whether the current SpaceMail local MVP is usable without adding background sync or mailbox mutation.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(summary.completedCount)/\(summary.totalCount) ready", color: color)
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+          HStack(alignment: .top, spacing: 8) {
+            Text("\(index + 1)")
+              .font(.caption.bold())
+              .foregroundStyle(.white)
+              .frame(width: 22, height: 22)
+              .background(color, in: Circle())
+            Text(step)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+
+      Text("Current gate: \(summary.verdict). \(summary.nextAction)")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

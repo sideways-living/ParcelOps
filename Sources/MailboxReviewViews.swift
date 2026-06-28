@@ -26,6 +26,8 @@ struct MailboxView: View {
           symbol: "envelope.open.fill"
         )
 
+        SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
+
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
           Text("SpaceMail is the current mailbox provider path. Capture non-secret IMAP settings here, manage the password/app-password in Keychain, and keep mock refresh separate from the real manual refresh boundary.")
             .font(.subheadline)

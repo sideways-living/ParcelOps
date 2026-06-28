@@ -12,7 +12,7 @@ struct IntegrationsView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          Text("Placeholder records for future mailbox, Shopify, folder, and login workflows. Nothing here connects to live services yet.")
+          Text("SpaceMail IMAP is the current manual read-only mailbox path. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly tested.")
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -32,6 +32,7 @@ struct IntegrationsView: View {
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
+          SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
           CompactActionRow {
             Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)
