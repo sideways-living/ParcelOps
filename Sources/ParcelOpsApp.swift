@@ -25,6 +25,7 @@ struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
   @State private var isMoreMenuExpanded = false
+  @State private var expandedDesktopGroupIDs: Set<String> = []
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
@@ -46,17 +47,37 @@ struct ParcelOpsRootView: View {
       } else {
         NavigationSplitView {
           List {
-            ForEach(ParcelNavigationGroup.desktopGroups) { group in
-              Section(group.title) {
+            Section("Daily Operations") {
+              ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
+                sidebarButton(for: section)
+              }
+            }
+
+            Section {
+              Text("Advanced records and setup views are still available, but the daily workflow starts above.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 4)
+            }
+
+            ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
+              DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
                 ForEach(group.sections) { section in
-                  Button {
-                    selection = section
-                  } label: {
-                    Label(section.title, systemImage: section.symbol)
-                      .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-                  }
-                  .buttonStyle(.plain)
+                  sidebarButton(for: section)
                 }
+              } label: {
+                HStack(spacing: 6) {
+                  Text(group.title)
+                  Spacer()
+                  Text("\(group.sections.count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quinary, in: Capsule())
+                }
+                .font(.subheadline.weight(.semibold))
               }
             }
           }
@@ -83,6 +104,28 @@ struct ParcelOpsRootView: View {
     .onOpenURL { url in
       store.handleMicrosoft365AuthCallback(url)
     }
+  }
+
+  private func desktopGroupBinding(for group: ParcelNavigationGroup) -> Binding<Bool> {
+    Binding {
+      expandedDesktopGroupIDs.contains(group.id) || group.sections.contains(selection)
+    } set: { isExpanded in
+      if isExpanded {
+        expandedDesktopGroupIDs.insert(group.id)
+      } else {
+        expandedDesktopGroupIDs.remove(group.id)
+      }
+    }
+  }
+
+  private func sidebarButton(for section: ParcelSection) -> some View {
+    Button {
+      selection = section
+    } label: {
+      Label(section.title, systemImage: section.symbol)
+        .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+    }
+    .buttonStyle(.plain)
   }
 
   @ViewBuilder
@@ -239,15 +282,20 @@ struct ParcelNavigationGroup: Identifiable {
   var sections: [ParcelSection]
   var id: String { title }
 
-  static let desktopGroups: [ParcelNavigationGroup] = [
-    ParcelNavigationGroup(title: "Daily Operations", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings]),
+  static let dailyOperations = ParcelNavigationGroup(title: "Daily Operations", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
+
+  static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Advanced Workflow", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
     ParcelNavigationGroup(title: "Supporting Records", sections: [.evidence, .shipmentGroups, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
     ParcelNavigationGroup(title: "Admin & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .accounts, .vendorProfiles, .wishlist])
   ]
 
+  static let desktopGroups: [ParcelNavigationGroup] = [
+    dailyOperations
+  ] + secondaryDesktopGroups
+
   static var mobileSecondarySections: [ParcelSection] {
-    desktopGroups.flatMap(\.sections).filter { ![.dashboard, .inbox, .orders, .workbench].contains($0) }
+    desktopGroups.flatMap(\.sections).filter { !dailyOperations.sections.prefix(4).contains($0) }
   }
 }
 
