@@ -39,7 +39,7 @@ struct IntegrationsView: View {
             Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
           }
           if store.spaceMailIMAPConnections.isEmpty {
-            MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder to capture host, port, folder, and credential-readiness notes before real IMAP is connected.", symbol: "server.rack")
+            MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup to capture host, port, folder, mixed-mailbox mode, and Keychain credential status before manual refresh.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
             SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in

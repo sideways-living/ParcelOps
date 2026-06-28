@@ -11094,7 +11094,7 @@ final class ParcelOpsStore {
       address: connection.emailAddressUsername,
       provider: .imap,
       monitoredFolders: connection.folderName,
-      status: "SpaceMail IMAP mock refresh only",
+      status: "SpaceMail IMAP manual refresh",
       lastChecked: Self.auditTimestamp(),
       routingRule: connection.displayName
     )
@@ -11116,7 +11116,7 @@ final class ParcelOpsStore {
   }
 
   private func spaceMailIMAPConnectionAuditDetail(_ connection: SpaceMailIMAPConnection) -> String {
-    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMailbox mode: \(connection.mailboxMode.rawValue)\nTrusted sender hints: \(connection.trustedSenderHints.joined(separator: ", "))\nImport keyword hints: \(connection.importKeywordHints.joined(separator: ", "))\nUncertain keyword hints: \(connection.uncertainKeywordHints.joined(separator: ", "))\nFilter keyword hints: \(connection.filterKeywordHints.joined(separator: ", "))\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, real IMAP connection, or mailbox content is stored in this placeholder."
+    "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMailbox mode: \(connection.mailboxMode.rawValue)\nTrusted sender hints: \(connection.trustedSenderHints.joined(separator: ", "))\nImport keyword hints: \(connection.importKeywordHints.joined(separator: ", "))\nUncertain keyword hints: \(connection.uncertainKeywordHints.joined(separator: ", "))\nFilter keyword hints: \(connection.filterKeywordHints.joined(separator: ", "))\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, raw IMAP session content, or full mailbox content is stored in this setup record."
   }
 
   private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {
@@ -11127,11 +11127,11 @@ final class ParcelOpsStore {
     let itemText = plan.items
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
-    return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran, no browser auth opened, no tokens were requested or stored by ParcelOps, no custom Keychain token store was used, and Microsoft Graph remains mocked."
+    return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran from this planning action, no browser auth opened, no tokens were requested or stored by ParcelOps, and no custom Keychain token store was used."
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {
-    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nToken store status: \(state.tokenStoreStatus.rawValue)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo token values, auth codes, client secrets, passwords, or callback URLs are stored in ParcelOps JSON or audit logs. Microsoft Graph mailbox calls remain mocked."
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nToken store status: \(state.tokenStoreStatus.rawValue)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo token values, auth codes, client secrets, passwords, or callback URLs are stored in ParcelOps JSON or audit logs. Microsoft Graph mailbox reading only runs from the separate manual refresh action."
   }
 
   private func microsoft365TokenStoreAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

@@ -166,7 +166,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
         continuation.resume(returning: Microsoft365AuthResult(
           status: .connected,
           signedInAccount: account.isEmpty ? "Signed in Microsoft account" : account,
-          detailText: "Success: real Microsoft 365 identity sign-in completed with User.Read only. MSAL handled its token cache internally; ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Microsoft Graph mailbox calls remain mocked."
+          detailText: "Success: real Microsoft 365 identity sign-in completed with User.Read only. MSAL handled its token cache internally; ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Mailbox reading still requires the separate manual Graph refresh action and Mail.Read consent."
         ))
       }
     }

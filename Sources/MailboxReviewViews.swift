@@ -41,7 +41,7 @@ struct MailboxView: View {
             Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
           }
           if store.spaceMailIMAPConnections.isEmpty {
-            MVPEmptyState(title: "No SpaceMail IMAP placeholders", detail: "Add a SpaceMail placeholder in Mailbox Monitor or Settings, then run Mock SpaceMail refresh to test intake without a real mailbox connection.", symbol: "server.rack")
+            MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup, confirm host/folder details, set the Keychain password, then use either Mock SpaceMail refresh or the manual real read-only refresh.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
             SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in
