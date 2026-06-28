@@ -73,6 +73,8 @@ struct InboxView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
+        SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary)
+
         if store.spaceMailIntakeHealthSummaries.isEmpty {
           MVPEmptyState(
             title: "No SpaceMail mailbox configured",

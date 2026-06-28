@@ -2201,6 +2201,76 @@ struct IntakeReadinessStrip: View {
   }
 }
 
+struct SpaceMailMVPReadinessCard: View {
+  var summary: SpaceMailMVPReadinessSummary
+  var showChecklist: Bool = true
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.verdict)
+            .font(.subheadline.weight(.semibold))
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(summary.completedCount)/\(summary.totalCount)", color: color)
+      }
+
+      Text(summary.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if showChecklist {
+        CompactMetadataGrid(minimumWidth: 180) {
+          ForEach(summary.items) { item in
+            Label(item.title, systemImage: item.isComplete ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+              .font(.caption)
+              .foregroundStyle(color(for: item))
+              .lineLimit(2)
+          }
+        }
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for item: SpaceMailMVPReadinessItem) -> Color {
+    switch item.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

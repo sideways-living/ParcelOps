@@ -293,6 +293,103 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var spaceMailMVPReadinessSummary: SpaceMailMVPReadinessSummary {
+    let hasConnection = !spaceMailIMAPConnections.isEmpty
+    let configuredConnections = spaceMailIMAPConnections.filter { connection in
+      !connection.emailAddressUsername.isPlaceholderValidationValue
+        && !connection.imapHost.isPlaceholderValidationValue
+        && !connection.imapPort.isPlaceholderValidationValue
+        && !connection.folderName.isPlaceholderValidationValue
+    }
+    let credentialReady = spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue
+    }
+    let hasRealRefresh = spaceMailIMAPConnections.contains {
+      $0.lastManualRefreshDate != "Never" && $0.connectionStatus.localizedCaseInsensitiveContains("real imap")
+    }
+    let mixedFilteringReady = spaceMailIMAPConnections.contains {
+      $0.mailboxMode == .mixedFiltered && ($0.lastRefreshFilteredNonOrderCount > 0 || !$0.filteredMessages.isEmpty || !$0.lastRefreshReasonBreakdown.isEmpty)
+    }
+    let parserQueueClear = intakeParserDiagnostics.isEmpty
+    let inboxOrderHandoffReady = orders.contains {
+      $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import"
+    }
+
+    let items = [
+      SpaceMailMVPReadinessItem(
+        title: "SpaceMail configured",
+        detail: hasConnection
+          ? "\(configuredConnections.count) configured connection\(configuredConnections.count == 1 ? "" : "s") with host, folder, and mailbox address."
+          : "Add a SpaceMail setup before testing real intake.",
+        isComplete: hasConnection && !configuredConnections.isEmpty,
+        tone: hasConnection && !configuredConnections.isEmpty ? "success" : "warning"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Credential ready",
+        detail: credentialReady ? "A Keychain password reference is available for manual refresh." : "Set or check the SpaceMail Keychain credential.",
+        isComplete: credentialReady,
+        tone: credentialReady ? "success" : "warning"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Read-only refresh tested",
+        detail: hasRealRefresh ? "At least one real manual IMAP refresh has completed or reported a real IMAP result." : "Run real SpaceMail refresh once credentials are ready.",
+        isComplete: hasRealRefresh,
+        tone: hasRealRefresh ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Mixed mailbox filtering visible",
+        detail: mixedFilteringReady ? "Latest refresh results include filtering/reason evidence for mixed mailbox review." : "Run refresh or classifier tests until filtered/uncertain/imported outcomes are visible.",
+        isComplete: mixedFilteringReady,
+        tone: mixedFilteringReady ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Parser queue controlled",
+        detail: parserQueueClear ? "No parser diagnostics currently need attention." : "\(intakeParserDiagnostics.count) parser check\(intakeParserDiagnostics.count == 1 ? "" : "s") still need review.",
+        isComplete: parserQueueClear,
+        tone: parserQueueClear ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Inbox-to-order handoff tested",
+        detail: inboxOrderHandoffReady ? "At least one order exists from Inbox/import handoff." : "Create or link one order from a real intake row before calling the workflow tested.",
+        isComplete: inboxOrderHandoffReady,
+        tone: inboxOrderHandoffReady ? "success" : "attention"
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    let tone: String
+    let verdict: String
+    let detail: String
+    let nextAction: String
+
+    if completedCount == items.count {
+      tone = "success"
+      verdict = "SpaceMail MVP ready for hands-on testing"
+      detail = "Real read-only intake, filtering, parser review, and order handoff have enough local evidence for supervised use."
+      nextAction = "Run a short hands-on test: refresh, review Inbox, create/link an order, then confirm Audit."
+    } else if completedCount >= 4 {
+      tone = "attention"
+      verdict = "SpaceMail MVP nearly ready"
+      detail = "\(completedCount) of \(items.count) readiness checks are complete."
+      nextAction = items.first { !$0.isComplete }?.detail ?? "Review remaining checks."
+    } else {
+      tone = "warning"
+      verdict = "SpaceMail MVP needs setup checks"
+      detail = "\(completedCount) of \(items.count) readiness checks are complete."
+      nextAction = items.first { !$0.isComplete }?.detail ?? "Complete SpaceMail setup first."
+    }
+
+    return SpaceMailMVPReadinessSummary(
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   func spaceMailIntakeHealthSummary(for connection: SpaceMailIMAPConnection) -> SpaceMailIntakeHealthSummary {
     let mailboxID = connection.id
     let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }

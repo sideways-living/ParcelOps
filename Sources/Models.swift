@@ -1521,6 +1521,24 @@ struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
   var topReasonLabels: [String]
 }
 
+struct SpaceMailMVPReadinessSummary: Hashable {
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var completedCount: Int
+  var totalCount: Int
+  var items: [SpaceMailMVPReadinessItem]
+}
+
+struct SpaceMailMVPReadinessItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var isComplete: Bool
+  var tone: String
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String

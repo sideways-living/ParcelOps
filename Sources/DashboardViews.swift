@@ -645,6 +645,8 @@ struct MVPReadinessCallout: View {
         ("Manifests", "\(store.shipmentManifestRecords.count)", .purple),
         ("Readiness", "\(store.dispatchReadinessChecklists.count)", .teal)
       ])
+
+      SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
     }
     .padding(16)
     .background(.background)
