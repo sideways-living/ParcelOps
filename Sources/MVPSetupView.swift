@@ -27,6 +27,7 @@ struct MVPSetupView: View {
         )
 
         SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
+        SpaceMailOperationsRunbook()
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)

@@ -2553,6 +2553,85 @@ struct SpaceMailPostRefreshActionCard: View {
   }
 }
 
+struct SpaceMailOperationsRunbook: View {
+  private let normalSteps = [
+    ("Confirm setup", "Check host, port, SSL/TLS, folder, mixed mailbox mode, and Keychain credential status before refreshing."),
+    ("Run manual refresh", "Use real SpaceMail refresh only when a person is ready to review results. It must stay read-only."),
+    ("Review outcomes", "Start with imported Inbox rows, then uncertain messages, then filtered examples if expected order mail is missing."),
+    ("Create or link orders", "Use confirmed order or tracking details to create/link orders, then check Orders, Workbench, Tasks, and Audit."),
+    ("Close the loop", "Mark reviewed, create a task, or draft a follow-up message so the next operator sees the current state.")
+  ]
+
+  private let recoverySteps = [
+    ("Credential missing", "Set or check the SpaceMail Keychain password/app-password, then retry manual refresh."),
+    ("Connection failed", "Confirm SpaceMail host, port 993, SSL/TLS, and folder name before retrying."),
+    ("No imports", "Check mixed mailbox summary. Filtered non-order mail is expected for a mixed mailbox."),
+    ("Expected order missing", "Review uncertain and filtered examples, then add local hints only if the reason label is clear."),
+    ("Parser weak", "Use Reprocess or Edit on the intake row. Do not fetch mail again just to fix local parser fields.")
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "list.bullet.clipboard.fill")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("SpaceMail operations runbook")
+            .font(.headline)
+          Text("Use this when running the mixed mailbox intake manually. It describes operator actions only; it does not start refreshes or change mailbox behavior.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Manual", color: .teal)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 10)], alignment: .leading, spacing: 10) {
+        runbookColumn(title: "Normal path", symbol: "checkmark.seal.fill", items: normalSteps, color: .green)
+        runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
+      }
+
+      Text("Boundaries: SpaceMail refresh is manual and read-only. ParcelOps must not delete, move, mark read, flag, send, or modify mailbox messages. Passwords and app passwords must not be written to JSON or Audit.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func runbookColumn(title: String, symbol: String, items: [(String, String)], color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+        HStack(alignment: .top, spacing: 8) {
+          Text("\(index + 1)")
+            .font(.caption2.bold())
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+            .background(color, in: Circle())
+          VStack(alignment: .leading, spacing: 2) {
+            Text(item.0)
+              .font(.caption.weight(.semibold))
+            Text(item.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String
