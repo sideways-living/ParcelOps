@@ -50,7 +50,7 @@ struct HandoffNotesView: View {
           }
 
           ForEach(filteredNotes) { note in
-            HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
+            HandoffNoteRow(note: note, store: store, linkedOrder: linkedOrder(for: note), customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
               store.updateHandoffNote(updatedNote)
             } onAcknowledge: {
               store.acknowledgeHandoffNote(note)
@@ -126,10 +126,17 @@ struct HandoffNotesView: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
+
+  private func linkedOrder(for note: HandoffNote) -> TrackedOrder? {
+    guard note.linkedEntityType == .order, let orderID = UUID(uuidString: note.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct HandoffNoteRow: View {
   var note: HandoffNote
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
@@ -198,6 +205,14 @@ struct HandoffNoteRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Acknowledge", systemImage: "hand.thumbsup.fill", action: onAcknowledge)

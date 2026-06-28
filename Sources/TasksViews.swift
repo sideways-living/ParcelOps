@@ -468,7 +468,7 @@ struct ReviewTasksDetailView: View {
             MVPEmptyState(title: "No tasks match this view", detail: "Clear filters or add a placeholder task to test local follow-up ownership.", symbol: "checklist", actionTitle: "Add task", action: store.addReviewTaskPlaceholder)
           } else {
             ForEach(filteredTasks) { task in
-              ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
+              ReviewTaskRow(task: task, store: store, linkedOrder: linkedOrder(for: task), matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
                 store.completeReviewTask(task)
@@ -543,10 +543,17 @@ struct ReviewTasksDetailView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for task: ReviewTask) -> TrackedOrder? {
+    guard task.linkedEntityType == .order, let orderID = UUID(uuidString: task.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct ReviewTaskRow: View {
   var task: ReviewTask
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var matchingPolicies: [SLAPolicy] = []
   var shipmentGroups: [ShipmentGroup] = []
   var handoffNotes: [HandoffNote] = []
@@ -633,6 +640,14 @@ struct ReviewTaskRow: View {
       }
 
       CompactActionRow {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         if task.status == .completed {
