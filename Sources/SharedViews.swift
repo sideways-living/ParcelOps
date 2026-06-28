@@ -2481,6 +2481,78 @@ struct SpaceMailReleaseSnapshotCard: View {
   }
 }
 
+struct SpaceMailPostRefreshActionCard: View {
+  var plan: SpaceMailPostRefreshActionPlan
+
+  private var color: Color {
+    color(for: plan.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "arrow.triangle.branch")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(plan.title)
+            .font(.headline)
+          Text(plan.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Next: \(plan.primaryAction)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+        }
+        Spacer()
+        Badge("Post-refresh", color: color)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(plan.items) { item in
+          VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Label(item.title, systemImage: item.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(for: item.tone))
+              Spacer()
+              Badge("\(item.count)", color: color(for: item.tone))
+            }
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(item.actionLabel)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: item.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

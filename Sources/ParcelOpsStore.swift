@@ -293,6 +293,113 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var spaceMailPostRefreshActionPlan: SpaceMailPostRefreshActionPlan {
+    let spaceMailMailboxIDs = Set(spaceMailIMAPConnections.map(\.id))
+    let spaceMailIngestRecords = mailboxIngestRecords.filter { spaceMailMailboxIDs.contains($0.sourceMailboxID) }
+    let linkedIntakeIDs = Set(spaceMailIngestRecords.compactMap(\.intakeEmailID))
+    let linkedSpaceMailIntake = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }
+    let reviewSpaceMailIntake = linkedSpaceMailIntake.filter { $0.reviewState == .needsReview }
+    let parserDiagnostics = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }
+    let readyForOrder = reviewSpaceMailIntake.filter { email in
+      email.linkedOrderID == nil
+        && (!email.detectedOrderNumber.isPlaceholderValidationValue || !email.detectedTrackingNumber.isPlaceholderValidationValue)
+    }
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    let filteredReviewCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+    let latestFetchedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let latestImportedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let latestFilteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let latestUncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount }
+
+    let items = [
+      SpaceMailPostRefreshActionItem(
+        title: "Review imported Inbox rows",
+        count: reviewSpaceMailIntake.count,
+        detail: reviewSpaceMailIntake.isEmpty
+          ? "No SpaceMail intake rows currently need primary Inbox review."
+          : "Confirm merchant, order, tracking, and destination before creating or linking orders.",
+        actionLabel: reviewSpaceMailIntake.isEmpty ? "No Inbox review needed" : "Open detected order emails",
+        tone: reviewSpaceMailIntake.isEmpty ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      SpaceMailPostRefreshActionItem(
+        title: "Fix parser diagnostics",
+        count: parserDiagnostics.count,
+        detail: parserDiagnostics.isEmpty
+          ? "No SpaceMail-linked parser diagnostics are currently blocking the flow."
+          : "Reprocess or edit rows where order, tracking, sender, or destination is weak.",
+        actionLabel: parserDiagnostics.isEmpty ? "Parser clear" : "Use parser review queue",
+        tone: parserDiagnostics.isEmpty ? "success" : "warning",
+        symbol: "text.magnifyingglass"
+      ),
+      SpaceMailPostRefreshActionItem(
+        title: "Create or link orders",
+        count: readyForOrder.count,
+        detail: readyForOrder.isEmpty
+          ? "No SpaceMail intake rows look ready for a new linked order right now."
+          : "Rows with usable order or tracking details still need an order handoff.",
+        actionLabel: readyForOrder.isEmpty ? "No order handoff waiting" : "Create or link orders",
+        tone: readyForOrder.isEmpty ? "success" : "attention",
+        symbol: "shippingbox.fill"
+      ),
+      SpaceMailPostRefreshActionItem(
+        title: "Review uncertain messages",
+        count: uncertainCount,
+        detail: uncertainCount == 0
+          ? "No ambiguous SpaceMail messages are waiting outside Inbox."
+          : "Import true order mail or dismiss/filter messages that should stay out of Inbox.",
+        actionLabel: uncertainCount == 0 ? "No uncertain review" : "Review uncertain previews",
+        tone: uncertainCount == 0 ? "success" : "attention",
+        symbol: "questionmark.folder.fill"
+      ),
+      SpaceMailPostRefreshActionItem(
+        title: "Check filtered examples",
+        count: filteredReviewCount,
+        detail: filteredReviewCount == 0
+          ? "No filtered examples are waiting for manual review."
+          : "Spot-check filtered previews if a real order email appears to be missing.",
+        actionLabel: filteredReviewCount == 0 ? "No filtered review queued" : "Spot-check filtered previews",
+        tone: filteredReviewCount == 0 ? "success" : "neutral",
+        symbol: "line.3.horizontal.decrease.circle.fill"
+      )
+    ]
+
+    let blockingItems = items.filter { $0.tone == "warning" || $0.tone == "attention" }
+    let title: String
+    let detail: String
+    let primaryAction: String
+    let tone: String
+    if spaceMailIMAPConnections.isEmpty {
+      title = "SpaceMail post-refresh actions unavailable"
+      detail = "Add a SpaceMail setup before using the refresh workflow."
+      primaryAction = "Add SpaceMail placeholder"
+      tone = "warning"
+    } else if latestFetchedCount == 0 && !spaceMailIMAPConnections.contains(where: { $0.lastManualRefreshDate != "Never" }) {
+      title = "SpaceMail ready for first manual refresh"
+      detail = "No real refresh evidence is recorded yet. Set or check the credential, then run real refresh."
+      primaryAction = "Run real SpaceMail refresh"
+      tone = "attention"
+    } else if blockingItems.isEmpty {
+      title = "SpaceMail post-refresh queue is clear"
+      detail = "Latest refresh: \(latestFetchedCount) fetched, \(latestImportedCount) imported, \(latestFilteredCount) filtered, \(latestUncertainCount) uncertain."
+      primaryAction = "Wait for new order mail or run another manual refresh"
+      tone = "success"
+    } else {
+      title = "SpaceMail post-refresh actions need review"
+      detail = "Latest refresh: \(latestFetchedCount) fetched, \(latestImportedCount) imported, \(latestFilteredCount) filtered, \(latestUncertainCount) uncertain."
+      primaryAction = blockingItems.first?.actionLabel ?? "Review Mailbox Monitor"
+      tone = blockingItems.contains(where: { $0.tone == "warning" }) ? "warning" : "attention"
+    }
+
+    return SpaceMailPostRefreshActionPlan(
+      title: title,
+      detail: detail,
+      tone: tone,
+      primaryAction: primaryAction,
+      items: items
+    )
+  }
+
   var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

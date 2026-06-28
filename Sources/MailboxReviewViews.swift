@@ -28,6 +28,7 @@ struct MailboxView: View {
 
         SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+        SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {

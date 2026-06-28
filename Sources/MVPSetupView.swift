@@ -28,6 +28,7 @@ struct MVPSetupView: View {
 
         SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+        SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {
