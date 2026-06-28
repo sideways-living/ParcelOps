@@ -21,11 +21,16 @@ struct TasksView: View {
     }
   }
 
+  private var draftFollowUpItems: [DraftMessage] {
+    Array(store.draftMessagesNeedingReview.prefix(6))
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         taskNextActionPanel
+        draftFollowUpPanel
         taskQueuePanel
         detailRoutes
       }
@@ -49,6 +54,7 @@ struct TasksView: View {
         ("Blocked", "\(queueItems.filter { $0.status == .blocked }.count)", .red),
         ("Urgent", "\(queueItems.filter { $0.priority == .urgent }.count)", .pink),
         ("Inbox orders", "\(inboxOrderActionCount)", inboxOrderActionCount == 0 ? .green : .teal),
+        ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .blue),
         ("Review", "\(queueItems.filter { $0.reviewState != .accepted }.count)", .purple)
       ])
     }
@@ -87,10 +93,15 @@ struct TasksView: View {
     queueItems.filter { $0.reviewState != .accepted }.count
   }
 
+  private var draftActionCount: Int {
+    draftFollowUpItems.count
+  }
+
   private var nextActionTone: Color {
     if overdueActionCount > 0 || blockedActionCount > 0 { return .red }
     if urgentActionCount > 0 || inboxOrderActionCount > 0 { return .orange }
     if reviewActionCount > 0 { return .purple }
+    if draftActionCount > 0 { return .blue }
     if !queueItems.isEmpty { return .teal }
     return .green
   }
@@ -101,6 +112,7 @@ struct TasksView: View {
     if urgentActionCount > 0 { return "Handle high-priority work" }
     if inboxOrderActionCount > 0 { return "Finish Inbox-created order handoffs" }
     if reviewActionCount > 0 { return "Review open task context" }
+    if draftActionCount > 0 { return "Review draft messages" }
     if !queueItems.isEmpty { return "Work the open queue" }
     return "Task queue is clear"
   }
@@ -120,6 +132,9 @@ struct TasksView: View {
     }
     if reviewActionCount > 0 {
       return "\(reviewActionCount) item still needs local review. Check the row summary and mark reviewed once the context is clear."
+    }
+    if draftActionCount > 0 {
+      return "\(draftActionCount) draft message was created from local workflow actions. Mark it ready, sent locally, or reopen it for follow-up."
     }
     if !queueItems.isEmpty {
       return "No overdue or blocked work is at the top of the queue. Continue completing open tasks and handoffs."
@@ -150,8 +165,34 @@ struct TasksView: View {
           ("Blocked", "\(blockedActionCount)", blockedActionCount == 0 ? .green : .red),
           ("High priority", "\(urgentActionCount)", urgentActionCount == 0 ? .green : .orange),
           ("Handoffs", "\(handoffActionCount)", handoffActionCount == 0 ? .green : .blue),
+          ("Drafts", "\(draftActionCount)", draftActionCount == 0 ? .green : .blue),
           ("Needs review", "\(reviewActionCount)", reviewActionCount == 0 ? .green : .purple)
         ])
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var draftFollowUpPanel: some View {
+    if !draftFollowUpItems.isEmpty {
+      SettingsPanel(title: "Draft message follow-up", symbol: "envelope.open.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch appear here so local communication follow-up is visible in the daily flow.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(draftFollowUpItems) { draft in
+            TaskDraftFollowUpRow(draft: draft, store: store)
+          }
+
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Communication", systemImage: "envelope.open.fill")
+          }
+          .buttonStyle(.bordered)
+        }
       }
     }
   }
@@ -295,6 +336,110 @@ private enum TaskQueueSource {
     case .task: "checklist"
     case .handoff: "arrow.left.arrow.right.square.fill"
     }
+  }
+}
+
+private struct TaskDraftFollowUpRow: View {
+  var draft: DraftMessage
+  var store: ParcelOpsStore
+
+  private var statusColor: Color {
+    switch draft.status {
+    case .draft:
+      return .orange
+    case .ready:
+      return .green
+    case .sentLocally:
+      return .secondary
+    case .reopened:
+      return .purple
+    }
+  }
+
+  private var linkedOrder: TrackedOrder? {
+    guard draft.linkedEntityType == .order,
+      let orderID = UUID(uuidString: draft.linkedEntityID)
+    else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "envelope.open.fill")
+          .foregroundStyle(statusColor)
+          .frame(width: 30, height: 30)
+
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(draft.subject)
+                .font(.headline)
+              Text("\(draft.channel.rawValue) • \(draft.recipient)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Badge(draft.status.rawValue, color: statusColor)
+          }
+
+          Text(draft.body)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+
+          if let linkedOrder {
+            Label("\(linkedOrder.store) \(linkedOrder.orderNumber) • \(linkedOrder.customer)", systemImage: "shippingbox.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.teal)
+          }
+
+          CompactMetadataGrid {
+            Badge(draft.reviewState.rawValue, color: draft.reviewState.color)
+            Label(draft.linkedEntityType.rawValue, systemImage: draft.linkedEntityType.symbol)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Text(draft.createdDate)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      CompactActionRow {
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "shippingbox.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        Button("Ready", systemImage: "checkmark.seal.fill") {
+          store.markDraftMessageReady(draft)
+        }
+        .buttonStyle(.bordered)
+        .disabled(draft.status == .ready)
+
+        Button("Sent locally", systemImage: "paperplane.fill") {
+          store.markDraftMessageSentLocally(draft)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(draft.status == .sentLocally)
+
+        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+          store.reopenDraftMessage(draft)
+        }
+        .buttonStyle(.bordered)
+        .disabled(draft.status == .reopened)
+      }
+    }
+    .padding(12)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 
