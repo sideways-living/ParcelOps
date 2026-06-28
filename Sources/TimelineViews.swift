@@ -55,41 +55,32 @@ struct TimelineView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Entity", selection: $entityFilter) {
-          Text("All entities").tag(TimelineEntityType?.none)
-          ForEach(TimelineEntityType.allCases) { type in
-            Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
-          }
-        }
-        Picker("Risk", selection: $riskFilter) {
-          Text("All risk").tag(TimelineRiskLevel?.none)
-          ForEach(TimelineRiskLevel.allCases) { risk in
-            Text(risk.rawValue).tag(Optional(risk))
-          }
+    FilterControlGrid {
+      Picker("Entity", selection: $entityFilter) {
+        Text("All entities").tag(TimelineEntityType?.none)
+        ForEach(TimelineEntityType.allCases) { type in
+          Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
         }
       }
-      HStack {
-        Picker("Review", selection: $reviewFilter) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      Picker("Risk", selection: $riskFilter) {
+        Text("All risk").tag(TimelineRiskLevel?.none)
+        ForEach(TimelineRiskLevel.allCases) { risk in
+          Text(risk.rawValue).tag(Optional(risk))
         }
-        Picker("Source", selection: $sourceFilter) {
-          Text("All sources").tag(TimelineActivitySource?.none)
-          ForEach(TimelineActivitySource.allCases) { source in
-            Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
-          }
+      }
+      Picker("Review", selection: $reviewFilter) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
+        }
+      }
+      Picker("Source", selection: $sourceFilter) {
+        Text("All sources").tag(TimelineActivitySource?.none)
+        ForEach(TimelineActivitySource.allCases) { source in
+          Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {

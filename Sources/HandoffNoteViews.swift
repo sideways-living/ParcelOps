@@ -75,56 +75,46 @@ struct HandoffNotesView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Record", selection: $selectedEntityType) {
-          Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
-          ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
-            Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
-          }
-        }
-        Picker("Priority", selection: $selectedPriority) {
-          Text("All priorities").tag(nil as TaskPriority?)
-          ForEach(TaskPriority.allCases) { priority in
-            Text(priority.rawValue).tag(priority as TaskPriority?)
-          }
-        }
-        Picker("Assignee", selection: $selectedAssignee) {
-          Text("All assignees").tag(nil as String?)
-          ForEach(assignees, id: \.self) { assignee in
-            Text(assignee).tag(assignee as String?)
-          }
+    FilterControlGrid {
+      Picker("Record", selection: $selectedEntityType) {
+        Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
+        ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
+          Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
         }
       }
-      HStack {
-        Picker("Status", selection: $selectedStatus) {
-          Text("All statuses").tag(nil as TaskStatus?)
-          ForEach(TaskStatus.allCases) { status in
-            Text(status.rawValue).tag(status as TaskStatus?)
-          }
+      Picker("Priority", selection: $selectedPriority) {
+        Text("All priorities").tag(nil as TaskPriority?)
+        ForEach(TaskPriority.allCases) { priority in
+          Text(priority.rawValue).tag(priority as TaskPriority?)
         }
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(nil as ReviewState?)
-          Text(ReviewState.accepted.rawValue).tag(ReviewState.accepted as ReviewState?)
-          Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
-          Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
-        }
-        Spacer()
-        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-          selectedEntityType = nil
-          selectedPriority = nil
-          selectedAssignee = nil
-          selectedStatus = nil
-          selectedReviewState = nil
-        }
-        .buttonStyle(.bordered)
       }
+      Picker("Assignee", selection: $selectedAssignee) {
+        Text("All assignees").tag(nil as String?)
+        ForEach(assignees, id: \.self) { assignee in
+          Text(assignee).tag(assignee as String?)
+        }
+      }
+      Picker("Status", selection: $selectedStatus) {
+        Text("All statuses").tag(nil as TaskStatus?)
+        ForEach(TaskStatus.allCases) { status in
+          Text(status.rawValue).tag(status as TaskStatus?)
+        }
+      }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(nil as ReviewState?)
+        Text(ReviewState.accepted.rawValue).tag(ReviewState.accepted as ReviewState?)
+        Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
+        Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
+      }
+      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+        selectedEntityType = nil
+        selectedPriority = nil
+        selectedAssignee = nil
+        selectedStatus = nil
+        selectedReviewState = nil
+      }
+      .buttonStyle(.bordered)
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private func linkedOrder(for note: HandoffNote) -> TrackedOrder? {

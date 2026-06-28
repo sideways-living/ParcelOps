@@ -61,14 +61,13 @@ struct EvidenceView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as EvidenceLinkedEntityType?)
         ForEach(EvidenceLinkedEntityType.allCases) { entityType in
           Text(entityType.rawValue).tag(entityType as EvidenceLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -76,9 +75,6 @@ struct EvidenceView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedEntityType = nil

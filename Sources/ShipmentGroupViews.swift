@@ -60,33 +60,22 @@ struct ShipmentGroupsView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Risk", selection: $riskFilter) {
-          Text("All risk").tag(ShipmentRiskLevel?.none)
-          ForEach(ShipmentRiskLevel.allCases) { risk in
-            Text(risk.rawValue).tag(Optional(risk))
-          }
-        }
-        Picker("Review", selection: $reviewFilter) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+    FilterControlGrid {
+      Picker("Risk", selection: $riskFilter) {
+        Text("All risk").tag(ShipmentRiskLevel?.none)
+        ForEach(ShipmentRiskLevel.allCases) { risk in
+          Text(risk.rawValue).tag(Optional(risk))
         }
       }
-      HStack {
-        TextField("Status summary", text: $statusFilter)
-          .textFieldStyle(.roundedBorder)
-        TextField("Carrier summary", text: $carrierFilter)
-          .textFieldStyle(.roundedBorder)
+      Picker("Review", selection: $reviewFilter) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
+        }
       }
+      TextField("Status summary", text: $statusFilter)
+      TextField("Carrier summary", text: $carrierFilter)
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private func linkedOrders(for group: ShipmentGroup) -> [TrackedOrder] {

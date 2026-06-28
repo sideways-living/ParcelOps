@@ -74,13 +74,12 @@ struct SLAPoliciesView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Priority", selection: $selectedPriority) {
         Text("All priorities").tag(nil as TaskPriority?)
@@ -88,7 +87,6 @@ struct SLAPoliciesView: View {
           Text(priority.rawValue).tag(priority as TaskPriority?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
@@ -96,7 +94,6 @@ struct SLAPoliciesView: View {
           Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -104,9 +101,6 @@ struct SLAPoliciesView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedEnabledState = nil

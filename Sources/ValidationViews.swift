@@ -58,41 +58,32 @@ struct ValidationView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Entity", selection: $entityFilter) {
-          Text("All entities").tag(ValidationEntityType?.none)
-          ForEach(ValidationEntityType.allCases) { type in
-            Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
-          }
-        }
-        Picker("Severity", selection: $severityFilter) {
-          Text("All severity").tag(ValidationSeverity?.none)
-          ForEach(ValidationSeverity.allCases) { severity in
-            Text(severity.rawValue).tag(Optional(severity))
-          }
+    FilterControlGrid {
+      Picker("Entity", selection: $entityFilter) {
+        Text("All entities").tag(ValidationEntityType?.none)
+        ForEach(ValidationEntityType.allCases) { type in
+          Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
         }
       }
-      HStack {
-        Picker("Status", selection: $statusFilter) {
-          Text("All status").tag(ValidationStatus?.none)
-          ForEach(ValidationStatus.allCases) { status in
-            Text(status.rawValue).tag(Optional(status))
-          }
+      Picker("Severity", selection: $severityFilter) {
+        Text("All severity").tag(ValidationSeverity?.none)
+        ForEach(ValidationSeverity.allCases) { severity in
+          Text(severity.rawValue).tag(Optional(severity))
         }
-        Picker("Review", selection: $reviewFilter) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      }
+      Picker("Status", selection: $statusFilter) {
+        Text("All status").tag(ValidationStatus?.none)
+        ForEach(ValidationStatus.allCases) { status in
+          Text(status.rawValue).tag(Optional(status))
+        }
+      }
+      Picker("Review", selection: $reviewFilter) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private func linkedOrder(for issue: ValidationIssue) -> TrackedOrder? {

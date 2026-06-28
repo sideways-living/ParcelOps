@@ -76,51 +76,42 @@ struct ReconciliationView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Issue", selection: $selectedIssueType) {
-          Text("All issues").tag(nil as ReconciliationIssueType?)
-          ForEach(ReconciliationIssueType.allCases) { issueType in
-            Label(issueType.rawValue, systemImage: issueType.symbol).tag(issueType as ReconciliationIssueType?)
-          }
-        }
-
-        Picker("Severity", selection: $selectedSeverity) {
-          Text("All severity").tag(nil as ValidationSeverity?)
-          ForEach(ValidationSeverity.allCases) { severity in
-            Text(severity.rawValue).tag(severity as ValidationSeverity?)
-          }
+    FilterControlGrid {
+      Picker("Issue", selection: $selectedIssueType) {
+        Text("All issues").tag(nil as ReconciliationIssueType?)
+        ForEach(ReconciliationIssueType.allCases) { issueType in
+          Label(issueType.rawValue, systemImage: issueType.symbol).tag(issueType as ReconciliationIssueType?)
         }
       }
 
-      HStack {
-        Picker("Source", selection: $selectedSourceType) {
-          Text("All sources").tag(nil as ReconciliationEntityType?)
-          ForEach(ReconciliationEntityType.allCases) { entityType in
-            Label(entityType.rawValue, systemImage: entityType.symbol).tag(entityType as ReconciliationEntityType?)
-          }
+      Picker("Severity", selection: $selectedSeverity) {
+        Text("All severity").tag(nil as ValidationSeverity?)
+        ForEach(ValidationSeverity.allCases) { severity in
+          Text(severity.rawValue).tag(severity as ValidationSeverity?)
         }
+      }
 
-        Picker("Target", selection: $selectedTargetType) {
-          Text("All targets").tag(nil as ReconciliationEntityType?)
-          ForEach(ReconciliationEntityType.allCases) { entityType in
-            Label(entityType.rawValue, systemImage: entityType.symbol).tag(entityType as ReconciliationEntityType?)
-          }
+      Picker("Source", selection: $selectedSourceType) {
+        Text("All sources").tag(nil as ReconciliationEntityType?)
+        ForEach(ReconciliationEntityType.allCases) { entityType in
+          Label(entityType.rawValue, systemImage: entityType.symbol).tag(entityType as ReconciliationEntityType?)
         }
+      }
 
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(nil as ReviewState?)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(state as ReviewState?)
-          }
+      Picker("Target", selection: $selectedTargetType) {
+        Text("All targets").tag(nil as ReconciliationEntityType?)
+        ForEach(ReconciliationEntityType.allCases) { entityType in
+          Label(entityType.rawValue, systemImage: entityType.symbol).tag(entityType as ReconciliationEntityType?)
+        }
+      }
+
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(nil as ReviewState?)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(state as ReviewState?)
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
   private func linkedOrder(for issue: ReconciliationIssue) -> TrackedOrder? {

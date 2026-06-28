@@ -71,14 +71,13 @@ struct TrackingView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Carrier", selection: $selectedCarrier) {
         Text("All carriers").tag(nil as String?)
         ForEach(carriers, id: \.self) { carrier in
           Text(carrier).tag(carrier as String?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Severity", selection: $selectedSeverity) {
         Text("All severities").tag(nil as Severity?)
@@ -86,7 +85,6 @@ struct TrackingView: View {
         Text(Severity.watch.rawValue).tag(Severity.watch as Severity?)
         Text(Severity.critical.rawValue).tag(Severity.critical as Severity?)
       }
-      .pickerStyle(.menu)
 
       Picker("Order status", selection: $selectedOrderStatus) {
         Text("All statuses").tag(nil as OrderStatus?)
@@ -94,9 +92,6 @@ struct TrackingView: View {
           Text(status.rawValue).tag(status as OrderStatus?)
         }
       }
-      .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedCarrier = nil

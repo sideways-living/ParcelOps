@@ -68,55 +68,45 @@ struct ExceptionPlaybooksView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Issue", selection: $selectedIssueType) {
-          Text("All issues").tag(nil as ReconciliationIssueType?)
-          ForEach(ReconciliationIssueType.allCases) { issueType in
-            Text(issueType.rawValue).tag(issueType as ReconciliationIssueType?)
-          }
-        }
-        Picker("Record", selection: $selectedEntityType) {
-          Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
-          ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
-            Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
-          }
-        }
-        Picker("Priority", selection: $selectedPriority) {
-          Text("All priorities").tag(nil as TaskPriority?)
-          ForEach(TaskPriority.allCases) { priority in
-            Text(priority.rawValue).tag(priority as TaskPriority?)
-          }
+    FilterControlGrid {
+      Picker("Issue", selection: $selectedIssueType) {
+        Text("All issues").tag(nil as ReconciliationIssueType?)
+        ForEach(ReconciliationIssueType.allCases) { issueType in
+          Text(issueType.rawValue).tag(issueType as ReconciliationIssueType?)
         }
       }
-      HStack {
-        Picker("Enabled", selection: $selectedEnabledState) {
-          Text("All states").tag(nil as Bool?)
-          Text("Enabled").tag(true as Bool?)
-          Text("Disabled").tag(false as Bool?)
+      Picker("Record", selection: $selectedEntityType) {
+        Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
+        ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
+          Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
         }
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(nil as ReviewState?)
-          ForEach(reviewStates, id: \.self) { state in
-            Text(state.rawValue).tag(state as ReviewState?)
-          }
-        }
-        Spacer()
-        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-          selectedIssueType = nil
-          selectedEntityType = nil
-          selectedPriority = nil
-          selectedEnabledState = nil
-          selectedReviewState = nil
-        }
-        .buttonStyle(.bordered)
       }
+      Picker("Priority", selection: $selectedPriority) {
+        Text("All priorities").tag(nil as TaskPriority?)
+        ForEach(TaskPriority.allCases) { priority in
+          Text(priority.rawValue).tag(priority as TaskPriority?)
+        }
+      }
+      Picker("Enabled", selection: $selectedEnabledState) {
+        Text("All states").tag(nil as Bool?)
+        Text("Enabled").tag(true as Bool?)
+        Text("Disabled").tag(false as Bool?)
+      }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(nil as ReviewState?)
+        ForEach(reviewStates, id: \.self) { state in
+          Text(state.rawValue).tag(state as ReviewState?)
+        }
+      }
+      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+        selectedIssueType = nil
+        selectedEntityType = nil
+        selectedPriority = nil
+        selectedEnabledState = nil
+        selectedReviewState = nil
+      }
+      .buttonStyle(.bordered)
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 
