@@ -25,6 +25,7 @@ struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
   @State private var isMoreMenuExpanded = false
+  @State private var showSecondaryDesktopGroups = false
   @State private var expandedDesktopGroupIDs: Set<String> = []
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -35,6 +36,14 @@ struct ParcelOpsRootView: View {
 
   private var desktopSearchResults: [ParcelNavigationGroup] {
     ParcelNavigationGroup.desktopGroupsMatching(sidebarSearchText)
+  }
+
+  private var selectionIsSecondaryDesktopRoute: Bool {
+    ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(selection)
+  }
+
+  private var shouldShowSecondaryDesktopGroups: Bool {
+    showSecondaryDesktopGroups || selectionIsSecondaryDesktopRoute
   }
 
   private var dailyAttentionCount: Int {
@@ -97,30 +106,44 @@ struct ParcelOpsRootView: View {
               }
 
               Section {
-                Text("Advanced records and setup views are still available, but the daily workflow starts above.")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
-                  .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                  Text("Advanced records and setup views are available when needed. Keep this hidden for daily operator work.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                  Button {
+                    withAnimation(.snappy) {
+                      showSecondaryDesktopGroups.toggle()
+                    }
+                  } label: {
+                    Label(shouldShowSecondaryDesktopGroups ? "Hide advanced routes" : "Show advanced routes", systemImage: shouldShowSecondaryDesktopGroups ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                      .font(.caption.weight(.semibold))
+                  }
+                  .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 4)
               }
 
-              ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
-                DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
-                  ForEach(group.sections) { section in
-                    sidebarButton(for: section)
+              if shouldShowSecondaryDesktopGroups {
+                ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
+                  DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
+                    ForEach(group.sections) { section in
+                      sidebarButton(for: section)
+                    }
+                  } label: {
+                    HStack(spacing: 6) {
+                      Text(group.title)
+                      Spacer()
+                      Text("\(group.sections.count)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quinary, in: Capsule())
+                    }
+                    .font(.subheadline.weight(.semibold))
                   }
-                } label: {
-                  HStack(spacing: 6) {
-                    Text(group.title)
-                    Spacer()
-                    Text("\(group.sections.count)")
-                      .font(.caption2.weight(.semibold))
-                      .foregroundStyle(.secondary)
-                      .padding(.horizontal, 6)
-                      .padding(.vertical, 2)
-                      .background(.quinary, in: Capsule())
-                  }
-                  .font(.subheadline.weight(.semibold))
                 }
               }
             }
@@ -190,6 +213,9 @@ struct ParcelOpsRootView: View {
   private func sidebarButton(for section: ParcelSection, context: String? = nil) -> some View {
     Button {
       selection = section
+      if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
+        showSecondaryDesktopGroups = true
+      }
       sidebarSearchText = ""
     } label: {
       VStack(alignment: .leading, spacing: 2) {
