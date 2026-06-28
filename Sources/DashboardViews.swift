@@ -29,7 +29,9 @@ struct DashboardView: View {
     store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count
   }
   private var taskAttentionCount: Int {
-    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+    store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.draftMessagesNeedingReview.count
   }
   private var attentionNowCount: Int {
     incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + store.highPriorityWorkbenchItems.count
@@ -70,7 +72,7 @@ struct DashboardView: View {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
     }
     if taskAttentionCount > 0 {
-      return "\(taskAttentionCount) review task or handoff note needs ownership, completion, or review."
+      return "\(taskAttentionCount) task, handoff, or draft message needs ownership, completion, local send status, or review."
     }
     return "No primary daily operator queue has promoted work right now. Use Audit or advanced routes only when checking detailed history."
   }
@@ -562,8 +564,8 @@ struct DashboardView: View {
           OperatorDashboardCard(
             title: "Tasks",
             count: taskAttentionCount,
-            detail: "Open review tasks and handoff notes that need ownership or completion.",
-            nextAction: taskAttentionCount == 0 ? "No task escalations" : "Work follow-ups",
+            detail: "Open review tasks, handoff notes, and draft messages that need ownership, completion, or local send status.",
+            nextAction: taskAttentionCount == 0 ? "No task escalations" : "Work follow-ups and drafts",
             symbol: "checklist",
             tint: taskAttentionCount == 0 ? .green : .orange
           ) {
@@ -619,15 +621,17 @@ struct DashboardView: View {
           CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
         }
 
-        AnalyticsSection(title: "Open tasks and handoffs", symbol: "checklist") {
+        AnalyticsSection(title: "Open tasks, handoffs, and drafts", symbol: "checklist") {
           MetricStrip(items: [
             ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .orange),
             ("Handoffs", "\(store.handoffNotesNeedingAttention.count)", .blue),
+            ("Drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
             ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
             ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
           ])
           CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)))
           CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)))
+          CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)))
         }
       }
 
