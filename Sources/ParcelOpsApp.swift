@@ -234,8 +234,8 @@ struct ExpandableBottomMenu: View {
     [.dashboard, .inbox, .orders, .workbench]
   }
 
-  private var secondaryItems: [ParcelSection] {
-    ParcelNavigationGroup.mobileSecondarySections
+  private var secondaryGroups: [ParcelNavigationGroup] {
+    ParcelNavigationGroup.mobileSecondaryGroups
   }
 
   var body: some View {
@@ -258,15 +258,28 @@ struct ExpandableBottomMenu: View {
       }
 
       if isExpanded {
-        ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: 0) {
-            ForEach(secondaryItems) { section in
-              BottomMenuButton(title: section.shortTitle, symbol: section.symbol, isSelected: selection == section) {
-                onSelect(section)
+        ScrollView(.vertical, showsIndicators: false) {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(secondaryGroups) { group in
+              VStack(alignment: .leading, spacing: 6) {
+                Text(group.title)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                  .padding(.horizontal, 6)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
+                  ForEach(group.sections) { section in
+                    CompactMenuRouteButton(section: section, isSelected: selection == section) {
+                      onSelect(section)
+                    }
+                  }
+                }
               }
             }
           }
+          .padding(.horizontal, 4)
+          .padding(.bottom, 4)
         }
+        .frame(maxHeight: 260)
         .transition(.move(edge: .top).combined(with: .opacity))
       }
     }
@@ -297,6 +310,15 @@ struct ParcelNavigationGroup: Identifiable {
   static var mobileSecondarySections: [ParcelSection] {
     desktopGroups.flatMap(\.sections).filter { !dailyOperations.sections.prefix(4).contains($0) }
   }
+
+  static var mobileSecondaryGroups: [ParcelNavigationGroup] {
+    let primarySet = Set(dailyOperations.sections.prefix(4))
+    let dailyOverflow = ParcelNavigationGroup(
+      title: "More Daily Operations",
+      sections: dailyOperations.sections.filter { !primarySet.contains($0) }
+    )
+    return [dailyOverflow] + secondaryDesktopGroups
+  }
 }
 
 struct BottomMenuButton: View {
@@ -322,5 +344,34 @@ struct BottomMenuButton: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel(title)
+  }
+}
+
+struct CompactMenuRouteButton: View {
+  var section: ParcelSection
+  var isSelected: Bool
+  var action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 7) {
+        Image(systemName: section.symbol)
+          .font(.caption.weight(.semibold))
+          .frame(width: 16)
+        Text(section.shortTitle)
+          .font(.caption2.weight(.semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+        Spacer(minLength: 0)
+      }
+      .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+      .padding(.horizontal, 9)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear))
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(section.title)
   }
 }
