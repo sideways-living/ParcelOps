@@ -1557,6 +1557,22 @@ struct SpaceMailQACheck: Identifiable, Hashable {
   var tone: String
 }
 
+struct SpaceMailReleaseSnapshot: Hashable {
+  var verdict: String
+  var detail: String
+  var generatedDate: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var reportText: String
+}
+
+struct SpaceMailReleaseSnapshotMetric: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var value: String
+  var tone: String
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String

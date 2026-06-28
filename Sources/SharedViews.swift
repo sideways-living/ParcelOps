@@ -2416,6 +2416,71 @@ struct SpaceMailQACheckCard: View {
   }
 }
 
+struct SpaceMailReleaseSnapshotCard: View {
+  var snapshot: SpaceMailReleaseSnapshot
+
+  private var color: Color {
+    color(for: snapshot.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "doc.plaintext.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(snapshot.verdict)
+            .font(.headline)
+          Text(snapshot.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Generated \(snapshot.generatedDate)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+        }
+        Spacer()
+        Badge("Snapshot", color: color)
+      }
+
+      MetricStrip(items: snapshot.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Selectable release notes")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(snapshot.reportText)
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

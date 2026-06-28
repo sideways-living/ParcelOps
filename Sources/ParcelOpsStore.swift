@@ -293,6 +293,98 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
+    let readiness = spaceMailMVPReadinessSummary
+    let qa = spaceMailQACheckSummary
+    let healthSummaries = spaceMailIntakeHealthSummaries
+    let fetchedCount = healthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    let importedCount = healthSummaries.reduce(0) { $0 + $1.importedCount }
+    let duplicateCount = healthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    let filteredCount = healthSummaries.reduce(0) { $0 + $1.filteredCount }
+    let uncertainCount = healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let parserIssueCount = intakeParserDiagnostics.count
+    let reviewIntakeCount = reviewIntakeEmails.count
+    let generatedDate = Date.now.formatted(date: .abbreviated, time: .shortened)
+    let completedChecks = readiness.completedCount + qa.completedCount
+    let totalChecks = readiness.totalCount + qa.totalCount
+
+    let verdict: String
+    let detail: String
+    let tone: String
+    if readiness.tone == "success" && qa.tone == "success" {
+      verdict = "SpaceMail local MVP release snapshot: ready for supervised testing"
+      detail = "Readiness and QA evidence are complete. Continue using manual refresh and human review before operational reliance."
+      tone = "success"
+    } else if completedChecks >= max(totalChecks - 2, 1) {
+      verdict = "SpaceMail local MVP release snapshot: nearly ready"
+      detail = "\(completedChecks) of \(totalChecks) readiness and QA checks are complete. Clear the remaining checks before tagging a release."
+      tone = "attention"
+    } else {
+      verdict = "SpaceMail local MVP release snapshot: setup still needed"
+      detail = "\(completedChecks) of \(totalChecks) readiness and QA checks are complete. Follow the next action in the readiness card."
+      tone = "warning"
+    }
+
+    let latestRefresh = spaceMailIMAPConnections
+      .filter { $0.lastManualRefreshDate != "Never" }
+      .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
+      .first
+    let latestRefreshLine = latestRefresh.map {
+      "\($0.displayName): \($0.lastRefreshSummary.isEmpty ? $0.connectionStatus : $0.lastRefreshSummary)"
+    } ?? "No real SpaceMail refresh has been recorded yet."
+
+    let reportLines = [
+      "ParcelOps SpaceMail local MVP release snapshot",
+      "Generated: \(generatedDate)",
+      "",
+      "Verdict: \(verdict)",
+      "Detail: \(detail)",
+      "",
+      "Readiness: \(readiness.completedCount)/\(readiness.totalCount) - \(readiness.verdict)",
+      "QA evidence: \(qa.completedCount)/\(qa.totalCount) - \(qa.verdict)",
+      "",
+      "Latest refresh: \(latestRefreshLine)",
+      "Fetched: \(fetchedCount)",
+      "Imported to Inbox: \(importedCount)",
+      "Duplicates: \(duplicateCount)",
+      "Filtered non-order: \(filteredCount)",
+      "Uncertain needing review: \(uncertainCount)",
+      "Parser diagnostics: \(parserIssueCount)",
+      "Inbox rows needing review: \(reviewIntakeCount)",
+      "Inbox-created orders: \(orders.filter { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" }.count)",
+      "",
+      "Release boundaries:",
+      "- SpaceMail refresh is manual and read-only.",
+      "- IMAP uses EXAMINE and BODY.PEEK; mailbox items are not deleted, moved, marked read, flagged, sent, or modified.",
+      "- SpaceMail password/app-password is handled through Keychain status paths and is not stored in JSON or audit logs.",
+      "- Mixed mailbox filtering runs locally from sender, subject, and preview only.",
+      "- Shopify, carrier APIs, background sync, notifications, OCR, scanners, calendars, file pickers, and outbound email sending remain disconnected.",
+      "",
+      "Recommended hands-on test:",
+      "1. Run real SpaceMail refresh.",
+      "2. Review imported and uncertain messages in Mailbox Monitor.",
+      "3. Create or link one order from Inbox.",
+      "4. Confirm Orders, Dashboard, Workbench, Tasks, and Audit show the handoff.",
+      "5. Quit and reopen to verify local persistence."
+    ]
+
+    return SpaceMailReleaseSnapshot(
+      verdict: verdict,
+      detail: detail,
+      generatedDate: generatedDate,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: tone),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Inbox imports", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Parser checks", value: "\(parserIssueCount)", tone: parserIssueCount == 0 ? "success" : "attention")
+      ],
+      reportText: reportLines.joined(separator: "\n")
+    )
+  }
+
   var spaceMailMVPReadinessSummary: SpaceMailMVPReadinessSummary {
     let hasConnection = !spaceMailIMAPConnections.isEmpty
     let configuredConnections = spaceMailIMAPConnections.filter { connection in
