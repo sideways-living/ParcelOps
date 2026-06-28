@@ -120,7 +120,6 @@ struct OperationsWorkbenchView: View {
         )
         operatorSummary
         SpaceMailPrimaryStatusStrip(store: store)
-        SpaceMailOperatorGuidanceStack(store: store, showTestRun: false, showRunbook: false, showReleaseSnapshot: false)
         inboxCreatedOrderFollowUp
         operatorQueue
         advancedFilters

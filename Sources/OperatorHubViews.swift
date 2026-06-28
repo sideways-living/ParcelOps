@@ -69,12 +69,10 @@ struct InboxView: View {
   private var mailboxHealthPanel: some View {
     SettingsPanel(title: "Mailbox intake health", symbol: "server.rack") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("SpaceMail is a mixed-use mailbox, so ParcelOps filters likely non-order messages before they reach triage. Use this panel to see whether the latest refresh produced actionable intake or simply filtered normal mail.")
+        Text("SpaceMail is mixed-use. This summary shows whether the latest manual refresh produced actionable intake or mostly filtered normal mail. Use Mailbox Monitor for setup, classifier tuning, and detailed diagnostics.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
-
-        SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary)
 
         if store.spaceMailIntakeHealthSummaries.isEmpty {
           MVPEmptyState(
