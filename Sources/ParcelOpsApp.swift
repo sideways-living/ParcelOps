@@ -78,6 +78,8 @@ struct ParcelOpsRootView: View {
             withAnimation(.snappy) {
               selection = section
             }
+          } attentionCount: { section in
+            attentionCount(for: section)
           }
         }
       } else {
@@ -211,7 +213,9 @@ struct ParcelOpsRootView: View {
   }
 
   private func sidebarButton(for section: ParcelSection, context: String? = nil) -> some View {
-    Button {
+    let count = attentionCount(for: section)
+
+    return Button {
       selection = section
       if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
         showSecondaryDesktopGroups = true
@@ -219,8 +223,14 @@ struct ParcelOpsRootView: View {
       sidebarSearchText = ""
     } label: {
       VStack(alignment: .leading, spacing: 2) {
-        Label(section.title, systemImage: section.symbol)
-          .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        HStack(spacing: 8) {
+          Label(section.title, systemImage: section.symbol)
+            .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+          Spacer(minLength: 6)
+          if let count, count > 0 {
+            Badge("\(count)", color: attentionColor(for: section, count: count))
+          }
+        }
         if let context {
           Text(context)
             .font(.caption2)
@@ -229,6 +239,54 @@ struct ParcelOpsRootView: View {
       }
     }
     .buttonStyle(.plain)
+  }
+
+  private func attentionCount(for section: ParcelSection) -> Int? {
+    switch section {
+    case .dashboard:
+      return dailyAttentionCount
+    case .inbox:
+      return store.reviewIntakeEmails.count
+        + store.intakeParserDiagnostics.count
+        + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+        + store.importQueueItemsNeedingReview.count
+        + store.blockedImportQueueItems.count
+        + store.acceptanceRecordsNeedingReview.count
+    case .orders:
+      return store.reviewOrders.count
+        + store.orders.filter { $0.status == .exception }.count
+        + store.trackingWarningCount
+        + store.criticalTrackingCount
+    case .workbench:
+      return store.highPriorityWorkbenchItems.count
+    case .dispatch:
+      return store.blockedShipmentManifests.count
+        + store.undispatchedShipmentManifests.count
+        + store.blockedDispatchChecklists.count
+        + store.incompleteDispatchChecklists.count
+    case .tasks:
+      return store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+    case .review:
+      return dailyAttentionCount
+    default:
+      return nil
+    }
+  }
+
+  private func attentionColor(for section: ParcelSection, count: Int) -> Color {
+    guard count > 0 else { return .green }
+    switch section {
+    case .orders:
+      return .red
+    case .dispatch:
+      return .orange
+    case .workbench, .inbox, .review, .dashboard:
+      return .teal
+    case .tasks:
+      return .purple
+    default:
+      return .secondary
+    }
   }
 
   @ViewBuilder
@@ -333,6 +391,7 @@ struct ExpandableBottomMenu: View {
   @Binding var isExpanded: Bool
   @State private var routeSearchText = ""
   var onSelect: (ParcelSection) -> Void
+  var attentionCount: (ParcelSection) -> Int?
 
   private var primaryItems: [ParcelSection] {
     [.dashboard, .inbox, .orders, .workbench]
@@ -350,7 +409,7 @@ struct ExpandableBottomMenu: View {
     VStack(spacing: 8) {
       HStack(spacing: 0) {
         ForEach(primaryItems) { section in
-          BottomMenuButton(title: section.shortTitle, symbol: section.symbol, isSelected: selection == section) {
+          BottomMenuButton(title: section.shortTitle, symbol: section.symbol, badgeCount: attentionCount(section), isSelected: selection == section) {
             withAnimation(.snappy) {
               isExpanded = false
               onSelect(section)
@@ -391,7 +450,7 @@ struct ExpandableBottomMenu: View {
                     .padding(.horizontal, 6)
                   LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(group.sections) { section in
-                      CompactMenuRouteButton(section: section, isSelected: selection == section) {
+                      CompactMenuRouteButton(section: section, badgeCount: attentionCount(section), isSelected: selection == section) {
                         routeSearchText = ""
                         onSelect(section)
                       }
@@ -476,14 +535,27 @@ struct ParcelNavigationGroup: Identifiable {
 struct BottomMenuButton: View {
   var title: String
   var symbol: String
+  var badgeCount: Int?
   var isSelected: Bool
   var action: () -> Void
 
   var body: some View {
     Button(action: action) {
       VStack(spacing: 4) {
-        Image(systemName: symbol)
-          .font(.system(size: 18, weight: .semibold))
+        ZStack(alignment: .topTrailing) {
+          Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .frame(width: 30, height: 20)
+          if let badgeCount, badgeCount > 0 {
+            Text(badgeCount > 99 ? "99+" : "\(badgeCount)")
+              .font(.system(size: 8, weight: .bold))
+              .foregroundStyle(.white)
+              .padding(.horizontal, 4)
+              .padding(.vertical, 1)
+              .background(Color.teal, in: Capsule())
+              .offset(x: 12, y: -7)
+          }
+        }
         Text(title)
           .font(.caption2.weight(.semibold))
           .lineLimit(1)
@@ -501,6 +573,7 @@ struct BottomMenuButton: View {
 
 struct CompactMenuRouteButton: View {
   var section: ParcelSection
+  var badgeCount: Int?
   var isSelected: Bool
   var action: () -> Void
 
@@ -515,6 +588,14 @@ struct CompactMenuRouteButton: View {
           .lineLimit(1)
           .minimumScaleFactor(0.75)
         Spacer(minLength: 0)
+        if let badgeCount, badgeCount > 0 {
+          Text(badgeCount > 99 ? "99+" : "\(badgeCount)")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Color.teal, in: Capsule())
+        }
       }
       .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
       .padding(.horizontal, 9)
