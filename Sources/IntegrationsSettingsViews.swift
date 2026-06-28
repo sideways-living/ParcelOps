@@ -1963,6 +1963,43 @@ struct SettingsView: View {
     hasSpaceMailCredentialReference ? ("SpaceMail Keychain", .green) : ("SpaceMail Keychain ready", .orange)
   }
 
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var activeSetupTitle: String {
+    if let latestSpaceMailSummary {
+      if latestSpaceMailSummary.importedCount > 0 {
+        return "SpaceMail imported order mail"
+      }
+      if latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+        return "SpaceMail has uncertain mail to review"
+      }
+      if latestSpaceMailSummary.filteredCount > 0 {
+        return "SpaceMail filtered mixed mailbox mail"
+      }
+      return "SpaceMail is ready for manual intake"
+    }
+    return "Set up SpaceMail to start real intake"
+  }
+
+  private var activeSetupDetail: String {
+    guard let latestSpaceMailSummary else {
+      return "No SpaceMail mailbox is configured yet. Add a setup in Integrations or Mailbox Monitor, then save the password/app-password through the secure Keychain prompt."
+    }
+    return "\(latestSpaceMailSummary.displayName): \(latestSpaceMailSummary.detail) \(latestSpaceMailSummary.nextAction)"
+  }
+
+  private var activeSetupTone: Color {
+    guard let latestSpaceMailSummary else { return .orange }
+    switch latestSpaceMailSummary.tone {
+    case "success": return .green
+    case "attention": return .orange
+    case "warning": return .red
+    default: return .teal
+    }
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -1970,6 +2007,39 @@ struct SettingsView: View {
       VStack(alignment: .leading, spacing: 14) {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
+
+        SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
+                .font(.title3)
+                .foregroundStyle(activeSetupTone)
+                .frame(width: 28)
+
+              VStack(alignment: .leading, spacing: 4) {
+                Text(activeSetupTitle)
+                  .font(.headline)
+                Text(activeSetupDetail)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+
+            MetricStrip(items: [
+              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .orange),
+              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+              ("Last fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
+              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+              ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary)
+            ])
+
+            Text("Current live path: SpaceMail manual read-only IMAP refresh. Microsoft 365, Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
 
         MVPWorkflowGuide(
           title: "Before connecting live systems",
