@@ -269,6 +269,8 @@ struct ParcelOpsRootView: View {
       return store.reviewTasksNeedingAttention.count
         + store.handoffNotesNeedingAttention.count
         + store.draftMessagesNeedingReview.count
+    case .communication:
+      return store.draftMessagesNeedingReview.count
     case .review:
       return dailyAttentionCount
     default:
@@ -285,7 +287,7 @@ struct ParcelOpsRootView: View {
       return .orange
     case .workbench, .inbox, .review, .dashboard:
       return .teal
-    case .tasks:
+    case .tasks, .communication:
       return .purple
     default:
       return .secondary
