@@ -2780,6 +2780,45 @@ struct SpaceMailRefreshTrendCard: View {
   }
 }
 
+struct SpaceMailOperatorGuidanceStack: View {
+  var store: ParcelOpsStore
+  var showTestRun: Bool = true
+  var showRunbook: Bool = true
+  var showReleaseSnapshot: Bool = true
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      if showTestRun {
+        SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
+      }
+
+      SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
+      SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+
+      DisclosureGroup {
+        VStack(alignment: .leading, spacing: 12) {
+          if showRunbook {
+            SpaceMailOperationsRunbook()
+          }
+          SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+          SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+          if showReleaseSnapshot {
+            SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
+          }
+        }
+        .padding(.top, 10)
+      } label: {
+        Label("SpaceMail evidence, runbook, and diagnostics", systemImage: "doc.text.magnifyingglass")
+          .font(.headline)
+      }
+      .padding(14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.background, in: RoundedRectangle(cornerRadius: 8))
+      .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

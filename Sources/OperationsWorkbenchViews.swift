@@ -91,10 +91,7 @@ struct OperationsWorkbenchView: View {
           symbol: "rectangle.stack.badge.person.crop.fill"
         )
         operatorSummary
-        CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
-        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+        SpaceMailOperatorGuidanceStack(store: store, showTestRun: false, showRunbook: false, showReleaseSnapshot: false)
         inboxCreatedOrderFollowUp
         operatorQueue
         advancedFilters

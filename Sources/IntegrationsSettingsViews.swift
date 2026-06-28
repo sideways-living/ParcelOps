@@ -32,10 +32,7 @@ struct IntegrationsView: View {
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
-          SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
-          SpaceMailOperationsRunbook()
-          SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
-          SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+          SpaceMailOperatorGuidanceStack(store: store, showReleaseSnapshot: false)
           CompactActionRow {
             Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)

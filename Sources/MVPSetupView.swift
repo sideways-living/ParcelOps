@@ -26,13 +26,7 @@ struct MVPSetupView: View {
           ]
         )
 
-        SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
-        SpaceMailOperationsRunbook()
-        SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
-        SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
-        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
-        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
+        SpaceMailOperatorGuidanceStack(store: store)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
