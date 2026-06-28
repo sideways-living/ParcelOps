@@ -514,6 +514,7 @@ struct DashboardView: View {
             ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
             ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
           ])
+          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
           CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
           CompactIntakeList(emails: store.newestIntakeEmails)
         }
@@ -781,6 +782,59 @@ struct CompactSpaceMailHealthList: View {
       return .red
     default:
       return .blue
+    }
+  }
+}
+
+struct CompactSpaceMailActionPlan: View {
+  var plan: SpaceMailPostRefreshActionPlan
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "arrow.triangle.branch")
+          .foregroundStyle(color(for: plan.tone))
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(plan.title)
+            .font(.subheadline.weight(.semibold))
+          Text(plan.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Next: \(plan.primaryAction)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color(for: plan.tone))
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("SpaceMail", color: color(for: plan.tone))
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(plan.items) { item in
+          Label("\(item.title): \(item.count)", systemImage: item.symbol)
+            .font(.caption)
+            .foregroundStyle(color(for: item.tone))
+            .lineLimit(2)
+        }
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color(for: plan.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
     }
   }
 }

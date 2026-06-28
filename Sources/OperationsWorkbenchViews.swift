@@ -91,6 +91,7 @@ struct OperationsWorkbenchView: View {
           symbol: "rectangle.stack.badge.person.crop.fill"
         )
         operatorSummary
+        CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         inboxCreatedOrderFollowUp
         operatorQueue
