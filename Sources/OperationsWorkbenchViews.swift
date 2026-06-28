@@ -54,6 +54,10 @@ struct OperationsWorkbenchView: View {
     )
   }
 
+  private var draftFollowUpItems: [DraftMessage] {
+    Array(store.draftMessagesNeedingReview.prefix(5))
+  }
+
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
@@ -81,6 +85,7 @@ struct OperationsWorkbenchView: View {
   private var workbenchNextActionTone: Color {
     if urgentWorkbenchCount > 0 || store.blockedWorkbenchItems.count > 0 { return .red }
     if !inboxCreatedOrders.isEmpty { return .teal }
+    if !draftFollowUpItems.isEmpty { return .orange }
     if store.workbenchItemsNeedingReview.count > 0 { return .purple }
     if store.openWorkbenchItems.isEmpty { return .green }
     return .blue
@@ -90,6 +95,7 @@ struct OperationsWorkbenchView: View {
     if urgentWorkbenchCount > 0 { return "Start with urgent work" }
     if store.blockedWorkbenchItems.count > 0 { return "Clear blocked work" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
+    if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
     if store.workbenchItemsNeedingReview.count > 0 { return "Review open exceptions" }
     if store.openWorkbenchItems.isEmpty { return "Workbench is clear" }
     return "Work the open exception queue"
@@ -104,6 +110,9 @@ struct OperationsWorkbenchView: View {
     }
     if !inboxCreatedOrders.isEmpty {
       return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation before it disappears from daily follow-up."
+    }
+    if !draftFollowUpItems.isEmpty {
+      return "\(draftFollowUpItems.count) draft needs review, sending, or reopening before the related work can be closed."
     }
     if store.workbenchItemsNeedingReview.count > 0 {
       return "\(store.workbenchItemsNeedingReview.count) item still needs local review after context is checked."
@@ -162,6 +171,7 @@ struct OperationsWorkbenchView: View {
         operatorSummary
         SpaceMailPrimaryStatusStrip(store: store)
         inboxCreatedOrderFollowUp
+        draftFollowUpPanel
         operatorQueue
         advancedFilters
       }
@@ -210,6 +220,7 @@ struct OperationsWorkbenchView: View {
           ("Blocked", "\(store.blockedWorkbenchItems.count)", store.blockedWorkbenchItems.isEmpty ? .green : .orange),
           ("Review", "\(store.workbenchItemsNeedingReview.count)", store.workbenchItemsNeedingReview.isEmpty ? .green : .purple),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
+          ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
           ("Open", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])
       }
@@ -226,6 +237,26 @@ struct OperationsWorkbenchView: View {
         ForEach(inboxCreatedOrders) { order in
           WorkbenchInboxOrderRow(order: order, store: store)
         }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var draftFollowUpPanel: some View {
+    if !draftFollowUpItems.isEmpty {
+      SettingsPanel(title: "Draft follow-up", symbol: "envelope.open.fill") {
+        Text("Drafts created from local work stay visible here until they are marked ready, sent locally, or reopened for another pass.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+        ForEach(draftFollowUpItems) { draft in
+          WorkbenchDraftFollowUpRow(draft: draft, store: store)
+        }
+        NavigationLink {
+          CommunicationView(store: store)
+        } label: {
+          Label("Open all communication drafts", systemImage: "bubble.left.and.bubble.right.fill")
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
@@ -513,6 +544,125 @@ private struct WorkbenchInboxOrderRow: View {
           feedbackMessage = "Order marked reviewed."
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .background(.thinMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WorkbenchDraftFollowUpRow: View {
+  var draft: DraftMessage
+  var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
+
+  private var statusColor: Color {
+    switch draft.status {
+    case .draft:
+      return .orange
+    case .ready:
+      return .green
+    case .sentLocally:
+      return .secondary
+    case .reopened:
+      return .purple
+    }
+  }
+
+  private var linkedOrder: TrackedOrder? {
+    guard draft.linkedEntityType == .order,
+      let orderID = UUID(uuidString: draft.linkedEntityID)
+    else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "envelope.open.fill")
+          .foregroundStyle(statusColor)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(draft.subject)
+            .font(.headline)
+          Text("\(draft.channel.rawValue) • \(draft.recipient)")
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text("Next: confirm the message is ready, mark it sent locally, or reopen it for another edit.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+        }
+
+        Spacer()
+
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(draft.status.rawValue, color: statusColor)
+          Badge(draft.reviewState.rawValue, color: draft.reviewState.color)
+        }
+      }
+
+      Text(draft.body)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+
+      CompactMetadataGrid {
+        if let linkedOrder {
+          Label("\(linkedOrder.store) \(linkedOrder.orderNumber)", systemImage: "shippingbox.fill")
+            .foregroundStyle(.teal)
+        } else {
+          Label(draft.linkedEntityType.rawValue, systemImage: draft.linkedEntityType.symbol)
+        }
+        Label(draft.createdDate, systemImage: "calendar")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      CompactActionRow {
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "shippingbox.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        NavigationLink {
+          CommunicationView(store: store)
+        } label: {
+          Label("Open drafts", systemImage: "bubble.left.and.bubble.right.fill")
+        }
+        .buttonStyle(.bordered)
+
+        Button("Ready", systemImage: "checkmark.seal.fill") {
+          store.markDraftMessageReady(draft)
+          feedbackMessage = "Draft marked ready."
+        }
+        .buttonStyle(.bordered)
+        .disabled(draft.status == .ready)
+
+        Button("Sent locally", systemImage: "paperplane.fill") {
+          store.markDraftMessageSentLocally(draft)
+          feedbackMessage = "Draft marked sent locally."
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(draft.status == .sentLocally)
+
+        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+          store.reopenDraftMessage(draft)
+          feedbackMessage = "Draft reopened."
+        }
+        .buttonStyle(.bordered)
+        .disabled(draft.status == .reopened)
       }
 
       if let feedbackMessage {
