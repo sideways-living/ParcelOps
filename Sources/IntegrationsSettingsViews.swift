@@ -5,6 +5,48 @@ struct IntegrationsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var recommendedSetupTitle: String {
+    if !hasSpaceMailSetup {
+      return "Start with SpaceMail setup"
+    }
+    if !hasSpaceMailCredentialReference {
+      return "Add the SpaceMail Keychain credential"
+    }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+      return "Review uncertain mixed-mailbox messages"
+    }
+    return "Run SpaceMail manual refresh when needed"
+  }
+
+  private var recommendedSetupDetail: String {
+    if !hasSpaceMailSetup {
+      return "SpaceMail IMAP is the only live mailbox path currently intended for this project. Add or edit that setup before using planning-only integrations."
+    }
+    if !hasSpaceMailCredentialReference {
+      return "Use the secure password prompt on the SpaceMail row. Passwords and app passwords must not be typed into setup notes or JSON-backed fields."
+    }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+      return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
+    }
+    return "Use the explicit read-only SpaceMail refresh action. Microsoft 365, Shopify, watched folders, and login placeholders remain secondary planning surfaces."
+  }
+
+  private var recommendedSetupTone: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    return .green
+  }
 
   var body: some View {
     ScrollView {
@@ -22,6 +64,39 @@ struct IntegrationsView: View {
             Button("Shopify placeholder", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
             Button("Folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
             Button("Login placeholder", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
+          }
+        }
+
+        SettingsPanel(title: "Recommended setup path", symbol: "arrow.forward.circle.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
+                .foregroundStyle(recommendedSetupTone)
+                .frame(width: 24)
+              VStack(alignment: .leading, spacing: 4) {
+                Text(recommendedSetupTitle)
+                  .font(.headline)
+                Text(recommendedSetupDetail)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer()
+              Badge(hasSpaceMailSetup ? "SpaceMail" : "Setup needed", color: recommendedSetupTone)
+            }
+
+            MetricStrip(items: [
+              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .orange),
+              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+              ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
+              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+              ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
+            ])
+
+            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
 
