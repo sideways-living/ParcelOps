@@ -108,7 +108,7 @@ struct CommunicationView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
@@ -124,8 +124,6 @@ struct CommunicationView: View {
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
       .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedEntityType = nil

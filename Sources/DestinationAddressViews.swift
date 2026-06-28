@@ -74,40 +74,31 @@ struct DestinationAddressesView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Team", selection: $selectedOrganisationTeam) {
-          Text("All teams").tag(String?.none)
-          ForEach(teams, id: \.self) { team in Text(team).tag(Optional(team)) }
-        }
-        Picker("Carrier", selection: $selectedPreferredCarrier) {
-          Text("All carriers").tag(String?.none)
-          ForEach(carriers, id: \.self) { carrier in Text(carrier).tag(Optional(carrier)) }
-        }
+    FilterControlGrid {
+      Picker("Team", selection: $selectedOrganisationTeam) {
+        Text("All teams").tag(String?.none)
+        ForEach(teams, id: \.self) { team in Text(team).tag(Optional(team)) }
       }
-      HStack {
-        Picker("Risk", selection: $selectedRiskLevel) {
-          Text("All risk").tag(ShipmentRiskLevel?.none)
-          ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(Optional(risk)) }
-        }
-        Picker("Enabled", selection: $selectedEnabled) {
-          Text("All states").tag(Bool?.none)
-          Text("Enabled").tag(Optional(true))
-          Text("Disabled").tag(Optional(false))
-        }
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      Picker("Carrier", selection: $selectedPreferredCarrier) {
+        Text("All carriers").tag(String?.none)
+        ForEach(carriers, id: \.self) { carrier in Text(carrier).tag(Optional(carrier)) }
+      }
+      Picker("Risk", selection: $selectedRiskLevel) {
+        Text("All risk").tag(ShipmentRiskLevel?.none)
+        ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(Optional(risk)) }
+      }
+      Picker("Enabled", selection: $selectedEnabled) {
+        Text("All states").tag(Bool?.none)
+        Text("Enabled").tag(Optional(true))
+        Text("Disabled").tag(Optional(false))
+      }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

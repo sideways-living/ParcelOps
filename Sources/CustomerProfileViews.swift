@@ -70,46 +70,37 @@ struct CustomerProfilesView: View {
   }
 
   private var filters: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Picker("Type", selection: $selectedProfileType) {
-          Text("All types").tag(CustomerProfileType?.none)
-          ForEach(CustomerProfileType.allCases) { type in
-            Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
-          }
-        }
-        Picker("Team", selection: $selectedOrganisationTeam) {
-          Text("All teams").tag(String?.none)
-          ForEach(organisationTeams, id: \.self) { team in
-            Text(team).tag(Optional(team))
-          }
+    FilterControlGrid {
+      Picker("Type", selection: $selectedProfileType) {
+        Text("All types").tag(CustomerProfileType?.none)
+        ForEach(CustomerProfileType.allCases) { type in
+          Label(type.rawValue, systemImage: type.symbol).tag(Optional(type))
         }
       }
-      HStack {
-        Picker("Enabled", selection: $selectedEnabled) {
-          Text("All states").tag(Bool?.none)
-          Text("Enabled").tag(Optional(true))
-          Text("Disabled").tag(Optional(false))
+      Picker("Team", selection: $selectedOrganisationTeam) {
+        Text("All teams").tag(String?.none)
+        ForEach(organisationTeams, id: \.self) { team in
+          Text(team).tag(Optional(team))
         }
-        Picker("Delivery", selection: $selectedDeliveryPreference) {
-          Text("All delivery").tag(DeliveryPreference?.none)
-          ForEach(DeliveryPreference.allCases) { preference in
-            Label(preference.rawValue, systemImage: preference.symbol).tag(Optional(preference))
-          }
+      }
+      Picker("Enabled", selection: $selectedEnabled) {
+        Text("All states").tag(Bool?.none)
+        Text("Enabled").tag(Optional(true))
+        Text("Disabled").tag(Optional(false))
+      }
+      Picker("Delivery", selection: $selectedDeliveryPreference) {
+        Text("All delivery").tag(DeliveryPreference?.none)
+        ForEach(DeliveryPreference.allCases) { preference in
+          Label(preference.rawValue, systemImage: preference.symbol).tag(Optional(preference))
         }
-        Picker("Review", selection: $selectedReviewState) {
-          Text("All review").tag(ReviewState?.none)
-          ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
-            Text(state.rawValue).tag(Optional(state))
-          }
+      }
+      Picker("Review", selection: $selectedReviewState) {
+        Text("All review").tag(ReviewState?.none)
+        ForEach([ReviewState.needsReview, .monitor, .accepted], id: \.self) { state in
+          Text(state.rawValue).tag(Optional(state))
         }
       }
     }
-    .pickerStyle(.menu)
-    .padding(12)
-    .background(.background)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
-    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 

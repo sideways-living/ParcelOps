@@ -96,7 +96,7 @@ struct DeliveryInstructionsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as DeliveryInstructionType?)
         ForEach(DeliveryInstructionType.allCases) { type in
@@ -143,8 +143,6 @@ struct DeliveryInstructionsView: View {
         }
       }
       .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedType = nil

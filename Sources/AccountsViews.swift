@@ -88,7 +88,7 @@ struct AccountsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
       Picker("Organisation", selection: $selectedOrganisation) {
         Text("All organisations").tag(nil as String?)
         ForEach(organisations, id: \.self) { organisation in
@@ -135,8 +135,6 @@ struct AccountsView: View {
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
       .pickerStyle(.menu)
-
-      Spacer()
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedOrganisation = nil
