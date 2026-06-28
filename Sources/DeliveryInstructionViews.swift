@@ -53,6 +53,8 @@ struct DeliveryInstructionsView: View {
             ForEach(filteredInstructions) { instruction in
               DeliveryInstructionRow(
                 instruction: instruction,
+                store: store,
+                linkedOrder: linkedOrder(for: instruction),
                 destinationAddress: store.destinationAddresses.first { $0.id == instruction.destinationAddressID },
                 customerProfile: store.customerRecipientProfiles.first { $0.id == instruction.customerProfileID },
                 packageContents: store.suggestedPackageContents(for: instruction)
@@ -155,10 +157,17 @@ struct DeliveryInstructionsView: View {
       .buttonStyle(.bordered)
     }
   }
+
+  private func linkedOrder(for instruction: DeliveryInstructionRecord) -> TrackedOrder? {
+    guard instruction.linkedEntityType == .order, let orderID = UUID(uuidString: instruction.linkedEntityID) else { return nil }
+    return store.orders.first { $0.id == orderID }
+  }
 }
 
 struct DeliveryInstructionRow: View {
   var instruction: DeliveryInstructionRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
   var destinationAddress: DestinationAddressRecord?
   var customerProfile: CustomerRecipientProfile?
   var packageContents: [PackageContentRecord] = []
@@ -222,6 +231,14 @@ struct DeliveryInstructionRow: View {
       }
 
       HStack {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(instruction.isEnabled ? "Disable" : "Enable", systemImage: instruction.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
