@@ -43,10 +43,52 @@ struct AuditView: View {
     showTechnicalDiagnostics ? spaceMailEvidenceEvents : spaceMailEvidenceEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
   }
 
+  private var auditNextCheckTitle: String {
+    if !spaceMailEvidenceEvents.isEmpty {
+      return "Check the latest mailbox intake result"
+    }
+    if !inboxOrderHandoffEvents.isEmpty {
+      return "Confirm Inbox-to-order handoff"
+    }
+    if !workflowEvents.isEmpty {
+      return "Review recent operator actions"
+    }
+    if !recordChangeEvents.isEmpty {
+      return "Review recent record changes"
+    }
+    return "No local audit checks yet"
+  }
+
+  private var auditNextCheckDetail: String {
+    if !spaceMailEvidenceEvents.isEmpty {
+      return "Start with SpaceMail intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals."
+    }
+    if !inboxOrderHandoffEvents.isEmpty {
+      return "Check that created or linked orders still have a clear source trail back to Inbox, Import Queue, or Acceptance Review."
+    }
+    if !workflowEvents.isEmpty {
+      return "Scan workflow actions for reviews, completions, handoffs, task creation, and draft work that may need follow-up."
+    }
+    if !recordChangeEvents.isEmpty {
+      return "Use record changes to confirm creates, edits, removals, enables, disables, and pinned changes were intentional."
+    }
+    return "Perform a local action such as reviewing intake, creating a task, or editing an order; the result will appear here."
+  }
+
+  private var auditNextCheckSymbol: String {
+    if !spaceMailEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
+    if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
+    if !workflowEvents.isEmpty { return "checklist" }
+    if !recordChangeEvents.isEmpty { return "pencil.and.list.clipboard" }
+    return "list.clipboard.fill"
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+
+        auditNextCheckPanel
 
         MVPWorkflowGuide(
           title: "Audit workflow",
@@ -82,6 +124,30 @@ struct AuditView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var auditNextCheckPanel: some View {
+    SettingsPanel(title: "Audit next check", symbol: auditNextCheckSymbol) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text(auditNextCheckTitle)
+          .font(.headline)
+        Text(auditNextCheckDetail)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+          ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
+          ("Workflow", "\(workflowEvents.count)", workflowEvents.isEmpty ? .secondary : .teal),
+          ("Record changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange)
+        ])
+
+        Text("Use Show technical diagnostics only when investigating mailbox connection or parser behavior; the default feed keeps routine operator history readable.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
     }
   }
 
