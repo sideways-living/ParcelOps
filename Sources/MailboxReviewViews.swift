@@ -768,6 +768,7 @@ struct NeedsReviewView: View {
       + store.reviewCarrierTrackingEvents.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
+      + store.draftMessagesNeedingReview.count
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
   }
@@ -815,6 +816,36 @@ struct NeedsReviewView: View {
               .foregroundStyle(.secondary)
             ForEach(inboxCreatedOrders) { order in
               NeedsReviewInboxOrderRow(order: order, store: store)
+            }
+          }
+        }
+
+        if !store.draftMessagesNeedingReview.isEmpty {
+          SettingsPanel(title: "Draft message follow-up", symbol: "envelope.open.fill") {
+            Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch stay in primary review until they are ready, sent locally, or reopened for editing. ParcelOps does not send outbound email.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+            ForEach(store.draftMessagesNeedingReview.prefix(8)) { draft in
+              DraftMessageRow(
+                draft: draft,
+                store: store,
+                linkedOrder: linkedOrder(for: draft),
+                destinationAddresses: store.suggestedDestinationAddresses(for: draft),
+                deliveryInstructions: store.suggestedDeliveryInstructions(for: draft),
+                packageContents: store.suggestedPackageContents(for: draft)
+              ) { updatedDraft in
+                store.updateDraftMessage(updatedDraft)
+              } onReady: {
+                store.markDraftMessageReady(draft)
+              } onSent: {
+                store.markDraftMessageSentLocally(draft)
+              } onReopen: {
+                store.reopenDraftMessage(draft)
+              } onCreateContact: {
+                store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
+              } onRemove: {
+                store.removeDraftMessage(draft)
+              }
             }
           }
         }
@@ -1229,24 +1260,6 @@ struct NeedsReviewView: View {
                   store.createDraftMessage(from: playbook)
                 } onRemove: {
                   store.removeExceptionPlaybook(playbook)
-                }
-              }
-            }
-
-            SettingsPanel(title: "Draft messages", symbol: "envelope.open.fill") {
-              ForEach(store.draftMessagesNeedingReview) { draft in
-                DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
-                  store.updateDraftMessage(updatedDraft)
-                } onReady: {
-                  store.markDraftMessageReady(draft)
-                } onSent: {
-                  store.markDraftMessageSentLocally(draft)
-                } onReopen: {
-                  store.reopenDraftMessage(draft)
-                } onCreateContact: {
-                  store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
-                } onRemove: {
-                  store.removeDraftMessage(draft)
                 }
               }
             }
@@ -1667,6 +1680,11 @@ struct NeedsReviewView: View {
 
   private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {
     guard activity.entityType == .order, let id = UUID(uuidString: activity.entityID) else { return nil }
+    return store.orders.first { $0.id == id }
+  }
+
+  private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
+    guard draft.linkedEntityType == .order, let id = UUID(uuidString: draft.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == id }
   }
 
