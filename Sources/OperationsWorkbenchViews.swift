@@ -54,6 +54,25 @@ struct OperationsWorkbenchView: View {
     )
   }
 
+  private var dailyAttentionCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.importQueueItemsNeedingReview.count
+      + store.blockedImportQueueItems.count
+      + store.acceptanceRecordsNeedingReview.count
+      + store.reviewOrders.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.highPriorityWorkbenchItems.count
+  }
+
+  private var advancedBacklogCount: Int {
+    max(store.reviewQueueCount - dailyAttentionCount, 0)
+  }
+
   private var operatorSections: [WorkbenchItemGroup] {
     let urgent = unique(queueItems.filter { $0.isDueOrOverdue || $0.rank >= 3 })
     let blocked = unique(queueItems.filter { $0.isBlocked }, excluding: urgent)
@@ -89,6 +108,15 @@ struct OperationsWorkbenchView: View {
             "Mark supported records reviewed after the local follow-up is complete."
           ],
           symbol: "rectangle.stack.badge.person.crop.fill"
+        )
+        OperatorDailyWorkloadSummary(
+          dailyAttentionCount: dailyAttentionCount,
+          advancedBacklogCount: advancedBacklogCount,
+          reviewQueueCount: store.reviewQueueCount,
+          titleWhenClear: "Workbench primary flow is clear",
+          titleWhenBusy: "Workbench has daily exceptions to clear",
+          detailWhenClear: "No primary workflow exceptions are waiting. Use advanced filters only when you need supporting records.",
+          detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         operatorSummary
         SpaceMailPrimaryStatusStrip(store: store)

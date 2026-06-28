@@ -3043,6 +3043,50 @@ struct LocalDataSafetyCard: View {
   }
 }
 
+struct OperatorDailyWorkloadSummary: View {
+  var dailyAttentionCount: Int
+  var advancedBacklogCount: Int
+  var reviewQueueCount: Int
+  var titleWhenClear: String = "Primary workflow is clear"
+  var titleWhenBusy: String = "Daily operator work needs attention"
+  var detailWhenClear: String = "The main Inbox, Orders, Workbench, Dispatch, and Tasks flow has no immediate workload. Advanced records can be reviewed when needed."
+  var detailWhenBusy: String = "Start with the primary workflow. The advanced backlog is still available, but it is not the first daily operating queue."
+
+  private var tone: Color {
+    dailyAttentionCount == 0 ? .green : .orange
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: dailyAttentionCount == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(dailyAttentionCount == 0 ? titleWhenClear : titleWhenBusy)
+            .font(.headline)
+          Text(dailyAttentionCount == 0 ? detailWhenClear : detailWhenBusy)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(dailyAttentionCount == 0 ? "Clear" : "Action needed", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Daily attention", "\(dailyAttentionCount)", tone),
+        ("Advanced backlog", "\(advancedBacklogCount)", advancedBacklogCount == 0 ? .green : .secondary),
+        ("Total review signals", "\(reviewQueueCount)", reviewQueueCount == 0 ? .green : .orange)
+      ])
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(tone.opacity(0.18)))
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String
