@@ -26,7 +26,16 @@ struct ParcelOpsRootView: View {
   @State private var selection: ParcelSection = .dashboard
   @State private var isMoreMenuExpanded = false
   @State private var expandedDesktopGroupIDs: Set<String> = []
+  @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isSearchingSidebar: Bool {
+    !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var desktopSearchResults: [ParcelNavigationGroup] {
+    ParcelNavigationGroup.desktopGroupsMatching(sidebarSearchText)
+  }
 
   var body: some View {
     GeometryReader { proxy in
@@ -47,41 +56,59 @@ struct ParcelOpsRootView: View {
       } else {
         NavigationSplitView {
           List {
-            Section("Daily Operations") {
-              ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
-                sidebarButton(for: section)
+            if isSearchingSidebar {
+              Section("Route Search") {
+                if desktopSearchResults.isEmpty {
+                  Text("No matching ParcelOps screens.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+                } else {
+                  ForEach(desktopSearchResults) { group in
+                    ForEach(group.sections) { section in
+                      sidebarButton(for: section, context: group.title)
+                    }
+                  }
+                }
               }
-            }
-
-            Section {
-              Text("Advanced records and setup views are still available, but the daily workflow starts above.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.vertical, 4)
-            }
-
-            ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
-              DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
-                ForEach(group.sections) { section in
+            } else {
+              Section("Daily Operations") {
+                ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
                   sidebarButton(for: section)
                 }
-              } label: {
-                HStack(spacing: 6) {
-                  Text(group.title)
-                  Spacer()
-                  Text("\(group.sections.count)")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quinary, in: Capsule())
+              }
+
+              Section {
+                Text("Advanced records and setup views are still available, but the daily workflow starts above.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                  .padding(.vertical, 4)
+              }
+
+              ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
+                DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
+                  ForEach(group.sections) { section in
+                    sidebarButton(for: section)
+                  }
+                } label: {
+                  HStack(spacing: 6) {
+                    Text(group.title)
+                    Spacer()
+                    Text("\(group.sections.count)")
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(.secondary)
+                      .padding(.horizontal, 6)
+                      .padding(.vertical, 2)
+                      .background(.quinary, in: Capsule())
+                  }
+                  .font(.subheadline.weight(.semibold))
                 }
-                .font(.subheadline.weight(.semibold))
               }
             }
           }
           .navigationTitle("ParcelOps")
+          .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
           .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
               Label("Review required", systemImage: "exclamationmark.triangle.fill")
@@ -118,12 +145,20 @@ struct ParcelOpsRootView: View {
     }
   }
 
-  private func sidebarButton(for section: ParcelSection) -> some View {
+  private func sidebarButton(for section: ParcelSection, context: String? = nil) -> some View {
     Button {
       selection = section
+      sidebarSearchText = ""
     } label: {
-      Label(section.title, systemImage: section.symbol)
-        .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+      VStack(alignment: .leading, spacing: 2) {
+        Label(section.title, systemImage: section.symbol)
+          .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        if let context {
+          Text(context)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
     }
     .buttonStyle(.plain)
   }
@@ -228,6 +263,7 @@ struct ParcelOpsRootView: View {
 struct ExpandableBottomMenu: View {
   @Binding var selection: ParcelSection
   @Binding var isExpanded: Bool
+  @State private var routeSearchText = ""
   var onSelect: (ParcelSection) -> Void
 
   private var primaryItems: [ParcelSection] {
@@ -235,7 +271,11 @@ struct ExpandableBottomMenu: View {
   }
 
   private var secondaryGroups: [ParcelNavigationGroup] {
-    ParcelNavigationGroup.mobileSecondaryGroups
+    ParcelNavigationGroup.mobileSecondaryGroupsMatching(routeSearchText)
+  }
+
+  private var isSearching: Bool {
+    !routeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -253,23 +293,40 @@ struct ExpandableBottomMenu: View {
         BottomMenuButton(title: isExpanded ? "Less" : "More", symbol: isExpanded ? "arrow.down" : "arrow.up", isSelected: isExpanded) {
           withAnimation(.snappy) {
             isExpanded.toggle()
+            if !isExpanded {
+              routeSearchText = ""
+            }
           }
         }
       }
 
       if isExpanded {
+        TextField("Find a screen", text: $routeSearchText)
+          .textFieldStyle(.roundedBorder)
+          .font(.callout)
+          .padding(.horizontal, 4)
+
         ScrollView(.vertical, showsIndicators: false) {
           VStack(alignment: .leading, spacing: 10) {
-            ForEach(secondaryGroups) { group in
-              VStack(alignment: .leading, spacing: 6) {
-                Text(group.title)
-                  .font(.caption2.weight(.semibold))
-                  .foregroundStyle(.secondary)
-                  .padding(.horizontal, 6)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
-                  ForEach(group.sections) { section in
-                    CompactMenuRouteButton(section: section, isSelected: selection == section) {
-                      onSelect(section)
+            if secondaryGroups.isEmpty {
+              Text(isSearching ? "No matching ParcelOps screens." : "No secondary routes available.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 8)
+            } else {
+              ForEach(secondaryGroups) { group in
+                VStack(alignment: .leading, spacing: 6) {
+                  Text(group.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                  LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(group.sections) { section in
+                      CompactMenuRouteButton(section: section, isSelected: selection == section) {
+                        routeSearchText = ""
+                        onSelect(section)
+                      }
                     }
                   }
                 }
@@ -318,6 +375,33 @@ struct ParcelNavigationGroup: Identifiable {
       sections: dailyOperations.sections.filter { !primarySet.contains($0) }
     )
     return [dailyOverflow] + secondaryDesktopGroups
+  }
+
+  static func desktopGroupsMatching(_ query: String) -> [ParcelNavigationGroup] {
+    filteredGroups(desktopGroups, matching: query)
+  }
+
+  static func mobileSecondaryGroupsMatching(_ query: String) -> [ParcelNavigationGroup] {
+    filteredGroups(mobileSecondaryGroups, matching: query)
+  }
+
+  private static func filteredGroups(_ groups: [ParcelNavigationGroup], matching query: String) -> [ParcelNavigationGroup] {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard !trimmed.isEmpty else {
+      return groups
+    }
+
+    return groups.compactMap { group in
+      let groupMatches = group.title.lowercased().contains(trimmed)
+      let sections = group.sections.filter { section in
+        groupMatches
+          || section.title.lowercased().contains(trimmed)
+          || section.shortTitle.lowercased().contains(trimmed)
+          || section.rawValue.lowercased().contains(trimmed)
+      }
+      guard !sections.isEmpty else { return nil }
+      return ParcelNavigationGroup(title: group.title, sections: sections)
+    }
   }
 }
 
