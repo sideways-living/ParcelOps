@@ -739,6 +739,7 @@ struct MailEventRow: View {
 struct NeedsReviewView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var showAdvancedBacklog = false
 
   private var inboxCreatedOrders: [TrackedOrder] {
     Array(
@@ -748,6 +749,33 @@ struct NeedsReviewView: View {
     )
   }
 
+  private var dailyAttentionCount: Int {
+    inboxCreatedOrders.count
+      + store.highPriorityWorkbenchItems.count
+      + store.highSeverityValidationIssues.count
+      + store.highSeverityReconciliationIssues.count
+      + store.shipmentGroupsNeedingReview.count
+      + store.highRiskShipmentGroups.count
+      + store.acceptanceRecordsNeedingReview.count
+      + store.importQueueItemsNeedingReview.count
+      + store.blockedImportQueueItems.count
+      + store.reviewOrders.count
+      + store.reviewMailEvents.count
+      + store.intakeParserDiagnostics.count
+      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.reviewIntakeEmails.count
+      + store.reviewEvidenceAttachments.count
+      + store.reviewCarrierTrackingEvents.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var advancedBacklogCount: Int {
+    max(store.reviewQueueCount - dailyAttentionCount, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -755,12 +783,30 @@ struct NeedsReviewView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("Needs review")
               .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-            Text("Exceptions, risky matches, and lower-confidence intake wait here until a user accepts or discards them.")
+            Text("Daily operator review starts with Inbox, Orders, Workbench, Dispatch, and Tasks. Advanced record checks are grouped separately.")
               .foregroundStyle(.secondary)
           }
           Spacer()
           Badge("\(store.reviewQueueCount)", color: .orange)
         }
+
+        OperatorDailyWorkloadSummary(
+          dailyAttentionCount: dailyAttentionCount,
+          advancedBacklogCount: advancedBacklogCount,
+          reviewQueueCount: store.reviewQueueCount,
+          titleWhenClear: "Primary review flow is clear",
+          titleWhenBusy: "Primary review flow needs attention",
+          detailWhenClear: "There is no immediate Inbox, Orders, Workbench, Dispatch, or Tasks review work. Advanced record checks remain available below.",
+          detailWhenBusy: "Work through the primary review sections first. The advanced backlog is collapsed so it does not dominate daily triage."
+        )
+
+        NeedsReviewSectionHeader(
+          title: "Primary daily review",
+          detail: "Use these sections for intake, order handoff, dispatch blockers, task follow-up, and the highest-priority operational exceptions.",
+          count: dailyAttentionCount,
+          symbol: "tray.full.fill",
+          color: dailyAttentionCount == 0 ? .green : .orange
+        )
 
         if !inboxCreatedOrders.isEmpty {
           SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
@@ -1145,79 +1191,81 @@ struct NeedsReviewView: View {
           }
         }
 
-        SettingsPanel(title: "SLA policies", symbol: "timer") {
-          ForEach(store.policiesNeedingReview) { policy in
-            SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
-              store.updateSLAPolicy(updatedPolicy)
-            } onToggle: {
-              store.toggleSLAPolicy(policy)
-            } onReviewed: {
-              store.markSLAPolicyReviewed(policy)
-            } onEvaluate: {
-              store.evaluateSLAPolicyPlaceholder(policy)
-            } onCreateDraft: {
-              store.createDraftMessage(from: policy)
-            } onCreateContact: {
-              store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
-            } onRemove: {
-              store.removeSLAPolicy(policy)
+        DisclosureGroup(isExpanded: $showAdvancedBacklog) {
+          VStack(alignment: .leading, spacing: 14) {
+            SettingsPanel(title: "SLA policies", symbol: "timer") {
+              ForEach(store.policiesNeedingReview) { policy in
+                SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
+                  store.updateSLAPolicy(updatedPolicy)
+                } onToggle: {
+                  store.toggleSLAPolicy(policy)
+                } onReviewed: {
+                  store.markSLAPolicyReviewed(policy)
+                } onEvaluate: {
+                  store.evaluateSLAPolicyPlaceholder(policy)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: policy)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .slaPolicy, linkedEntityID: policy.id.uuidString, label: policy.name)
+                } onRemove: {
+                  store.removeSLAPolicy(policy)
+                }
+              }
             }
-          }
-        }
 
-        SettingsPanel(title: "Exception playbooks", symbol: "book.closed.fill") {
-          ForEach(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
-            lhs.priority.rawValue > rhs.priority.rawValue
-          }) { playbook in
-            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
-              store.updateExceptionPlaybook(updatedPlaybook)
-            } onToggle: {
-              store.toggleExceptionPlaybook(playbook)
-            } onReviewed: {
-              store.markExceptionPlaybookReviewed(playbook)
-            } onCreateTask: {
-              store.createReviewTask(from: playbook)
-            } onCreateDraft: {
-              store.createDraftMessage(from: playbook)
-            } onRemove: {
-              store.removeExceptionPlaybook(playbook)
+            SettingsPanel(title: "Exception playbooks", symbol: "book.closed.fill") {
+              ForEach(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
+                lhs.priority.rawValue > rhs.priority.rawValue
+              }) { playbook in
+                ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
+                  store.updateExceptionPlaybook(updatedPlaybook)
+                } onToggle: {
+                  store.toggleExceptionPlaybook(playbook)
+                } onReviewed: {
+                  store.markExceptionPlaybookReviewed(playbook)
+                } onCreateTask: {
+                  store.createReviewTask(from: playbook)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: playbook)
+                } onRemove: {
+                  store.removeExceptionPlaybook(playbook)
+                }
+              }
             }
-          }
-        }
 
-        SettingsPanel(title: "Draft messages", symbol: "envelope.open.fill") {
-          ForEach(store.draftMessagesNeedingReview) { draft in
-            DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
-              store.updateDraftMessage(updatedDraft)
-            } onReady: {
-              store.markDraftMessageReady(draft)
-            } onSent: {
-              store.markDraftMessageSentLocally(draft)
-            } onReopen: {
-              store.reopenDraftMessage(draft)
-            } onCreateContact: {
-              store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
-            } onRemove: {
-              store.removeDraftMessage(draft)
+            SettingsPanel(title: "Draft messages", symbol: "envelope.open.fill") {
+              ForEach(store.draftMessagesNeedingReview) { draft in
+                DraftMessageRow(draft: draft, destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
+                  store.updateDraftMessage(updatedDraft)
+                } onReady: {
+                  store.markDraftMessageReady(draft)
+                } onSent: {
+                  store.markDraftMessageSentLocally(draft)
+                } onReopen: {
+                  store.reopenDraftMessage(draft)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .draftMessage, linkedEntityID: draft.id.uuidString, label: draft.recipient)
+                } onRemove: {
+                  store.removeDraftMessage(draft)
+                }
+              }
             }
-          }
-        }
 
-        SettingsPanel(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
-          ForEach(store.contactsNeedingReview) { contact in
-            ContactDirectoryRow(contact: contact, destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
-              store.updateContactDirectoryEntry(updatedContact)
-            } onToggle: {
-              store.toggleContactDirectoryEntry(contact)
-            } onReviewed: {
-              store.markContactDirectoryEntryReviewed(contact)
-            } onCreateDraft: {
-              store.createDraftMessage(from: contact)
-            } onRemove: {
-              store.removeContactDirectoryEntry(contact)
+            SettingsPanel(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
+              ForEach(store.contactsNeedingReview) { contact in
+                ContactDirectoryRow(contact: contact, destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
+                  store.updateContactDirectoryEntry(updatedContact)
+                } onToggle: {
+                  store.toggleContactDirectoryEntry(contact)
+                } onReviewed: {
+                  store.markContactDirectoryEntryReviewed(contact)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: contact)
+                } onRemove: {
+                  store.removeContactDirectoryEntry(contact)
+                }
+              }
             }
-          }
-        }
 
         SettingsPanel(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
           ForEach(Array(Set(store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }))) { profile in
@@ -1592,6 +1640,18 @@ struct NeedsReviewView: View {
             }
           }
         }
+          }
+          .padding(.top, 8)
+        } label: {
+          NeedsReviewSectionHeader(
+            title: "Advanced and reference backlog",
+            detail: "Open this when you are deliberately reviewing support records such as profiles, costs, custody, labels, storage, and other admin/reference data.",
+            count: advancedBacklogCount,
+            symbol: "archivebox.fill",
+            color: advancedBacklogCount == 0 ? .green : .secondary
+          )
+        }
+        .tint(.primary)
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
@@ -1653,6 +1713,36 @@ struct NeedsReviewView: View {
     return uniqueIDs.compactMap { id in
       store.orders.first { $0.id == id }
     }
+  }
+}
+
+private struct NeedsReviewSectionHeader: View {
+  var title: String
+  var detail: String
+  var count: Int
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 24)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.headline)
+        Text(detail)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer()
+      Badge("\(count)", color: color)
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(color.opacity(0.16)))
   }
 }
 
