@@ -30,6 +30,14 @@ struct AuditView: View {
     store.auditEvents.filter(\.isInboxOrderHandoff)
   }
 
+  private var spaceMailEvidenceEvents: [AuditEvent] {
+    store.auditEvents.filter { event in
+      event.entityType == .spaceMailIMAPConnection
+        || (event.entityType == .intakeEmail && event.summary.localizedCaseInsensitiveContains("mailbox"))
+        || event.summary.localizedCaseInsensitiveContains("spacemail")
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -45,6 +53,8 @@ struct AuditView: View {
           ],
           symbol: "list.clipboard.fill"
         )
+
+        SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
 
         activityFeed
 
@@ -80,6 +90,7 @@ struct AuditView: View {
       MetricStrip(items: [
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
+        ("SpaceMail", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
@@ -98,6 +109,10 @@ struct AuditView: View {
         if recentEvents.isEmpty {
           MVPEmptyState(title: "No audit activity yet", detail: "Create, edit, review, or complete a local record and the action will appear here.", symbol: "list.clipboard.fill")
         } else {
+          AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox MVP.", events: spaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
           AuditFeedSection(title: "Inbox-to-order handoff", detail: "Order creation and review events from Inbox, Import Queue, and Acceptance Review.", events: inboxOrderHandoffEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
