@@ -28,6 +28,7 @@ struct OrdersView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        orderNextActionPanel
 
         MVPWorkflowGuide(
           title: "Order workflow",
@@ -93,6 +94,103 @@ struct OrdersView: View {
         ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
         ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
       ])
+    }
+  }
+
+  private var exceptionOrderCount: Int {
+    orderItems.filter { $0.order.status == .exception || $0.criticalTrackingCount > 0 }.count
+  }
+
+  private var blockedDispatchOrderCount: Int {
+    orderItems.filter { $0.blockedDispatchCount > 0 }.count
+  }
+
+  private var reviewOrderCount: Int {
+    orderItems.filter { $0.order.reviewState != .accepted }.count
+  }
+
+  private var trackingWarningOrderCount: Int {
+    orderItems.filter { $0.warningTrackingCount > 0 }.count
+  }
+
+  private var urgentTaskOrderCount: Int {
+    orderItems.filter { $0.urgentTaskCount > 0 }.count
+  }
+
+  private var activeOrderCount: Int {
+    orderItems.filter { $0.order.status != .delivered }.count
+  }
+
+  private var orderNextActionTone: Color {
+    if exceptionOrderCount > 0 || blockedDispatchOrderCount > 0 { return .red }
+    if inboxCreatedOrderItems.count > 0 || urgentTaskOrderCount > 0 || reviewOrderCount > 0 { return .orange }
+    if trackingWarningOrderCount > 0 { return .purple }
+    if activeOrderCount > 0 { return .teal }
+    return .green
+  }
+
+  private var orderNextActionTitle: String {
+    if exceptionOrderCount > 0 { return "Start with exception orders" }
+    if blockedDispatchOrderCount > 0 { return "Clear blocked dispatch setup" }
+    if inboxCreatedOrderItems.count > 0 { return "Confirm Inbox-created orders" }
+    if urgentTaskOrderCount > 0 { return "Resolve linked order tasks" }
+    if reviewOrderCount > 0 { return "Review order details" }
+    if trackingWarningOrderCount > 0 { return "Check tracking warnings" }
+    if activeOrderCount > 0 { return "Monitor active orders" }
+    return "Order queue is clear"
+  }
+
+  private var orderNextActionDetail: String {
+    if exceptionOrderCount > 0 {
+      return "\(exceptionOrderCount) order has exception or critical tracking context. Open the first row, create a task or draft, and mark reviewed once the response path is clear."
+    }
+    if blockedDispatchOrderCount > 0 {
+      return "\(blockedDispatchOrderCount) order has blocked dispatch context. Open the order or Dispatch to fix manifest/readiness setup."
+    }
+    if inboxCreatedOrderItems.count > 0 {
+      return "\(inboxCreatedOrderItems.count) recently created Inbox order needs operator confirmation. Check customer, destination, tracking, and dispatch setup."
+    }
+    if urgentTaskOrderCount > 0 {
+      return "\(urgentTaskOrderCount) order has overdue or high-priority linked task work. Resolve the task before routine monitoring."
+    }
+    if reviewOrderCount > 0 {
+      return "\(reviewOrderCount) order still needs local review. Open the row, verify detected details, then mark reviewed."
+    }
+    if trackingWarningOrderCount > 0 {
+      return "\(trackingWarningOrderCount) order has tracking warnings. Check tracking context before changing operational status."
+    }
+    if activeOrderCount > 0 {
+      return "\(activeOrderCount) active order is in the queue with no critical blockers promoted above it."
+    }
+    return "There are no active, review-needed, exception, or tracking-warning orders in the current queue."
+  }
+
+  private var orderNextActionPanel: some View {
+    SettingsPanel(title: "Order next action", symbol: "arrow.forward.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: orderNextActionTone == .green ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(orderNextActionTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(orderNextActionTitle)
+              .font(.headline)
+            Text(orderNextActionDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Exceptions", "\(exceptionOrderCount)", exceptionOrderCount == 0 ? .green : .red),
+          ("Blocked dispatch", "\(blockedDispatchOrderCount)", blockedDispatchOrderCount == 0 ? .green : .red),
+          ("From Inbox", "\(inboxCreatedOrderItems.count)", inboxCreatedOrderItems.isEmpty ? .green : .teal),
+          ("Linked tasks", "\(urgentTaskOrderCount)", urgentTaskOrderCount == 0 ? .green : .orange),
+          ("Needs review", "\(reviewOrderCount)", reviewOrderCount == 0 ? .green : .purple)
+        ])
+      }
     }
   }
 
