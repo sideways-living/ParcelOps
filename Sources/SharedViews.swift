@@ -2701,6 +2701,85 @@ struct SpaceMailShiftHandoffCard: View {
   }
 }
 
+struct SpaceMailRefreshTrendCard: View {
+  var summary: SpaceMailRefreshTrendSummary
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "chart.line.uptrend.xyaxis")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Trend", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if summary.entries.isEmpty {
+        MVPEmptyState(
+          title: "No refresh history yet",
+          detail: "Manual SpaceMail refresh results will appear here after real or mock refresh runs.",
+          symbol: "clock.arrow.circlepath"
+        )
+      } else {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(summary.entries) { entry in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(entry.timestamp)
+                  .font(.caption.weight(.semibold))
+                Spacer()
+                Badge(entry.status, color: color(for: entry.tone))
+              }
+              Text(entry.displayName)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Text(entry.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: entry.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

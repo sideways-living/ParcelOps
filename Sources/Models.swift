@@ -1608,6 +1608,23 @@ struct SpaceMailShiftHandoffLine: Identifiable, Hashable {
   var symbol: String
 }
 
+struct SpaceMailRefreshTrendSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var entries: [SpaceMailRefreshTrendEntry]
+}
+
+struct SpaceMailRefreshTrendEntry: Identifiable, Hashable {
+  var id: UUID
+  var timestamp: String
+  var displayName: String
+  var status: String
+  var detail: String
+  var tone: String
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String

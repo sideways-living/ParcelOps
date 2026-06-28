@@ -93,6 +93,7 @@ struct OperationsWorkbenchView: View {
         operatorSummary
         CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         inboxCreatedOrderFollowUp
         operatorQueue

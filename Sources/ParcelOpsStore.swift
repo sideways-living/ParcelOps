@@ -293,6 +293,78 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
+    let historyPairs = spaceMailIMAPConnections.flatMap { connection in
+      connection.refreshHistory.map { entry in
+        (connection.displayName, entry)
+      }
+    }
+    let recentPairs = Array(historyPairs.prefix(12))
+    let fetchedCount = recentPairs.reduce(0) { $0 + $1.1.fetchedCount }
+    let importedCount = recentPairs.reduce(0) { $0 + $1.1.importedCount }
+    let duplicateCount = recentPairs.reduce(0) { $0 + $1.1.duplicateCount }
+    let filteredCount = recentPairs.reduce(0) { $0 + $1.1.filteredNonOrderCount }
+    let uncertainCount = recentPairs.reduce(0) { $0 + $1.1.uncertainCount }
+    let successCount = recentPairs.filter { pair in
+      pair.1.status.localizedCaseInsensitiveContains("success")
+        || pair.1.status.localizedCaseInsensitiveContains("completed")
+        || pair.1.status.localizedCaseInsensitiveContains("duplicate")
+    }.count
+    let actionableCount = importedCount + uncertainCount
+
+    let title: String
+    let detail: String
+    let tone: String
+    if spaceMailIMAPConnections.isEmpty {
+      title = "No SpaceMail refresh trend yet"
+      detail = "Add a SpaceMail setup before trend evidence can appear."
+      tone = "warning"
+    } else if recentPairs.isEmpty {
+      title = "SpaceMail refresh trend pending"
+      detail = "Run manual refreshes to build a local trend across imports, duplicates, filtered messages, and uncertain reviews."
+      tone = "attention"
+    } else if actionableCount > 0 {
+      title = "SpaceMail refresh trend has actionable intake"
+      detail = "\(recentPairs.count) recent refresh event\(recentPairs.count == 1 ? "" : "s") include \(importedCount) import\(importedCount == 1 ? "" : "s") and \(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s")."
+      tone = "attention"
+    } else if filteredCount > 0 && importedCount == 0 {
+      title = "SpaceMail filter trend is stable"
+      detail = "\(recentPairs.count) recent refresh event\(recentPairs.count == 1 ? "" : "s") mostly filtered non-order mail from the mixed mailbox."
+      tone = "success"
+    } else {
+      title = "SpaceMail refresh trend is quiet"
+      detail = "\(recentPairs.count) recent refresh event\(recentPairs.count == 1 ? "" : "s") found no current Inbox intake."
+      tone = "neutral"
+    }
+
+    let entries = recentPairs.prefix(6).map { pair in
+      SpaceMailRefreshTrendEntry(
+        id: pair.1.id,
+        timestamp: pair.1.timestamp,
+        displayName: pair.0,
+        status: pair.1.status,
+        detail: "\(pair.1.fetchedCount) fetched, \(pair.1.importedCount) imported, \(pair.1.duplicateCount) duplicates, \(pair.1.filteredNonOrderCount) filtered, \(pair.1.uncertainCount) uncertain.",
+        tone: pair.1.importedCount > 0 || pair.1.uncertainCount > 0 ? "attention" : (pair.1.filteredNonOrderCount > 0 ? "success" : "neutral")
+      )
+    }
+
+    return SpaceMailRefreshTrendSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Runs", value: "\(recentPairs.count)", tone: recentPairs.isEmpty ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Successful", value: "\(successCount)", tone: successCount == recentPairs.count && !recentPairs.isEmpty ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Duplicates", value: "\(duplicateCount)", tone: duplicateCount > 0 ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "success")
+      ],
+      entries: entries
+    )
+  }
+
   var spaceMailShiftHandoffSummary: SpaceMailShiftHandoffSummary {
     let spaceMailMailboxIDs = Set(spaceMailIMAPConnections.map(\.id))
     let spaceMailIngestRecords = mailboxIngestRecords.filter { spaceMailMailboxIDs.contains($0.sourceMailboxID) }

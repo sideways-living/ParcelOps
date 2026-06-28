@@ -31,6 +31,7 @@ struct MailboxView: View {
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
         SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
