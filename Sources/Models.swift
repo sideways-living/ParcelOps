@@ -1539,6 +1539,24 @@ struct SpaceMailMVPReadinessItem: Identifiable, Hashable {
   var tone: String
 }
 
+struct SpaceMailQACheckSummary: Hashable {
+  var verdict: String
+  var detail: String
+  var completedCount: Int
+  var totalCount: Int
+  var tone: String
+  var checks: [SpaceMailQACheck]
+}
+
+struct SpaceMailQACheck: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var evidence: String
+  var isComplete: Bool
+  var tone: String
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String

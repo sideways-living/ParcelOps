@@ -390,6 +390,102 @@ final class ParcelOpsStore {
     )
   }
 
+  var spaceMailQACheckSummary: SpaceMailQACheckSummary {
+    let hasCredentialEvidence = auditEvents.contains { event in
+      event.entityType == .spaceMailIMAPConnection
+        && (event.summary.localizedCaseInsensitiveContains("credential check succeeded")
+          || event.summary.localizedCaseInsensitiveContains("credential saved"))
+    }
+    let realRefreshEvents = auditEvents.filter { event in
+      event.entityType == .spaceMailIMAPConnection
+        && event.summary.localizedCaseInsensitiveContains("real spacemail imap refresh")
+    }
+    let successfulRefreshEvents = realRefreshEvents.filter {
+      $0.summary.localizedCaseInsensitiveContains("completed")
+        || ($0.afterDetail ?? "").localizedCaseInsensitiveContains("Fetch result: Fetch success")
+    }
+    let filteringEvidence = spaceMailIMAPConnections.contains {
+      $0.lastRefreshFilteredNonOrderCount > 0 || !$0.lastRefreshReasonBreakdown.isEmpty
+    }
+    let parserEvidence = !intakeParserDiagnostics.isEmpty || intakeEmails.contains { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue || !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }
+    let orderHandoffEvidence = orders.contains {
+      $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import"
+    }
+    let auditTrailEvidence = auditEvents.contains { event in
+      event.entityType == .intakeEmail || event.entityType == .order || event.entityType == .spaceMailIMAPConnection
+    }
+
+    let checks = [
+      SpaceMailQACheck(
+        title: "Credential evidence",
+        detail: "Keychain password/app-password status has been checked or saved locally.",
+        evidence: hasCredentialEvidence ? "Found SpaceMail credential audit evidence." : "No successful credential check/save evidence yet.",
+        isComplete: hasCredentialEvidence,
+        tone: hasCredentialEvidence ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Read-only refresh evidence",
+        detail: "A real manual SpaceMail IMAP refresh completed or returned a clear result.",
+        evidence: successfulRefreshEvents.first?.summary ?? "No completed real refresh evidence yet.",
+        isComplete: !successfulRefreshEvents.isEmpty,
+        tone: successfulRefreshEvents.isEmpty ? "attention" : "success"
+      ),
+      SpaceMailQACheck(
+        title: "Mixed-mailbox filter evidence",
+        detail: "The latest SpaceMail state shows filtered/reasoned mixed-mailbox decisions.",
+        evidence: filteringEvidence ? "Filtered count or reason breakdown exists." : "Run a real refresh or classifier suite to collect filter evidence.",
+        isComplete: filteringEvidence,
+        tone: filteringEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Parser evidence",
+        detail: "Inbox has parser diagnostics or extracted order/tracking fields to review.",
+        evidence: parserEvidence ? "\(intakeParserDiagnostics.count) parser checks, \(intakeEmails.count) intake emails." : "No parser evidence yet.",
+        isComplete: parserEvidence,
+        tone: parserEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Order handoff evidence",
+        detail: "At least one order has been created or linked from intake/import work.",
+        evidence: orderHandoffEvidence ? "Inbox/import-created order evidence exists." : "Create or link one order from Inbox before RC testing.",
+        isComplete: orderHandoffEvidence,
+        tone: orderHandoffEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Audit trail evidence",
+        detail: "Audit contains SpaceMail, intake, or order events for traceability.",
+        evidence: auditTrailEvidence ? "\(auditEvents.count) audit events available." : "No intake/order audit evidence yet.",
+        isComplete: auditTrailEvidence,
+        tone: auditTrailEvidence ? "success" : "warning"
+      )
+    ]
+
+    let completedCount = checks.filter(\.isComplete).count
+    let tone: String
+    let verdict: String
+    if completedCount == checks.count {
+      tone = "success"
+      verdict = "SpaceMail RC evidence complete"
+    } else if completedCount >= 4 {
+      tone = "attention"
+      verdict = "SpaceMail RC evidence mostly ready"
+    } else {
+      tone = "warning"
+      verdict = "SpaceMail RC evidence incomplete"
+    }
+
+    return SpaceMailQACheckSummary(
+      verdict: verdict,
+      detail: "\(completedCount) of \(checks.count) QA evidence checks are complete.",
+      completedCount: completedCount,
+      totalCount: checks.count,
+      tone: tone,
+      checks: checks
+    )
+  }
+
   func spaceMailIntakeHealthSummary(for connection: SpaceMailIMAPConnection) -> SpaceMailIntakeHealthSummary {
     let mailboxID = connection.id
     let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }

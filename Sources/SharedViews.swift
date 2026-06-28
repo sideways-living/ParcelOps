@@ -2343,6 +2343,79 @@ struct SpaceMailTestRunGuide: View {
   }
 }
 
+struct SpaceMailQACheckCard: View {
+  var summary: SpaceMailQACheckSummary
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "doc.text.magnifyingglass")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.verdict)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge("\(summary.completedCount)/\(summary.totalCount)", color: color)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(summary.checks) { check in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(check.title, systemImage: check.isComplete ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: check))
+            Text(check.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(check.evidence)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: check))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(color(for: check).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for check: SpaceMailQACheck) -> Color {
+    switch check.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String
