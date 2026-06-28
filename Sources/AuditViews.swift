@@ -4,6 +4,7 @@ struct AuditView: View {
   var store: ParcelOpsStore
   @State private var selectedAction: AuditAction?
   @State private var selectedEntityType: AuditEntityType?
+  @State private var showTechnicalDiagnostics = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var filteredEvents: [AuditEvent] {
@@ -36,6 +37,10 @@ struct AuditView: View {
         || (event.entityType == .intakeEmail && event.summary.localizedCaseInsensitiveContains("mailbox"))
         || event.summary.localizedCaseInsensitiveContains("spacemail")
     }
+  }
+
+  private var visibleSpaceMailEvidenceEvents: [AuditEvent] {
+    showTechnicalDiagnostics ? spaceMailEvidenceEvents : spaceMailEvidenceEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
   }
 
   var body: some View {
@@ -109,7 +114,11 @@ struct AuditView: View {
         if recentEvents.isEmpty {
           MVPEmptyState(title: "No audit activity yet", detail: "Create, edit, review, or complete a local record and the action will appear here.", symbol: "list.clipboard.fill")
         } else {
-          AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox MVP.", events: spaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          Toggle("Show technical diagnostics", isOn: $showTechnicalDiagnostics)
+            .font(.caption.weight(.semibold))
+            .toggleStyle(.switch)
+
+          AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox MVP.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -225,6 +234,14 @@ private struct AuditActivityRow: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
+          if !event.operatorOutcomeLines.isEmpty {
+            CompactMetadataGrid {
+              ForEach(event.operatorOutcomeLines, id: \.self) { line in
+                Badge(line, color: event.action.color)
+              }
+            }
+          }
+
           CompactMetadataGrid {
             Badge(event.entityType.rawValue, color: event.action.color)
             Badge(event.categoryLabel, color: event.action.color)
@@ -284,6 +301,14 @@ struct AuditEventRow: View {
 
           Text(event.summary)
             .foregroundStyle(.secondary)
+
+          if !event.operatorOutcomeLines.isEmpty {
+            CompactMetadataGrid {
+              ForEach(event.operatorOutcomeLines, id: \.self) { line in
+                Badge(line, color: event.action.color)
+              }
+            }
+          }
 
           CompactMetadataGrid {
             Badge(event.entityType.rawValue, color: event.action.color)
@@ -354,6 +379,50 @@ struct AuditDetailBlock: View {
 }
 
 private extension AuditEvent {
+  var isTechnicalSpaceMailDiagnostic: Bool {
+    guard entityType == .spaceMailIMAPConnection || entityType == .intakeEmail || summary.localizedCaseInsensitiveContains("spacemail") else {
+      return false
+    }
+
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? ""
+    ].joined(separator: " ")
+
+    return searchableText.localizedCaseInsensitiveContains("duplicate fetched mailbox message skipped")
+      || searchableText.localizedCaseInsensitiveContains("refreshed with no intake field changes")
+      || searchableText.localizedCaseInsensitiveContains("reprocessed with no field changes")
+      || searchableText.localizedCaseInsensitiveContains("parser result:")
+      || searchableText.localizedCaseInsensitiveContains("provider message id:")
+  }
+
+  var operatorOutcomeLines: [String] {
+    guard let afterDetail else { return [] }
+
+    let wantedPrefixes = [
+      "Status:",
+      "Fetch result:",
+      "Fetched messages:",
+      "Imported:",
+      "Duplicate skips:",
+      "Filtered non-order:",
+      "Uncertain:",
+      "Mailbox mode:",
+      "Parser result:"
+    ]
+
+    let lines = afterDetail
+      .components(separatedBy: .newlines)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { line in
+        wantedPrefixes.contains { line.hasPrefix($0) }
+      }
+
+    return Array(lines.prefix(5))
+  }
+
   var isInboxOrderHandoff: Bool {
     let searchableText = [
       summary,
