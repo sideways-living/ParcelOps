@@ -9,6 +9,7 @@ extension String {
 
   var isPlaceholderValidationValue: Bool {
     let normalized = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let compact = normalized.replacingOccurrences(of: " ", with: "")
     return normalized.isEmpty
       || normalized == "pending"
       || normalized == "unknown"
@@ -16,6 +17,9 @@ extension String {
       || normalized == "choose folder"
       || normalized == "needs setup"
       || normalized == "never"
+      || compact.contains("needsreview")
+      || compact.contains("unknownsender")
+      || compact.contains("unknowndate")
   }
 }
 
@@ -2118,6 +2122,82 @@ struct CompactMetadataGrid<Content: View>: View {
         content
       }
     }
+  }
+}
+
+struct IntakeReadinessStrip: View {
+  var email: ForwardedEmailIntake
+  var hasLinkedOrder: Bool = false
+
+  private var missingFields: [String] {
+    [
+      email.detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+      email.detectedOrderNumber.isPlaceholderValidationValue ? "order" : nil,
+      email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking" : nil,
+      email.detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+  }
+
+  private var confidence: Int {
+    var score = 90
+    if email.detectedMerchant.isPlaceholderValidationValue { score -= 18 }
+    if email.detectedOrderNumber.isPlaceholderValidationValue { score -= 22 }
+    if email.detectedTrackingNumber.isPlaceholderValidationValue { score -= 16 }
+    if email.detectedDestinationAddress.isPlaceholderValidationValue { score -= 14 }
+    if !hasLinkedOrder { score -= 8 }
+    if email.reviewState == .needsReview { score -= 6 }
+    return max(10, min(100, score))
+  }
+
+  private var tone: Color {
+    if confidence < 55 || missingFields.contains("order") || missingFields.contains("tracking") {
+      return .orange
+    }
+    if confidence < 75 || !missingFields.isEmpty {
+      return .yellow
+    }
+    return .green
+  }
+
+  private var statusLabel: String {
+    if missingFields.contains("order") || missingFields.contains("tracking") {
+      return "Check before order"
+    }
+    if !missingFields.isEmpty {
+      return "Needs field check"
+    }
+    if hasLinkedOrder {
+      return "Linked intake"
+    }
+    return "Ready to create/link"
+  }
+
+  private var detail: String {
+    if missingFields.isEmpty {
+      return hasLinkedOrder
+        ? "Detected fields look usable and this email is already linked to an order."
+        : "Detected fields look usable. Create an order or link this email to an existing order."
+    }
+    return "Missing or weak: \(missingFields.joined(separator: ", ")). Reprocess or edit before creating an order."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(confidence)% confidence", color: confidence < 55 ? .red : confidence < 75 ? .orange : .green)
+        Badge(statusLabel, color: tone)
+        ForEach(missingFields, id: \.self) { field in
+          Badge("Check \(field)", color: .orange)
+        }
+      }
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

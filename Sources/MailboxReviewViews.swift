@@ -460,6 +460,7 @@ struct IntakeEmailRow: View {
             IntakeFact(title: "Tracking", value: email.detectedTrackingNumber, symbol: "barcode.viewfinder")
             IntakeFact(title: "Destination", value: email.detectedDestinationAddress, symbol: "mappin.and.ellipse")
           }
+          IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
           if let linkedOrder {
             Text("Linked to \(linkedOrder.orderNumber) • \(linkedOrder.store)")
               .font(.caption.weight(.semibold))

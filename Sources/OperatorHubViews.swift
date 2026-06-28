@@ -480,6 +480,10 @@ private struct InboxTriageRow: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
+          if case .email(let email) = item.source {
+            IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
+          }
+
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(item.readinessTone.color)
