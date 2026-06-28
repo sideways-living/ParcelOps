@@ -1860,6 +1860,21 @@ struct SettingsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var mailboxStatus: (String, Color) {
+    hasSpaceMailSetup ? ("SpaceMail manual", .green) : ("Not connected", .orange)
+  }
+
+  private var credentialStatus: (String, Color) {
+    hasSpaceMailCredentialReference ? ("SpaceMail Keychain", .green) : ("SpaceMail Keychain ready", .orange)
+  }
 
   var body: some View {
     @Bindable var store = store
@@ -1871,28 +1886,28 @@ struct SettingsView: View {
 
         MVPWorkflowGuide(
           title: "Before connecting live systems",
-          detail: "These settings describe the intended workflow, but the current MVP remains local-only.",
+          detail: "Most integrations remain local planning surfaces. SpaceMail is the exception: it can run a manual, read-only IMAP refresh when a Keychain password is configured.",
           steps: [
-            "Use sample and placeholder records to test the full flow.",
-            "Do not enter real passwords, API keys, OAuth secrets, or mailbox credentials.",
-            "Treat toggles as planning controls until integrations are explicitly added.",
+            "Use SpaceMail only through the explicit manual refresh action.",
+            "Enter a SpaceMail password only in the secure Keychain prompt, not in setup notes or JSON fields.",
+            "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
             "Use Audit to confirm that local actions are being recorded."
           ],
           symbol: "gearshape.2.fill"
         )
 
         SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
-          Text("ParcelOps currently stores local JSON records and sample operational data. These controls describe intended workflows; they do not connect to live services yet.")
+          Text("ParcelOps stores operational records in local JSON. SpaceMail password/app-password values use Keychain and manual read-only refresh; the rest of the integration surface remains placeholder or planning-only.")
             .foregroundStyle(.secondary)
 
           LocalDataSafetyCard(store: store, compact: isCompact)
 
           LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            IntegrationStatusRow(title: "Email mailbox", status: "Not connected", symbol: "envelope.badge.fill", color: .orange)
+            IntegrationStatusRow(title: "Email mailbox", status: mailboxStatus.0, symbol: "envelope.badge.fill", color: mailboxStatus.1)
             IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)
             IntegrationStatusRow(title: "Carrier APIs", status: "Not connected", symbol: "location.fill.viewfinder", color: .orange)
             IntegrationStatusRow(title: "Store logins", status: "Placeholder only", symbol: "key.horizontal.fill", color: .orange)
-            IntegrationStatusRow(title: "Credential storage", status: "Not enabled", symbol: "lock.shield.fill", color: .red)
+            IntegrationStatusRow(title: "Credential storage", status: credentialStatus.0, symbol: "lock.shield.fill", color: credentialStatus.1)
             IntegrationStatusRow(title: "Background sync", status: "Not enabled", symbol: "bell.slash.fill", color: .red)
           }
         }
