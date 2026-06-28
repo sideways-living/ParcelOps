@@ -30,6 +30,7 @@ struct MVPSetupView: View {
         SpaceMailOperationsRunbook()
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
+        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {

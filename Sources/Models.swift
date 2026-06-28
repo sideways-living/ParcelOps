@@ -1591,6 +1591,23 @@ struct SpaceMailPostRefreshActionItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct SpaceMailShiftHandoffSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var lastRefreshText: String
+  var keyCounts: [SpaceMailReleaseSnapshotMetric]
+  var handoffLines: [SpaceMailShiftHandoffLine]
+}
+
+struct SpaceMailShiftHandoffLine: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailIMAPConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var displayName: String

@@ -293,6 +293,107 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var spaceMailShiftHandoffSummary: SpaceMailShiftHandoffSummary {
+    let spaceMailMailboxIDs = Set(spaceMailIMAPConnections.map(\.id))
+    let spaceMailIngestRecords = mailboxIngestRecords.filter { spaceMailMailboxIDs.contains($0.sourceMailboxID) }
+    let linkedIntakeIDs = Set(spaceMailIngestRecords.compactMap(\.intakeEmailID))
+    let linkedSpaceMailIntake = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }
+    let reviewSpaceMailIntake = linkedSpaceMailIntake.filter { $0.reviewState == .needsReview }
+    let linkedOrders = orders.filter { order in
+      linkedSpaceMailIntake.contains { $0.linkedOrderID == order.id } || order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+    }
+    let parserDiagnostics = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+    let fetchedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let importedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let duplicateCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+    let filteredLastRefreshCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainLastRefreshCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount }
+    let latestRefresh = spaceMailIMAPConnections
+      .filter { $0.lastManualRefreshDate != "Never" }
+      .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
+      .first
+    let lastRefreshText = latestRefresh.map {
+      "\($0.displayName) refreshed \($0.lastManualRefreshDate): \($0.lastRefreshSummary.isEmpty ? $0.connectionStatus : $0.lastRefreshSummary)"
+    } ?? "No real SpaceMail refresh has been recorded."
+
+    let lines = [
+      SpaceMailShiftHandoffLine(
+        title: "Latest refresh",
+        detail: "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicates, \(filteredLastRefreshCount) filtered, \(uncertainLastRefreshCount) uncertain.",
+        tone: fetchedCount == 0 ? "attention" : "neutral",
+        symbol: "clock.arrow.circlepath"
+      ),
+      SpaceMailShiftHandoffLine(
+        title: "Inbox review",
+        detail: reviewSpaceMailIntake.isEmpty
+          ? "No SpaceMail-linked intake rows currently need review."
+          : "\(reviewSpaceMailIntake.count) SpaceMail-linked intake row\(reviewSpaceMailIntake.count == 1 ? "" : "s") need review.",
+        tone: reviewSpaceMailIntake.isEmpty ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      SpaceMailShiftHandoffLine(
+        title: "Parser checks",
+        detail: parserDiagnostics.isEmpty
+          ? "No SpaceMail-linked parser diagnostics are open."
+          : "\(parserDiagnostics.count) parser diagnostic\(parserDiagnostics.count == 1 ? "" : "s") need field confirmation.",
+        tone: parserDiagnostics.isEmpty ? "success" : "warning",
+        symbol: "text.magnifyingglass"
+      ),
+      SpaceMailShiftHandoffLine(
+        title: "Mixed mailbox review",
+        detail: uncertainCount == 0 && filteredCount == 0
+          ? "No uncertain or filtered preview reviews are waiting."
+          : "\(uncertainCount) uncertain and \(filteredCount) filtered preview\(uncertainCount + filteredCount == 1 ? "" : "s") are available for spot review.",
+        tone: uncertainCount > 0 ? "attention" : "neutral",
+        symbol: "questionmark.folder.fill"
+      ),
+      SpaceMailShiftHandoffLine(
+        title: "Order handoff",
+        detail: linkedOrders.isEmpty
+          ? "No SpaceMail/InBox-created orders are currently linked for follow-up."
+          : "\(linkedOrders.count) Inbox-created or SpaceMail-linked order\(linkedOrders.count == 1 ? "" : "s") exist for follow-up.",
+        tone: linkedOrders.isEmpty ? "neutral" : "attention",
+        symbol: "shippingbox.fill"
+      )
+    ]
+
+    let openLineCount = lines.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+    let title: String
+    let detail: String
+    let tone: String
+    if spaceMailIMAPConnections.isEmpty {
+      title = "SpaceMail handoff unavailable"
+      detail = "Add a SpaceMail setup before using the handoff summary."
+      tone = "warning"
+    } else if openLineCount == 0 {
+      title = "SpaceMail handoff is clear"
+      detail = "No immediate SpaceMail intake follow-up is open."
+      tone = "success"
+    } else {
+      title = "SpaceMail handoff needs attention"
+      detail = "\(openLineCount) handoff area\(openLineCount == 1 ? "" : "s") should be checked before the next shift."
+      tone = lines.contains { $0.tone == "warning" } ? "warning" : "attention"
+    }
+
+    return SpaceMailShiftHandoffSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      lastRefreshText: lastRefreshText,
+      keyCounts: [
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Inbox review", value: "\(reviewSpaceMailIntake.count)", tone: reviewSpaceMailIntake.isEmpty ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Parser", value: "\(parserDiagnostics.count)", tone: parserDiagnostics.isEmpty ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount == 0 ? "neutral" : "attention")
+      ],
+      handoffLines: lines
+    )
+  }
+
   var spaceMailPostRefreshActionPlan: SpaceMailPostRefreshActionPlan {
     let spaceMailMailboxIDs = Set(spaceMailIMAPConnections.map(\.id))
     let spaceMailIngestRecords = mailboxIngestRecords.filter { spaceMailMailboxIDs.contains($0.sourceMailboxID) }

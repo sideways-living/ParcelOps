@@ -2632,6 +2632,75 @@ struct SpaceMailOperationsRunbook: View {
   }
 }
 
+struct SpaceMailShiftHandoffCard: View {
+  var summary: SpaceMailShiftHandoffSummary
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "person.2.wave.2.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(summary.lastRefreshText)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Handoff", color: color)
+      }
+
+      MetricStrip(items: summary.keyCounts.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(summary.handoffLines) { line in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(line.title, systemImage: line.symbol)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: line.tone))
+            Text(line.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: line.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MVPWorkflowGuide: View {
   var title: String
   var detail: String

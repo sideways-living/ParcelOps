@@ -34,6 +34,7 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           SpaceMailTestRunGuide(summary: store.spaceMailMVPReadinessSummary)
           SpaceMailOperationsRunbook()
+          SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
           CompactActionRow {
             Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)
