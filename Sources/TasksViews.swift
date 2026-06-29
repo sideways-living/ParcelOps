@@ -74,6 +74,7 @@ struct TasksView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         taskNextActionPanel
+        taskScopePanel
         draftFollowUpPanel
         taskQueuePanel
         detailRoutes
@@ -212,6 +213,32 @@ struct TasksView: View {
           ("Drafts", "\(draftActionCount)", draftActionCount == 0 ? .green : .blue),
           ("Needs review", "\(reviewActionCount)", reviewActionCount == 0 ? .green : .purple)
         ])
+      }
+    }
+  }
+
+  private var taskScopePanel: some View {
+    SettingsPanel(title: "Task scope", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Tasks should represent work someone owns. Parser checks, filtered SpaceMail messages, and classifier diagnostics stay in Inbox, Mailbox Monitor, Workbench, and Audit unless a person creates a follow-up task from them.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Open tasks", "\(store.openReviewTasks.count)", store.openReviewTasks.isEmpty ? .green : .orange),
+          ("Handoffs", "\(handoffActionCount)", handoffActionCount == 0 ? .green : .blue),
+          ("Drafts", "\(draftActionCount)", draftActionCount == 0 ? .green : .blue),
+          ("Parser context", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .secondary),
+          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .orange : .secondary)
+        ])
+
+        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty }
+          ? "No parser or uncertain-mail context currently needs escalation into a task."
+          : "Create a task only when parser or uncertain-mail context needs a named owner, due date, or handoff.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
