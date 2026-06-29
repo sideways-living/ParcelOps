@@ -4281,9 +4281,16 @@ final class ParcelOpsStore {
       let matchesQuery = query.isEmpty
         || order.orderNumber.lowercased().contains(query)
         || order.store.lowercased().contains(query)
+        || order.customer.lowercased().contains(query)
         || order.recipientEmail.lowercased().contains(query)
+        || order.destination.lowercased().contains(query)
+        || order.carrier.lowercased().contains(query)
         || order.checkedMailbox.lowercased().contains(query)
         || order.trackingNumber.lowercased().contains(query)
+        || order.latestStatus.lowercased().contains(query)
+        || order.status.rawValue.lowercased().contains(query)
+        || order.reviewState.rawValue.lowercased().contains(query)
+        || order.source.rawValue.lowercased().contains(query)
       return matchesStatus && matchesQuery
     }
   }

@@ -197,7 +197,10 @@ struct OrdersView: View {
   private var filterControls: some View {
     @Bindable var store = store
 
-    return HStack(alignment: .center, spacing: 10) {
+    return FilterControlGrid {
+      TextField("Search orders, customers, tracking, carrier, or destination", text: $store.searchText)
+        .textFieldStyle(.roundedBorder)
+
       if isCompact {
         statusPicker
           .pickerStyle(.menu)
@@ -205,7 +208,14 @@ struct OrdersView: View {
         statusPicker
           .pickerStyle(.segmented)
       }
-      Spacer()
+
+      Button("Clear", systemImage: "xmark.circle") {
+        store.searchText = ""
+        store.selectedStatus = nil
+      }
+      .buttonStyle(.bordered)
+      .disabled(store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.selectedStatus == nil)
+
       Button("Add order", systemImage: "plus", action: store.createManualOrderPlaceholder)
         .buttonStyle(.borderedProminent)
     }
