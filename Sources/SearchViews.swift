@@ -194,6 +194,9 @@ struct SavedFilterRow: View {
 
 struct SearchResultRow: View {
   var result: SearchResult
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var badgeText: String {
     result.severity?.rawValue ?? result.reviewState?.rawValue ?? result.entityType.rawValue
@@ -204,35 +207,43 @@ struct SearchResultRow: View {
   }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      Image(systemName: result.entityType.symbol)
-        .foregroundStyle(result.entityType.color)
-        .frame(width: 22)
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: result.entityType.symbol)
+          .foregroundStyle(result.entityType.color)
+          .frame(width: 22)
 
-      VStack(alignment: .leading, spacing: 5) {
-        HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 4) {
           Text(result.title)
             .font(.headline)
-          Spacer()
-          Badge(badgeText, color: badgeColor)
+            .fixedSize(horizontal: false, vertical: true)
+
+          Text(result.subtitle)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(isCompact ? 3 : 2)
         }
 
-        Text(result.subtitle)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-
-        Text(result.detail)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(3)
-
-        Text(result.linkedEntityID)
-          .font(.caption2.monospaced())
-          .foregroundStyle(.tertiary)
-          .lineLimit(1)
-          .truncationMode(.middle)
+        if !isCompact {
+          Spacer(minLength: 8)
+          Badge(badgeText, color: badgeColor)
+        }
       }
+
+      if isCompact {
+        Badge(badgeText, color: badgeColor)
+      }
+
+      Text(result.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(isCompact ? 4 : 3)
+
+      Text(result.linkedEntityID)
+        .font(.caption2.monospaced())
+        .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .truncationMode(.middle)
     }
     .padding(12)
     .background(.quaternary.opacity(0.24))
