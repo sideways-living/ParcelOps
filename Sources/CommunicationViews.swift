@@ -72,16 +72,16 @@ struct CommunicationView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         VStack(alignment: .leading, spacing: 6) {
-          Text("Communication")
+          Text("Drafts & Templates")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local templates and draft outbound messages. Nothing is sent from ParcelOps yet.")
+          Text("Local draft follow-up and reusable message templates. Nothing is sent from ParcelOps yet.")
             .foregroundStyle(.secondary)
         }
 
         draftSummaryPanel
         filterBar
 
-        Picker("Communication mode", selection: $selectedMode) {
+        Picker("Drafts and templates mode", selection: $selectedMode) {
           ForEach(CommunicationMode.allCases) { mode in
             Text(mode.rawValue).tag(mode)
           }
