@@ -21,6 +21,17 @@ struct OrdersView: View {
       .prefix(4)
       .map(queueItem)
   }
+  private var inboxCreatedOrdersNeedingReviewCount: Int {
+    store.orders.filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }.count
+  }
+  private var inboxCreatedOrdersMissingDispatchCount: Int {
+    store.orders.filter { order in
+      isInboxCreatedOrder(order)
+        && [.shipped, .inTransit, .exception].contains(order.status)
+        && store.suggestedShipmentManifestRecords(for: order).isEmpty
+        && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+    }.count
+  }
 
   var body: some View {
     @Bindable var store = store
@@ -47,6 +58,19 @@ struct OrdersView: View {
               Text("Newest orders created or linked from mailbox intake, import queue, or acceptance review. Start here after using Create order in Inbox.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              MetricStrip(items: [
+                ("Inbox orders", "\(store.orders.filter(isInboxCreatedOrder).count)", .teal),
+                ("Need review", "\(inboxCreatedOrdersNeedingReviewCount)", inboxCreatedOrdersNeedingReviewCount == 0 ? .green : .orange),
+                ("Need dispatch setup", "\(inboxCreatedOrdersMissingDispatchCount)", inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .purple)
+              ])
+
+              Text(inboxCreatedOrdersNeedingReviewCount == 0 && inboxCreatedOrdersMissingDispatchCount == 0
+                ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
+                : "Confirm detected order details first, then add manifest or readiness context for dispatch-relevant orders.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(inboxCreatedOrdersNeedingReviewCount == 0 && inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .orange)
                 .fixedSize(horizontal: false, vertical: true)
 
               ForEach(inboxCreatedOrderItems) { item in
