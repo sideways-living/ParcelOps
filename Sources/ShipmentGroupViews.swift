@@ -324,7 +324,7 @@ struct ShipmentGroupRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         if let store {
           ForEach(linkedOrders.prefix(3)) { order in
             NavigationLink {
@@ -351,7 +351,6 @@ struct ShipmentGroupRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
           .buttonStyle(.bordered)
-        Spacer()
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }

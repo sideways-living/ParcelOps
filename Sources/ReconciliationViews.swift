@@ -301,7 +301,7 @@ struct ReconciliationIssueRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
           .disabled(issue.reviewState == .accepted)

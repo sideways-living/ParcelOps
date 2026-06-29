@@ -265,7 +265,7 @@ struct TrackingEventRow: View {
     }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)

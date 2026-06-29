@@ -267,7 +267,7 @@ struct HandoffNoteRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
             OrderDetailView(order: linkedOrder, store: store)
