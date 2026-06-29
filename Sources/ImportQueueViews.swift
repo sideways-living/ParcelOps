@@ -6,16 +6,33 @@ struct ImportQueueView: View {
   @State private var statusFilter: ImportStatus?
   @State private var confidenceFilter: ImportConfidenceRange = .all
   @State private var reviewFilter: ReviewState?
+  @State private var importSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredItems: [ImportQueueItem] {
+  private var baseFilteredItems: [ImportQueueItem] {
     store.filteredImportQueueItems(
       sourceType: sourceFilter,
       status: statusFilter,
       confidenceRange: confidenceFilter,
       reviewState: reviewFilter
     )
+  }
+
+  private var filteredItems: [ImportQueueItem] {
+    let query = importSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredItems }
+    return baseFilteredItems.filter { item in
+      importQueueItem(item, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    sourceFilter != nil
+      || statusFilter != nil
+      || confidenceFilter != .all
+      || reviewFilter != nil
+      || !importSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -40,11 +57,14 @@ struct ImportQueueView: View {
             Text("\(filteredItems.count) visible import items")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredItems.count) after filters", color: .blue)
+            }
             Spacer()
           }
 
           if filteredItems.isEmpty {
-            MVPEmptyState(title: "No staged imports match this view", detail: "Clear filters or add a placeholder import item to test the local acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: "Add import item", action: store.addImportQueueItemPlaceholder)
+            MVPEmptyState(title: "No staged imports match this view", detail: hasActiveFilters ? "Clear search or filters to return to the full import queue." : "Add a placeholder import item to test the local acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add import item", action: hasActiveFilters ? clearFilters : store.addImportQueueItemPlaceholder)
           } else {
             ForEach(filteredItems) { item in
               ImportQueueItemRow(
@@ -95,6 +115,8 @@ struct ImportQueueView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search source, summary, order, tracking, destination, notes, or linked order", text: $importSearchText)
+        .textFieldStyle(.roundedBorder)
       Picker("Source", selection: $sourceFilter) {
         Text("All sources").tag(ImportSourceType?.none)
         ForEach(ImportSourceType.allCases) { source in
@@ -118,7 +140,58 @@ struct ImportQueueView: View {
           Text(state.rawValue).tag(Optional(state))
         }
       }
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "xmark.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    sourceFilter = nil
+    statusFilter = nil
+    confidenceFilter = .all
+    reviewFilter = nil
+    importSearchText = ""
+  }
+
+  private func importQueueItem(_ item: ImportQueueItem, matches query: String) -> Bool {
+    let linkedOrder = item.suggestedLinkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    let linkedShipmentGroup = item.suggestedShipmentGroupID.flatMap { groupID in
+      store.shipmentGroups.first { $0.id == groupID }
+    }
+    let searchableText = [
+      item.sourceType.rawValue,
+      item.sourceLabel,
+      item.capturedDate,
+      item.rawSummary,
+      item.detectedMerchant,
+      item.detectedOrderNumber,
+      item.detectedTrackingNumber,
+      item.detectedDestinationAddress,
+      item.importStatus.rawValue,
+      item.reviewState.rawValue,
+      item.notes,
+      item.suggestedLinkedOrderID?.uuidString ?? "",
+      item.suggestedShipmentGroupID?.uuidString ?? "",
+      linkedOrder?.orderNumber ?? "",
+      linkedOrder?.store ?? "",
+      linkedOrder?.customer ?? "",
+      linkedOrder?.recipientEmail ?? "",
+      linkedOrder?.trackingNumber ?? "",
+      linkedOrder?.carrier ?? "",
+      linkedOrder?.destination ?? "",
+      linkedShipmentGroup?.groupName ?? "",
+      linkedShipmentGroup?.destinationSummary ?? "",
+      linkedShipmentGroup?.recipientCustomerSummary ?? "",
+      linkedShipmentGroup?.carrierSummary ?? "",
+      linkedShipmentGroup?.statusSummary ?? ""
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
