@@ -902,6 +902,7 @@ struct NeedsReviewView: View {
   private var showsOrderMatches: Bool { matchesReviewSection("order", "matches", "orders", "tracking") }
   private var showsMailboxEvents: Bool { matchesReviewSection("mailbox", "events", "mail", "email") }
   private var showsParserChecks: Bool { matchesReviewSection("parser", "intake", "diagnostics", "merchant", "tracking", "order number") }
+  private var showsParserChecksInPrimary: Bool { !normalizedReviewSearch.isEmpty && showsParserChecks }
   private var showsMixedMailboxReview: Bool { matchesReviewSection("spacemail", "mixed", "mailbox", "uncertain", "filtered") }
   private var showsForwardedEmails: Bool { matchesReviewSection("forwarded", "emails", "intake", "mailbox", "order") }
   private var showsEvidence: Bool { matchesReviewSection("evidence", "attachments", "paperclip") }
@@ -922,7 +923,7 @@ struct NeedsReviewView: View {
       showsImportQueue,
       showsOrderMatches,
       showsMailboxEvents,
-      showsParserChecks,
+      showsParserChecksInPrimary,
       showsMixedMailboxReview,
       showsForwardedEmails,
       showsEvidence,
@@ -940,9 +941,17 @@ struct NeedsReviewView: View {
     )
   }
 
+  private var operatorWorkbenchItems: [WorkbenchItem] {
+    store.openWorkbenchItems.filter { $0.source != .intakeParser }
+  }
+
+  private var highPriorityOperatorWorkbenchItems: [WorkbenchItem] {
+    operatorWorkbenchItems.filter { $0.rank >= 3 }
+  }
+
   private var dailyAttentionCount: Int {
     inboxCreatedOrders.count
-      + store.highPriorityWorkbenchItems.count
+      + highPriorityOperatorWorkbenchItems.count
       + store.highSeverityValidationIssues.count
       + store.highSeverityReconciliationIssues.count
       + store.shipmentGroupsNeedingReview.count
@@ -952,7 +961,6 @@ struct NeedsReviewView: View {
       + store.blockedImportQueueItems.count
       + store.reviewOrders.count
       + store.reviewMailEvents.count
-      + store.intakeParserDiagnostics.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count
@@ -1010,6 +1018,12 @@ struct NeedsReviewView: View {
             Text("This narrows the primary Needs Review sections only. Advanced backlog records remain under the disclosure below.")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if !store.intakeParserDiagnostics.isEmpty && normalizedReviewSearch.isEmpty {
+              Label("\(store.intakeParserDiagnostics.count) parser diagnostics are hidden from the default Needs Review flow. Search parser when investigating intake detection issues.", systemImage: "text.magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
         }
 
@@ -1068,7 +1082,7 @@ struct NeedsReviewView: View {
 
         if showsOperationsWorkbench {
           SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
-          ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
+          ForEach(Array(highPriorityOperatorWorkbenchItems.prefix(8))) { item in
             WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
               store.createReviewTask(from: item)
             } onCreateDraft: {
@@ -1253,9 +1267,9 @@ struct NeedsReviewView: View {
         }
         }
 
-        if showsParserChecks && !store.intakeParserDiagnostics.isEmpty {
+        if showsParserChecksInPrimary && !store.intakeParserDiagnostics.isEmpty {
           SettingsPanel(title: "Intake parser checks", symbol: "text.magnifyingglass") {
-            Text("These forwarded emails reached intake, but the local parser still needs a person to confirm order, tracking, merchant, or destination details.")
+            Text("These forwarded emails reached intake, but the local parser still needs a person to confirm order, tracking, merchant, or destination details. This section appears only when you search for parser diagnostics.")
               .font(.caption)
               .foregroundStyle(.secondary)
             ForEach(Array(store.intakeParserDiagnostics.prefix(8))) { diagnostic in
