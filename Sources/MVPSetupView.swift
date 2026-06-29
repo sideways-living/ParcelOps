@@ -26,6 +26,8 @@ struct MVPSetupView: View {
           ]
         )
 
+        MVPHandsOnReleaseChecklist(store: store)
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         LocalDataSafetyCard(store: store, compact: isCompact)
@@ -65,6 +67,105 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPHandsOnReleaseChecklist: View {
+  var store: ParcelOpsStore
+
+  private var intakeReadyCount: Int {
+    store.intakeEmails.filter { email in
+      email.reviewState == .needsReview || email.linkedOrderID != nil
+    }.count
+  }
+
+  private var openPrimaryWorkCount: Int {
+    store.openWorkbenchItems.count + store.reviewTasksNeedingAttention.count
+  }
+
+  private var checklistItems: [(String, String, String, Color)] {
+    [
+      (
+        "1. Refresh intake",
+        "Run SpaceMail manually, then confirm fetched, imported, duplicate, filtered, and uncertain counts are understandable.",
+        "server.rack",
+        store.spaceMailIMAPConnections.isEmpty ? .orange : .green
+      ),
+      (
+        "2. Triage Inbox",
+        "Review imported intake, reprocess if needed, then create or link an order only when detected fields look credible.",
+        "tray.full.fill",
+        intakeReadyCount == 0 ? .orange : .blue
+      ),
+      (
+        "3. Confirm Orders",
+        "Open the created or linked order and verify the Inbox source trail, status, customer/destination, and tracking context.",
+        "shippingbox.fill",
+        store.orders.isEmpty ? .orange : .green
+      ),
+      (
+        "4. Clear exceptions",
+        "Use Workbench and Needs Review for validation, reconciliation, high-risk, and handoff follow-up before dispatch work.",
+        "exclamationmark.triangle.fill",
+        store.openWorkbenchItems.isEmpty ? .green : .orange
+      ),
+      (
+        "5. Prepare dispatch",
+        "Check Dispatch for manifests and readiness items so outbound work has an obvious next local action.",
+        "paperplane.fill",
+        store.shipmentManifestRecords.isEmpty && store.dispatchReadinessChecklists.isEmpty ? .orange : .purple
+      ),
+      (
+        "6. Verify traceability",
+        "Check Tasks and Audit, then quit and reopen to confirm local JSON persistence keeps the same workflow state.",
+        "list.clipboard.fill",
+        store.auditEvents.isEmpty ? .orange : .teal
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Hands-on release checklist", symbol: "checklist.checked") {
+      MetricStrip(items: [
+        ("Intake records", "\(store.intakeEmails.count)", .blue),
+        ("Orders", "\(store.orders.count)", .green),
+        ("Open work", "\(openPrimaryWorkCount)", .orange),
+        ("Audit events", "\(store.auditEvents.count)", .purple)
+      ])
+
+      Text("Use this checklist when judging whether ParcelOps is ready for normal hands-on testing in Xcode. It is still a manual, local-first workflow: no background sync, notifications, mailbox mutation, Shopify, carrier APIs, OCR, scanners, or outbound email are active.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(checklistItems.enumerated()), id: \.offset) { _, item in
+          MVPHandsOnReleaseChecklistRow(title: item.0, detail: item.1, symbol: item.2, color: item.3)
+        }
+      }
+    }
+  }
+}
+
+struct MVPHandsOnReleaseChecklistRow: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
