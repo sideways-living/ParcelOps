@@ -7,13 +7,14 @@ struct HandoffNotesView: View {
   @State private var selectedAssignee: String?
   @State private var selectedStatus: TaskStatus?
   @State private var selectedReviewState: ReviewState?
+  @State private var handoffSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
     Array(Set(store.handoffNotes.map(\.assignee))).sorted()
   }
 
-  private var filteredNotes: [HandoffNote] {
+  private var baseFilteredNotes: [HandoffNote] {
     store.filteredHandoffNotes(
       linkedEntityType: selectedEntityType,
       priority: selectedPriority,
@@ -21,6 +22,23 @@ struct HandoffNotesView: View {
       status: selectedStatus,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredNotes: [HandoffNote] {
+    let query = handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredNotes }
+    return baseFilteredNotes.filter { note in
+      handoffNote(note, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedEntityType != nil
+      || selectedPriority != nil
+      || selectedAssignee != nil
+      || selectedStatus != nil
+      || selectedReviewState != nil
+      || !handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -44,28 +62,35 @@ struct HandoffNotesView: View {
             Text("\(filteredNotes.count) visible handoff notes")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredNotes.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add note", systemImage: "plus", action: store.addHandoffNotePlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          ForEach(filteredNotes) { note in
-            HandoffNoteRow(note: note, store: store, linkedOrder: linkedOrder(for: note), customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
-              store.updateHandoffNote(updatedNote)
-            } onAcknowledge: {
-              store.acknowledgeHandoffNote(note)
-            } onComplete: {
-              store.completeHandoffNote(note)
-            } onReopen: {
-              store.reopenHandoffNote(note)
-            } onReviewed: {
-              store.markHandoffNoteReviewed(note)
-            } onCreateTask: {
-              store.createReviewTask(from: note)
-            } onCreateDraft: {
-              store.createDraftMessage(from: note)
-            } onRemove: {
-              store.removeHandoffNote(note)
+          if filteredNotes.isEmpty {
+            MVPEmptyState(title: "No handoff notes match this view", detail: hasActiveFilters ? "Clear search or filters to return to open local handoff notes." : "Add a local handoff note when a shift, team, or operator needs continuity on an order or exception.", symbol: "arrow.left.arrow.right.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add note", action: hasActiveFilters ? clearFilters : store.addHandoffNotePlaceholder)
+          } else {
+            ForEach(filteredNotes) { note in
+              HandoffNoteRow(note: note, store: store, linkedOrder: linkedOrder(for: note), customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
+                store.updateHandoffNote(updatedNote)
+              } onAcknowledge: {
+                store.acknowledgeHandoffNote(note)
+              } onComplete: {
+                store.completeHandoffNote(note)
+              } onReopen: {
+                store.reopenHandoffNote(note)
+              } onReviewed: {
+                store.markHandoffNoteReviewed(note)
+              } onCreateTask: {
+                store.createReviewTask(from: note)
+              } onCreateDraft: {
+                store.createDraftMessage(from: note)
+              } onRemove: {
+                store.removeHandoffNote(note)
+              }
             }
           }
         }
@@ -76,6 +101,9 @@ struct HandoffNotesView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search title, summary, linked record, assignee, notes, order, or destination", text: $handoffSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
@@ -106,20 +134,65 @@ struct HandoffNotesView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedEntityType = nil
-        selectedPriority = nil
-        selectedAssignee = nil
-        selectedStatus = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedEntityType = nil
+    selectedPriority = nil
+    selectedAssignee = nil
+    selectedStatus = nil
+    selectedReviewState = nil
+    handoffSearchText = ""
   }
 
   private func linkedOrder(for note: HandoffNote) -> TrackedOrder? {
     guard note.linkedEntityType == .order, let orderID = UUID(uuidString: note.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func handoffNote(_ note: HandoffNote, matches query: String) -> Bool {
+    let order = linkedOrder(for: note)
+    let customerProfiles = store.suggestedCustomerProfiles(for: note)
+    let destinationAddresses = store.suggestedDestinationAddresses(for: note)
+    let deliveryInstructions = store.suggestedDeliveryInstructions(for: note)
+    let packageContents = store.suggestedPackageContents(for: note)
+    var searchParts: [String] = [
+      note.id.uuidString,
+      note.title,
+      note.summary,
+      note.linkedEntityType.rawValue,
+      note.linkedEntityID,
+      note.priority.rawValue,
+      note.assignee,
+      note.createdDate,
+      note.dueDate,
+      note.status.rawValue,
+      note.reviewState.rawValue,
+      note.notes,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: customerProfiles.map(\.displayName))
+    searchParts.append(contentsOf: destinationAddresses.map(\.label))
+    searchParts.append(contentsOf: destinationAddresses.map(\.addressLineSummary))
+    searchParts.append(contentsOf: deliveryInstructions.map(\.title))
+    searchParts.append(contentsOf: deliveryInstructions.map(\.instructionSummary))
+    searchParts.append(contentsOf: packageContents.map(\.title))
+    searchParts.append(contentsOf: packageContents.map(\.itemSummary))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 

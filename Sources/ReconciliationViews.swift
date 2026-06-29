@@ -7,10 +7,11 @@ struct ReconciliationView: View {
   @State private var selectedSourceType: ReconciliationEntityType?
   @State private var selectedTargetType: ReconciliationEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var reconciliationSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredIssues: [ReconciliationIssue] {
+  private var baseFilteredIssues: [ReconciliationIssue] {
     store.filteredReconciliationIssues(
       issueType: selectedIssueType,
       severity: selectedSeverity,
@@ -20,35 +21,68 @@ struct ReconciliationView: View {
     )
   }
 
+  private var filteredIssues: [ReconciliationIssue] {
+    let query = reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredIssues }
+    return baseFilteredIssues.filter { issue in
+      reconciliationIssue(issue, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedIssueType != nil
+      || selectedSeverity != nil
+      || selectedSourceType != nil
+      || selectedTargetType != nil
+      || selectedReviewState != nil
+      || !reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
 
-        ForEach(store.groupedReconciliationIssues(filteredIssues)) { group in
-          SettingsPanel(title: group.issueType.rawValue, symbol: group.issueType.symbol) {
-            ForEach(group.issues) { issue in
-              ReconciliationIssueRow(
-                issue: issue,
-                store: store,
-                linkedOrder: linkedOrder(for: issue),
-                shipmentGroups: store.suggestedShipmentGroups(for: issue),
-                importQueueItems: store.importQueueItems(for: issue),
-                acceptanceRecords: store.acceptanceRecords(for: issue),
-                validationIssues: store.relatedValidationIssues(for: issue),
-                playbooks: store.suggestedPlaybooks(for: issue),
-                handoffNotes: store.handoffNotes(for: issue),
-                customerProfiles: store.suggestedCustomerProfiles(for: issue),
-                destinationAddresses: store.suggestedDestinationAddresses(for: issue),
-                deliveryInstructions: store.suggestedDeliveryInstructions(for: issue),
-                packageContents: store.suggestedPackageContents(for: issue)
-              ) {
-                store.markReconciliationIssueReviewed(issue)
-              } onCreateTask: {
-                store.createReviewTask(from: issue)
-              } onCreateDraft: {
-                store.createDraftMessage(from: issue)
+        SettingsPanel(title: "Reconciliation results", symbol: "arrow.triangle.2.circlepath") {
+          HStack {
+            Text("\(filteredIssues.count) visible reconciliation issues")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredIssues.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+        }
+
+        if filteredIssues.isEmpty {
+          MVPEmptyState(title: "No reconciliation issues match this view", detail: hasActiveFilters ? "Clear search or filters to return to unresolved local mismatches." : "Reconciliation issues appear here when local intake, acceptance, orders, tracking, or validation values disagree.", symbol: "arrow.triangle.2.circlepath", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
+        } else {
+          ForEach(store.groupedReconciliationIssues(filteredIssues)) { group in
+            SettingsPanel(title: group.issueType.rawValue, symbol: group.issueType.symbol) {
+              ForEach(group.issues) { issue in
+                ReconciliationIssueRow(
+                  issue: issue,
+                  store: store,
+                  linkedOrder: linkedOrder(for: issue),
+                  shipmentGroups: store.suggestedShipmentGroups(for: issue),
+                  importQueueItems: store.importQueueItems(for: issue),
+                  acceptanceRecords: store.acceptanceRecords(for: issue),
+                  validationIssues: store.relatedValidationIssues(for: issue),
+                  playbooks: store.suggestedPlaybooks(for: issue),
+                  handoffNotes: store.handoffNotes(for: issue),
+                  customerProfiles: store.suggestedCustomerProfiles(for: issue),
+                  destinationAddresses: store.suggestedDestinationAddresses(for: issue),
+                  deliveryInstructions: store.suggestedDeliveryInstructions(for: issue),
+                  packageContents: store.suggestedPackageContents(for: issue)
+                ) {
+                  store.markReconciliationIssueReviewed(issue)
+                } onCreateTask: {
+                  store.createReviewTask(from: issue)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: issue)
+                }
               }
             }
           }
@@ -77,6 +111,9 @@ struct ReconciliationView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search mismatch, value, resolution, source, target, order, tracking, or handoff", text: $reconciliationSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Issue", selection: $selectedIssueType) {
         Text("All issues").tag(nil as ReconciliationIssueType?)
         ForEach(ReconciliationIssueType.allCases) { issueType in
@@ -111,7 +148,23 @@ struct ReconciliationView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    selectedIssueType = nil
+    selectedSeverity = nil
+    selectedSourceType = nil
+    selectedTargetType = nil
+    selectedReviewState = nil
+    reconciliationSearchText = ""
   }
 
   private func linkedOrder(for issue: ReconciliationIssue) -> TrackedOrder? {
@@ -125,6 +178,47 @@ struct ReconciliationView: View {
     }
     guard let orderID, let id = UUID(uuidString: orderID) else { return nil }
     return store.orders.first { $0.id == id }
+  }
+
+  private func reconciliationIssue(_ issue: ReconciliationIssue, matches query: String) -> Bool {
+    let order = linkedOrder(for: issue)
+    let shipmentGroups = store.suggestedShipmentGroups(for: issue)
+    let importQueueItems = store.importQueueItems(for: issue)
+    let acceptanceRecords = store.acceptanceRecords(for: issue)
+    let validationIssues = store.relatedValidationIssues(for: issue)
+    let playbooks = store.suggestedPlaybooks(for: issue)
+    let handoffNotes = store.handoffNotes(for: issue)
+    var searchParts: [String] = [
+      issue.id,
+      issue.issueType.rawValue,
+      issue.severity.rawValue,
+      issue.sourceEntityType.rawValue,
+      issue.sourceEntityID,
+      issue.targetEntityType?.rawValue ?? "",
+      issue.targetEntityID ?? "",
+      issue.title,
+      issue.summary,
+      issue.detectedValue,
+      issue.currentOperationalValue,
+      issue.suggestedResolution,
+      issue.reviewState.rawValue,
+      issue.createdDate,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: shipmentGroups.map(\.groupName))
+    searchParts.append(contentsOf: shipmentGroups.map(\.destinationSummary))
+    searchParts.append(contentsOf: importQueueItems.map(\.rawSummary))
+    searchParts.append(contentsOf: acceptanceRecords.map(\.summary))
+    searchParts.append(contentsOf: validationIssues.map(\.title))
+    searchParts.append(contentsOf: playbooks.map(\.name))
+    searchParts.append(contentsOf: handoffNotes.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
