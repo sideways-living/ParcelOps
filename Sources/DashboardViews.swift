@@ -199,7 +199,7 @@ struct DashboardView: View {
             CompactExceptionPlaybookList(playbooks: Array((store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks).prefix(4)))
           }
 
-          AnalyticsSection(title: "Communication", symbol: "bubble.left.and.text.bubble.right.fill") {
+          AnalyticsSection(title: "Drafts & Templates", symbol: "bubble.left.and.text.bubble.right.fill") {
             MetricStrip(items: [
               ("Templates", "\(store.enabledCommunicationTemplateCount)", .green),
               ("Disabled", "\(store.disabledCommunicationTemplateCount)", .gray),

@@ -254,7 +254,7 @@ struct OperationsWorkbenchView: View {
         NavigationLink {
           CommunicationView(store: store)
         } label: {
-          Label("Open all communication drafts", systemImage: "bubble.left.and.bubble.right.fill")
+          Label("Open Drafts & Templates", systemImage: "bubble.left.and.bubble.right.fill")
         }
         .buttonStyle(.bordered)
       }

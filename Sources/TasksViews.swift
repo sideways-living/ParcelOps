@@ -189,7 +189,7 @@ struct TasksView: View {
           NavigationLink {
             CommunicationView(store: store)
           } label: {
-            Label("Open Communication", systemImage: "envelope.open.fill")
+            Label("Open Drafts & Templates", systemImage: "envelope.open.fill")
           }
           .buttonStyle(.bordered)
         }
