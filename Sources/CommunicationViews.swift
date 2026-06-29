@@ -256,7 +256,7 @@ struct CommunicationTemplateRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
-          HStack(spacing: 8) {
+          CompactMetadataGrid {
             Badge(template.reviewState.rawValue, color: template.reviewState.color)
             Text("\(template.usageCount) uses")
               .font(.caption)
@@ -268,7 +268,7 @@ struct CommunicationTemplateRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(template.isEnabled ? "Disable" : "Enable", systemImage: template.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
@@ -332,7 +332,7 @@ struct DraftMessageRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(4)
 
-          HStack(spacing: 8) {
+          CompactMetadataGrid {
             Badge(draft.reviewState.rawValue, color: draft.reviewState.color)
             Label(draft.linkedEntityType.rawValue, systemImage: draft.linkedEntityType.symbol)
               .font(.caption)
@@ -356,7 +356,7 @@ struct DraftMessageRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
             OrderDetailView(order: linkedOrder, store: store)
