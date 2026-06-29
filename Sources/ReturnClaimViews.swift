@@ -26,7 +26,7 @@ struct ReturnsClaimsView: View {
   }
 
   private var filteredClaims: [ReturnClaimRecord] {
-    let query = claimSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = claimSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredClaims }
     return baseFilteredClaims.filter { claim in
       returnClaim(claim, matches: query)
@@ -242,7 +242,7 @@ struct ReturnsClaimsView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

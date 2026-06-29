@@ -26,7 +26,7 @@ struct ReceivingInspectionsView: View {
   }
 
   private var filteredInspections: [ReceivingInspectionRecord] {
-    let query = inspectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = inspectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredInspections }
     return baseFilteredInspections.filter { inspection in
       receivingInspection(inspection, matches: query)
@@ -241,7 +241,7 @@ struct ReceivingInspectionsView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

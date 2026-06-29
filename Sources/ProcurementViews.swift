@@ -28,7 +28,7 @@ struct ProcurementView: View {
   }
 
   private var filteredRequests: [ProcurementRequest] {
-    let query = procurementSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = procurementSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredRequests }
     return baseFilteredRequests.filter { request in
       procurementRequest(request, matches: query)
@@ -244,7 +244,7 @@ struct ProcurementView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 
