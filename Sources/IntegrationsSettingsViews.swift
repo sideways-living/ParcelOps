@@ -3,6 +3,7 @@ import SwiftUI
 struct IntegrationsView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var setupSearchText = ""
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
@@ -48,6 +49,56 @@ struct IntegrationsView: View {
     return .green
   }
 
+  private var normalizedSetupSearch: String {
+    setupSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func matchesSetupSection(_ terms: String...) -> Bool {
+    let query = normalizedSetupSearch
+    guard !query.isEmpty else { return true }
+    return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private var showsRecommendedSetup: Bool {
+    matchesSetupSection("recommended", "setup", "path", "current", "next", "SpaceMail", "credential", "uncertain", "manual refresh")
+  }
+
+  private var showsSpaceMailSetup: Bool {
+    matchesSetupSection("SpaceMail", "IMAP", "Keychain", "credential", "mixed mailbox", "classifier", "uncertain", "filtered", "real refresh", "mock refresh")
+  }
+
+  private var showsMicrosoftSetup: Bool {
+    matchesSetupSection("Microsoft", "365", "Graph", "OAuth", "MSAL", "mock", "sign in", "mailbox")
+  }
+
+  private var showsTrackedMailboxes: Bool {
+    matchesSetupSection("tracked", "mailboxes", "mailbox", "email", "placeholder")
+  }
+
+  private var showsShopifySetup: Bool {
+    matchesSetupSection("Shopify", "store", "commerce", "placeholder")
+  }
+
+  private var showsFolderSetup: Bool {
+    matchesSetupSection("watched", "folders", "folder", "local", "placeholder")
+  }
+
+  private var showsSourceConnections: Bool {
+    matchesSetupSection("source", "connections", "accounts", "vendor", "credentials", "reference")
+  }
+
+  private var visibleSetupSectionCount: Int {
+    [
+      showsRecommendedSetup,
+      showsSpaceMailSetup,
+      showsMicrosoftSetup,
+      showsTrackedMailboxes,
+      showsShopifySetup,
+      showsFolderSetup,
+      showsSourceConnections
+    ].filter(\.self).count
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -67,7 +118,33 @@ struct IntegrationsView: View {
           }
         }
 
-        SettingsPanel(title: "Recommended setup path", symbol: "arrow.forward.circle.fill") {
+        SettingsPanel(title: "Find setup section", symbol: "magnifyingglass") {
+          VStack(alignment: .leading, spacing: 10) {
+            FilterControlGrid {
+              TextField("Search setup, SpaceMail, Microsoft 365, Shopify, folders, credentials", text: $setupSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                setupSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedSetupSearch.isEmpty)
+
+              Badge("\(visibleSetupSectionCount) sections", color: visibleSetupSectionCount == 0 ? .orange : .blue)
+            }
+
+            Text("Use this to narrow the setup page while testing. It only changes which local setup sections are visible.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if visibleSetupSectionCount == 0 {
+          MVPEmptyState(title: "No setup sections match", detail: "Clear the setup search or try SpaceMail, Microsoft 365, Shopify, folder, mailbox, credential, or classifier.", symbol: "magnifyingglass")
+        }
+
+        if showsRecommendedSetup {
+          SettingsPanel(title: "Recommended setup path", symbol: "arrow.forward.circle.fill") {
           VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
               Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
@@ -99,8 +176,10 @@ struct IntegrationsView: View {
               .fixedSize(horizontal: false, vertical: true)
           }
         }
+        }
 
-        SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
+        if showsSpaceMailSetup {
+          SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
           Text("Use this as the current mailbox path for SpaceMail. This section stores non-secret IMAP setup fields, manages the password/app-password in Keychain, and keeps mock refresh separate from the real manual refresh boundary.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -172,8 +251,10 @@ struct IntegrationsView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
+        if showsMicrosoftSetup {
+          SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
           Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -222,13 +303,17 @@ struct IntegrationsView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+        if showsTrackedMailboxes {
+          SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
           ForEach(store.mailboxes) { mailbox in
             MailboxConnectionRow(mailbox: mailbox)
           }
         }
-        SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
+        }
+        if showsShopifySetup {
+          SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
           ForEach(store.shopifyConnections) { connection in
             ShopifyConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection), suggestedProfiles: store.suggestedVendorProfiles(for: connection)) {
               store.addAccountCredentialRecord(linkedEntityType: .shopifyStore, linkedEntityID: connection.id.uuidString, organisation: connection.storeName, label: connection.storeName)
@@ -245,24 +330,29 @@ struct IntegrationsView: View {
             }
           }
         }
-        SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+        }
+        if showsFolderSetup {
+          SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
           ForEach(store.watchedFolders) { folder in
             WatchedFolderRow(folder: folder)
           }
         }
-        ForEach(store.connections) { connection in
-          SourceConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection), suggestedProfiles: store.suggestedVendorProfiles(for: connection)) {
-            store.addAccountCredentialRecord(linkedEntityType: .sourceConnection, linkedEntityID: connection.id.uuidString, organisation: connection.name, label: connection.name)
-          } onTaskFromAccount: { account in
-            store.createReviewTask(from: account)
-          } onDraftFromAccount: { account in
-            store.createDraftMessage(from: account)
-          } onCreateProfile: {
-            store.addVendorProfile(profileType: .supplier, organisation: connection.name, label: connection.name)
-          } onTaskFromProfile: { profile in
-            store.createReviewTask(from: profile)
-          } onDraftFromProfile: { profile in
-            store.createDraftMessage(from: profile)
+        }
+        if showsSourceConnections {
+          ForEach(store.connections) { connection in
+            SourceConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection), suggestedProfiles: store.suggestedVendorProfiles(for: connection)) {
+              store.addAccountCredentialRecord(linkedEntityType: .sourceConnection, linkedEntityID: connection.id.uuidString, organisation: connection.name, label: connection.name)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .supplier, organisation: connection.name, label: connection.name)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
+            }
           }
         }
       }
