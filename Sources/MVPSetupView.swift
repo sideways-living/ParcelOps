@@ -13,6 +13,7 @@ struct MVPSetupView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
+        MVPUsableVersionPanel(store: store)
 
         MVPWorkflowGuide(
           title: "First usable workflow",
@@ -67,6 +68,132 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPUsableVersionPanel: View {
+  var store: ParcelOpsStore
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var inboxOrderCount: Int {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.filter { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }.count
+  }
+
+  private var operatorWorkCount: Int {
+    store.reviewQueueCount + store.openWorkbenchItems.count + store.reviewTasksNeedingAttention.count
+  }
+
+  private var readinessTitle: String {
+    if !hasSpaceMailSetup { return "Usable locally, mailbox setup still needed" }
+    if !hasSpaceMailCredential { return "Usable locally, SpaceMail credential needed" }
+    if inboxOrderCount == 0 { return "Ready for a supervised Inbox-to-order test" }
+    if operatorWorkCount > 0 { return "Usable for hands-on operator testing" }
+    return "Primary MVP path is usable"
+  }
+
+  private var readinessDetail: String {
+    if !hasSpaceMailSetup {
+      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add a SpaceMail setup before relying on live mailbox intake."
+    }
+    if !hasSpaceMailCredential {
+      return "The SpaceMail setup exists, but real manual refresh needs a Keychain password or app-password reference."
+    }
+    if inboxOrderCount == 0 {
+      return "Run a manual SpaceMail refresh, review one imported intake row, then create or link an order to prove the daily flow."
+    }
+    return "The main daily flow now covers mailbox intake, Inbox triage, order handoff, Workbench follow-up, Tasks, Dispatch context, Audit, and local Settings."
+  }
+
+  private var readinessColor: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredential { return .orange }
+    if inboxOrderCount == 0 { return .teal }
+    return .green
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Usable version status", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "checkmark.seal.fill")
+            .foregroundStyle(readinessColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(readinessTitle)
+              .font(.headline)
+            Text(readinessDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(inboxOrderCount > 0 ? "Hands-on" : "Setup", color: readinessColor)
+        }
+
+        MetricStrip(items: [
+          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
+          ("Credential", hasSpaceMailCredential ? "Keychain" : "Needed", hasSpaceMailCredential ? .green : .orange),
+          ("Last fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
+          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Inbox orders", "\(inboxOrderCount)", inboxOrderCount > 0 ? .green : .orange),
+          ("Open review", "\(operatorWorkCount)", operatorWorkCount == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          statusLine(
+            title: "Usable today",
+            detail: "Manual SpaceMail intake, mixed-mailbox filtering, Inbox triage, local order creation/linking, Tasks, Dispatch context, Audit, and JSON persistence.",
+            symbol: "hand.thumbsup.fill",
+            color: .green
+          )
+          statusLine(
+            title: "Needs operator judgement",
+            detail: "Uncertain messages, parser misses, filtered examples, duplicate refreshes, and order fields still need local review before accepting records.",
+            symbol: "person.crop.circle.badge.exclamationmark",
+            color: .orange
+          )
+          statusLine(
+            title: "Still not connected",
+            detail: "No background sync, mailbox mutation, Shopify API, carrier API, outbound email, OCR, scanner, calendar, notification, or file-picker workflow is active.",
+            symbol: "network.slash",
+            color: .secondary
+          )
+        }
+      }
+    }
+  }
+
+  private func statusLine(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
