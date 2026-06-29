@@ -486,7 +486,7 @@ struct DashboardView: View {
         Text("Start here, then move through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit.")
           .foregroundStyle(.secondary)
       }
-      HStack {
+      CompactActionRow {
         Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
           .buttonStyle(.borderedProminent)
         Button("Refresh local placeholders", systemImage: "arrow.clockwise", action: store.syncSources)
