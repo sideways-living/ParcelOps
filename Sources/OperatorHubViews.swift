@@ -4,6 +4,7 @@ struct InboxView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var triageSearchText = ""
+  @State private var showParserDiagnosticsInTriage = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -21,7 +22,7 @@ struct InboxView: View {
       .filter { !acceptanceKeys.contains(InboxTriageItem.sourceKey(sourceType: .importQueueItem, sourceID: $0.id)) }
       .map(InboxTriageItem.importQueue)
 
-    let parserItems = store.intakeParserDiagnostics.map(InboxTriageItem.parserDiagnostic)
+    let parserItems = showParserDiagnosticsInTriage ? store.intakeParserDiagnostics.map(InboxTriageItem.parserDiagnostic) : []
 
     return (acceptanceItems.map(InboxTriageItem.acceptance) + parserItems + emailItems + importItems)
       .sorted { lhs, rhs in
@@ -86,7 +87,7 @@ struct InboxView: View {
       return "Start with blocked import rows because they can prevent otherwise valid intake from becoming orders."
     }
     if parserIssueCount > 0 {
-      return "Parser diagnostics explain why a mailbox message did not produce a clean order, tracking number, or destination."
+      return "Parser diagnostics explain why a mailbox message did not produce a clean order, tracking number, or destination. They are hidden from the primary triage queue until you turn on parser diagnostics below."
     }
     if readyAcceptanceCount > 0 {
       return "Acceptance rows are closest to becoming operational records. Link to an existing order or create a new local order."
@@ -155,6 +156,9 @@ struct InboxView: View {
         FilterControlGrid {
           TextField("Search inbox triage", text: $triageSearchText)
             .textFieldStyle(.roundedBorder)
+          Toggle("Show parser diagnostics", isOn: $showParserDiagnosticsInTriage)
+            .toggleStyle(.switch)
+            .disabled(parserIssueCount == 0)
           if !triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Clear search", systemImage: "xmark.circle") {
               triageSearchText = ""
@@ -166,10 +170,16 @@ struct InboxView: View {
         if visibleTriageItems.isEmpty {
           MVPEmptyState(
             title: triageItems.isEmpty ? "Inbox triage is clear" : "No matching triage rows",
-            detail: triageItems.isEmpty ? "Forwarded emails, staged imports, and acceptance decisions that need action will appear here." : "Clear the search to return to the full Inbox triage queue.",
+            detail: triageItems.isEmpty ? "Forwarded emails, staged imports, and acceptance decisions that need action will appear here. Turn on parser diagnostics when you want to inspect parsing issues." : "Clear the search to return to the full Inbox triage queue.",
             symbol: "checkmark.seal.fill"
           )
         } else {
+          if parserIssueCount > 0 && !showParserDiagnosticsInTriage {
+            Label("\(parserIssueCount) parser checks are hidden from this primary queue. Turn on parser diagnostics when you need reprocess/task actions, or use Mailbox Monitor for detailed parser review.", systemImage: "text.magnifyingglass")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
           ForEach(visibleTriageItems.prefix(12)) { item in
             InboxTriageRow(item: item, store: store)
           }
