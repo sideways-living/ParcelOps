@@ -4,17 +4,27 @@ struct MailboxView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var intakeSearchText = ""
+  @State private var showResolvedIntakeEmails = false
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
   }
 
   private var visibleIntakeEmails: [ForwardedEmailIntake] {
-    store.intakeEmails.filter(intakeEmailMatchesSearch)
+    store.intakeEmails.filter { email in
+      let matchesSearch = intakeEmailMatchesSearch(email)
+      let isActionable = email.reviewState != .reviewed && email.reviewState != .ignored
+      return matchesSearch && (showResolvedIntakeEmails || !normalizedIntakeSearch.isEmpty || isActionable)
+    }
   }
 
   private var visibleReviewIntakeCount: Int {
     visibleIntakeEmails.filter { $0.reviewState != .reviewed && $0.reviewState != .ignored }.count
+  }
+
+  private var hiddenResolvedIntakeCount: Int {
+    guard normalizedIntakeSearch.isEmpty && !showResolvedIntakeEmails else { return 0 }
+    return store.intakeEmails.filter { $0.reviewState == .reviewed || $0.reviewState == .ignored }.count
   }
 
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
@@ -227,9 +237,18 @@ struct MailboxView: View {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
           } else {
+            Text("Default view shows actionable intake only. Reviewed and ignored rows are preserved locally, but hidden unless you search or show resolved rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
             FilterControlGrid {
               TextField("Search subject, sender, order, tracking, merchant, destination, or linked order", text: $intakeSearchText)
                 .textFieldStyle(.roundedBorder)
+
+              Toggle("Show resolved", isOn: $showResolvedIntakeEmails)
+                .font(.caption.weight(.semibold))
+                .toggleStyle(.switch)
 
               Button("Clear", systemImage: "xmark.circle") {
                 intakeSearchText = ""
@@ -239,6 +258,9 @@ struct MailboxView: View {
 
               Badge("\(visibleIntakeEmails.count) shown", color: visibleIntakeEmails.isEmpty ? .orange : .blue)
               Badge("\(visibleReviewIntakeCount) need review", color: visibleReviewIntakeCount == 0 ? .green : .orange)
+              if hiddenResolvedIntakeCount > 0 {
+                Badge("\(hiddenResolvedIntakeCount) resolved hidden", color: .secondary)
+              }
             }
 
             CompactActionRow {
@@ -250,7 +272,7 @@ struct MailboxView: View {
             }
 
             if visibleIntakeEmails.isEmpty {
-              MVPEmptyState(title: "No detected emails match", detail: "Clear the intake search or try a broader term such as order, tracking, sender, merchant, destination, or review state.", symbol: "magnifyingglass")
+              MVPEmptyState(title: showResolvedIntakeEmails ? "No detected emails match" : "No actionable intake emails match", detail: hiddenResolvedIntakeCount > 0 ? "Reviewed and ignored rows are hidden from the default queue. Search for a known subject or turn on Show resolved to inspect them." : "Clear the intake search or try a broader term such as order, tracking, sender, merchant, destination, or review state.", symbol: "magnifyingglass")
             }
 
             ForEach(visibleIntakeEmails) { email in
