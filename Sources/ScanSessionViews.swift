@@ -9,11 +9,29 @@ struct ScanSessionsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var scanSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [ScanSessionRecord] {
+  private var baseFilteredRecords: [ScanSessionRecord] {
     store.filteredScanSessionRecords(scanPurpose: selectedPurpose, scanMethod: selectedMethod, scanStatus: selectedStatus, operatorTeam: operatorTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  }
+
+  private var filteredRecords: [ScanSessionRecord] {
+    let query = scanSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredRecords }
+    return baseFilteredRecords.filter { scanSession($0, matches: query) }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedPurpose != nil
+      || selectedMethod != nil
+      || selectedStatus != nil
+      || !operatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !scanSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -27,18 +45,16 @@ struct ScanSessionsView: View {
             Text("\(filteredRecords.count) visible scan sessions")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredRecords.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add scan", systemImage: "plus", action: store.addScanSessionPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No scan sessions match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No scan sessions match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local scan sessions." : "Add a local scan session placeholder to track expected and captured label values without scanner hardware.", symbol: "qrcode.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : "Add scan", action: hasActiveFilters ? clearFilters : store.addScanSessionPlaceholder)
           } else {
             ForEach(filteredRecords) { record in
               ScanSessionRow(record: record, store: store, linkedOrder: linkedOrder(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
@@ -85,65 +101,111 @@ struct ScanSessionsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search scan, label value, operator, mismatch, location, custody, manifest, order, or evidence", text: $scanSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Purpose", selection: $selectedPurpose) {
         Text("All purposes").tag(nil as ScanPurpose?)
         ForEach(ScanPurpose.allCases) { purpose in Text(purpose.rawValue).tag(purpose as ScanPurpose?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Method", selection: $selectedMethod) {
         Text("All methods").tag(nil as ScanMethodPlaceholder?)
         ForEach(ScanMethodPlaceholder.allCases) { method in Text(method.rawValue).tag(method as ScanMethodPlaceholder?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as ScanSessionStatus?)
         ForEach(ScanSessionStatus.allCases) { status in Text(status.rawValue).tag(status as ScanSessionStatus?) }
       }
-      .pickerStyle(.menu)
 
       TextField("Operator/team", text: $operatorTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
         ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(risk as ShipmentRiskLevel?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { type in Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
         ForEach(reviewStates, id: \.self) { state in Text(state.rawValue).tag(state as ReviewState?) }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedPurpose = nil
-        selectedMethod = nil
-        selectedStatus = nil
-        operatorTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedPurpose = nil
+    selectedMethod = nil
+    selectedStatus = nil
+    operatorTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    scanSearchText = ""
   }
 
   private func linkedOrder(for record: ScanSessionRecord) -> TrackedOrder? {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func scanSession(_ record: ScanSessionRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: record)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: record)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: record)
+    var searchParts: [String] = [
+      record.id.uuidString,
+      record.title,
+      record.linkedEntityType.rawValue,
+      record.linkedEntityID,
+      record.scanPurpose.rawValue,
+      record.scanMethodPlaceholder.rawValue,
+      record.expectedLabelReferenceValue,
+      record.capturedValuePlaceholder,
+      record.scanStatus.rawValue,
+      record.mismatchSummary,
+      record.assignedOperatorTeam,
+      record.createdDate,
+      record.completedDate,
+      record.notes,
+      record.riskLevel.rawValue,
+      record.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: [
+      record.linkedLabelReferenceID?.uuidString ?? "",
+      record.scanLocationStorageLocationID?.uuidString ?? "",
+      record.custodyRecordID?.uuidString ?? "",
+      record.inventoryReceiptID?.uuidString ?? "",
+      record.orderID?.uuidString ?? "",
+      record.shipmentGroupID?.uuidString ?? "",
+      record.packageContentID?.uuidString ?? ""
+    ])
+    searchParts.append(contentsOf: record.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: shipmentManifests.flatMap { [$0.title, $0.manifestReferencePlaceholder, $0.carrierCourier, $0.destinationSummary] })
+    searchParts.append(contentsOf: dispatchChecklists.flatMap { [$0.title, $0.checklistType.rawValue, $0.checklistStatus.rawValue, $0.assignedOwnerTeam] })
+    return searchParts.joined(separator: " ").localizedLowercase.contains(query)
   }
 }
 

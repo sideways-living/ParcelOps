@@ -9,10 +9,11 @@ struct CustodyChainView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var custodySearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [CustodyRecord] {
+  private var baseFilteredRecords: [CustodyRecord] {
     store.filteredCustodyRecords(
       custodyStatus: selectedStatus,
       custodianTeam: custodianTeam,
@@ -22,6 +23,23 @@ struct CustodyChainView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredRecords: [CustodyRecord] {
+    let query = custodySearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredRecords }
+    return baseFilteredRecords.filter { custodyRecord($0, matches: query) }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedStatus != nil
+      || !custodianTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedHandoffMethod != nil
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !custodySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -35,18 +53,16 @@ struct CustodyChainView: View {
             Text("\(filteredRecords.count) visible custody records")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredRecords.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add custody", systemImage: "plus", action: store.addCustodyRecordPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No custody records match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No custody records match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local custody records." : "Add a local custody record to track possession, transfer, return, and dispute ownership.", symbol: "person.badge.shield.checkmark.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add custody", action: hasActiveFilters ? clearFilters : store.addCustodyRecordPlaceholder)
           } else {
             ForEach(filteredRecords) { record in
               CustodyRecordRow(record: record, store: store, linkedOrder: linkedOrder(for: record), labelReferences: store.suggestedLabelReferenceRecords(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
@@ -93,22 +109,22 @@ struct CustodyChainView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search custody, custodian, owner, location, receipt, label, scan, order, or evidence", text: $custodySearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as CustodyStatus?)
         ForEach(CustodyStatus.allCases) { status in
           Text(status.rawValue).tag(status as CustodyStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Custodian/team", text: $custodianTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 155)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 145)
 
       Picker("Method", selection: $selectedHandoffMethod) {
         Text("All methods").tag(nil as CustodyHandoffMethod?)
@@ -116,7 +132,6 @@ struct CustodyChainView: View {
           Text(method.rawValue).tag(method as CustodyHandoffMethod?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -124,7 +139,6 @@ struct CustodyChainView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -132,7 +146,6 @@ struct CustodyChainView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -140,27 +153,81 @@ struct CustodyChainView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedStatus = nil
-        custodianTeam = ""
-        ownerTeam = ""
-        selectedHandoffMethod = nil
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedStatus = nil
+    custodianTeam = ""
+    ownerTeam = ""
+    selectedHandoffMethod = nil
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    custodySearchText = ""
   }
 
   private func linkedOrder(for record: CustodyRecord) -> TrackedOrder? {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func custodyRecord(_ record: CustodyRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: record)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: record)
+    let scanSessions = store.suggestedScanSessionRecords(for: record)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: record)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: record)
+    var searchParts: [String] = [
+      record.id.uuidString,
+      record.title,
+      record.linkedEntityType.rawValue,
+      record.linkedEntityID,
+      record.currentCustodianTeam,
+      record.previousCustodianTeam,
+      record.custodyStatus.rawValue,
+      record.custodyReason,
+      record.handoffMethod.rawValue,
+      record.assignedOwnerTeam,
+      record.transferDate,
+      record.expectedReturnCloseDate,
+      record.notes,
+      record.riskLevel.rawValue,
+      record.createdDate,
+      record.lastReviewedDate,
+      record.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: [
+      record.sourceLocationID?.uuidString ?? "",
+      record.destinationLocationID?.uuidString ?? "",
+      record.inventoryReceiptID?.uuidString ?? "",
+      record.storageLocationID?.uuidString ?? "",
+      record.receivingInspectionID?.uuidString ?? "",
+      record.orderID?.uuidString ?? "",
+      record.shipmentGroupID?.uuidString ?? "",
+      record.packageContentID?.uuidString ?? ""
+    ])
+    searchParts.append(contentsOf: record.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: labelReferences.flatMap { [$0.title, $0.labelValuePlaceholder, $0.associatedCarrier] })
+    searchParts.append(contentsOf: scanSessions.flatMap { [$0.title, $0.expectedLabelReferenceValue, $0.capturedValuePlaceholder, $0.assignedOperatorTeam] })
+    searchParts.append(contentsOf: shipmentManifests.flatMap { [$0.title, $0.manifestReferencePlaceholder, $0.carrierCourier, $0.destinationSummary] })
+    searchParts.append(contentsOf: dispatchChecklists.flatMap { [$0.title, $0.checklistType.rawValue, $0.checklistStatus.rawValue, $0.assignedOwnerTeam] })
+    return searchParts.joined(separator: " ").localizedLowercase.contains(query)
   }
 }
 

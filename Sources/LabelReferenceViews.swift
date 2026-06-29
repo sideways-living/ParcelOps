@@ -10,11 +10,30 @@ struct LabelReferencesView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var labelSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [LabelReferenceRecord] {
+  private var baseFilteredRecords: [LabelReferenceRecord] {
     store.filteredLabelReferenceRecords(labelType: selectedType, labelStatus: selectedStatus, labelSource: selectedSource, carrier: carrier, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  }
+
+  private var filteredRecords: [LabelReferenceRecord] {
+    let query = labelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredRecords }
+    return baseFilteredRecords.filter { labelReference($0, matches: query) }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedType != nil
+      || selectedStatus != nil
+      || selectedSource != nil
+      || !carrier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !labelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -28,18 +47,16 @@ struct LabelReferencesView: View {
             Text("\(filteredRecords.count) visible label references")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredRecords.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add label", systemImage: "plus", action: store.addLabelReferencePlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            Text("No label references match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No label references match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local label references." : "Add a local label placeholder to track barcodes, QR codes, shelf labels, return labels, custody labels, or evidence labels.", symbol: "barcode.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : "Add label", action: hasActiveFilters ? clearFilters : store.addLabelReferencePlaceholder)
           } else {
             ForEach(filteredRecords) { record in
               LabelReferenceRow(record: record, store: store, linkedOrder: linkedOrder(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
@@ -84,69 +101,114 @@ struct LabelReferencesView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search label, value, source, carrier, owner, scan, manifest, order, or evidence", text: $labelSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as LabelReferenceType?)
         ForEach(LabelReferenceType.allCases) { type in Text(type.rawValue).tag(type as LabelReferenceType?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as LabelReferenceStatus?)
         ForEach(LabelReferenceStatus.allCases) { status in Text(status.rawValue).tag(status as LabelReferenceStatus?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Source", selection: $selectedSource) {
         Text("All sources").tag(nil as LabelReferenceSource?)
         ForEach(LabelReferenceSource.allCases) { source in Text(source.rawValue).tag(source as LabelReferenceSource?) }
       }
-      .pickerStyle(.menu)
 
       TextField("Carrier", text: $carrier)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 120)
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
         ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(risk as ShipmentRiskLevel?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { type in Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
         ForEach(reviewStates, id: \.self) { state in Text(state.rawValue).tag(state as ReviewState?) }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedType = nil
-        selectedStatus = nil
-        selectedSource = nil
-        carrier = ""
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedType = nil
+    selectedStatus = nil
+    selectedSource = nil
+    carrier = ""
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    labelSearchText = ""
   }
 
   private func linkedOrder(for record: LabelReferenceRecord) -> TrackedOrder? {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func labelReference(_ record: LabelReferenceRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: record)
+    let scanSessions = store.suggestedScanSessionRecords(for: record)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: record)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: record)
+    var searchParts: [String] = [
+      record.id.uuidString,
+      record.title,
+      record.linkedEntityType.rawValue,
+      record.linkedEntityID,
+      record.labelType.rawValue,
+      record.labelValuePlaceholder,
+      record.labelSource.rawValue,
+      record.labelStatus.rawValue,
+      record.associatedCarrier,
+      record.assignedOwnerTeam,
+      record.createdDate,
+      record.lastReviewedDate,
+      record.notes,
+      record.riskLevel.rawValue,
+      record.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: [
+      record.storageLocationID?.uuidString ?? "",
+      record.inventoryReceiptID?.uuidString ?? "",
+      record.custodyRecordID?.uuidString ?? "",
+      record.orderID?.uuidString ?? "",
+      record.shipmentGroupID?.uuidString ?? "",
+      record.packageContentID?.uuidString ?? ""
+    ])
+    searchParts.append(contentsOf: record.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: scanSessions.flatMap { [$0.title, $0.expectedLabelReferenceValue, $0.capturedValuePlaceholder, $0.assignedOperatorTeam] })
+    searchParts.append(contentsOf: shipmentManifests.flatMap { [$0.title, $0.manifestReferencePlaceholder, $0.carrierCourier, $0.destinationSummary] })
+    searchParts.append(contentsOf: dispatchChecklists.flatMap { [$0.title, $0.checklistType.rawValue, $0.checklistStatus.rawValue, $0.assignedOwnerTeam] })
+    return searchParts.joined(separator: " ").localizedLowercase.contains(query)
   }
 }
 
