@@ -2107,6 +2107,96 @@ struct SourceConnectionRow: View {
   }
 }
 
+struct SettingsReleaseCandidateCard: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var inboxCreatedOrdersCount: Int {
+    store.orders.filter { order in
+      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+    }.count
+  }
+
+  private var manualRefreshCount: Int {
+    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+  }
+
+  private var unresolvedOperatorCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var tone: Color {
+    if manualRefreshCount == 0 { return .orange }
+    if inboxCreatedOrdersCount == 0 { return .orange }
+    if unresolvedOperatorCount > 0 { return .teal }
+    return .green
+  }
+
+  private var title: String {
+    if manualRefreshCount == 0 { return "Release test needs a SpaceMail refresh" }
+    if inboxCreatedOrdersCount == 0 { return "Release test needs one Inbox-created order" }
+    if unresolvedOperatorCount > 0 { return "Release test has open operator work" }
+    return "Release test path is clean"
+  }
+
+  private var detail: String {
+    if manualRefreshCount == 0 {
+      return "Run a manual SpaceMail refresh from Mailbox Monitor before judging the daily operator flow."
+    }
+    if inboxCreatedOrdersCount == 0 {
+      return "Create or link one order from Inbox so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
+    }
+    if unresolvedOperatorCount > 0 {
+      return "Open work is expected during testing. Use Inbox, Workbench, Dispatch, Tasks, and Audit to verify the path is understandable."
+    }
+    return "Core local workflow has refresh evidence, Inbox-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: tone == .green ? "checkmark.seal.fill" : "checklist")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(tone == .green ? "Ready" : "Review", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Refreshes", "\(manualRefreshCount)", manualRefreshCount == 0 ? .orange : .green),
+        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
+        ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+        ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
+        ("Open work", "\(unresolvedOperatorCount)", unresolvedOperatorCount == 0 ? .green : .teal)
+      ])
+
+      Text("Release boundary: manual read-only intake, local JSON records, SpaceMail credential in Keychain, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct SettingsView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -2317,6 +2407,8 @@ struct SettingsView: View {
             IntegrationStatusRow(title: "Background sync", status: "Not enabled", symbol: "bell.slash.fill", color: .red)
           }
         }
+
+          SettingsReleaseCandidateCard(store: store)
         }
 
         if showsMailboxIntake {
