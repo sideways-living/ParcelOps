@@ -26,6 +26,25 @@ struct TasksView: View {
     Array(store.draftMessagesNeedingReview.prefix(6))
   }
 
+  private var visibleDraftFollowUpItems: [DraftMessage] {
+    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return draftFollowUpItems }
+    return draftFollowUpItems.filter { draft in
+      let linkedOrder = linkedOrder(for: draft)
+      return draft.subject.localizedCaseInsensitiveContains(query)
+        || draft.body.localizedCaseInsensitiveContains(query)
+        || draft.recipient.localizedCaseInsensitiveContains(query)
+        || draft.channel.rawValue.localizedCaseInsensitiveContains(query)
+        || draft.status.rawValue.localizedCaseInsensitiveContains(query)
+        || draft.reviewState.rawValue.localizedCaseInsensitiveContains(query)
+        || draft.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
+        || draft.linkedEntityID.localizedCaseInsensitiveContains(query)
+        || (linkedOrder?.orderNumber.localizedCaseInsensitiveContains(query) ?? false)
+        || (linkedOrder?.store.localizedCaseInsensitiveContains(query) ?? false)
+        || (linkedOrder?.customer.localizedCaseInsensitiveContains(query) ?? false)
+    }
+  }
+
   private var visibleQueueItems: [TaskQueueItem] {
     let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !query.isEmpty else { return queueItems }
@@ -37,6 +56,13 @@ struct TasksView: View {
         || item.linkedEntityID.localizedCaseInsensitiveContains(query)
         || item.sourceLabel.localizedCaseInsensitiveContains(query)
     }
+  }
+
+  private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
+    guard draft.linkedEntityType == .order,
+      let orderID = UUID(uuidString: draft.linkedEntityID)
+    else { return nil }
+    return store.orders.first { $0.id == orderID }
   }
 
   var body: some View {
@@ -188,7 +214,7 @@ struct TasksView: View {
 
   @ViewBuilder
   private var draftFollowUpPanel: some View {
-    if !draftFollowUpItems.isEmpty {
+    if !visibleDraftFollowUpItems.isEmpty {
       SettingsPanel(title: "Draft message follow-up", symbol: "envelope.open.fill") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch appear here so local communication follow-up is visible in the daily flow.")
@@ -196,7 +222,7 @@ struct TasksView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
-          ForEach(draftFollowUpItems) { draft in
+          ForEach(visibleDraftFollowUpItems) { draft in
             TaskDraftFollowUpRow(draft: draft, store: store)
           }
 
@@ -221,6 +247,7 @@ struct TasksView: View {
         FilterControlGrid {
           TextField("Search tasks and handoffs", text: $queueSearchText)
             .textFieldStyle(.roundedBorder)
+          Badge("\(visibleQueueItems.count + visibleDraftFollowUpItems.count) shown", color: visibleQueueItems.isEmpty && visibleDraftFollowUpItems.isEmpty ? .orange : .blue)
           if !queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Clear search", systemImage: "xmark.circle") {
               queueSearchText = ""
