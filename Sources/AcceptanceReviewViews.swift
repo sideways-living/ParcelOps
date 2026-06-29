@@ -7,16 +7,33 @@ struct AcceptanceReviewView: View {
   @State private var selectedConfidenceRange: ImportConfidenceRange = .all
   @State private var selectedReviewState: ReviewState?
   @State private var grouping: AcceptanceGrouping = .confidence
+  @State private var acceptanceSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredCandidates: [AcceptanceCandidate] {
+  private var baseFilteredCandidates: [AcceptanceCandidate] {
     store.filteredAcceptanceCandidates(
       sourceType: selectedSourceType,
       decision: selectedDecision,
       confidenceRange: selectedConfidenceRange,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredCandidates: [AcceptanceCandidate] {
+    let query = acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredCandidates }
+    return baseFilteredCandidates.filter { candidate in
+      acceptanceCandidate(candidate, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedSourceType != nil
+      || selectedDecision != nil
+      || selectedConfidenceRange != .all
+      || selectedReviewState != nil
+      || !acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -38,7 +55,13 @@ struct AcceptanceReviewView: View {
 
         if filteredCandidates.isEmpty {
           SettingsPanel(title: "Acceptance candidates", symbol: "checkmark.rectangle.stack.fill") {
-            MVPEmptyState(title: "No acceptance candidates match this view", detail: "Clear filters or review Mailbox Monitor and Import Queue to create local intake candidates.", symbol: "checkmark.rectangle.stack.fill")
+            MVPEmptyState(
+              title: "No acceptance candidates match this view",
+              detail: hasActiveFilters ? "Clear search or filters to return to all acceptance candidates." : "Review Mailbox Monitor and Import Queue to create local intake candidates.",
+              symbol: "checkmark.rectangle.stack.fill",
+              actionTitle: hasActiveFilters ? "Clear filters" : nil,
+              action: hasActiveFilters ? clearFilters : nil
+            )
           }
         } else {
           ForEach(store.groupedAcceptanceCandidates(filteredCandidates, by: grouping), id: \.title) { group in
@@ -94,6 +117,8 @@ struct AcceptanceReviewView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search source, summary, order, tracking, destination, notes, or linked order", text: $acceptanceSearchText)
+        .textFieldStyle(.roundedBorder)
       Picker("Source", selection: $selectedSourceType) {
         Text("All sources").tag(nil as AcceptanceSourceType?)
         ForEach(AcceptanceSourceType.allCases) { sourceType in
@@ -126,7 +151,62 @@ struct AcceptanceReviewView: View {
           Text(group.rawValue).tag(group)
         }
       }
+      Badge("\(filteredCandidates.count) shown", color: filteredCandidates.isEmpty ? .orange : .blue)
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "xmark.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    selectedSourceType = nil
+    selectedDecision = nil
+    selectedConfidenceRange = .all
+    selectedReviewState = nil
+    acceptanceSearchText = ""
+  }
+
+  private func acceptanceCandidate(_ candidate: AcceptanceCandidate, matches query: String) -> Bool {
+    let linkedOrder = candidate.suggestedLinkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    let linkedShipmentGroup = candidate.suggestedShipmentGroupID.flatMap { groupID in
+      store.shipmentGroups.first { $0.id == groupID }
+    }
+    let history = store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID)
+    let searchableText = [
+      candidate.sourceType.rawValue,
+      candidate.sourceLabel,
+      candidate.capturedDate,
+      candidate.rawSummary,
+      candidate.detectedMerchant,
+      candidate.detectedOrderNumber,
+      candidate.detectedTrackingNumber,
+      candidate.detectedDestinationAddress,
+      candidate.decision.rawValue,
+      candidate.reviewState.rawValue,
+      candidate.notes,
+      candidate.sourceID.uuidString,
+      candidate.suggestedLinkedOrderID?.uuidString ?? "",
+      candidate.suggestedShipmentGroupID?.uuidString ?? "",
+      linkedOrder?.orderNumber ?? "",
+      linkedOrder?.store ?? "",
+      linkedOrder?.customer ?? "",
+      linkedOrder?.recipientEmail ?? "",
+      linkedOrder?.trackingNumber ?? "",
+      linkedOrder?.carrier ?? "",
+      linkedOrder?.destination ?? "",
+      linkedShipmentGroup?.groupName ?? "",
+      linkedShipmentGroup?.destinationSummary ?? "",
+      linkedShipmentGroup?.recipientCustomerSummary ?? "",
+      linkedShipmentGroup?.carrierSummary ?? "",
+      linkedShipmentGroup?.statusSummary ?? "",
+      history.map { "\($0.decision.rawValue) \($0.reviewState.rawValue) \($0.summary) \($0.notes)" }.joined(separator: " ")
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
