@@ -254,7 +254,7 @@ struct ContactDirectoryRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
             OrderDetailView(order: linkedOrder, store: store)

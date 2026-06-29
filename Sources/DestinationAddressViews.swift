@@ -236,7 +236,7 @@ struct DestinationAddressRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
         Button(address.isEnabled ? "Disable" : "Enable", systemImage: address.isEnabled ? "pause.circle" : "play.circle", action: onToggle)

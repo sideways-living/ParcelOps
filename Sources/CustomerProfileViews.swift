@@ -233,7 +233,7 @@ struct CustomerProfileRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
         Button(profile.isEnabled ? "Disable" : "Enable", systemImage: profile.isEnabled ? "pause.circle" : "play.circle", action: onToggle)

@@ -192,7 +192,7 @@ struct AutomationRuleRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button(rule.isEnabled ? "Disable" : "Enable", systemImage: rule.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
           .buttonStyle(.bordered)
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)

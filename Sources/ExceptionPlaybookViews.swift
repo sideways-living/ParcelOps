@@ -235,7 +235,7 @@ struct ExceptionPlaybookRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(playbook.isEnabled ? "Disable" : "Enable", systemImage: playbook.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)

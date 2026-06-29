@@ -223,7 +223,7 @@ struct SLAPolicyRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(policy.isEnabled ? "Disable" : "Enable", systemImage: policy.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
