@@ -6,6 +6,7 @@ struct CommunicationView: View {
   @State private var selectedMode: CommunicationMode = .drafts
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var selectedDraftStatus: DraftMessageStatus?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var filteredTemplates: [CommunicationTemplate] {
@@ -20,7 +21,8 @@ struct CommunicationView: View {
     store.draftMessages.filter { draft in
       let matchesEntity = selectedEntityType == nil || draft.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || draft.reviewState == selectedReviewState
-      return matchesEntity && matchesReview
+      let matchesStatus = selectedDraftStatus == nil || draft.status == selectedDraftStatus
+      return matchesEntity && matchesReview && matchesStatus
     }
   }
 
@@ -199,9 +201,20 @@ struct CommunicationView: View {
       }
       .pickerStyle(.menu)
 
+      if selectedMode == .drafts {
+        Picker("Draft status", selection: $selectedDraftStatus) {
+          Text("All draft statuses").tag(nil as DraftMessageStatus?)
+          ForEach(DraftMessageStatus.allCases) { status in
+            Text(status.rawValue).tag(status as DraftMessageStatus?)
+          }
+        }
+        .pickerStyle(.menu)
+      }
+
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
         selectedEntityType = nil
         selectedReviewState = nil
+        selectedDraftStatus = nil
       }
       .buttonStyle(.bordered)
     }
