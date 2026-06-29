@@ -49,6 +49,11 @@ struct OrdersView: View {
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
     }.count
   }
+  private var partialInboxOrderTaskCount: Int {
+    store.reviewTasks.filter { task in
+      task.status != .completed && task.isPartialInboxOrderFollowUp
+    }.count
+  }
 
   var body: some View {
     @Bindable var store = store
@@ -80,6 +85,7 @@ struct OrdersView: View {
               MetricStrip(items: [
                 ("Inbox orders", "\(inboxCreatedOrderCount)", .teal),
                 ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
+                ("Partial tasks", "\(partialInboxOrderTaskCount)", partialInboxOrderTaskCount == 0 ? .green : .orange),
                 ("Need review", "\(inboxCreatedOrdersNeedingReviewCount)", inboxCreatedOrdersNeedingReviewCount == 0 ? .green : .orange),
                 ("Need dispatch setup", "\(inboxCreatedOrdersMissingDispatchCount)", inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .purple)
               ])
@@ -229,6 +235,7 @@ struct OrdersView: View {
           ("Exceptions", "\(exceptionOrderCount)", exceptionOrderCount == 0 ? .green : .red),
           ("Blocked dispatch", "\(blockedDispatchOrderCount)", blockedDispatchOrderCount == 0 ? .green : .red),
           ("From Inbox", "\(inboxCreatedOrderItems.count)", inboxCreatedOrderItems.isEmpty ? .green : .teal),
+          ("Partial", "\(partialInboxOrderTaskCount)", partialInboxOrderTaskCount == 0 ? .green : .orange),
           ("Linked tasks", "\(urgentTaskOrderCount)", urgentTaskOrderCount == 0 ? .green : .orange),
           ("Needs review", "\(reviewOrderCount)", reviewOrderCount == 0 ? .green : .purple)
         ])
@@ -308,6 +315,16 @@ private struct OrderQueueItem: Identifiable {
   var urgentTaskCount: Int {
     tasks.filter { $0.status != .completed && ($0.priority == .urgent || $0.priority == .high || $0.isLocallyOverdue) }.count
   }
+  var partialInboxTaskCount: Int {
+    tasks.filter { $0.status != .completed && $0.isPartialInboxOrderFollowUp }.count
+  }
+  var missingDetectedFieldCount: Int {
+    [order.orderNumber, order.trackingNumber, order.destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
+  }
   var blockedDispatchCount: Int {
     let blockedManifests = manifests.filter { manifest in
       manifest.dispatchStatus == .blockedNeedsReview
@@ -324,11 +341,12 @@ private struct OrderQueueItem: Identifiable {
     dispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status)
   }
   var needsInboxHandoffAction: Bool {
-    isInboxCreated && (order.reviewState != .accepted || needsDispatchSetup || order.status == .exception || criticalTrackingCount > 0 || urgentTaskCount > 0)
+    isInboxCreated && (partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 || order.reviewState != .accepted || needsDispatchSetup || order.status == .exception || criticalTrackingCount > 0 || urgentTaskCount > 0)
   }
   var inboxHandoffPriority: Int {
     guard isInboxCreated else { return 0 }
     if order.status == .exception || criticalTrackingCount > 0 { return 120 }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return 115 }
     if order.reviewState != .accepted { return 110 }
     if needsDispatchSetup { return 100 }
     if urgentTaskCount > 0 { return 90 }
@@ -349,6 +367,12 @@ private struct OrderQueueItem: Identifiable {
     return "Inbox handoff"
   }
   var inboxHandoffDetail: String {
+    if partialInboxTaskCount > 0 {
+      return "A verification task is open for missing order, tracking, or destination details."
+    }
+    if missingDetectedFieldCount > 0 {
+      return "Detected order details are incomplete. Open the order and confirm missing values."
+    }
     if order.reviewState != .accepted {
       return "Confirm customer, destination, tracking, and dispatch setup before marking reviewed."
     }
@@ -377,7 +401,9 @@ private struct OrderQueueItem: Identifiable {
     }
   }
   var nextAction: String {
-    if order.reviewState != .accepted {
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 {
+      "Verify missing intake details"
+    } else if order.reviewState != .accepted {
       "Review order details"
     } else if order.status == .exception || criticalTrackingCount > 0 {
       "Create follow-up task"
@@ -397,6 +423,7 @@ private struct OrderQueueItem: Identifiable {
     if order.status == .exception { return 120 }
     if criticalTrackingCount > 0 { return 110 }
     if blockedDispatchCount > 0 { return 105 }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return 100 }
     if urgentTaskCount > 0 { return 95 }
     if order.reviewState != .accepted { return 90 }
     if warningTrackingCount > 0 { return 80 }
@@ -487,6 +514,12 @@ private struct OrderQueueRow: View {
             Badge(order.fulfillment.rawValue, color: .blue)
             if item.isInboxCreated {
               Badge(item.inboxHandoffLabel, color: .teal)
+            }
+            if item.partialInboxTaskCount > 0 {
+              Badge("\(item.partialInboxTaskCount) verify", color: .orange)
+            }
+            if item.missingDetectedFieldCount > 0 {
+              Badge("\(item.missingDetectedFieldCount) missing", color: .orange)
             }
             Label(order.eta, systemImage: "calendar")
               .font(.caption)
