@@ -44,11 +44,20 @@ struct OperationsWorkbenchView: View {
     )
   }
 
+  private var defaultQueueItems: [WorkbenchItem] {
+    store.openWorkbenchItems.filter { item in
+      item.source != .intakeParser
+    }
+  }
+
   private var queueItems: [WorkbenchItem] {
-    let baseItems = hasStructuredFilters ? filteredItems : store.openWorkbenchItems
+    let baseItems = hasStructuredFilters ? filteredItems : defaultQueueItems
     let query = workbenchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
-    guard !query.isEmpty else { return baseItems }
-    return baseItems.filter { item in
+    guard !query.isEmpty else {
+      return baseItems
+    }
+    let searchableItems = hasStructuredFilters ? filteredItems : store.openWorkbenchItems
+    return searchableItems.filter { item in
       [
         item.title,
         item.summary,
@@ -86,7 +95,6 @@ struct OperationsWorkbenchView: View {
 
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
-      + store.intakeParserDiagnostics.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
@@ -105,25 +113,26 @@ struct OperationsWorkbenchView: View {
   }
 
   private var urgentWorkbenchCount: Int {
-    store.overdueWorkbenchItems.count + store.highPriorityWorkbenchItems.count
+    defaultQueueItems.filter { $0.isDueOrOverdue }.count
+      + defaultQueueItems.filter { $0.rank >= 3 }.count
   }
 
   private var workbenchNextActionTone: Color {
-    if urgentWorkbenchCount > 0 || store.blockedWorkbenchItems.count > 0 { return .red }
+    if urgentWorkbenchCount > 0 || defaultQueueItems.filter(\.isBlocked).count > 0 { return .red }
     if !inboxCreatedOrders.isEmpty { return .teal }
     if !draftFollowUpItems.isEmpty { return .orange }
-    if store.workbenchItemsNeedingReview.count > 0 { return .purple }
-    if store.openWorkbenchItems.isEmpty { return .green }
+    if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return .purple }
+    if defaultQueueItems.isEmpty { return .green }
     return .blue
   }
 
   private var workbenchNextActionTitle: String {
     if urgentWorkbenchCount > 0 { return "Start with urgent work" }
-    if store.blockedWorkbenchItems.count > 0 { return "Clear blocked work" }
+    if defaultQueueItems.filter(\.isBlocked).count > 0 { return "Clear blocked work" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
     if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
-    if store.workbenchItemsNeedingReview.count > 0 { return "Review open exceptions" }
-    if store.openWorkbenchItems.isEmpty { return "Workbench is clear" }
+    if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return "Review open exceptions" }
+    if defaultQueueItems.isEmpty { return "Workbench is clear" }
     return "Work the open exception queue"
   }
 
@@ -131,8 +140,10 @@ struct OperationsWorkbenchView: View {
     if urgentWorkbenchCount > 0 {
       return "\(urgentWorkbenchCount) overdue or high-priority item is promoted. Open the first row, create a task or draft, then mark reviewed where supported."
     }
-    if store.blockedWorkbenchItems.count > 0 {
-      return "\(store.blockedWorkbenchItems.count) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
+    let blockedCount = defaultQueueItems.filter(\.isBlocked).count
+    let needsReviewCount = defaultQueueItems.filter { $0.reviewState == .needsReview }.count
+    if blockedCount > 0 {
+      return "\(blockedCount) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
     }
     if !inboxCreatedOrders.isEmpty {
       return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation before it disappears from daily follow-up."
@@ -140,13 +151,13 @@ struct OperationsWorkbenchView: View {
     if !draftFollowUpItems.isEmpty {
       return "\(draftFollowUpItems.count) draft needs review, sending, or reopening before the related work can be closed."
     }
-    if store.workbenchItemsNeedingReview.count > 0 {
-      return "\(store.workbenchItemsNeedingReview.count) item still needs local review after context is checked."
+    if needsReviewCount > 0 {
+      return "\(needsReviewCount) item still needs local review after context is checked."
     }
-    if store.openWorkbenchItems.isEmpty {
+    if defaultQueueItems.isEmpty {
       return "No open workbench exceptions are promoted. Use filters only when you need supporting record detail."
     }
-    return "\(store.openWorkbenchItems.count) open item is available for routine exception review."
+    return "\(defaultQueueItems.count) open item is available for routine exception review."
   }
 
   private var operatorSections: [WorkbenchItemGroup] {
@@ -244,11 +255,11 @@ struct OperationsWorkbenchView: View {
 
         MetricStrip(items: [
           ("Urgent", "\(urgentWorkbenchCount)", urgentWorkbenchCount == 0 ? .green : .red),
-          ("Blocked", "\(store.blockedWorkbenchItems.count)", store.blockedWorkbenchItems.isEmpty ? .green : .orange),
-          ("Review", "\(store.workbenchItemsNeedingReview.count)", store.workbenchItemsNeedingReview.isEmpty ? .green : .purple),
+          ("Blocked", "\(defaultQueueItems.filter(\.isBlocked).count)", defaultQueueItems.contains(where: \.isBlocked) ? .orange : .green),
+          ("Review", "\(defaultQueueItems.filter { $0.reviewState == .needsReview }.count)", defaultQueueItems.contains { $0.reviewState == .needsReview } ? .purple : .green),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
           ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
-          ("Open", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
+          ("Open", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .blue)
         ])
       }
     }
