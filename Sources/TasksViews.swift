@@ -357,8 +357,10 @@ private struct TaskQueueItem: Identifiable {
       status: task.status,
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
-      nextAction: nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue)
+      nextAction: task.isPartialInboxOrderFollowUp
+        ? "Open the order, confirm missing fields, then complete this handoff"
+        : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isPartialInboxOrderFollowUp ? 8 : 0)
     )
   }
 
@@ -583,6 +585,10 @@ private struct TaskQueueRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
           }
 
+          if case .task(let task) = item.source, task.isPartialInboxOrderFollowUp {
+            PartialInboxOrderTaskCallout(task: task, linkedOrder: linkedOrder)
+          }
+
           CompactMetadataGrid {
             Badge(item.priority.rawValue, color: item.priority.color)
             Badge(item.status.rawValue, color: item.status.color)
@@ -716,6 +722,38 @@ private struct TaskQueueRow: View {
   }
 }
 
+private struct PartialInboxOrderTaskCallout: View {
+  var task: ReviewTask
+  var linkedOrder: TrackedOrder?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Partial Inbox order handoff", systemImage: "exclamationmark.triangle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+
+      Text("Missing detail to confirm: \(task.partialInboxMissingSummary).")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      if let linkedOrder {
+        CompactMetadataGrid(minimumWidth: 130) {
+          Badge(linkedOrder.trackingNumber.isPlaceholderValidationValue ? "Tracking missing" : "Tracking present", color: linkedOrder.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+          Badge(linkedOrder.destination.isPlaceholderValidationValue ? "Destination missing" : "Destination present", color: linkedOrder.destination.isPlaceholderValidationValue ? .orange : .green)
+          Badge(linkedOrder.reviewState.rawValue, color: linkedOrder.reviewState.color)
+        }
+      }
+
+      Text("Open the order, edit the missing values, then complete and review this task.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .background(Color.orange.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private extension TrackedOrder {
   var isInboxCreatedForOperations: Bool {
     source == .forwardedMailbox
@@ -723,6 +761,30 @@ private extension TrackedOrder {
       || latestStatus.localizedCaseInsensitiveContains("import queue")
       || latestStatus.localizedCaseInsensitiveContains("acceptance")
       || latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+}
+
+private extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+
+  var partialInboxMissingSummary: String {
+    let marker = "Confirm missing "
+    guard let markerRange = summary.range(of: marker, options: .caseInsensitive) else {
+      return "order intake fields"
+    }
+
+    let remainder = summary[markerRange.upperBound...]
+    if let endRange = remainder.range(of: " from forwarded email", options: .caseInsensitive) {
+      let value = String(remainder[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+      return value.isEmpty ? "order intake fields" : value
+    }
+
+    let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? "order intake fields" : value
   }
 }
 
@@ -956,6 +1018,10 @@ struct ReviewTaskRow: View {
           }
           if !packageContents.isEmpty {
             PackageContentStrip(contents: packageContents)
+          }
+
+          if task.isPartialInboxOrderFollowUp {
+            PartialInboxOrderTaskCallout(task: task, linkedOrder: linkedOrder)
           }
         }
       }

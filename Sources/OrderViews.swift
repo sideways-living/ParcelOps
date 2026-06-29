@@ -1078,6 +1078,7 @@ struct OrderDetailView: View {
 
   private func inboxHandoffChecklist(_ order: TrackedOrder) -> some View {
     let tasks = store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+    let partialInboxTasks = tasks.filter(\.isPartialInboxOrderFollowUp)
     let manifests = store.suggestedShipmentManifestRecords(for: order)
     let checklists = store.suggestedDispatchReadinessChecklists(for: order)
     let missingTracking = order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
@@ -1122,6 +1123,18 @@ struct OrderDetailView: View {
             symbol: "shippingbox.and.arrow.backward.fill",
             color: needsDispatchSetup ? .orange : .teal
           )
+        }
+
+        if !partialInboxTasks.isEmpty {
+          VStack(alignment: .leading, spacing: 10) {
+            Text("Partial order follow-up")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+
+            ForEach(partialInboxTasks) { task in
+              PartialInboxOrderFollowUpRow(task: task, store: store, order: order)
+            }
+          }
         }
 
         CompactActionRow {
@@ -1248,6 +1261,100 @@ struct OrderDetailView: View {
       store.createDraftMessage(from: order)
     }
     .buttonStyle(.bordered)
+  }
+}
+
+private struct PartialInboxOrderFollowUpRow: View {
+  var task: ReviewTask
+  var store: ParcelOpsStore
+  var order: TrackedOrder
+
+  private var missingTracking: Bool {
+    order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
+  }
+
+  private var missingDestination: Bool {
+    order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "exclamationmark.triangle.fill")
+          .foregroundStyle(.orange)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(task.title)
+            .font(.callout.weight(.semibold))
+          Text("Confirm \(task.partialInboxMissingSummary) before dispatch setup.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+
+        Spacer()
+        Badge(task.status.rawValue, color: task.status.color)
+      }
+
+      CompactMetadataGrid(minimumWidth: 135) {
+        Badge(missingTracking ? "Tracking needs check" : "Tracking present", color: missingTracking ? .orange : .green)
+        Badge(missingDestination ? "Destination needs check" : "Destination present", color: missingDestination ? .orange : .green)
+        Badge(task.priority.rawValue, color: task.priority.color)
+        Badge(task.reviewState.rawValue, color: task.reviewState.color)
+      }
+
+      CompactActionRow {
+        if task.status == .completed {
+          Button("Reopen task", systemImage: "arrow.uturn.backward.circle.fill") {
+            store.reopenReviewTask(task)
+          }
+          .buttonStyle(.bordered)
+        } else {
+          Button("Complete task", systemImage: "checkmark.circle.fill") {
+            store.completeReviewTask(task)
+          }
+          .buttonStyle(.borderedProminent)
+        }
+
+        Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
+          store.markReviewTaskReviewed(task)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessage(from: task)
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(Color.orange.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+
+  var partialInboxMissingSummary: String {
+    let marker = "Confirm missing "
+    guard let markerRange = summary.range(of: marker, options: .caseInsensitive) else {
+      return "order intake fields"
+    }
+
+    let remainder = summary[markerRange.upperBound...]
+    if let endRange = remainder.range(of: " from forwarded email", options: .caseInsensitive) {
+      let value = String(remainder[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+      return value.isEmpty ? "order intake fields" : value
+    }
+
+    let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? "order intake fields" : value
   }
 }
 
