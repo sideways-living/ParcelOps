@@ -294,7 +294,7 @@ struct CostRecordRow: View {
       ReturnClaimStrip(claims: returnClaims)
       ProcurementRequestStrip(requests: procurementRequests)
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)

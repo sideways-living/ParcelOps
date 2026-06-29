@@ -283,7 +283,7 @@ struct StorageLocationRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button(location.isEnabled ? "Disable" : "Enable", systemImage: location.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)

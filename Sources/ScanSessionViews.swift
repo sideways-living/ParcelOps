@@ -263,7 +263,7 @@ struct ScanSessionRow: View {
         }
       }
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Matched", systemImage: "checkmark.circle.fill", action: onMatched)

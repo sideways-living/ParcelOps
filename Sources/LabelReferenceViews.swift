@@ -269,7 +269,7 @@ struct LabelReferenceRow: View {
 
       ScanSessionStrip(records: scanSessions)
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Printed", systemImage: "printer.fill", action: onPrinted)

@@ -314,7 +314,7 @@ struct ReceivingInspectionRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Inspected", systemImage: "checkmark.seal.fill", action: onInspected)
