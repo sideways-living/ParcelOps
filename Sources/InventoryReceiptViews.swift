@@ -8,10 +8,11 @@ struct InventoryReceiptsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var receiptSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredReceipts: [InventoryReceiptRecord] {
+  private var baseFilteredReceipts: [InventoryReceiptRecord] {
     store.filteredInventoryReceipts(
       receiptType: selectedReceiptType,
       stockHandoffStatus: selectedStatus,
@@ -20,6 +21,24 @@ struct InventoryReceiptsView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredReceipts: [InventoryReceiptRecord] {
+    let query = receiptSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredReceipts }
+    return baseFilteredReceipts.filter { receipt in
+      inventoryReceipt(receipt, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedReceiptType != nil
+      || selectedStatus != nil
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !receiptSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -33,18 +52,16 @@ struct InventoryReceiptsView: View {
             Text("\(filteredReceipts.count) visible inventory receipts")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredReceipts.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add receipt", systemImage: "plus", action: store.addInventoryReceiptPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredReceipts.isEmpty {
-            Text("No inventory receipts match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No inventory receipts match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local inventory receipts." : "Add an inventory receipt to track received stock, accepted/rejected quantities, storage, and handoff status.", symbol: "archivebox.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add receipt", action: hasActiveFilters ? clearFilters : store.addInventoryReceiptPlaceholder)
           } else {
             ForEach(filteredReceipts) { receipt in
               InventoryReceiptRow(receipt: receipt, store: store, linkedOrder: linkedOrder(for: receipt), storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt), shipmentManifests: store.suggestedShipmentManifestRecords(for: receipt), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: receipt)) { updatedReceipt in
@@ -91,14 +108,16 @@ struct InventoryReceiptsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search receipt, item, owner, storage, order, custody, label, scan, or dispatch", text: $receiptSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedReceiptType) {
         Text("All types").tag(nil as InventoryReceiptType?)
         ForEach(InventoryReceiptType.allCases) { type in
           Text(type.rawValue).tag(type as InventoryReceiptType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as InventoryStockHandoffStatus?)
@@ -106,11 +125,9 @@ struct InventoryReceiptsView: View {
           Text(status.rawValue).tag(status as InventoryStockHandoffStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -118,7 +135,6 @@ struct InventoryReceiptsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -126,7 +142,6 @@ struct InventoryReceiptsView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -134,26 +149,86 @@ struct InventoryReceiptsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedReceiptType = nil
-        selectedStatus = nil
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedReceiptType = nil
+    selectedStatus = nil
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    receiptSearchText = ""
   }
 
   private func linkedOrder(for receipt: InventoryReceiptRecord) -> TrackedOrder? {
     let orderID = receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func inventoryReceipt(_ receipt: InventoryReceiptRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: receipt)
+    let storageLocations = store.suggestedStorageLocations(for: receipt)
+    let custodyRecords = store.suggestedCustodyRecords(for: receipt)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: receipt)
+    let scanSessions = store.suggestedScanSessionRecords(for: receipt)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: receipt)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: receipt)
+    var searchParts: [String] = [
+      receipt.id.uuidString,
+      receipt.title,
+      receipt.linkedEntityType.rawValue,
+      receipt.linkedEntityID,
+      receipt.receivingInspectionID?.uuidString ?? "",
+      receipt.orderID?.uuidString ?? "",
+      receipt.shipmentGroupID?.uuidString ?? "",
+      receipt.packageContentID?.uuidString ?? "",
+      receipt.procurementRequestID?.uuidString ?? "",
+      receipt.returnClaimID?.uuidString ?? "",
+      receipt.destinationAddressID?.uuidString ?? "",
+      receipt.customerProfileID?.uuidString ?? "",
+      receipt.receiptType.rawValue,
+      receipt.stockHandoffStatus.rawValue,
+      receipt.itemSummary,
+      "\(receipt.quantityReceived)",
+      "\(receipt.quantityAccepted)",
+      "\(receipt.quantityRejected)",
+      receipt.storageLocationSummary,
+      receipt.assignedOwnerTeam,
+      receipt.receivedDate,
+      receipt.handoffDate,
+      receipt.discrepancySummary,
+      receipt.riskLevel.rawValue,
+      receipt.createdDate,
+      receipt.lastReviewedDate,
+      receipt.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: receipt.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: storageLocations.map(\.title))
+    searchParts.append(contentsOf: storageLocations.map(\.locationCode))
+    searchParts.append(contentsOf: custodyRecords.map(\.title))
+    searchParts.append(contentsOf: labelReferences.map(\.title))
+    searchParts.append(contentsOf: scanSessions.map(\.title))
+    searchParts.append(contentsOf: shipmentManifests.map(\.title))
+    searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 

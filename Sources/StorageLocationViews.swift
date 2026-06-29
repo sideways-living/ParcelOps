@@ -9,10 +9,11 @@ struct StorageLocationsView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var locationSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredLocations: [StorageLocationRecord] {
+  private var baseFilteredLocations: [StorageLocationRecord] {
     store.filteredStorageLocations(
       locationType: selectedLocationType,
       areaZone: areaZone,
@@ -22,6 +23,25 @@ struct StorageLocationsView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredLocations: [StorageLocationRecord] {
+    let query = locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredLocations }
+    return baseFilteredLocations.filter { location in
+      storageLocation(location, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedLocationType != nil
+      || !areaZone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedEnabledState != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -35,18 +55,16 @@ struct StorageLocationsView: View {
             Text("\(filteredLocations.count) visible storage locations")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredLocations.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add location", systemImage: "plus", action: store.addStorageLocationPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredLocations.isEmpty {
-            Text("No storage locations match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No storage locations match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local storage locations." : "Add a local storage location to track bins, cages, shelves, desks, lockers, capacity, access notes, and handoff areas.", symbol: "cabinet.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add location", action: hasActiveFilters ? clearFilters : store.addStorageLocationPlaceholder)
           } else {
             ForEach(filteredLocations) { location in
               StorageLocationRow(location: location, store: store, linkedOrder: linkedOrder(for: location), custodyRecords: store.suggestedCustodyRecords(for: location), labelReferences: store.suggestedLabelReferenceRecords(for: location), scanSessions: store.suggestedScanSessionRecords(for: location), shipmentManifests: store.suggestedShipmentManifestRecords(for: location), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: location)) { updatedLocation in
@@ -87,22 +105,22 @@ struct StorageLocationsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search location, code, zone, owner, access, capacity, receipt, custody, label, or order", text: $locationSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedLocationType) {
         Text("All types").tag(nil as StorageLocationType?)
         ForEach(StorageLocationType.allCases) { type in
           Text(type.rawValue).tag(type as StorageLocationType?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Area/zone", text: $areaZone)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -110,14 +128,12 @@ struct StorageLocationsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -125,7 +141,6 @@ struct StorageLocationsView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -133,27 +148,77 @@ struct StorageLocationsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedLocationType = nil
-        areaZone = ""
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedEnabledState = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedLocationType = nil
+    areaZone = ""
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedEnabledState = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    locationSearchText = ""
   }
 
   private func linkedOrder(for location: StorageLocationRecord) -> TrackedOrder? {
     let orderID = location.orderIDs.first ?? (location.linkedEntityType == .order ? UUID(uuidString: location.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func storageLocation(_ location: StorageLocationRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: location)
+    let custodyRecords = store.suggestedCustodyRecords(for: location)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: location)
+    let scanSessions = store.suggestedScanSessionRecords(for: location)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: location)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: location)
+    var searchParts: [String] = [
+      location.id.uuidString,
+      location.title,
+      location.locationType.rawValue,
+      location.locationCode,
+      location.areaZone,
+      location.capacitySummary,
+      location.currentUsageSummary,
+      location.linkedEntityType.rawValue,
+      location.linkedEntityID,
+      location.assignedOwnerTeam,
+      location.accessNotes,
+      location.riskLevel.rawValue,
+      location.isEnabled ? "Enabled" : "Disabled",
+      location.createdDate,
+      location.lastReviewedDate,
+      location.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: location.inventoryReceiptIDs.map(\.uuidString))
+    searchParts.append(contentsOf: location.receivingInspectionIDs.map(\.uuidString))
+    searchParts.append(contentsOf: location.packageContentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: location.orderIDs.map(\.uuidString))
+    searchParts.append(contentsOf: location.shipmentGroupIDs.map(\.uuidString))
+    searchParts.append(contentsOf: custodyRecords.map(\.title))
+    searchParts.append(contentsOf: labelReferences.map(\.title))
+    searchParts.append(contentsOf: scanSessions.map(\.title))
+    searchParts.append(contentsOf: shipmentManifests.map(\.title))
+    searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
