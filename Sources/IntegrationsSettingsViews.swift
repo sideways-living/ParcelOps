@@ -2110,6 +2110,7 @@ struct SourceConnectionRow: View {
 struct SettingsView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var settingsSearchText = ""
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
@@ -2165,6 +2166,61 @@ struct SettingsView: View {
     }
   }
 
+  private var normalizedSettingsSearch: String {
+    settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func matchesSettingsSection(_ terms: String...) -> Bool {
+    let query = normalizedSettingsSearch
+    guard !query.isEmpty else { return true }
+    return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private var showsActiveSetup: Bool {
+    matchesSettingsSection("active", "setup", "SpaceMail", "mailbox", "credential", "Keychain", "manual", "refresh")
+  }
+
+  private var showsLocalOnlyStatus: Bool {
+    matchesSettingsSection("MVP", "local-only", "status", "JSON", "Shopify", "carrier", "credential", "background sync", "notifications")
+  }
+
+  private var showsMailboxIntake: Bool {
+    matchesSettingsSection("mailbox", "intake", "forwarded", "email", "order creation", "confidence", "review")
+  }
+
+  private var showsTrackedMailboxes: Bool {
+    matchesSettingsSection("tracked", "mailboxes", "email", "placeholder")
+  }
+
+  private var showsShopifyAccounts: Bool {
+    matchesSettingsSection("Shopify", "accounts", "store", "placeholder")
+  }
+
+  private var showsWatchedFolders: Bool {
+    matchesSettingsSection("watched", "folders", "folder", "scan", "cadence", "manual")
+  }
+
+  private var showsReviewControls: Bool {
+    matchesSettingsSection("review", "risky", "matches", "delivery", "exception", "alerts", "threshold")
+  }
+
+  private var showsFuturePlanning: Bool {
+    matchesSettingsSection("future", "source", "planning", "Shopify", "password", "vault", "carrier", "tracking", "settings")
+  }
+
+  private var visibleSettingsSectionCount: Int {
+    [
+      showsActiveSetup,
+      showsLocalOnlyStatus,
+      showsMailboxIntake,
+      showsTrackedMailboxes,
+      showsShopifyAccounts,
+      showsWatchedFolders,
+      showsReviewControls,
+      showsFuturePlanning
+    ].filter(\.self).count
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -2173,7 +2229,33 @@ struct SettingsView: View {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
-        SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
+        SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
+          VStack(alignment: .leading, spacing: 10) {
+            FilterControlGrid {
+              TextField("Search settings, mailbox, SpaceMail, Shopify, folders, review, carrier", text: $settingsSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                settingsSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedSettingsSearch.isEmpty)
+
+              Badge("\(visibleSettingsSectionCount) sections", color: visibleSettingsSectionCount == 0 ? .orange : .blue)
+            }
+
+            Text("This only narrows visible local settings sections. It does not enable live integrations or background behavior.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if visibleSettingsSectionCount == 0 {
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, SpaceMail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+        }
+
+        if showsActiveSetup {
+          SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
           VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
               Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
@@ -2205,20 +2287,22 @@ struct SettingsView: View {
               .fixedSize(horizontal: false, vertical: true)
           }
         }
+        }
 
-        MVPWorkflowGuide(
-          title: "Before connecting live systems",
-          detail: "Most integrations remain local planning surfaces. SpaceMail is the exception: it can run a manual, read-only IMAP refresh when a Keychain password is configured.",
-          steps: [
-            "Use SpaceMail only through the explicit manual refresh action.",
-            "Enter a SpaceMail password only in the secure Keychain prompt, not in setup notes or JSON fields.",
-            "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
-            "Use Audit to confirm that local actions are being recorded."
-          ],
-          symbol: "gearshape.2.fill"
-        )
+        if showsLocalOnlyStatus {
+          MVPWorkflowGuide(
+            title: "Before connecting live systems",
+            detail: "Most integrations remain local planning surfaces. SpaceMail is the exception: it can run a manual, read-only IMAP refresh when a Keychain password is configured.",
+            steps: [
+              "Use SpaceMail only through the explicit manual refresh action.",
+              "Enter a SpaceMail password only in the secure Keychain prompt, not in setup notes or JSON fields.",
+              "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
+              "Use Audit to confirm that local actions are being recorded."
+            ],
+            symbol: "gearshape.2.fill"
+          )
 
-        SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
+          SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
           Text("ParcelOps stores operational records in local JSON. SpaceMail password/app-password values use Keychain and manual read-only refresh; the rest of the integration surface remains placeholder or planning-only.")
             .foregroundStyle(.secondary)
 
@@ -2233,8 +2317,10 @@ struct SettingsView: View {
             IntegrationStatusRow(title: "Background sync", status: "Not enabled", symbol: "bell.slash.fill", color: .red)
           }
         }
+        }
 
-        SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
+        if showsMailboxIntake {
+          SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
           Toggle("Plan forwarded mailbox monitoring", isOn: $store.settings.mailboxMonitoringEnabled)
           Toggle("Plan order creation from recognized emails", isOn: $store.settings.autoCreateOrdersFromEmail)
           Picker("Match confidence", selection: $store.settings.matchConfidencePolicy) {
@@ -2244,24 +2330,30 @@ struct SettingsView: View {
           }
           .pickerStyle(.menu)
         }
+        }
 
-        SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+        if showsTrackedMailboxes {
+          SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
           ForEach(store.mailboxes) { mailbox in
             MailboxConnectionRow(mailbox: mailbox)
           }
           Button("Add mailbox placeholder", systemImage: "plus", action: store.addTrackedMailboxPlaceholder)
             .buttonStyle(.bordered)
         }
+        }
 
-        SettingsPanel(title: "Shopify accounts", symbol: "cart.badge.plus") {
+        if showsShopifyAccounts {
+          SettingsPanel(title: "Shopify accounts", symbol: "cart.badge.plus") {
           ForEach(store.shopifyConnections) { connection in
             ShopifyConnectionRow(connection: connection)
           }
           Button("Add Shopify placeholder", systemImage: "plus", action: store.connectShopifyPlaceholder)
             .buttonStyle(.bordered)
         }
+        }
 
-        SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+        if showsWatchedFolders {
+          SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
           Toggle("Plan saved-folder scanning", isOn: $store.settings.folderWatchingEnabled)
           Picker("Scan cadence", selection: $store.settings.folderScanCadence) {
             Text("Every 5 minutes").tag("Every 5 minutes")
@@ -2276,14 +2368,18 @@ struct SettingsView: View {
           Button("Add folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
             .buttonStyle(.bordered)
         }
+        }
 
-        SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
+        if showsReviewControls {
+          SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
           Toggle("Require review for risky email/order matches", isOn: $store.settings.requireReviewForRiskyMatches)
           Toggle("Plan delivery exception alerts", isOn: $store.settings.notifyOnDeliveryExceptions)
           Stepper("Exception alert threshold: \(store.settings.exceptionThreshold)", value: $store.settings.exceptionThreshold, in: 1...10)
         }
+        }
 
-        SettingsPanel(title: "Future source planning", symbol: "link.badge.plus") {
+        if showsFuturePlanning {
+          SettingsPanel(title: "Future source planning", symbol: "link.badge.plus") {
           Toggle("Plan Shopify supplier sync", isOn: $store.settings.shopifySyncEnabled)
           Toggle("Plan password-vault login sync", isOn: $store.settings.storeLoginSyncEnabled)
           Toggle("Plan carrier tracking handoff", isOn: $store.settings.carrierTrackingEnabled)
@@ -2295,6 +2391,7 @@ struct SettingsView: View {
           .pickerStyle(.menu)
           Button("Save settings", systemImage: "checkmark", action: store.saveSettings)
             .buttonStyle(.borderedProminent)
+        }
         }
       }
       .padding(isCompact ? 14 : 24)
