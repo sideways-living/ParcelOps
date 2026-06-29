@@ -2,13 +2,22 @@ import SwiftUI
 
 struct AuditView: View {
   var store: ParcelOpsStore
+  @State private var auditSearchText = ""
   @State private var selectedAction: AuditAction?
   @State private var selectedEntityType: AuditEntityType?
   @State private var showTechnicalDiagnostics = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+  private var normalizedAuditSearch: String {
+    auditSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private var searchMatchedEvents: [AuditEvent] {
+    store.auditEvents.filter(eventMatchesSearch)
+  }
+
   private var filteredEvents: [AuditEvent] {
-    store.auditEvents.filter { event in
+    searchMatchedEvents.filter { event in
       let matchesAction = selectedAction == nil || event.action == selectedAction
       let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
       return matchesAction && matchesEntity
@@ -16,7 +25,7 @@ struct AuditView: View {
   }
 
   private var recentEvents: [AuditEvent] {
-    Array(store.auditEvents.prefix(18))
+    Array(searchMatchedEvents.prefix(18))
   }
 
   private var workflowEvents: [AuditEvent] {
@@ -28,11 +37,11 @@ struct AuditView: View {
   }
 
   private var inboxOrderHandoffEvents: [AuditEvent] {
-    store.auditEvents.filter(\.isInboxOrderHandoff)
+    searchMatchedEvents.filter(\.isInboxOrderHandoff)
   }
 
   private var spaceMailEvidenceEvents: [AuditEvent] {
-    store.auditEvents.filter { event in
+    searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
         || (event.entityType == .intakeEmail && event.summary.localizedCaseInsensitiveContains("mailbox"))
         || event.summary.localizedCaseInsensitiveContains("spacemail")
@@ -81,6 +90,24 @@ struct AuditView: View {
     if !workflowEvents.isEmpty { return "checklist" }
     if !recordChangeEvents.isEmpty { return "pencil.and.list.clipboard" }
     return "list.clipboard.fill"
+  }
+
+  private func eventMatchesSearch(_ event: AuditEvent) -> Bool {
+    let query = normalizedAuditSearch
+    guard !query.isEmpty else { return true }
+    let searchableText = [
+      event.timestamp,
+      event.actor,
+      event.action.rawValue,
+      event.entityType.rawValue,
+      event.entityID,
+      event.entityLabel,
+      event.summary,
+      event.beforeDetail ?? "",
+      event.afterDetail ?? ""
+    ].joined(separator: " ").lowercased()
+
+    return searchableText.contains(query)
   }
 
   var body: some View {
@@ -177,8 +204,15 @@ struct AuditView: View {
           .font(.subheadline)
           .foregroundStyle(.secondary)
 
+        if !normalizedAuditSearch.isEmpty {
+          Label("\(searchMatchedEvents.count) audit events match \"\(auditSearchText)\". Clear filters to return to the full activity feed.", systemImage: "magnifyingglass")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
         if recentEvents.isEmpty {
-          MVPEmptyState(title: "No audit activity yet", detail: "Create, edit, review, or complete a local record and the action will appear here.", symbol: "list.clipboard.fill")
+          MVPEmptyState(title: normalizedAuditSearch.isEmpty ? "No audit activity yet" : "No audit events match", detail: normalizedAuditSearch.isEmpty ? "Create, edit, review, or complete a local record and the action will appear here." : "Clear the audit search or try a broader term such as SpaceMail, order, Inbox, tracking, parser, or the record label.", symbol: "list.clipboard.fill")
         } else {
           Toggle("Show technical diagnostics", isOn: $showTechnicalDiagnostics)
             .font(.caption.weight(.semibold))
@@ -210,6 +244,9 @@ struct AuditView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search audit, SpaceMail, order, tracking, parser reason, or record ID", text: $auditSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Action", selection: $selectedAction) {
         Text("All actions").tag(nil as AuditAction?)
         ForEach(AuditAction.allCases) { action in
@@ -227,10 +264,12 @@ struct AuditView: View {
       .pickerStyle(.menu)
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+        auditSearchText = ""
         selectedAction = nil
         selectedEntityType = nil
       }
       .buttonStyle(.bordered)
+      .disabled(normalizedAuditSearch.isEmpty && selectedAction == nil && selectedEntityType == nil)
     }
   }
 }
