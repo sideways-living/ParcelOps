@@ -6,10 +6,11 @@ struct TimelineView: View {
   @State private var riskFilter: TimelineRiskLevel?
   @State private var reviewFilter: ReviewState?
   @State private var sourceFilter: TimelineActivitySource?
+  @State private var timelineSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredActivities: [TimelineActivity] {
+  private var baseFilteredActivities: [TimelineActivity] {
     store.filteredTimelineActivities(
       entityType: entityFilter,
       risk: riskFilter,
@@ -18,19 +19,51 @@ struct TimelineView: View {
     )
   }
 
+  private var filteredActivities: [TimelineActivity] {
+    let query = timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredActivities }
+    return baseFilteredActivities.filter { activity in
+      timelineActivity(activity, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    entityFilter != nil
+      || riskFilter != nil
+      || reviewFilter != nil
+      || sourceFilter != nil
+      || !timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
 
-        ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
-          SettingsPanel(title: group.title, symbol: group.symbol) {
-            ForEach(group.activities) { activity in
-              TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
-                store.createReviewTask(from: activity)
-              } onCreateDraft: {
-                store.createDraftMessage(from: activity)
+        SettingsPanel(title: "Timeline results", symbol: "calendar.badge.clock") {
+          HStack {
+            Text("\(filteredActivities.count) visible timeline activities")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredActivities.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+        }
+
+        if filteredActivities.isEmpty {
+          MVPEmptyState(title: "No timeline activity matches this view", detail: hasActiveFilters ? "Clear search or filters to return to the full local timeline." : "Timeline activity appears here as local intake, order, tracking, task, and audit records change.", symbol: "calendar.badge.clock", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
+        } else {
+          ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
+            SettingsPanel(title: group.title, symbol: group.symbol) {
+              ForEach(group.activities) { activity in
+                TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
+                  store.createReviewTask(from: activity)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: activity)
+                }
               }
             }
           }
@@ -56,6 +89,9 @@ struct TimelineView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search timeline, order, tracking, intake, acceptance, source, or action", text: $timelineSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Entity", selection: $entityFilter) {
         Text("All entities").tag(TimelineEntityType?.none)
         ForEach(TimelineEntityType.allCases) { type in
@@ -80,12 +116,62 @@ struct TimelineView: View {
           Label(source.rawValue, systemImage: source.symbol).tag(Optional(source))
         }
       }
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    entityFilter = nil
+    riskFilter = nil
+    reviewFilter = nil
+    sourceFilter = nil
+    timelineSearchText = ""
   }
 
   private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {
     guard activity.entityType == .order, let id = UUID(uuidString: activity.entityID) else { return nil }
     return store.orders.first { $0.id == id }
+  }
+
+  private func timelineActivity(_ activity: TimelineActivity, matches query: String) -> Bool {
+    let order = linkedOrder(for: activity)
+    let shipmentGroups = store.suggestedShipmentGroups(for: activity)
+    let importQueueItems = store.importQueueItems(for: activity)
+    let acceptanceRecords = store.acceptanceRecords(for: activity)
+    var searchParts: [String] = [
+      activity.id,
+      activity.timestampText,
+      activity.entityType.rawValue,
+      activity.entityID,
+      activity.title,
+      activity.subtitle,
+      activity.detail,
+      activity.risk.rawValue,
+      activity.reviewState?.rawValue ?? "",
+      activity.source.rawValue,
+      activity.suggestedActionText,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: shipmentGroups.map(\.groupName))
+    searchParts.append(contentsOf: shipmentGroups.map(\.statusSummary))
+    searchParts.append(contentsOf: importQueueItems.map(\.rawSummary))
+    searchParts.append(contentsOf: importQueueItems.map(\.detectedOrderNumber))
+    searchParts.append(contentsOf: acceptanceRecords.map(\.summary))
+    searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 

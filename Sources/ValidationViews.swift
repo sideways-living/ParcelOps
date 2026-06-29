@@ -6,10 +6,11 @@ struct ValidationView: View {
   @State private var severityFilter: ValidationSeverity?
   @State private var statusFilter: ValidationStatus?
   @State private var reviewFilter: ReviewState?
+  @State private var validationSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredIssues: [ValidationIssue] {
+  private var baseFilteredIssues: [ValidationIssue] {
     store.filteredValidationIssues(
       entityType: entityFilter,
       severity: severityFilter,
@@ -18,19 +19,51 @@ struct ValidationView: View {
     )
   }
 
+  private var filteredIssues: [ValidationIssue] {
+    let query = validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredIssues }
+    return baseFilteredIssues.filter { issue in
+      validationIssue(issue, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    entityFilter != nil
+      || severityFilter != nil
+      || statusFilter != nil
+      || reviewFilter != nil
+      || !validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
 
-        ForEach(store.groupedValidationIssues(filteredIssues)) { group in
-          SettingsPanel(title: group.severity.rawValue, symbol: group.severity.symbol) {
-            ForEach(group.issues) { issue in
-              ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
-                store.createReviewTask(from: issue)
-              } onCreateDraft: {
-                store.createDraftMessage(from: issue)
+        SettingsPanel(title: "Validation results", symbol: "checkmark.shield.fill") {
+          HStack {
+            Text("\(filteredIssues.count) visible validation issues")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredIssues.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+        }
+
+        if filteredIssues.isEmpty {
+          MVPEmptyState(title: "No validation issues match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local validation issues." : "Validation issues appear here when local intake, order, tracking, and profile checks need attention.", symbol: "checkmark.shield.fill", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
+        } else {
+          ForEach(store.groupedValidationIssues(filteredIssues)) { group in
+            SettingsPanel(title: group.severity.rawValue, symbol: group.severity.symbol) {
+              ForEach(group.issues) { issue in
+                ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
+                  store.createReviewTask(from: issue)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: issue)
+                }
               }
             }
           }
@@ -59,6 +92,9 @@ struct ValidationView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search validation, order, tracking, intake, destination, playbook, or action", text: $validationSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Entity", selection: $entityFilter) {
         Text("All entities").tag(ValidationEntityType?.none)
         ForEach(ValidationEntityType.allCases) { type in
@@ -83,13 +119,68 @@ struct ValidationView: View {
           Text(state.rawValue).tag(Optional(state))
         }
       }
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    entityFilter = nil
+    severityFilter = nil
+    statusFilter = nil
+    reviewFilter = nil
+    validationSearchText = ""
   }
 
   private func linkedOrder(for issue: ValidationIssue) -> TrackedOrder? {
     guard issue.entityType == .order || issue.linkedEntityType == .order,
           let id = UUID(uuidString: issue.entityID) else { return nil }
     return store.orders.first { $0.id == id }
+  }
+
+  private func validationIssue(_ issue: ValidationIssue, matches query: String) -> Bool {
+    let order = linkedOrder(for: issue)
+    let shipmentGroups = store.suggestedShipmentGroups(for: issue)
+    let importQueueItems = store.importQueueItems(for: issue)
+    let acceptanceRecords = store.acceptanceRecords(for: issue)
+    let playbooks = store.suggestedPlaybooks(for: issue)
+    let handoffNotes = store.handoffNotes(for: issue)
+    var searchParts: [String] = [
+      issue.id,
+      issue.entityType.rawValue,
+      issue.entityID,
+      issue.title,
+      issue.subtitle,
+      issue.detail,
+      "\(issue.confidenceScore)",
+      issue.severity.rawValue,
+      issue.status.rawValue,
+      issue.reviewState?.rawValue ?? "",
+      issue.linkedEntityType?.rawValue ?? "",
+      issue.suggestedActionText,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: shipmentGroups.map(\.groupName))
+    searchParts.append(contentsOf: shipmentGroups.map(\.destinationSummary))
+    searchParts.append(contentsOf: importQueueItems.map(\.rawSummary))
+    searchParts.append(contentsOf: importQueueItems.map(\.detectedOrderNumber))
+    searchParts.append(contentsOf: acceptanceRecords.map(\.summary))
+    searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
+    searchParts.append(contentsOf: playbooks.map(\.name))
+    searchParts.append(contentsOf: handoffNotes.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
