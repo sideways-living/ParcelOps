@@ -8,6 +8,7 @@ struct OperationsWorkbenchView: View {
   @State private var selectedStatus: String?
   @State private var selectedReviewState: ReviewState?
   @State private var selectedSource: WorkbenchSource?
+  @State private var workbenchSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
@@ -29,6 +30,7 @@ struct OperationsWorkbenchView: View {
       || selectedStatus != nil
       || selectedReviewState != nil
       || selectedSource != nil
+      || !workbenchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   private var filteredItems: [WorkbenchItem] {
@@ -43,7 +45,29 @@ struct OperationsWorkbenchView: View {
   }
 
   private var queueItems: [WorkbenchItem] {
-    hasActiveFilters ? filteredItems : store.openWorkbenchItems
+    let baseItems = hasStructuredFilters ? filteredItems : store.openWorkbenchItems
+    let query = workbenchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseItems }
+    return baseItems.filter { item in
+      item.title.localizedCaseInsensitiveContains(query)
+        || item.summary.localizedCaseInsensitiveContains(query)
+        || item.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
+        || item.linkedEntityID.localizedCaseInsensitiveContains(query)
+        || item.prioritySeverity.localizedCaseInsensitiveContains(query)
+        || item.status.localizedCaseInsensitiveContains(query)
+        || item.assignee.localizedCaseInsensitiveContains(query)
+        || item.source.rawValue.localizedCaseInsensitiveContains(query)
+        || item.suggestedNextAction.localizedCaseInsensitiveContains(query)
+    }
+  }
+
+  private var hasStructuredFilters: Bool {
+    selectedAssignee != nil
+      || selectedEntityType != nil
+      || selectedPrioritySeverity != nil
+      || selectedStatus != nil
+      || selectedReviewState != nil
+      || selectedSource != nil
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
@@ -298,6 +322,7 @@ struct OperationsWorkbenchView: View {
             selectedStatus = nil
             selectedReviewState = nil
             selectedSource = nil
+            workbenchSearchText = ""
           }
           .buttonStyle(.bordered)
         }
@@ -315,6 +340,9 @@ struct OperationsWorkbenchView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search workbench items", text: $workbenchSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Assignee", selection: $selectedAssignee) {
         Text("All assignees").tag(String?.none)
         ForEach(assignees, id: \.self) { assignee in
