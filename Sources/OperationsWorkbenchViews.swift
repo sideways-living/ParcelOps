@@ -84,7 +84,18 @@ struct OperationsWorkbenchView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     Array(
       store.orders
-        .filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }
+        .filter { order in
+          isInboxCreatedOrder(order)
+            && (order.reviewState != .accepted || needsDispatchSetup(order))
+        }
+        .sorted { first, second in
+          let firstPriority = inboxOrderFollowUpPriority(first)
+          let secondPriority = inboxOrderFollowUpPriority(second)
+          if firstPriority == secondPriority {
+            return first.orderNumber.localizedCaseInsensitiveCompare(second.orderNumber) == .orderedAscending
+          }
+          return firstPriority > secondPriority
+        }
         .prefix(5)
     )
   }
@@ -146,7 +157,7 @@ struct OperationsWorkbenchView: View {
       return "\(blockedCount) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation before it disappears from daily follow-up."
+      return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation or dispatch setup before it disappears from daily follow-up."
     }
     if !draftFollowUpItems.isEmpty {
       return "\(draftFollowUpItems.count) draft needs review, sending, or reopening before the related work can be closed."
@@ -295,11 +306,11 @@ struct OperationsWorkbenchView: View {
   private var inboxCreatedOrderFollowUp: some View {
     if !inboxCreatedOrders.isEmpty {
       SettingsPanel(title: "Inbox-created order follow-up", symbol: "tray.and.arrow.down.fill") {
-        Text("Orders created from Inbox, Import Queue, or Acceptance Review stay here until someone confirms the operational details.")
+        Text("Orders created from Inbox, Import Queue, or Acceptance Review stay here until someone confirms the operational details and dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
         ForEach(inboxCreatedOrders) { order in
-          WorkbenchInboxOrderRow(order: order, store: store)
+          WorkbenchInboxOrderRow(order: order, needsDispatchSetup: needsDispatchSetup(order), store: store)
         }
       }
     }
@@ -456,6 +467,21 @@ struct OperationsWorkbenchView: View {
       || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 
+  private func needsDispatchSetup(_ order: TrackedOrder) -> Bool {
+    [.shipped, .inTransit, .exception].contains(order.status)
+      && store.suggestedShipmentManifestRecords(for: order).isEmpty
+      && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+  }
+
+  private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
+    if order.status == .exception { return 120 }
+    if order.reviewState != .accepted { return 110 }
+    if needsDispatchSetup(order) { return 100 }
+    if order.status == .inTransit { return 80 }
+    if order.status == .shipped { return 70 }
+    return 40
+  }
+
   @ViewBuilder
   private func workbenchRow(for item: WorkbenchItem) -> some View {
     WorkbenchItemRow(
@@ -548,6 +574,7 @@ struct OperationsWorkbenchView: View {
 
 private struct WorkbenchInboxOrderRow: View {
   var order: TrackedOrder
+  var needsDispatchSetup: Bool
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
@@ -564,9 +591,9 @@ private struct WorkbenchInboxOrderRow: View {
           Text("\(order.customer) • \(order.destination)")
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          Text("Next: confirm tracking, destination, and linked follow-up from the order detail.")
+          Text(needsDispatchSetup ? "Next: add or link dispatch manifest/readiness context." : "Next: confirm tracking, destination, and linked follow-up from the order detail.")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.teal)
+            .foregroundStyle(needsDispatchSetup ? .purple : .teal)
         }
 
         Spacer()
@@ -574,6 +601,9 @@ private struct WorkbenchInboxOrderRow: View {
         VStack(alignment: .trailing, spacing: 6) {
           Badge(order.status.rawValue, color: order.status == .exception ? .orange : .blue)
           Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          if needsDispatchSetup {
+            Badge("Dispatch gap", color: .purple)
+          }
         }
       }
 
@@ -592,6 +622,15 @@ private struct WorkbenchInboxOrderRow: View {
           Label("Open order", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
+
+        if needsDispatchSetup {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "shippingbox.and.arrow.backward.fill")
+          }
+          .buttonStyle(.bordered)
+        }
 
         Button("Task", systemImage: "checklist") {
           store.createReviewTask(from: order)
