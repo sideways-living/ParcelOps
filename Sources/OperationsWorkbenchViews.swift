@@ -46,18 +46,20 @@ struct OperationsWorkbenchView: View {
 
   private var queueItems: [WorkbenchItem] {
     let baseItems = hasStructuredFilters ? filteredItems : store.openWorkbenchItems
-    let query = workbenchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = workbenchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseItems }
     return baseItems.filter { item in
-      item.title.localizedCaseInsensitiveContains(query)
-        || item.summary.localizedCaseInsensitiveContains(query)
-        || item.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
-        || item.linkedEntityID.localizedCaseInsensitiveContains(query)
-        || item.prioritySeverity.localizedCaseInsensitiveContains(query)
-        || item.status.localizedCaseInsensitiveContains(query)
-        || item.assignee.localizedCaseInsensitiveContains(query)
-        || item.source.rawValue.localizedCaseInsensitiveContains(query)
-        || item.suggestedNextAction.localizedCaseInsensitiveContains(query)
+      [
+        item.title,
+        item.summary,
+        item.linkedEntityType.rawValue,
+        item.linkedEntityID,
+        item.prioritySeverity,
+        item.status,
+        item.assignee,
+        item.source.rawValue,
+        item.suggestedNextAction
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 

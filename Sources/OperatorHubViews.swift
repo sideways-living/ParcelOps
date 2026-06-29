@@ -33,18 +33,20 @@ struct InboxView: View {
   }
 
   private var visibleTriageItems: [InboxTriageItem] {
-    let query = triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return triageItems }
     return triageItems.filter { item in
-      item.sourceLabel.localizedCaseInsensitiveContains(query)
-        || item.title.localizedCaseInsensitiveContains(query)
-        || item.subtitle.localizedCaseInsensitiveContains(query)
-        || item.detail.localizedCaseInsensitiveContains(query)
-        || item.capturedDate.localizedCaseInsensitiveContains(query)
-        || item.reviewLabel.localizedCaseInsensitiveContains(query)
-        || item.nextAction.localizedCaseInsensitiveContains(query)
-        || item.readinessLabel.localizedCaseInsensitiveContains(query)
-        || item.readinessDetail.localizedCaseInsensitiveContains(query)
+      [
+        item.sourceLabel,
+        item.title,
+        item.subtitle,
+        item.detail,
+        item.capturedDate,
+        item.reviewLabel,
+        item.nextAction,
+        item.readinessLabel,
+        item.readinessDetail
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 
@@ -830,32 +832,36 @@ struct DispatchView: View {
   }
 
   private var visibleDispatchItems: [DispatchQueueItem] {
-    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return dispatchItems }
     return dispatchItems.filter { item in
-      item.title.localizedCaseInsensitiveContains(query)
-        || item.subtitle.localizedCaseInsensitiveContains(query)
-        || item.detail.localizedCaseInsensitiveContains(query)
-        || item.plannedDate.localizedCaseInsensitiveContains(query)
-        || item.statusLabel.localizedCaseInsensitiveContains(query)
-        || item.sourceLabel.localizedCaseInsensitiveContains(query)
-        || item.nextAction.localizedCaseInsensitiveContains(query)
+      [
+        item.title,
+        item.subtitle,
+        item.detail,
+        item.plannedDate,
+        item.statusLabel,
+        item.sourceLabel,
+        item.nextAction
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 
   private var visibleInboxDispatchSetupOrders: [TrackedOrder] {
-    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return inboxDispatchSetupOrders }
     return inboxDispatchSetupOrders.filter { order in
-      order.orderNumber.localizedCaseInsensitiveContains(query)
-        || order.store.localizedCaseInsensitiveContains(query)
-        || order.customer.localizedCaseInsensitiveContains(query)
-        || order.destination.localizedCaseInsensitiveContains(query)
-        || order.carrier.localizedCaseInsensitiveContains(query)
-        || order.trackingNumber.localizedCaseInsensitiveContains(query)
-        || order.status.rawValue.localizedCaseInsensitiveContains(query)
-        || order.reviewState.rawValue.localizedCaseInsensitiveContains(query)
-        || order.latestStatus.localizedCaseInsensitiveContains(query)
+      [
+        order.orderNumber,
+        order.store,
+        order.customer,
+        order.destination,
+        order.carrier,
+        order.trackingNumber,
+        order.status.rawValue,
+        order.reviewState.rawValue,
+        order.latestStatus
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 

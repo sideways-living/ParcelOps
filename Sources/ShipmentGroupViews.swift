@@ -20,7 +20,7 @@ struct ShipmentGroupsView: View {
   }
 
   private var filteredGroups: [ShipmentGroup] {
-    let query = groupSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = groupSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredGroups }
     return baseFilteredGroups.filter { group in
       shipmentGroup(group, matches: query)
@@ -189,7 +189,7 @@ struct ShipmentGroupsView: View {
       importText,
       acceptanceText
     ].joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 
   private func linkedOrders(for group: ShipmentGroup) -> [TrackedOrder] {

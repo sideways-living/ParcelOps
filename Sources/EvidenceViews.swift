@@ -16,7 +16,7 @@ struct EvidenceView: View {
   }
 
   private var filteredAttachments: [EvidenceAttachment] {
-    let query = evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredAttachments }
     return baseFilteredAttachments.filter { attachment in
       evidenceAttachment(attachment, matches: query)
@@ -149,7 +149,7 @@ struct EvidenceView: View {
     searchParts.append(contentsOf: packageContents.map(\.title))
     searchParts.append(contentsOf: packageContents.map(\.itemSummary))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

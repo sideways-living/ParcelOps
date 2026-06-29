@@ -20,7 +20,7 @@ struct ValidationView: View {
   }
 
   private var filteredIssues: [ValidationIssue] {
-    let query = validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredIssues }
     return baseFilteredIssues.filter { issue in
       validationIssue(issue, matches: query)
@@ -180,7 +180,7 @@ struct ValidationView: View {
     searchParts.append(contentsOf: playbooks.map(\.name))
     searchParts.append(contentsOf: handoffNotes.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

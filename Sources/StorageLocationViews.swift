@@ -26,7 +26,7 @@ struct StorageLocationsView: View {
   }
 
   private var filteredLocations: [StorageLocationRecord] {
-    let query = locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredLocations }
     return baseFilteredLocations.filter { location in
       storageLocation(location, matches: query)
@@ -218,7 +218,7 @@ struct StorageLocationsView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

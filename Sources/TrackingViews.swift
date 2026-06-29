@@ -23,7 +23,7 @@ struct TrackingView: View {
   }
 
   private var filteredEvents: [CarrierTrackingEvent] {
-    let query = trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredEvents }
     return baseFilteredEvents.filter { event in
       trackingEvent(event, matches: query)
@@ -157,7 +157,7 @@ struct TrackingView: View {
       shipmentGroups.map(\.destinationSummary).joined(separator: " "),
       shipmentGroups.map(\.recipientCustomerSummary).joined(separator: " ")
     ].joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

@@ -710,7 +710,7 @@ struct DashboardView: View {
   private func dashboardMatches(_ terms: String...) -> Bool {
     let query = normalizedDashboardSearch
     guard !query.isEmpty else { return true }
-    return terms.contains { $0.localizedCaseInsensitiveContains(query) }
+    return terms.contains { $0.localizedLowercase.contains(query) }
   }
 
   private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {

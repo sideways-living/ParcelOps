@@ -27,34 +27,38 @@ struct TasksView: View {
   }
 
   private var visibleDraftFollowUpItems: [DraftMessage] {
-    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return draftFollowUpItems }
     return draftFollowUpItems.filter { draft in
       let linkedOrder = linkedOrder(for: draft)
-      return draft.subject.localizedCaseInsensitiveContains(query)
-        || draft.body.localizedCaseInsensitiveContains(query)
-        || draft.recipient.localizedCaseInsensitiveContains(query)
-        || draft.channel.rawValue.localizedCaseInsensitiveContains(query)
-        || draft.status.rawValue.localizedCaseInsensitiveContains(query)
-        || draft.reviewState.rawValue.localizedCaseInsensitiveContains(query)
-        || draft.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
-        || draft.linkedEntityID.localizedCaseInsensitiveContains(query)
-        || (linkedOrder?.orderNumber.localizedCaseInsensitiveContains(query) ?? false)
-        || (linkedOrder?.store.localizedCaseInsensitiveContains(query) ?? false)
-        || (linkedOrder?.customer.localizedCaseInsensitiveContains(query) ?? false)
+      return [
+        draft.subject,
+        draft.body,
+        draft.recipient,
+        draft.channel.rawValue,
+        draft.status.rawValue,
+        draft.reviewState.rawValue,
+        draft.linkedEntityType.rawValue,
+        draft.linkedEntityID,
+        linkedOrder?.orderNumber ?? "",
+        linkedOrder?.store ?? "",
+        linkedOrder?.customer ?? ""
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 
   private var visibleQueueItems: [TaskQueueItem] {
-    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return queueItems }
     return queueItems.filter { item in
-      item.title.localizedCaseInsensitiveContains(query)
-        || item.summary.localizedCaseInsensitiveContains(query)
-        || item.assignee.localizedCaseInsensitiveContains(query)
-        || item.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
-        || item.linkedEntityID.localizedCaseInsensitiveContains(query)
-        || item.sourceLabel.localizedCaseInsensitiveContains(query)
+      [
+        item.title,
+        item.summary,
+        item.assignee,
+        item.linkedEntityType.rawValue,
+        item.linkedEntityID,
+        item.sourceLabel
+      ].joined(separator: " ").localizedLowercase.contains(query)
     }
   }
 

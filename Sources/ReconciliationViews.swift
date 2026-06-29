@@ -22,7 +22,7 @@ struct ReconciliationView: View {
   }
 
   private var filteredIssues: [ReconciliationIssue] {
-    let query = reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredIssues }
     return baseFilteredIssues.filter { issue in
       reconciliationIssue(issue, matches: query)
@@ -218,7 +218,7 @@ struct ReconciliationView: View {
     searchParts.append(contentsOf: playbooks.map(\.name))
     searchParts.append(contentsOf: handoffNotes.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

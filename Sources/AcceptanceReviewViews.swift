@@ -21,7 +21,7 @@ struct AcceptanceReviewView: View {
   }
 
   private var filteredCandidates: [AcceptanceCandidate] {
-    let query = acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredCandidates }
     return baseFilteredCandidates.filter { candidate in
       acceptanceCandidate(candidate, matches: query)
@@ -206,7 +206,7 @@ struct AcceptanceReviewView: View {
       linkedShipmentGroup?.statusSummary ?? "",
       history.map { "\($0.decision.rawValue) \($0.reviewState.rawValue) \($0.summary) \($0.notes)" }.joined(separator: " ")
     ].joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

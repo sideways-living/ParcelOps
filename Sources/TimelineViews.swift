@@ -20,7 +20,7 @@ struct TimelineView: View {
   }
 
   private var filteredActivities: [TimelineActivity] {
-    let query = timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredActivities }
     return baseFilteredActivities.filter { activity in
       timelineActivity(activity, matches: query)
@@ -171,7 +171,7 @@ struct TimelineView: View {
     searchParts.append(contentsOf: acceptanceRecords.map(\.summary))
     searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

@@ -24,7 +24,7 @@ struct InventoryReceiptsView: View {
   }
 
   private var filteredReceipts: [InventoryReceiptRecord] {
-    let query = receiptSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = receiptSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredReceipts }
     return baseFilteredReceipts.filter { receipt in
       inventoryReceipt(receipt, matches: query)
@@ -228,7 +228,7 @@ struct InventoryReceiptsView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

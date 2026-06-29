@@ -25,7 +25,7 @@ struct HandoffNotesView: View {
   }
 
   private var filteredNotes: [HandoffNote] {
-    let query = handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredNotes }
     return baseFilteredNotes.filter { note in
       handoffNote(note, matches: query)
@@ -192,7 +192,7 @@ struct HandoffNotesView: View {
     searchParts.append(contentsOf: packageContents.map(\.title))
     searchParts.append(contentsOf: packageContents.map(\.itemSummary))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

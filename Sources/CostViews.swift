@@ -28,7 +28,7 @@ struct CostsBudgetsView: View {
   }
 
   private var filteredCosts: [CostRecord] {
-    let query = costSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = costSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredCosts }
     return baseFilteredCosts.filter { cost in
       costRecord(cost, matches: query)
@@ -233,7 +233,7 @@ struct CostsBudgetsView: View {
     searchParts.append(contentsOf: procurementRequests.map(\.title))
     searchParts.append(contentsOf: procurementRequests.map(\.requestedItemsSummary))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

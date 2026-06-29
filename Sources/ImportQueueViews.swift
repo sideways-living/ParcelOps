@@ -20,7 +20,7 @@ struct ImportQueueView: View {
   }
 
   private var filteredItems: [ImportQueueItem] {
-    let query = importSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = importSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredItems }
     return baseFilteredItems.filter { item in
       importQueueItem(item, matches: query)
@@ -191,7 +191,7 @@ struct ImportQueueView: View {
       linkedShipmentGroup?.carrierSummary ?? "",
       linkedShipmentGroup?.statusSummary ?? ""
     ].joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 

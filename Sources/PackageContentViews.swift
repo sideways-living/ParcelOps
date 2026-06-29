@@ -24,7 +24,7 @@ struct PackageContentsView: View {
   }
 
   private var filteredContents: [PackageContentRecord] {
-    let query = packageSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = packageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredContents }
     return baseFilteredContents.filter { content in
       packageContent(content, matches: query)
@@ -232,7 +232,7 @@ struct PackageContentsView: View {
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 }
 
