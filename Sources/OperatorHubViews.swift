@@ -191,6 +191,8 @@ struct InboxView: View {
             symbol: "server.rack"
           )
         } else {
+          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+
           ForEach(store.spaceMailIntakeHealthSummaries) { summary in
             InboxMailboxHealthRow(summary: summary)
           }
