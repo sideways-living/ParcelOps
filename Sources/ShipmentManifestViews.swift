@@ -18,7 +18,7 @@ struct ShipmentManifestsView: View {
   }
 
   private var filteredRecords: [ShipmentManifestRecord] {
-    let query = manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let query = manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return baseFilteredRecords }
     return baseFilteredRecords.filter { record in
       shipmentManifest(record, matches: query)
@@ -130,40 +130,39 @@ struct ShipmentManifestsView: View {
         Text("All types").tag(nil as ShipmentManifestType?)
         ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type as ShipmentManifestType?) }
       }
-      .pickerStyle(.menu)
 
       TextField("Carrier/courier", text: $carrierCourier)
+        .textFieldStyle(.roundedBorder)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as ShipmentManifestDispatchStatus?)
         ForEach(ShipmentManifestDispatchStatus.allCases) { status in Text(status.rawValue).tag(status as ShipmentManifestDispatchStatus?) }
       }
-      .pickerStyle(.menu)
 
       TextField("Owner/team", text: $ownerTeam)
+        .textFieldStyle(.roundedBorder)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
         ForEach(ShipmentRiskLevel.allCases) { risk in Text(risk.rawValue).tag(risk as ShipmentRiskLevel?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { type in Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?) }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
         ForEach(reviewStates, id: \.self) { state in Text(state.rawValue).tag(state as ReviewState?) }
       }
-      .pickerStyle(.menu)
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        clearFilters()
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
   }
 
@@ -241,7 +240,7 @@ struct ShipmentManifestsView: View {
       groupText,
       checklistText
     ].joined(separator: " ")
-    return searchableText.localizedCaseInsensitiveContains(query)
+    return searchableText.localizedLowercase.contains(query)
   }
 
   private func linkedOrders(for record: ShipmentManifestRecord) -> [TrackedOrder] {
