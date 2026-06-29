@@ -901,10 +901,8 @@ struct DispatchView: View {
     Array(
       store.orders
         .filter { order in
-          order.isInboxCreatedForDispatch
-            && [.shipped, .inTransit, .exception].contains(order.status)
-            && store.suggestedShipmentManifestRecords(for: order).isEmpty
-            && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+          guard order.isInboxCreatedForDispatch else { return false }
+          return orderNeedsPreDispatchVerification(order) || orderNeedsDispatchSetup(order)
         }
         .sorted { first, second in
           let firstPriority = dispatchSetupPriority(for: first)
@@ -916,6 +914,12 @@ struct DispatchView: View {
         }
         .prefix(5)
     )
+  }
+
+  private var partialInboxDispatchBlockerCount: Int {
+    store.orders.filter { order in
+      order.isInboxCreatedForDispatch && orderNeedsPreDispatchVerification(order)
+    }.count
   }
 
   private var blockedDispatchCount: Int {
@@ -933,12 +937,14 @@ struct DispatchView: View {
 
   private var dispatchSummaryTone: Color {
     if blockedDispatchCount > 0 { return .red }
+    if partialInboxDispatchBlockerCount > 0 { return .orange }
     if readyDispatchCount > 0 || openDispatchCount > 0 { return .orange }
     return .green
   }
 
   private var dispatchSummaryTitle: String {
     if blockedDispatchCount > 0 { return "Dispatch has blockers" }
+    if partialInboxDispatchBlockerCount > 0 { return "Verify Inbox orders before dispatch" }
     if readyDispatchCount > 0 { return "Dispatch has work ready to move" }
     if !inboxDispatchSetupOrders.isEmpty { return "Inbox orders need dispatch setup" }
     if !dispatchItems.isEmpty { return "Dispatch queue needs review" }
@@ -948,6 +954,9 @@ struct DispatchView: View {
   private var dispatchSummaryDetail: String {
     if blockedDispatchCount > 0 {
       return "Clear blocked manifests and readiness checklists before preparing new outbound work."
+    }
+    if partialInboxDispatchBlockerCount > 0 {
+      return "\(partialInboxDispatchBlockerCount) Inbox-created order has missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
     }
     if readyDispatchCount > 0 {
       return "Prepared manifests or ready checklists can move to dispatch, completion, handoff, or review."
@@ -996,6 +1005,7 @@ struct DispatchView: View {
 
         MetricStrip(items: [
           ("Blocked", "\(blockedDispatchCount)", blockedDispatchCount == 0 ? .green : .red),
+          ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
           ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
           ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
@@ -1053,7 +1063,7 @@ struct DispatchView: View {
     if !visibleInboxDispatchSetupOrders.isEmpty {
       SettingsPanel(title: "Inbox-created orders needing dispatch setup", symbol: "tray.and.arrow.down.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("These orders came from Inbox intake and look dispatch-relevant, but no manifest or readiness checklist is linked yet.")
+          Text("These orders came from Inbox intake. Verify partial order details first; then add manifest or readiness context when the order is dispatch-ready.")
             .font(.callout)
             .foregroundStyle(.secondary)
 
@@ -1088,6 +1098,7 @@ struct DispatchView: View {
 
       MetricStrip(items: [
         ("Queue", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue),
+        ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
         ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
         ("Undispatched", "\(store.undispatchedShipmentManifests.count)", store.undispatchedShipmentManifests.isEmpty ? .green : .purple),
         ("Blocked", "\(store.blockedShipmentManifests.count)", store.blockedShipmentManifests.isEmpty ? .green : .red),
@@ -1119,10 +1130,24 @@ struct DispatchView: View {
 
   private func dispatchSetupPriority(for order: TrackedOrder) -> Int {
     if order.status == .exception { return 100 }
+    if orderNeedsPreDispatchVerification(order) { return 95 }
     if order.reviewState != .accepted { return 90 }
     if order.status == .inTransit { return 80 }
     if order.status == .shipped { return 70 }
     return 40
+  }
+
+  private func orderNeedsDispatchSetup(_ order: TrackedOrder) -> Bool {
+    [.shipped, .inTransit, .exception].contains(order.status)
+      && store.suggestedShipmentManifestRecords(for: order).isEmpty
+      && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+  }
+
+  private func orderNeedsPreDispatchVerification(_ order: TrackedOrder) -> Bool {
+    let hasPartialTask = store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
+      task.status != .completed && task.isPartialInboxOrderFollowUp
+    }
+    return hasPartialTask || order.missingDispatchReadinessFieldCount > 0
   }
 }
 
@@ -1130,6 +1155,15 @@ private struct DispatchInboxOrderRow: View {
   var order: TrackedOrder
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
+
+  private var partialFollowUpTasks: [ReviewTask] {
+    store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+      .filter { $0.status != .completed && $0.isPartialInboxOrderFollowUp }
+  }
+
+  private var needsPreDispatchVerification: Bool {
+    !partialFollowUpTasks.isEmpty || order.missingDispatchReadinessFieldCount > 0
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1149,16 +1183,24 @@ private struct DispatchInboxOrderRow: View {
                 .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Badge("Inbox order", color: .teal)
+            Badge(needsPreDispatchVerification ? "Verify before dispatch" : "Inbox order", color: needsPreDispatchVerification ? .orange : .teal)
           }
 
-          Text("Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
+          Text(needsPreDispatchVerification
+            ? "Next: open the order and confirm missing intake details before manifest or readiness setup."
+            : "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.teal)
+            .foregroundStyle(needsPreDispatchVerification ? .orange : .teal)
 
           CompactMetadataGrid {
             Badge(order.status.rawValue, color: rowColor)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            if !partialFollowUpTasks.isEmpty {
+              Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
+            }
+            if order.missingDispatchReadinessFieldCount > 0 {
+              Badge("\(order.missingDispatchReadinessFieldCount) missing", color: .orange)
+            }
             if order.reviewState == .accepted {
               Badge("Reviewed, dispatch gap", color: .purple)
             }
@@ -1180,19 +1222,21 @@ private struct DispatchInboxOrderRow: View {
         }
         .buttonStyle(.bordered)
 
-        NavigationLink {
-          ShipmentManifestsView(store: store)
-        } label: {
-          Label("Manifests", systemImage: "list.bullet.clipboard.fill")
-        }
-        .buttonStyle(.bordered)
+        if !needsPreDispatchVerification {
+          NavigationLink {
+            ShipmentManifestsView(store: store)
+          } label: {
+            Label("Manifests", systemImage: "list.bullet.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
 
-        NavigationLink {
-          DispatchReadinessView(store: store)
-        } label: {
-          Label("Readiness", systemImage: "checkmark.rectangle.stack.fill")
+          NavigationLink {
+            DispatchReadinessView(store: store)
+          } label: {
+            Label("Readiness", systemImage: "checkmark.rectangle.stack.fill")
+          }
+          .buttonStyle(.bordered)
         }
-        .buttonStyle(.bordered)
 
         Button("Task", systemImage: "checklist") {
           store.createReviewTask(from: order)
@@ -1221,7 +1265,8 @@ private struct DispatchInboxOrderRow: View {
   }
 
   private var rowColor: Color {
-    order.status == .exception ? .orange : .teal
+    if needsPreDispatchVerification { return .orange }
+    return order.status == .exception ? .orange : .teal
   }
 }
 
@@ -1232,6 +1277,24 @@ private extension TrackedOrder {
       || latestStatus.localizedCaseInsensitiveContains("import queue")
       || latestStatus.localizedCaseInsensitiveContains("acceptance")
       || latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+}
+
+private extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+}
+
+private extension TrackedOrder {
+  var missingDispatchReadinessFieldCount: Int {
+    [orderNumber, trackingNumber, destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
   }
 }
 
