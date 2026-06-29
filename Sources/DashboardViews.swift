@@ -47,6 +47,7 @@ struct DashboardView: View {
       isInboxCreatedOrder(order)
         && !hasPartialInboxOrderTask(order)
         && order.missingInboxOrderFieldCount == 0
+        && !inboxDispatchHandoffCompleted(order)
         && (
           store.suggestedShipmentManifestRecords(for: order).contains(where: \.isInboxHandoffSetup)
             || store.suggestedDispatchReadinessChecklists(for: order).contains(where: \.isInboxHandoffSetup)
@@ -781,6 +782,18 @@ struct DashboardView: View {
     store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
       task.status != .completed && task.isPartialInboxOrderFollowUp
     }
+  }
+
+  private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
+    if order.latestStatus.localizedCaseInsensitiveContains("Inbox dispatch handoff completed") {
+      return true
+    }
+
+    let manifests = store.suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+    let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+    guard !manifests.isEmpty || !checklists.isEmpty else { return false }
+    return manifests.allSatisfy { $0.dispatchStatus == .handedOff }
+      && checklists.allSatisfy { $0.checklistStatus == .completed }
   }
 }
 

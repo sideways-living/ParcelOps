@@ -496,6 +496,7 @@ struct OperationsWorkbenchView: View {
 
   private func needsInboxDispatchReadiness(_ order: TrackedOrder) -> Bool {
     !needsPreDispatchVerification(order)
+      && !inboxDispatchHandoffCompleted(order)
       && (
         store.suggestedShipmentManifestRecords(for: order).contains(where: \.isInboxHandoffSetup)
           || store.suggestedDispatchReadinessChecklists(for: order).contains(where: \.isInboxHandoffSetup)
@@ -531,6 +532,18 @@ struct OperationsWorkbenchView: View {
 
   private func needsPreDispatchVerification(_ order: TrackedOrder) -> Bool {
     partialInboxTaskCount(for: order) > 0 || order.missingWorkbenchInboxOrderFieldCount > 0
+  }
+
+  private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
+    if order.latestStatus.localizedCaseInsensitiveContains("Inbox dispatch handoff completed") {
+      return true
+    }
+
+    let manifests = store.suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+    let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+    guard !manifests.isEmpty || !checklists.isEmpty else { return false }
+    return manifests.allSatisfy { $0.dispatchStatus == .handedOff }
+      && checklists.allSatisfy { $0.checklistStatus == .completed }
   }
 
   @ViewBuilder
