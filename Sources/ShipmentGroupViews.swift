@@ -6,16 +6,33 @@ struct ShipmentGroupsView: View {
   @State private var statusFilter = ""
   @State private var carrierFilter = ""
   @State private var reviewFilter: ReviewState?
+  @State private var groupSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredGroups: [ShipmentGroup] {
+  private var baseFilteredGroups: [ShipmentGroup] {
     store.filteredShipmentGroups(
       riskLevel: riskFilter,
       status: statusFilter,
       carrier: carrierFilter,
       reviewState: reviewFilter
     )
+  }
+
+  private var filteredGroups: [ShipmentGroup] {
+    let query = groupSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredGroups }
+    return baseFilteredGroups.filter { group in
+      shipmentGroup(group, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    riskFilter != nil
+      || !statusFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !carrierFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || reviewFilter != nil
+      || !groupSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -25,17 +42,37 @@ struct ShipmentGroupsView: View {
         filters
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
-          ForEach(filteredGroups) { group in
-            ShipmentGroupRow(group: group, store: store, linkedOrders: linkedOrders(for: group), importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
-              store.updateShipmentGroup(updatedGroup)
-            } onReviewed: {
-              store.markShipmentGroupReviewed(group)
-            } onCreateTask: {
-              store.createReviewTask(from: group)
-            } onCreateDraft: {
-              store.createDraftMessage(from: group)
-            } onRemove: {
-              store.removeShipmentGroup(group)
+          HStack {
+            Text("\(filteredGroups.count) visible groups")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredGroups.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+
+          if filteredGroups.isEmpty {
+            MVPEmptyState(
+              title: "No shipment groups match this view",
+              detail: hasActiveFilters ? "Clear search or filters to return to all shipment groups." : "Add a placeholder group to test split-order and dispatch context.",
+              symbol: "shippingbox.and.arrow.backward.fill",
+              actionTitle: hasActiveFilters ? "Clear filters" : "Add group",
+              action: hasActiveFilters ? clearFilters : store.addShipmentGroupPlaceholder
+            )
+          } else {
+            ForEach(filteredGroups) { group in
+              ShipmentGroupRow(group: group, store: store, linkedOrders: linkedOrders(for: group), importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
+                store.updateShipmentGroup(updatedGroup)
+              } onReviewed: {
+                store.markShipmentGroupReviewed(group)
+              } onCreateTask: {
+                store.createReviewTask(from: group)
+              } onCreateDraft: {
+                store.createDraftMessage(from: group)
+              } onRemove: {
+                store.removeShipmentGroup(group)
+              }
             }
           }
         }
@@ -61,6 +98,8 @@ struct ShipmentGroupsView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search group, order, intake, tracking, evidence, destination, customer, carrier, or status", text: $groupSearchText)
+        .textFieldStyle(.roundedBorder)
       Picker("Risk", selection: $riskFilter) {
         Text("All risk").tag(ShipmentRiskLevel?.none)
         ForEach(ShipmentRiskLevel.allCases) { risk in
@@ -75,7 +114,82 @@ struct ShipmentGroupsView: View {
       }
       TextField("Status summary", text: $statusFilter)
       TextField("Carrier summary", text: $carrierFilter)
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "xmark.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    riskFilter = nil
+    statusFilter = ""
+    carrierFilter = ""
+    reviewFilter = nil
+    groupSearchText = ""
+  }
+
+  private func shipmentGroup(_ group: ShipmentGroup, matches query: String) -> Bool {
+    let linkedOrders = linkedOrders(for: group)
+    let importItems = store.importQueueItems(for: group)
+    let acceptanceRecords = store.acceptanceRecords(for: group)
+    let orderText = linkedOrders.map { order in
+      [
+        order.store,
+        order.orderNumber,
+        order.customer,
+        order.recipientEmail,
+        order.carrier,
+        order.trackingNumber,
+        order.destination,
+        order.status.rawValue,
+        order.latestStatus
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let importText = importItems.map { item in
+      [
+        item.sourceLabel,
+        item.rawSummary,
+        item.detectedMerchant,
+        item.detectedOrderNumber,
+        item.detectedTrackingNumber,
+        item.detectedDestinationAddress,
+        item.importStatus.rawValue,
+        item.notes
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let acceptanceText = acceptanceRecords.map { record in
+      [
+        record.sourceLabel,
+        record.summary,
+        record.decision.rawValue,
+        record.reviewState.rawValue,
+        record.notes
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let searchableText = [
+      group.id.uuidString,
+      group.groupName,
+      group.primaryOrderID?.uuidString ?? "",
+      group.relatedOrderIDs.map(\.uuidString).joined(separator: " "),
+      group.relatedIntakeEmailIDs.map(\.uuidString).joined(separator: " "),
+      group.relatedTrackingEventIDs.map(\.uuidString).joined(separator: " "),
+      group.relatedEvidenceIDs.map(\.uuidString).joined(separator: " "),
+      group.destinationSummary,
+      group.recipientCustomerSummary,
+      group.carrierSummary,
+      group.statusSummary,
+      group.riskLevel.rawValue,
+      group.reviewState.rawValue,
+      group.createdDate,
+      group.lastReviewedDate,
+      orderText,
+      importText,
+      acceptanceText
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 
   private func linkedOrders(for group: ShipmentGroup) -> [TrackedOrder] {
