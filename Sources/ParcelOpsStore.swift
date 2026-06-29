@@ -5947,6 +5947,111 @@ final class ParcelOpsStore {
     )
   }
 
+  func completeInboxDispatchHandoff(for order: TrackedOrder) {
+    guard let orderIndex = orders.firstIndex(where: { $0.id == order.id }) else { return }
+
+    let linkedManifests = suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+    let linkedChecklists = suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+    guard !linkedManifests.isEmpty || !linkedChecklists.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Inbox dispatch handoff completion skipped.",
+        afterDetail: "No linked Inbox dispatch manifest or readiness checklist was found. No order, dispatch, mailbox, carrier, label, scanner, or external service action occurred."
+      )
+      return
+    }
+
+    let blockedManifests = linkedManifests.filter { $0.dispatchStatus == .blockedNeedsReview }
+    let blockedChecklists = linkedChecklists.filter { $0.checklistStatus == .blockedNeedsReview }
+    guard blockedManifests.isEmpty && blockedChecklists.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Inbox dispatch handoff completion blocked.",
+        afterDetail: "Blocked manifests: \(blockedManifests.map(\.title).joined(separator: ", "))\nBlocked readiness checklists: \(blockedChecklists.map(\.title).joined(separator: ", "))\nResolve blocked dispatch records before completing handoff. No mailbox, carrier, label, scanner, or external service action occurred."
+      )
+      return
+    }
+
+    let timestamp = Self.auditTimestamp()
+    var completedManifestTitles: [String] = []
+    for manifest in linkedManifests where manifest.dispatchStatus != .handedOff {
+      guard let manifestIndex = shipmentManifestRecords.firstIndex(where: { $0.id == manifest.id }) else { continue }
+      let beforeDetail = shipmentManifestRecords[manifestIndex].auditDetail
+      shipmentManifestRecords[manifestIndex].dispatchStatus = .handedOff
+      shipmentManifestRecords[manifestIndex].reviewState = .accepted
+      shipmentManifestRecords[manifestIndex].lastReviewedDate = timestamp
+      shipmentManifestRecords[manifestIndex].actualDispatchDate = timestamp
+      completedManifestTitles.append(shipmentManifestRecords[manifestIndex].title)
+      logAudit(
+        action: .completed,
+        entityType: .shipmentManifest,
+        entityID: shipmentManifestRecords[manifestIndex].id.uuidString,
+        entityLabel: shipmentManifestRecords[manifestIndex].title,
+        summary: "Inbox dispatch manifest completed from order handoff.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(shipmentManifestRecords[manifestIndex].auditDetail)\nSource order: \(order.orderNumber)\nCompleted locally from Order detail. No carrier, label, scanner, mailbox, or external service action occurred."
+      )
+    }
+
+    var completedChecklistTitles: [String] = []
+    for checklist in linkedChecklists where checklist.checklistStatus != .completed {
+      guard let checklistIndex = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { continue }
+      let beforeDetail = dispatchReadinessChecklists[checklistIndex].auditDetail
+      dispatchReadinessChecklists[checklistIndex].checklistStatus = .completed
+      dispatchReadinessChecklists[checklistIndex].reviewState = .accepted
+      dispatchReadinessChecklists[checklistIndex].lastReviewedDate = timestamp
+      dispatchReadinessChecklists[checklistIndex].completedDate = timestamp
+      completedChecklistTitles.append(dispatchReadinessChecklists[checklistIndex].title)
+      logAudit(
+        action: .completed,
+        entityType: .dispatchChecklist,
+        entityID: dispatchReadinessChecklists[checklistIndex].id.uuidString,
+        entityLabel: dispatchReadinessChecklists[checklistIndex].title,
+        summary: "Inbox dispatch readiness completed from order handoff.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(dispatchReadinessChecklists[checklistIndex].auditDetail)\nSource order: \(order.orderNumber)\nCompleted locally from Order detail. No carrier, label, scanner, mailbox, or external service action occurred."
+      )
+    }
+
+    let beforeOrderDetail = orders[orderIndex].auditDetail
+    if orders[orderIndex].status != .delivered {
+      orders[orderIndex].status = .inTransit
+    }
+    orders[orderIndex].reviewState = .accepted
+    orders[orderIndex].latestStatus = "Inbox dispatch handoff completed locally"
+    orders[orderIndex].contactHistory.insert(
+      ContactHistoryEvent(
+        time: "Now",
+        source: .manual,
+        contactPoint: "Order dispatch handoff",
+        summary: "Inbox dispatch handoff completed locally.",
+        evidence: "Manifests: \(completedManifestTitles.isEmpty ? "already complete" : completedManifestTitles.joined(separator: ", ")). Readiness: \(completedChecklistTitles.isEmpty ? "already complete" : completedChecklistTitles.joined(separator: ", ")).",
+        reviewState: .accepted
+      ),
+      at: 0
+    )
+
+    persistShipmentManifestRecords()
+    persistDispatchReadinessChecklists()
+    persistOrders()
+
+    logAudit(
+      action: .completed,
+      entityType: .order,
+      entityID: orders[orderIndex].id.uuidString,
+      entityLabel: orders[orderIndex].orderNumber,
+      summary: "Inbox-created order dispatch handoff completed.",
+      beforeDetail: beforeOrderDetail,
+      afterDetail: "\(orders[orderIndex].auditDetail)\nCompleted manifests: \(completedManifestTitles.joined(separator: ", "))\nCompleted readiness: \(completedChecklistTitles.joined(separator: ", "))\nNo mailbox item was mutated and no carrier, label, scanner, or external service action occurred."
+    )
+  }
+
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
     updateIntakeEmail(email, reviewState: .reviewed)
   }

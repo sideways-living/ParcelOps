@@ -1177,7 +1177,7 @@ struct OrderDetailView: View {
         }
 
         if !manifests.isEmpty || !checklists.isEmpty {
-          OrderDispatchHandoffRows(manifests: manifests, checklists: checklists, store: store)
+          OrderDispatchHandoffRows(order: order, manifests: manifests, checklists: checklists, store: store)
         }
 
         CompactActionRow {
@@ -1413,15 +1413,46 @@ private struct PartialInboxOrderFollowUpRow: View {
 }
 
 private struct OrderDispatchHandoffRows: View {
+  var order: TrackedOrder
   var manifests: [ShipmentManifestRecord]
   var checklists: [DispatchReadinessChecklist]
   var store: ParcelOpsStore
 
+  private var hasBlockedRecord: Bool {
+    manifests.contains { $0.dispatchStatus == .blockedNeedsReview }
+      || checklists.contains { $0.checklistStatus == .blockedNeedsReview }
+  }
+
+  private var hasOpenHandoffRecord: Bool {
+    manifests.contains { $0.dispatchStatus != .handedOff }
+      || checklists.contains { $0.checklistStatus != .completed }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Linked dispatch setup")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
+      HStack(alignment: .firstTextBaseline) {
+        Text("Linked dispatch setup")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Spacer()
+        if hasOpenHandoffRecord && !hasBlockedRecord {
+          Button("Complete handoff", systemImage: "checkmark.seal.fill") {
+            store.completeInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.small)
+        }
+      }
+
+      if hasBlockedRecord {
+        Label("Resolve blocked dispatch records before completing the order handoff.", systemImage: "exclamationmark.triangle.fill")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      } else if hasOpenHandoffRecord {
+        Label("Use Complete handoff after local readiness and courier/internal handoff are confirmed.", systemImage: "hand.raised.fill")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
 
       ForEach(manifests.prefix(2)) { manifest in
         OrderDispatchManifestRow(record: manifest, store: store)
