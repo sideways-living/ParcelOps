@@ -3,6 +3,38 @@ import SwiftUI
 struct MailboxView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var intakeSearchText = ""
+
+  private var normalizedIntakeSearch: String {
+    intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private var visibleIntakeEmails: [ForwardedEmailIntake] {
+    store.intakeEmails.filter(intakeEmailMatchesSearch)
+  }
+
+  private var visibleReviewIntakeCount: Int {
+    visibleIntakeEmails.filter { $0.reviewState != .reviewed && $0.reviewState != .ignored }.count
+  }
+
+  private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
+    let query = normalizedIntakeSearch
+    guard !query.isEmpty else { return true }
+    let searchableText = [
+      email.sender,
+      email.subject,
+      email.receivedDate,
+      email.rawBodyPreview,
+      email.detectedMerchant,
+      email.detectedOrderNumber,
+      email.detectedTrackingNumber,
+      email.detectedDestinationAddress,
+      email.linkedOrderID?.uuidString ?? "",
+      email.reviewState.rawValue
+    ].joined(separator: " ").lowercased()
+
+    return searchableText.contains(query)
+  }
 
   var body: some View {
     ScrollView {
@@ -193,6 +225,20 @@ struct MailboxView: View {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
           } else {
+            FilterControlGrid {
+              TextField("Search subject, sender, order, tracking, merchant, destination, or linked order", text: $intakeSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                intakeSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedIntakeSearch.isEmpty)
+
+              Badge("\(visibleIntakeEmails.count) shown", color: visibleIntakeEmails.isEmpty ? .orange : .blue)
+              Badge("\(visibleReviewIntakeCount) need review", color: visibleReviewIntakeCount == 0 ? .green : .orange)
+            }
+
             CompactActionRow {
               Button("Reprocess all needing review", systemImage: "arrow.triangle.2.circlepath") {
                 store.reprocessReviewIntakeEmails()
@@ -200,7 +246,12 @@ struct MailboxView: View {
               .buttonStyle(.bordered)
               Badge("\(store.reviewIntakeEmails.count) need review", color: .orange)
             }
-            ForEach(store.intakeEmails) { email in
+
+            if visibleIntakeEmails.isEmpty {
+              MVPEmptyState(title: "No detected emails match", detail: "Clear the intake search or try a broader term such as order, tracking, sender, merchant, destination, or review state.", symbol: "magnifyingglass")
+            }
+
+            ForEach(visibleIntakeEmails) { email in
               IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
                 store.updateIntakeEmail(updatedEmail)
               } onLinkOrder: { order in
