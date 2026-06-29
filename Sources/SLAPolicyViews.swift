@@ -7,9 +7,10 @@ struct SLAPoliciesView: View {
   @State private var selectedPriority: TaskPriority?
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var policySearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private var filteredPolicies: [SLAPolicy] {
+  private var baseFilteredPolicies: [SLAPolicy] {
     store.slaPolicies.filter { policy in
       let matchesEnabled = selectedEnabledState == nil || policy.isEnabled == selectedEnabledState
       let matchesPriority = selectedPriority == nil || policy.priority == selectedPriority
@@ -17,6 +18,22 @@ struct SLAPoliciesView: View {
       let matchesReview = selectedReviewState == nil || policy.reviewState == selectedReviewState
       return matchesEnabled && matchesPriority && matchesEntity && matchesReview
     }
+  }
+
+  private var filteredPolicies: [SLAPolicy] {
+    let query = policySearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredPolicies }
+    return baseFilteredPolicies.filter { policy in
+      slaPolicySearchParts(policy).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedEnabledState != nil
+      || selectedPriority != nil
+      || selectedEntityType != nil
+      || selectedReviewState != nil
+      || !policySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -36,18 +53,16 @@ struct SLAPoliciesView: View {
             Text("\(filteredPolicies.count) visible policies")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredPolicies.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add policy", systemImage: "plus", action: store.addSLAPolicyPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredPolicies.isEmpty {
-            Text("No SLA policies match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No SLA policies match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local SLA policies." : "Add a local SLA policy to define manual timing, review, and escalation expectations.", symbol: "timer", actionTitle: hasActiveFilters ? "Clear filters" : "Add policy", action: hasActiveFilters ? clearFilters : store.addSLAPolicyPlaceholder)
           } else {
             ForEach(filteredPolicies) { policy in
               SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
@@ -75,6 +90,9 @@ struct SLAPoliciesView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search policy, condition, target, priority, record, linked address, or instruction", text: $policySearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
@@ -102,14 +120,42 @@ struct SLAPoliciesView: View {
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedEnabledState = nil
-        selectedPriority = nil
-        selectedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedEnabledState = nil
+    selectedPriority = nil
+    selectedEntityType = nil
+    selectedReviewState = nil
+    policySearchText = ""
+  }
+
+  private func slaPolicySearchParts(_ policy: SLAPolicy) -> [String] {
+    var parts = [
+      policy.id.uuidString,
+      policy.name,
+      policy.linkedEntityType.rawValue,
+      policy.conditionSummary,
+      policy.responseTarget,
+      policy.resolutionTarget,
+      policy.priority.rawValue,
+      policy.isEnabled ? "Enabled" : "Disabled",
+      policy.createdDate,
+      policy.lastEvaluatedDate,
+      "\(policy.matchCount)",
+      policy.reviewState.rawValue
+    ]
+    parts.append(contentsOf: store.suggestedDestinationAddresses(for: policy).flatMap { [$0.label, $0.addressLineSummary, $0.cityRegion, $0.preferredCarrier] })
+    parts.append(contentsOf: store.suggestedDeliveryInstructions(for: policy).flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
+    parts.append(contentsOf: store.suggestedPackageContents(for: policy).flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    return parts
   }
 }
 

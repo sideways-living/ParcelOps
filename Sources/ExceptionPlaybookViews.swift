@@ -7,10 +7,11 @@ struct ExceptionPlaybooksView: View {
   @State private var selectedPriority: TaskPriority?
   @State private var selectedEnabledState: Bool?
   @State private var selectedReviewState: ReviewState?
+  @State private var playbookSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.accepted, .needsReview, .monitor]
 
-  private var filteredPlaybooks: [ExceptionPlaybook] {
+  private var baseFilteredPlaybooks: [ExceptionPlaybook] {
     store.filteredExceptionPlaybooks(
       issueType: selectedIssueType,
       linkedEntityType: selectedEntityType,
@@ -18,6 +19,23 @@ struct ExceptionPlaybooksView: View {
       enabledState: selectedEnabledState,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredPlaybooks: [ExceptionPlaybook] {
+    let query = playbookSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredPlaybooks }
+    return baseFilteredPlaybooks.filter { playbook in
+      playbookSearchParts(playbook).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedIssueType != nil
+      || selectedEntityType != nil
+      || selectedPriority != nil
+      || selectedEnabledState != nil
+      || selectedReviewState != nil
+      || !playbookSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -41,24 +59,31 @@ struct ExceptionPlaybooksView: View {
             Text("\(filteredPlaybooks.count) visible playbooks")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredPlaybooks.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add playbook", systemImage: "plus", action: store.addExceptionPlaybookPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
-          ForEach(filteredPlaybooks) { playbook in
-            ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
-              store.updateExceptionPlaybook(updatedPlaybook)
-            } onToggle: {
-              store.toggleExceptionPlaybook(playbook)
-            } onReviewed: {
-              store.markExceptionPlaybookReviewed(playbook)
-            } onCreateTask: {
-              store.createReviewTask(from: playbook)
-            } onCreateDraft: {
-              store.createDraftMessage(from: playbook)
-            } onRemove: {
-              store.removeExceptionPlaybook(playbook)
+          if filteredPlaybooks.isEmpty {
+            MVPEmptyState(title: "No playbooks match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local exception playbooks." : "Add a local playbook to guide staff through common intake, tracking, dispatch, and reconciliation exceptions.", symbol: "book.closed.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add playbook", action: hasActiveFilters ? clearFilters : store.addExceptionPlaybookPlaceholder)
+          } else {
+            ForEach(filteredPlaybooks) { playbook in
+              ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
+                store.updateExceptionPlaybook(updatedPlaybook)
+              } onToggle: {
+                store.toggleExceptionPlaybook(playbook)
+              } onReviewed: {
+                store.markExceptionPlaybookReviewed(playbook)
+              } onCreateTask: {
+                store.createReviewTask(from: playbook)
+              } onCreateDraft: {
+                store.createDraftMessage(from: playbook)
+              } onRemove: {
+                store.removeExceptionPlaybook(playbook)
+              }
             }
           }
         }
@@ -69,6 +94,9 @@ struct ExceptionPlaybooksView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search playbook, trigger, steps, escalation, issue, record, or linked guidance", text: $playbookSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Issue", selection: $selectedIssueType) {
         Text("All issues").tag(nil as ReconciliationIssueType?)
         ForEach(ReconciliationIssueType.allCases) { issueType in
@@ -98,15 +126,46 @@ struct ExceptionPlaybooksView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedIssueType = nil
-        selectedEntityType = nil
-        selectedPriority = nil
-        selectedEnabledState = nil
-        selectedReviewState = nil
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedIssueType = nil
+    selectedEntityType = nil
+    selectedPriority = nil
+    selectedEnabledState = nil
+    selectedReviewState = nil
+    playbookSearchText = ""
+  }
+
+  private func playbookSearchParts(_ playbook: ExceptionPlaybook) -> [String] {
+    var parts = [
+      playbook.id.uuidString,
+      playbook.name,
+      playbook.issueType.rawValue,
+      playbook.linkedEntityType.rawValue,
+      playbook.triggerSummary,
+      playbook.recommendedSteps,
+      playbook.escalationContact,
+      playbook.priority.rawValue,
+      playbook.isEnabled ? "Enabled" : "Disabled",
+      playbook.createdDate,
+      playbook.lastReviewedDate,
+      "\(playbook.usageCount)",
+      playbook.reviewState.rawValue
+    ]
+    parts.append(contentsOf: store.handoffNotes(for: playbook).flatMap { [$0.title, $0.summary, $0.assignee, $0.notes] })
+    parts.append(contentsOf: store.suggestedDestinationAddresses(for: playbook).flatMap { [$0.label, $0.addressLineSummary, $0.cityRegion, $0.preferredCarrier] })
+    parts.append(contentsOf: store.suggestedDeliveryInstructions(for: playbook).flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
+    parts.append(contentsOf: store.suggestedPackageContents(for: playbook).flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    return parts
   }
 }
 
