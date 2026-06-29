@@ -882,9 +882,16 @@ struct DispatchView: View {
         .filter { order in
           order.isInboxCreatedForDispatch
             && [.shipped, .inTransit, .exception].contains(order.status)
-            && order.reviewState != .accepted
             && store.suggestedShipmentManifestRecords(for: order).isEmpty
             && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+        }
+        .sorted { first, second in
+          let firstPriority = dispatchSetupPriority(for: first)
+          let secondPriority = dispatchSetupPriority(for: second)
+          if firstPriority == secondPriority {
+            return first.orderNumber.localizedCaseInsensitiveCompare(second.orderNumber) == .orderedAscending
+          }
+          return firstPriority > secondPriority
         }
         .prefix(5)
     )
@@ -1088,6 +1095,14 @@ struct DispatchView: View {
     }
     return unique
   }
+
+  private func dispatchSetupPriority(for order: TrackedOrder) -> Int {
+    if order.status == .exception { return 100 }
+    if order.reviewState != .accepted { return 90 }
+    if order.status == .inTransit { return 80 }
+    if order.status == .shipped { return 70 }
+    return 40
+  }
 }
 
 private struct DispatchInboxOrderRow: View {
@@ -1123,6 +1138,9 @@ private struct DispatchInboxOrderRow: View {
           CompactMetadataGrid {
             Badge(order.status.rawValue, color: rowColor)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            if order.reviewState == .accepted {
+              Badge("Reviewed, dispatch gap", color: .purple)
+            }
             Label(order.carrier, systemImage: "truck.box.fill")
               .font(.caption)
               .foregroundStyle(.secondary)
