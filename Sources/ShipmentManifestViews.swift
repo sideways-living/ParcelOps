@@ -9,11 +9,31 @@ struct ShipmentManifestsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var manifestSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRecords: [ShipmentManifestRecord] {
+  private var baseFilteredRecords: [ShipmentManifestRecord] {
     store.filteredShipmentManifestRecords(manifestType: selectedType, carrierCourier: carrierCourier, dispatchStatus: selectedStatus, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  }
+
+  private var filteredRecords: [ShipmentManifestRecord] {
+    let query = manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredRecords }
+    return baseFilteredRecords.filter { record in
+      shipmentManifest(record, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedType != nil
+      || !carrierCourier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedStatus != nil
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -38,13 +58,22 @@ struct ShipmentManifestsView: View {
             Text("\(filteredRecords.count) visible manifests")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredRecords.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add manifest", systemImage: "plus", action: store.addShipmentManifestPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRecords.isEmpty {
-            MVPEmptyState(title: "No manifests match this view", detail: "Clear filters or add a placeholder manifest to test dispatch batching.", symbol: "list.bullet.clipboard.fill", actionTitle: "Add manifest", action: store.addShipmentManifestPlaceholder)
+            MVPEmptyState(
+              title: "No manifests match this view",
+              detail: hasActiveFilters ? "Clear search or filters to return to all shipment manifests." : "Add a placeholder manifest to test dispatch batching.",
+              symbol: "list.bullet.clipboard.fill",
+              actionTitle: hasActiveFilters ? "Clear filters" : "Add manifest",
+              action: hasActiveFilters ? clearFilters : store.addShipmentManifestPlaceholder
+            )
           } else {
             ForEach(filteredRecords) { record in
               ShipmentManifestRow(record: record, store: store, linkedOrders: linkedOrders(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
@@ -94,6 +123,9 @@ struct ShipmentManifestsView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search title, reference, carrier, destination, owner, order, group, label, scan, or notes", text: $manifestSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as ShipmentManifestType?)
         ForEach(ShipmentManifestType.allCases) { type in Text(type.rawValue).tag(type as ShipmentManifestType?) }
@@ -129,16 +161,87 @@ struct ShipmentManifestsView: View {
       .pickerStyle(.menu)
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedType = nil
-        carrierCourier = ""
-        selectedStatus = nil
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+        clearFilters()
       }
       .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedType = nil
+    carrierCourier = ""
+    selectedStatus = nil
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    manifestSearchText = ""
+  }
+
+  private func shipmentManifest(_ record: ShipmentManifestRecord, matches query: String) -> Bool {
+    let linkedOrders = linkedOrders(for: record)
+    let linkedGroups = record.shipmentGroupIDs.compactMap { groupID in
+      store.shipmentGroups.first { $0.id == groupID }
+    }
+    let checklists = store.suggestedDispatchReadinessChecklists(for: record)
+    let orderText = linkedOrders.map { order in
+      [
+        order.store,
+        order.orderNumber,
+        order.customer,
+        order.recipientEmail,
+        order.carrier,
+        order.trackingNumber,
+        order.destination
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let groupText = linkedGroups.map { group in
+      [
+        group.groupName,
+        group.destinationSummary,
+        group.recipientCustomerSummary,
+        group.carrierSummary,
+        group.statusSummary
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let checklistText = checklists.map { checklist in
+      [
+        checklist.title,
+        checklist.checklistType.rawValue,
+        checklist.checklistStatus.rawValue,
+        checklist.requiredChecksSummary,
+        checklist.missingRequirementsSummary
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let searchableText = [
+      record.title,
+      record.manifestType.rawValue,
+      record.linkedEntityType.rawValue,
+      record.linkedEntityID,
+      record.carrierCourier,
+      record.destinationSummary,
+      record.assignedOwnerTeam,
+      record.dispatchStatus.rawValue,
+      record.plannedDispatchDate,
+      record.actualDispatchDate,
+      record.manifestReferencePlaceholder,
+      record.notes,
+      record.riskLevel.rawValue,
+      record.reviewState.rawValue,
+      record.handoffLocationStorageLocationID?.uuidString ?? "",
+      record.includedOrderIDs.map(\.uuidString).joined(separator: " "),
+      record.shipmentGroupIDs.map(\.uuidString).joined(separator: " "),
+      record.inventoryReceiptIDs.map(\.uuidString).joined(separator: " "),
+      record.packageContentIDs.map(\.uuidString).joined(separator: " "),
+      record.custodyRecordIDs.map(\.uuidString).joined(separator: " "),
+      record.labelReferenceIDs.map(\.uuidString).joined(separator: " "),
+      record.scanSessionIDs.map(\.uuidString).joined(separator: " "),
+      record.evidenceAttachmentIDs.map(\.uuidString).joined(separator: " "),
+      orderText,
+      groupText,
+      checklistText
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 
   private func linkedOrders(for record: ShipmentManifestRecord) -> [TrackedOrder] {
