@@ -42,8 +42,22 @@ struct DashboardView: View {
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
     }
   }
+  private var inboxDispatchSetupPendingOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      isInboxCreatedOrder(order)
+        && !hasPartialInboxOrderTask(order)
+        && order.missingInboxOrderFieldCount == 0
+        && (
+          store.suggestedShipmentManifestRecords(for: order).contains(where: \.isInboxHandoffSetup)
+            || store.suggestedDispatchReadinessChecklists(for: order).contains(where: \.isInboxHandoffSetup)
+        )
+        && store.suggestedDispatchReadinessChecklists(for: order).contains { checklist in
+          checklist.isInboxHandoffSetup && checklist.checklistStatus != .completed
+        }
+    }
+  }
   private var dispatchAttentionCount: Int {
-    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + partialInboxOrderBlockers.count
+    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count
   }
   private var taskAttentionCount: Int {
     store.reviewTasksNeedingAttention.count
@@ -709,12 +723,14 @@ struct DashboardView: View {
               ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Inbox gaps", "\(inboxDispatchGapOrders.count)", inboxDispatchGapOrders.isEmpty ? .green : .purple),
+              ("Inbox setup", "\(inboxDispatchSetupPendingOrders.count)", inboxDispatchSetupPendingOrders.isEmpty ? .green : .teal),
               ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)))
+            CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
           }
         }
@@ -783,6 +799,28 @@ private extension TrackedOrder {
         value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
       }
       .count
+  }
+}
+
+private extension ShipmentManifestRecord {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
   }
 }
 
@@ -1234,6 +1272,34 @@ struct CompactInboxDispatchGapList: View {
             detail: "\(order.status.rawValue) • \(order.carrier) • \(order.trackingNumber)",
             badge: order.reviewState == .accepted ? "Dispatch gap" : "Review first",
             color: order.reviewState == .accepted ? .purple : .orange
+          )
+        }
+      }
+    }
+  }
+}
+
+struct CompactInboxDispatchSetupList: View {
+  var orders: [TrackedOrder]
+  var store: ParcelOpsStore
+
+  var body: some View {
+    CompactList(title: "Inbox dispatch setup pending", symbol: "checkmark.rectangle.stack.fill") {
+      if orders.isEmpty {
+        CompactRow(
+          title: "No Inbox dispatch setup pending",
+          detail: "Verified Inbox-created orders have no promoted readiness follow-up.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(orders) { order in
+          let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: checklists.first?.missingRequirementsSummary ?? "\(order.carrier) • \(order.trackingNumber)",
+            badge: checklists.first?.checklistStatus.rawValue ?? "Readiness",
+            color: .teal
           )
         }
       }

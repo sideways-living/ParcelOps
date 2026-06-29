@@ -86,7 +86,7 @@ struct OperationsWorkbenchView: View {
       store.orders
         .filter { order in
           isInboxCreatedOrder(order)
-            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order))
+            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order) || needsInboxDispatchReadiness(order))
         }
         .sorted { first, second in
           let firstPriority = inboxOrderFollowUpPriority(first)
@@ -131,6 +131,7 @@ struct OperationsWorkbenchView: View {
   private var workbenchNextActionTone: Color {
     if urgentWorkbenchCount > 0 || defaultQueueItems.filter(\.isBlocked).count > 0 { return .red }
     if !partialInboxOrderBlockers.isEmpty { return .orange }
+    if !inboxDispatchReadinessOrders.isEmpty { return .teal }
     if !inboxCreatedOrders.isEmpty { return .teal }
     if !draftFollowUpItems.isEmpty { return .orange }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return .purple }
@@ -142,6 +143,7 @@ struct OperationsWorkbenchView: View {
     if urgentWorkbenchCount > 0 { return "Start with urgent work" }
     if defaultQueueItems.filter(\.isBlocked).count > 0 { return "Clear blocked work" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify partial Inbox orders" }
+    if !inboxDispatchReadinessOrders.isEmpty { return "Finish Inbox dispatch readiness" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
     if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return "Review open exceptions" }
@@ -160,6 +162,9 @@ struct OperationsWorkbenchView: View {
     }
     if !partialInboxOrderBlockers.isEmpty {
       return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Open the order before dispatch setup."
+    }
+    if !inboxDispatchReadinessOrders.isEmpty {
+      return "\(inboxDispatchReadinessOrders.count) Inbox-created order has local dispatch setup but still needs readiness, label, scan, custody, or handoff confirmation."
     }
     if !inboxCreatedOrders.isEmpty {
       return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation or dispatch setup before it disappears from daily follow-up."
@@ -274,6 +279,7 @@ struct OperationsWorkbenchView: View {
           ("Blocked", "\(defaultQueueItems.filter(\.isBlocked).count)", defaultQueueItems.contains(where: \.isBlocked) ? .orange : .green),
           ("Review", "\(defaultQueueItems.filter { $0.reviewState == .needsReview }.count)", defaultQueueItems.contains { $0.reviewState == .needsReview } ? .purple : .green),
           ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
+          ("Readiness", "\(inboxDispatchReadinessOrders.count)", inboxDispatchReadinessOrders.isEmpty ? .green : .teal),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
           ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
           ("Open", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .blue)
@@ -321,6 +327,7 @@ struct OperationsWorkbenchView: View {
           WorkbenchInboxOrderRow(
             order: order,
             needsDispatchSetup: needsDispatchSetup(order),
+            needsInboxDispatchReadiness: needsInboxDispatchReadiness(order),
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
             store: store
@@ -487,6 +494,17 @@ struct OperationsWorkbenchView: View {
       && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
   }
 
+  private func needsInboxDispatchReadiness(_ order: TrackedOrder) -> Bool {
+    !needsPreDispatchVerification(order)
+      && (
+        store.suggestedShipmentManifestRecords(for: order).contains(where: \.isInboxHandoffSetup)
+          || store.suggestedDispatchReadinessChecklists(for: order).contains(where: \.isInboxHandoffSetup)
+      )
+      && store.suggestedDispatchReadinessChecklists(for: order).contains { checklist in
+        checklist.isInboxHandoffSetup && checklist.checklistStatus != .completed
+      }
+  }
+
   private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
     if order.status == .exception { return 120 }
     if needsPreDispatchVerification(order) { return 115 }
@@ -499,6 +517,10 @@ struct OperationsWorkbenchView: View {
 
   private var partialInboxOrderBlockers: [TrackedOrder] {
     inboxCreatedOrders.filter(needsPreDispatchVerification)
+  }
+
+  private var inboxDispatchReadinessOrders: [TrackedOrder] {
+    inboxCreatedOrders.filter(needsInboxDispatchReadiness)
   }
 
   private func partialInboxTaskCount(for order: TrackedOrder) -> Int {
@@ -601,9 +623,32 @@ struct OperationsWorkbenchView: View {
   }
 }
 
+private extension ShipmentManifestRecord {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
+  }
+}
+
 private struct WorkbenchInboxOrderRow: View {
   var order: TrackedOrder
   var needsDispatchSetup: Bool
+  var needsInboxDispatchReadiness: Bool
   var needsPreDispatchVerification: Bool
   var partialTaskCount: Int
   var store: ParcelOpsStore
@@ -611,8 +656,22 @@ private struct WorkbenchInboxOrderRow: View {
 
   private var rowColor: Color {
     if needsPreDispatchVerification { return .orange }
+    if needsInboxDispatchReadiness { return .teal }
     if needsDispatchSetup { return .purple }
     return order.status == .exception ? .orange : .teal
+  }
+
+  private var nextActionText: String {
+    if needsPreDispatchVerification {
+      return "Next: verify missing Inbox details from the order before dispatch setup."
+    }
+    if needsDispatchSetup {
+      return "Next: add or link dispatch manifest/readiness context."
+    }
+    if needsInboxDispatchReadiness {
+      return "Next: finish readiness, label, scan, custody, and handoff checks in Dispatch."
+    }
+    return "Next: confirm tracking, destination, and linked follow-up from the order detail."
   }
 
   var body: some View {
@@ -628,7 +687,7 @@ private struct WorkbenchInboxOrderRow: View {
           Text("\(order.customer) • \(order.destination)")
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          Text(needsPreDispatchVerification ? "Next: verify missing Inbox details from the order before dispatch setup." : needsDispatchSetup ? "Next: add or link dispatch manifest/readiness context." : "Next: confirm tracking, destination, and linked follow-up from the order detail.")
+          Text(nextActionText)
             .font(.caption.weight(.semibold))
             .foregroundStyle(rowColor)
         }
@@ -643,6 +702,9 @@ private struct WorkbenchInboxOrderRow: View {
           }
           if needsDispatchSetup {
             Badge("Dispatch gap", color: .purple)
+          }
+          if needsInboxDispatchReadiness {
+            Badge("Readiness", color: .teal)
           }
         }
       }
@@ -676,11 +738,11 @@ private struct WorkbenchInboxOrderRow: View {
             Label("Open Tasks", systemImage: "checklist")
           }
           .buttonStyle(.bordered)
-        } else if needsDispatchSetup {
+        } else if needsDispatchSetup || needsInboxDispatchReadiness {
           NavigationLink {
             DispatchView(store: store)
           } label: {
-            Label("Open Dispatch", systemImage: "shippingbox.and.arrow.backward.fill")
+            Label(needsInboxDispatchReadiness ? "Open Readiness" : "Open Dispatch", systemImage: "shippingbox.and.arrow.backward.fill")
           }
           .buttonStyle(.bordered)
         }
