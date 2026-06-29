@@ -9785,6 +9785,118 @@ final class ParcelOpsStore {
     )
   }
 
+  func promoteFilteredSpaceMailMessageToUncertain(_ filteredMessage: SpaceMailFilteredMessage, for connection: SpaceMailIMAPConnection) {
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.filteredMessages.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      if !draft.uncertainMessages.contains(where: { $0.providerMessageID == filteredMessage.providerMessageID }) {
+        draft.uncertainMessages.insert(
+          SpaceMailUncertainMessage(
+            providerMessageID: filteredMessage.providerMessageID,
+            sourceMailboxID: filteredMessage.sourceMailboxID,
+            sender: filteredMessage.sender,
+            subject: filteredMessage.subject,
+            receivedDate: filteredMessage.receivedDate,
+            bodyPreview: filteredMessage.bodyPreview,
+            reason: "Promoted from filtered review: \(filteredMessage.reason)",
+            capturedDate: Self.auditTimestamp()
+          ),
+          at: 0
+        )
+      }
+      draft.lastRefreshFilteredNonOrderCount = draft.filteredMessages.count
+      draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+      draft.lastRefreshSummary = "Filtered preview moved to uncertain review locally. \(draft.uncertainMessages.count) uncertain and \(draft.filteredMessages.count) filtered previews remain."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered promote",
+          status: "Moved to uncertain",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Moved filtered preview '\(safeAuditPreview(filteredMessage.subject, limit: 80))' into uncertain review. Source reason: \(filteredMessage.reason)."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .edited,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered SpaceMail preview moved to uncertain review.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nSource reason: \(filteredMessage.reason)\nThe preview moved between local review queues only. It was not imported into Inbox, duplicate metadata was preserved, and no mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+    )
+  }
+
+  func dismissAllUncertainSpaceMailMessages(for connection: SpaceMailIMAPConnection) {
+    guard let current = spaceMailIMAPConnections.first(where: { $0.id == connection.id }), !current.uncertainMessages.isEmpty else { return }
+    let dismissedCount = current.uncertainMessages.count
+    let exampleSubjects = current.uncertainMessages.prefix(3).map { safeAuditPreview($0.subject, limit: 80) }
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.uncertainMessages = []
+      draft.lastRefreshUncertainCount = 0
+      draft.lastRefreshSummary = "All uncertain SpaceMail previews dismissed locally. Filtered previews remain available for spot review."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain dismiss all",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: 0,
+          summary: "Dismissed \(dismissedCount) uncertain preview\(dismissedCount == 1 ? "" : "s") from local review."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "All uncertain SpaceMail previews dismissed locally.",
+      afterDetail: "Dismissed: \(dismissedCount)\nExamples: \(exampleSubjects.joined(separator: "; "))\nOnly the local uncertain review queue was cleared. No intake email was deleted, duplicate metadata was changed, or mailbox item was modified."
+    )
+  }
+
+  func dismissAllFilteredSpaceMailMessages(for connection: SpaceMailIMAPConnection) {
+    guard let current = spaceMailIMAPConnections.first(where: { $0.id == connection.id }), !current.filteredMessages.isEmpty else { return }
+    let dismissedCount = current.filteredMessages.count
+    let exampleSubjects = current.filteredMessages.prefix(3).map { safeAuditPreview($0.subject, limit: 80) }
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.filteredMessages = []
+      draft.lastRefreshFilteredNonOrderCount = 0
+      draft.lastRefreshSummary = "All filtered SpaceMail previews dismissed locally. Uncertain previews remain available for review."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered dismiss all",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: 0,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Dismissed \(dismissedCount) filtered preview\(dismissedCount == 1 ? "" : "s") from local review."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "All filtered SpaceMail previews dismissed locally.",
+      afterDetail: "Dismissed: \(dismissedCount)\nExamples: \(exampleSubjects.joined(separator: "; "))\nOnly the local filtered preview queue was cleared. No intake email was deleted, duplicate metadata was changed, or mailbox item was modified."
+    )
+  }
+
   func addSpaceMailHintFromUncertain(_ uncertainMessage: SpaceMailUncertainMessage, target: SpaceMailHintTarget, for connection: SpaceMailIMAPConnection) {
     addSpaceMailHint(
       target: target,

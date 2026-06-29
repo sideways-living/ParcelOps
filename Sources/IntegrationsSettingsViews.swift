@@ -212,6 +212,12 @@ struct IntegrationsView: View {
               store.importFilteredSpaceMailMessage(filteredMessage, for: connection)
             } onDismissFiltered: { filteredMessage in
               store.dismissFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onPromoteFiltered: { filteredMessage in
+              store.promoteFilteredSpaceMailMessageToUncertain(filteredMessage, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainSpaceMailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredSpaceMailMessages(for: connection)
             } onTaskFromUncertain: { uncertainMessage in
               store.createReviewTask(from: uncertainMessage, connection: connection)
             } onDraftFromUncertain: { uncertainMessage in
@@ -830,6 +836,9 @@ struct SpaceMailIMAPConnectionRow: View {
   var onDismissUncertain: (SpaceMailUncertainMessage) -> Void
   var onImportFiltered: (SpaceMailFilteredMessage) -> Void
   var onDismissFiltered: (SpaceMailFilteredMessage) -> Void
+  var onPromoteFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDismissAllUncertain: () -> Void
+  var onDismissAllFiltered: () -> Void
   var onTaskFromUncertain: (SpaceMailUncertainMessage) -> Void
   var onDraftFromUncertain: (SpaceMailUncertainMessage) -> Void
   var onTaskFromFiltered: (SpaceMailFilteredMessage) -> Void
@@ -901,6 +910,7 @@ struct SpaceMailIMAPConnectionRow: View {
 
       spaceMailRefreshSummary
       spaceMailNextSteps
+      spaceMailReviewQueueSummary
 
       if !connection.uncertainMessages.isEmpty {
         uncertainMessagesReview
@@ -1109,6 +1119,56 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailReviewQueueSummary: some View {
+    let uncertainCount = connection.uncertainMessages.count
+    let filteredCount = connection.filteredMessages.count
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("5. Review queued examples", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
+        Spacer()
+        Badge("\(uncertainCount) uncertain", color: uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(filteredCount) filtered", color: filteredCount > 0 ? .teal : .secondary)
+      }
+      Text(reviewQueueSummaryText(uncertainCount: uncertainCount, filteredCount: filteredCount))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if uncertainCount > 0 || filteredCount > 0 {
+        CompactActionRow {
+          if uncertainCount > 0 {
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
+          if filteredCount > 0 {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
+        }
+        Text("Bulk dismiss only clears local review queues. It does not delete intake, reset duplicate metadata, or modify mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func reviewQueueSummaryText(uncertainCount: Int, filteredCount: Int) -> String {
+    if uncertainCount == 0 && filteredCount == 0 {
+      return "No mixed-mailbox examples are waiting for local review. Imported order mail should be handled in Inbox."
+    }
+    if uncertainCount > 0 && filteredCount > 0 {
+      return "Review uncertain previews first. Filtered examples are lower priority and should only be imported or promoted when a real order was filtered too aggressively."
+    }
+    if uncertainCount > 0 {
+      return "Uncertain previews are order-adjacent but missing strong IDs. Import only true order updates, or dismiss locally after review."
+    }
+    return "Filtered examples stayed out of Inbox. Move one to uncertain review if it may be relevant, or dismiss after spot-checking."
   }
 
   private var spaceMailNextStepItems: [(title: String, detail: String, symbol: String, color: Color)] {
@@ -1467,6 +1527,9 @@ struct SpaceMailIMAPConnectionRow: View {
       Text("These previews looked possibly order-related, but not strong enough for automatic Inbox import. Import only if the preview is relevant, or dismiss it locally.")
         .font(.caption2)
         .foregroundStyle(.secondary)
+      CompactActionRow {
+        Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+      }
       ForEach(connection.uncertainMessages) { message in
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .firstTextBaseline) {
@@ -1528,6 +1591,9 @@ struct SpaceMailIMAPConnectionRow: View {
       Text("These previews were filtered out of Inbox. Import one only if the classifier was too strict, or dismiss it locally to clear the review list.")
         .font(.caption2)
         .foregroundStyle(.secondary)
+      CompactActionRow {
+        Button("Dismiss all filtered", systemImage: "xmark.circle", role: .destructive, action: onDismissAllFiltered)
+      }
       ForEach(connection.filteredMessages) { message in
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .firstTextBaseline) {
@@ -1551,6 +1617,9 @@ struct SpaceMailIMAPConnectionRow: View {
           CompactActionRow {
             Button("Import anyway", systemImage: "tray.and.arrow.down.fill") {
               onImportFiltered(message)
+            }
+            Button("Move to uncertain", systemImage: "questionmark.folder") {
+              onPromoteFiltered(message)
             }
             Button("Task", systemImage: "checklist") {
               onTaskFromFiltered(message)

@@ -104,6 +104,12 @@ struct MailboxView: View {
               store.importFilteredSpaceMailMessage(filteredMessage, for: connection)
             } onDismissFiltered: { filteredMessage in
               store.dismissFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onPromoteFiltered: { filteredMessage in
+              store.promoteFilteredSpaceMailMessageToUncertain(filteredMessage, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainSpaceMailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredSpaceMailMessages(for: connection)
             } onTaskFromUncertain: { uncertainMessage in
               store.createReviewTask(from: uncertainMessage, connection: connection)
             } onDraftFromUncertain: { uncertainMessage in
