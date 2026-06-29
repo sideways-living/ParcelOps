@@ -843,6 +843,22 @@ struct DispatchView: View {
     }
   }
 
+  private var visibleInboxDispatchSetupOrders: [TrackedOrder] {
+    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return inboxDispatchSetupOrders }
+    return inboxDispatchSetupOrders.filter { order in
+      order.orderNumber.localizedCaseInsensitiveContains(query)
+        || order.store.localizedCaseInsensitiveContains(query)
+        || order.customer.localizedCaseInsensitiveContains(query)
+        || order.destination.localizedCaseInsensitiveContains(query)
+        || order.carrier.localizedCaseInsensitiveContains(query)
+        || order.trackingNumber.localizedCaseInsensitiveContains(query)
+        || order.status.rawValue.localizedCaseInsensitiveContains(query)
+        || order.reviewState.rawValue.localizedCaseInsensitiveContains(query)
+        || order.latestStatus.localizedCaseInsensitiveContains(query)
+    }
+  }
+
   private var inboxDispatchSetupOrders: [TrackedOrder] {
     Array(
       store.orders
@@ -946,13 +962,14 @@ struct DispatchView: View {
   private var dispatchQueuePanel: some View {
     SettingsPanel(title: "Unified dispatch queue", symbol: "shippingbox.and.arrow.backward.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Work blocked, high-risk, incomplete, and upcoming outbound records here before opening a detailed dispatch view.")
+        Text("Work blocked, high-risk, incomplete, upcoming outbound records, and Inbox-created orders that still need dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
         FilterControlGrid {
           TextField("Search dispatch queue", text: $dispatchSearchText)
             .textFieldStyle(.roundedBorder)
+          Badge("\(visibleDispatchItems.count + visibleInboxDispatchSetupOrders.count) shown", color: visibleDispatchItems.isEmpty && visibleInboxDispatchSetupOrders.isEmpty ? .orange : .blue)
           if !dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Clear search", systemImage: "xmark.circle") {
               dispatchSearchText = ""
@@ -978,14 +995,14 @@ struct DispatchView: View {
 
   @ViewBuilder
   private var inboxDispatchSetupPanel: some View {
-    if !inboxDispatchSetupOrders.isEmpty {
+    if !visibleInboxDispatchSetupOrders.isEmpty {
       SettingsPanel(title: "Inbox-created orders needing dispatch setup", symbol: "tray.and.arrow.down.fill") {
         VStack(alignment: .leading, spacing: 12) {
           Text("These orders came from Inbox intake and look dispatch-relevant, but no manifest or readiness checklist is linked yet.")
             .font(.callout)
             .foregroundStyle(.secondary)
 
-          ForEach(inboxDispatchSetupOrders) { order in
+          ForEach(visibleInboxDispatchSetupOrders) { order in
             DispatchInboxOrderRow(order: order, store: store)
           }
         }
