@@ -8754,7 +8754,69 @@ final class ParcelOpsStore {
       shipmentManifestRecords[index].riskLevel = shipmentManifestRecords[index].riskLevel == .critical ? .critical : .high
     }
     persistShipmentManifestRecords()
+    updateLinkedInboxOrdersForManifestStatus(shipmentManifestRecords[index], action: action, summary: summary)
     logAudit(action: action, entityType: .shipmentManifest, entityID: shipmentManifestRecords[index].id.uuidString, entityLabel: shipmentManifestRecords[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: shipmentManifestRecords[index].auditDetail)
+  }
+
+  private func updateLinkedInboxOrdersForManifestStatus(_ manifest: ShipmentManifestRecord, action: AuditAction, summary: String) {
+    guard manifest.isInboxHandoffSetup else { return }
+
+    var changedOrderIDs: [UUID] = []
+    for orderID in manifest.includedOrderIDs {
+      guard let index = orders.firstIndex(where: { $0.id == orderID }) else { continue }
+      let beforeDetail = orders[index].auditDetail
+      let statusSummary: String
+      let reviewState: ReviewState
+
+      switch manifest.dispatchStatus {
+      case .draft:
+        statusSummary = "Inbox dispatch setup is in draft manifest stage"
+        reviewState = orders[index].reviewState
+      case .prepared:
+        statusSummary = "Inbox dispatch manifest prepared locally"
+        reviewState = .monitor
+      case .dispatched:
+        statusSummary = "Inbox dispatch manifest marked dispatched locally"
+        reviewState = .monitor
+      case .handedOff:
+        statusSummary = "Inbox dispatch manifest handed off locally"
+        reviewState = .accepted
+      case .blockedNeedsReview:
+        statusSummary = "Inbox dispatch manifest blocked and needs review"
+        reviewState = .needsReview
+      case .reopened:
+        statusSummary = "Inbox dispatch manifest reopened for review"
+        reviewState = .needsReview
+      }
+
+      orders[index].latestStatus = statusSummary
+      orders[index].reviewState = reviewState
+      orders[index].contactHistory.insert(
+        ContactHistoryEvent(
+          time: "Now",
+          source: .manual,
+          contactPoint: "Dispatch manifest",
+          summary: statusSummary,
+          evidence: "\(manifest.title): \(summary)",
+          reviewState: reviewState
+        ),
+        at: 0
+      )
+      changedOrderIDs.append(orderID)
+      logAudit(
+        action: action,
+        entityType: .order,
+        entityID: orders[index].id.uuidString,
+        entityLabel: orders[index].orderNumber,
+        summary: "Inbox-created order updated from dispatch manifest.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(orders[index].auditDetail)\nManifest: \(manifest.title)\nNo external carrier, label, scanner, or mailbox action occurred."
+      )
+    }
+
+    if !changedOrderIDs.isEmpty {
+      persistOrders()
+    }
   }
 
   private func suggestedShipmentManifestRecords(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [ShipmentManifestRecord] {
@@ -8885,7 +8947,66 @@ final class ParcelOpsStore {
       dispatchReadinessChecklists[index].riskLevel = dispatchReadinessChecklists[index].riskLevel == .critical ? .critical : .high
     }
     persistDispatchReadinessChecklists()
+    updateLinkedInboxOrdersForDispatchChecklistStatus(dispatchReadinessChecklists[index], action: action, summary: summary)
     logAudit(action: action, entityType: .dispatchChecklist, entityID: dispatchReadinessChecklists[index].id.uuidString, entityLabel: dispatchReadinessChecklists[index].title, summary: summary, beforeDetail: beforeDetail, afterDetail: dispatchReadinessChecklists[index].auditDetail)
+  }
+
+  private func updateLinkedInboxOrdersForDispatchChecklistStatus(_ checklist: DispatchReadinessChecklist, action: AuditAction, summary: String) {
+    guard checklist.isInboxHandoffSetup else { return }
+
+    var changedOrderIDs: [UUID] = []
+    for orderID in checklist.orderIDs {
+      guard let index = orders.firstIndex(where: { $0.id == orderID }) else { continue }
+      let beforeDetail = orders[index].auditDetail
+      let statusSummary: String
+      let reviewState: ReviewState
+
+      switch checklist.checklistStatus {
+      case .draft:
+        statusSummary = "Inbox dispatch readiness is in draft stage"
+        reviewState = orders[index].reviewState
+      case .ready:
+        statusSummary = "Inbox dispatch readiness marked ready locally"
+        reviewState = .monitor
+      case .blockedNeedsReview:
+        statusSummary = "Inbox dispatch readiness blocked and needs review"
+        reviewState = .needsReview
+      case .completed:
+        statusSummary = "Inbox dispatch readiness completed locally"
+        reviewState = .accepted
+      case .reopened:
+        statusSummary = "Inbox dispatch readiness reopened for review"
+        reviewState = .needsReview
+      }
+
+      orders[index].latestStatus = statusSummary
+      orders[index].reviewState = reviewState
+      orders[index].contactHistory.insert(
+        ContactHistoryEvent(
+          time: "Now",
+          source: .manual,
+          contactPoint: "Dispatch readiness",
+          summary: statusSummary,
+          evidence: "\(checklist.title): \(summary)",
+          reviewState: reviewState
+        ),
+        at: 0
+      )
+      changedOrderIDs.append(orderID)
+      logAudit(
+        action: action,
+        entityType: .order,
+        entityID: orders[index].id.uuidString,
+        entityLabel: orders[index].orderNumber,
+        summary: "Inbox-created order updated from dispatch readiness.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(orders[index].auditDetail)\nChecklist: \(checklist.title)\nNo external carrier, label, scanner, or mailbox action occurred."
+      )
+    }
+
+    if !changedOrderIDs.isEmpty {
+      persistOrders()
+    }
   }
 
   private func suggestedDispatchReadinessChecklists(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> [DispatchReadinessChecklist] {
@@ -12296,6 +12417,15 @@ private extension ShipmentManifestRecord {
     "Title: \(title); type: \(manifestType.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); carrier: \(carrierCourier); destination: \(destinationSummary); orders: \(includedOrderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); status: \(dispatchStatus.rawValue); planned: \(plannedDispatchDate); actual: \(actualDispatchDate); handoff location: \(handoffLocationStorageLocationID?.uuidString ?? "none"); reference: \(manifestReferencePlaceholder); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate); notes: \(notes)."
   }
 
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+
   func matches(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
     let orderMatch = orderID != nil && includedOrderIDs.contains(orderID!)
     let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
@@ -12334,6 +12464,15 @@ private extension ShipmentManifestRecord {
 private extension DispatchReadinessChecklist {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); manifest: \(shipmentManifestID?.uuidString ?? "none"); orders: \(orderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); type: \(checklistType.rawValue); status: \(checklistStatus.rawValue); required: \(requiredChecksSummary); completed: \(completedChecksSummary); missing: \(missingRequirementsSummary); owner: \(assignedOwnerTeam); planned: \(plannedDispatchDate); completed date: \(completedDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate)."
+  }
+
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
   }
 
   func matches(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
