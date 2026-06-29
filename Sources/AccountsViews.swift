@@ -9,13 +9,14 @@ struct AccountsView: View {
   @State private var selectedCredentialStatus: CredentialStorageStatus?
   @State private var selectedMFAStatus: MFAStatus?
   @State private var selectedReviewState: ReviewState?
+  @State private var accountSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisations: [String] {
     Array(Set(store.accountCredentialRecords.map(\.organisation))).sorted()
   }
 
-  private var filteredAccounts: [AccountCredentialRecord] {
+  private var baseFilteredAccounts: [AccountCredentialRecord] {
     store.accountCredentialRecords.filter { account in
       let matchesOrganisation = selectedOrganisation == nil || account.organisation == selectedOrganisation
       let matchesEntity = selectedEntityType == nil || account.linkedEntityType == selectedEntityType
@@ -25,6 +26,24 @@ struct AccountsView: View {
       let matchesReview = selectedReviewState == nil || account.reviewState == selectedReviewState
       return matchesOrganisation && matchesEntity && matchesEnabled && matchesCredential && matchesMFA && matchesReview
     }
+  }
+
+  private var filteredAccounts: [AccountCredentialRecord] {
+    let query = accountSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredAccounts }
+    return baseFilteredAccounts.filter { account in
+      accountSearchParts(account).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedOrganisation != nil
+      || selectedEntityType != nil
+      || selectedEnabledState != nil
+      || selectedCredentialStatus != nil
+      || selectedMFAStatus != nil
+      || selectedReviewState != nil
+      || !accountSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -44,18 +63,16 @@ struct AccountsView: View {
             Text("\(filteredAccounts.count) visible accounts")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredAccounts.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add account", systemImage: "plus", action: store.addAccountCredentialRecordPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredAccounts.isEmpty {
-            Text("No account placeholders match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No account placeholders match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local account placeholders." : "Add a local account placeholder to track review status and setup notes without storing secrets.", symbol: "key.horizontal.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add account", action: hasActiveFilters ? clearFilters : store.addAccountCredentialRecordPlaceholder)
           } else {
             ForEach(filteredAccounts) { account in
               AccountCredentialRow(account: account, store: store, linkedOrder: linkedOrder(for: account), contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
@@ -89,13 +106,15 @@ struct AccountsView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search account, organisation, username label, login URL, notes, linked record, or order", text: $accountSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Organisation", selection: $selectedOrganisation) {
         Text("All organisations").tag(nil as String?)
         ForEach(organisations, id: \.self) { organisation in
           Text(organisation).tag(organisation as String?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as AccountLinkedEntityType?)
@@ -103,14 +122,12 @@ struct AccountsView: View {
           Text(entityType.rawValue).tag(entityType as AccountLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Credential", selection: $selectedCredentialStatus) {
         Text("All credential states").tag(nil as CredentialStorageStatus?)
@@ -118,7 +135,6 @@ struct AccountsView: View {
           Text(status.rawValue).tag(status as CredentialStorageStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("MFA", selection: $selectedMFAStatus) {
         Text("All MFA states").tag(nil as MFAStatus?)
@@ -126,7 +142,6 @@ struct AccountsView: View {
           Text(status.rawValue).tag(status as MFAStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -134,23 +149,58 @@ struct AccountsView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedOrganisation = nil
-        selectedEntityType = nil
-        selectedEnabledState = nil
-        selectedCredentialStatus = nil
-        selectedMFAStatus = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedOrganisation = nil
+    selectedEntityType = nil
+    selectedEnabledState = nil
+    selectedCredentialStatus = nil
+    selectedMFAStatus = nil
+    selectedReviewState = nil
+    accountSearchText = ""
   }
 
   private func linkedOrder(for account: AccountCredentialRecord) -> TrackedOrder? {
     guard account.linkedEntityType == .order, let orderID = UUID(uuidString: account.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func accountSearchParts(_ account: AccountCredentialRecord) -> [String] {
+    let order = linkedOrder(for: account)
+    return [
+      account.id.uuidString,
+      account.accountName,
+      account.organisation,
+      account.linkedContactID?.uuidString ?? "",
+      account.linkedEntityType.rawValue,
+      account.linkedEntityID,
+      account.loginURL,
+      account.usernameLabel,
+      account.credentialStorageStatus.rawValue,
+      account.mfaStatus.rawValue,
+      account.renewalReviewDate,
+      account.isEnabled ? "Enabled" : "Disabled",
+      account.notes,
+      account.createdDate,
+      account.lastCheckedDate,
+      account.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
   }
 }
 

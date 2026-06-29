@@ -8,13 +8,14 @@ struct ContactsView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedChannel: CommunicationChannel?
   @State private var selectedReviewState: ReviewState?
+  @State private var contactSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisations: [String] {
     Array(Set(store.contactDirectoryEntries.map(\.organisation))).sorted()
   }
 
-  private var filteredContacts: [ContactDirectoryEntry] {
+  private var baseFilteredContacts: [ContactDirectoryEntry] {
     store.contactDirectoryEntries.filter { contact in
       let matchesOrganisation = selectedOrganisation == nil || contact.organisation == selectedOrganisation
       let matchesEntity = selectedEntityType == nil || contact.linkedEntityType == selectedEntityType
@@ -23,6 +24,23 @@ struct ContactsView: View {
       let matchesReview = selectedReviewState == nil || contact.reviewState == selectedReviewState
       return matchesOrganisation && matchesEntity && matchesEnabled && matchesChannel && matchesReview
     }
+  }
+
+  private var filteredContacts: [ContactDirectoryEntry] {
+    let query = contactSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredContacts }
+    return baseFilteredContacts.filter { contact in
+      contactSearchParts(contact).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedOrganisation != nil
+      || selectedEntityType != nil
+      || selectedEnabledState != nil
+      || selectedChannel != nil
+      || selectedReviewState != nil
+      || !contactSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -42,18 +60,16 @@ struct ContactsView: View {
             Text("\(filteredContacts.count) visible contacts")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredContacts.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add contact", systemImage: "plus", action: store.addContactDirectoryEntryPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredContacts.isEmpty {
-            Text("No contacts match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No contacts match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local contacts." : "Add a local contact to keep supplier, carrier, store, and internal follow-up details close to operational records.", symbol: "person.crop.circle.badge.checkmark", actionTitle: hasActiveFilters ? "Clear filters" : "Add contact", action: hasActiveFilters ? clearFilters : store.addContactDirectoryEntryPlaceholder)
           } else {
             ForEach(filteredContacts) { contact in
               ContactDirectoryRow(contact: contact, store: store, linkedOrder: linkedOrder(for: contact), suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
@@ -89,13 +105,15 @@ struct ContactsView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search name, organisation, role, email, phone, notes, linked record, or order", text: $contactSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Organisation", selection: $selectedOrganisation) {
         Text("All organisations").tag(nil as String?)
         ForEach(organisations, id: \.self) { organisation in
           Text(organisation).tag(organisation as String?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as ContactLinkedEntityType?)
@@ -103,14 +121,12 @@ struct ContactsView: View {
           Text(entityType.rawValue).tag(entityType as ContactLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Channel", selection: $selectedChannel) {
         Text("All channels").tag(nil as CommunicationChannel?)
@@ -118,7 +134,6 @@ struct ContactsView: View {
           Text(channel.rawValue).tag(channel as CommunicationChannel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -126,22 +141,55 @@ struct ContactsView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedOrganisation = nil
-        selectedEntityType = nil
-        selectedEnabledState = nil
-        selectedChannel = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedOrganisation = nil
+    selectedEntityType = nil
+    selectedEnabledState = nil
+    selectedChannel = nil
+    selectedReviewState = nil
+    contactSearchText = ""
   }
 
   private func linkedOrder(for contact: ContactDirectoryEntry) -> TrackedOrder? {
     guard contact.linkedEntityType == .order, let orderID = UUID(uuidString: contact.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func contactSearchParts(_ contact: ContactDirectoryEntry) -> [String] {
+    let order = linkedOrder(for: contact)
+    return [
+      contact.id.uuidString,
+      contact.name,
+      contact.organisation,
+      contact.role,
+      contact.email,
+      contact.phone,
+      contact.channelPreference.rawValue,
+      contact.linkedEntityType.rawValue,
+      contact.linkedEntityID,
+      contact.notes,
+      contact.isEnabled ? "Enabled" : "Disabled",
+      contact.createdDate,
+      contact.lastContactedDate,
+      contact.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
   }
 }
 

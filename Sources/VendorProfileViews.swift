@@ -8,9 +8,10 @@ struct VendorProfilesView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedChannel: CommunicationChannel?
   @State private var selectedReviewState: ReviewState?
+  @State private var profileSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private var filteredProfiles: [VendorProfile] {
+  private var baseFilteredProfiles: [VendorProfile] {
     store.vendorProfiles.filter { profile in
       let matchesType = selectedProfileType == nil || profile.profileType == selectedProfileType
       let matchesRisk = selectedRiskLevel == nil || profile.riskLevel == selectedRiskLevel
@@ -19,6 +20,23 @@ struct VendorProfilesView: View {
       let matchesReview = selectedReviewState == nil || profile.reviewState == selectedReviewState
       return matchesType && matchesRisk && matchesEnabled && matchesChannel && matchesReview
     }
+  }
+
+  private var filteredProfiles: [VendorProfile] {
+    let query = profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredProfiles }
+    return baseFilteredProfiles.filter { profile in
+      vendorProfileSearchParts(profile).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedProfileType != nil
+      || selectedRiskLevel != nil
+      || selectedEnabledState != nil
+      || selectedChannel != nil
+      || selectedReviewState != nil
+      || !profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -38,18 +56,16 @@ struct VendorProfilesView: View {
             Text("\(filteredProfiles.count) visible profiles")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredProfiles.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add profile", systemImage: "plus", action: store.addVendorProfilePlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredProfiles.isEmpty {
-            Text("No vendor profiles match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No vendor profiles match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local vendor profiles." : "Add a local profile to group vendor, carrier, store, supplier, and internal team context.", symbol: "building.2.crop.circle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add profile", action: hasActiveFilters ? clearFilters : store.addVendorProfilePlaceholder)
           } else {
             ForEach(filteredProfiles) { profile in
               VendorProfileRow(profile: profile, contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
@@ -74,14 +90,16 @@ struct VendorProfilesView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search profile, organisation, website, support, service notes, contact, or account", text: $profileSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedProfileType) {
         Text("All types").tag(nil as VendorProfileType?)
         ForEach(VendorProfileType.allCases) { type in
           Text(type.rawValue).tag(type as VendorProfileType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risks").tag(nil as VendorRiskLevel?)
@@ -89,14 +107,12 @@ struct VendorProfilesView: View {
           Text(risk.rawValue).tag(risk as VendorRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Channel", selection: $selectedChannel) {
         Text("All channels").tag(nil as CommunicationChannel?)
@@ -104,7 +120,6 @@ struct VendorProfilesView: View {
           Text(channel.rawValue).tag(channel as CommunicationChannel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -112,19 +127,54 @@ struct VendorProfilesView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedProfileType = nil
-        selectedRiskLevel = nil
-        selectedEnabledState = nil
-        selectedChannel = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedProfileType = nil
+    selectedRiskLevel = nil
+    selectedEnabledState = nil
+    selectedChannel = nil
+    selectedReviewState = nil
+    profileSearchText = ""
+  }
+
+  private func vendorProfileSearchParts(_ profile: VendorProfile) -> [String] {
+    let contact = profile.defaultContactID.flatMap { contactID in
+      store.contactDirectoryEntries.first { $0.id == contactID }
+    }
+    let account = profile.defaultAccountID.flatMap { accountID in
+      store.accountCredentialRecords.first { $0.id == accountID }
+    }
+    return [
+      profile.id.uuidString,
+      profile.name,
+      profile.profileType.rawValue,
+      profile.primaryOrganisation,
+      profile.website,
+      profile.supportURL,
+      profile.defaultContactID?.uuidString ?? "",
+      profile.defaultAccountID?.uuidString ?? "",
+      profile.preferredChannel.rawValue,
+      profile.serviceLevelNotes,
+      profile.riskLevel.rawValue,
+      profile.isEnabled ? "Enabled" : "Disabled",
+      profile.createdDate,
+      profile.lastReviewedDate,
+      profile.reviewState.rawValue,
+      contact?.name ?? "",
+      contact?.email ?? "",
+      contact?.phone ?? "",
+      account?.accountName ?? "",
+      account?.usernameLabel ?? ""
+    ]
   }
 }
 
