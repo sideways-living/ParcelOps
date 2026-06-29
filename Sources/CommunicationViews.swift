@@ -11,33 +11,45 @@ struct CommunicationView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var searchQuery: String {
-    searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    searchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
   }
 
-  private var filteredTemplates: [CommunicationTemplate] {
+  private var baseFilteredTemplates: [CommunicationTemplate] {
     store.communicationTemplates.filter { template in
       let matchesEntity = selectedEntityType == nil || template.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || template.reviewState == selectedReviewState
-      let matchesSearch = searchQuery.isEmpty
-        || template.name.localizedCaseInsensitiveContains(searchQuery)
-        || template.subjectTemplate.localizedCaseInsensitiveContains(searchQuery)
-        || template.bodyTemplate.localizedCaseInsensitiveContains(searchQuery)
-      return matchesEntity && matchesReview && matchesSearch
+      return matchesEntity && matchesReview
     }
   }
 
-  private var filteredDrafts: [DraftMessage] {
+  private var filteredTemplates: [CommunicationTemplate] {
+    guard !searchQuery.isEmpty else { return baseFilteredTemplates }
+    return baseFilteredTemplates.filter { template in
+      communicationTemplateSearchParts(template).joined(separator: " ").localizedLowercase.contains(searchQuery)
+    }
+  }
+
+  private var baseFilteredDrafts: [DraftMessage] {
     store.draftMessages.filter { draft in
       let matchesEntity = selectedEntityType == nil || draft.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || draft.reviewState == selectedReviewState
       let matchesStatus = selectedDraftStatus == nil || draft.status == selectedDraftStatus
-      let matchesSearch = searchQuery.isEmpty
-        || draft.subject.localizedCaseInsensitiveContains(searchQuery)
-        || draft.recipient.localizedCaseInsensitiveContains(searchQuery)
-        || draft.body.localizedCaseInsensitiveContains(searchQuery)
-        || draft.linkedEntityID.localizedCaseInsensitiveContains(searchQuery)
-      return matchesEntity && matchesReview && matchesStatus && matchesSearch
+      return matchesEntity && matchesReview && matchesStatus
     }
+  }
+
+  private var filteredDrafts: [DraftMessage] {
+    guard !searchQuery.isEmpty else { return baseFilteredDrafts }
+    return baseFilteredDrafts.filter { draft in
+      draftSearchParts(draft).joined(separator: " ").localizedLowercase.contains(searchQuery)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    !searchQuery.isEmpty
+      || selectedEntityType != nil
+      || selectedReviewState != nil
+      || (selectedMode == .drafts && selectedDraftStatus != nil)
   }
 
   private var openDrafts: [DraftMessage] {
@@ -94,6 +106,9 @@ struct CommunicationView: View {
               Text("\(filteredTemplates.count) visible templates")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+              if hasActiveFilters {
+                Badge("\(baseFilteredTemplates.count) after filters", color: .blue)
+              }
               Spacer()
               Button("Add template", systemImage: "plus", action: store.addCommunicationTemplatePlaceholder)
                 .buttonStyle(.borderedProminent)
@@ -121,8 +136,10 @@ struct CommunicationView: View {
             if filteredTemplates.isEmpty {
               MVPEmptyState(
                 title: "No templates match this view",
-                detail: "Clear filters or add a local template. Templates are only local message starters; they do not send mail.",
-                symbol: "text.badge.checkmark"
+                detail: hasActiveFilters ? "Clear search or filters to return to all local templates." : "Add a local template to start common follow-up drafts without sending mail.",
+                symbol: "text.badge.checkmark",
+                actionTitle: hasActiveFilters ? "Clear filters" : "Add template",
+                action: hasActiveFilters ? clearFilters : store.addCommunicationTemplatePlaceholder
               )
             }
           }
@@ -132,6 +149,9 @@ struct CommunicationView: View {
               Text("\(filteredDrafts.count) visible drafts")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+              if hasActiveFilters {
+                Badge("\(baseFilteredDrafts.count) after filters", color: .blue)
+              }
               Spacer()
               Button("Add draft", systemImage: "plus", action: store.addDraftMessagePlaceholder)
                 .buttonStyle(.borderedProminent)
@@ -155,8 +175,10 @@ struct CommunicationView: View {
             if filteredDrafts.isEmpty {
               MVPEmptyState(
                 title: "No drafts match this view",
-                detail: "Clear filters or add a draft. Drafts stay local until you send the message outside ParcelOps and mark it sent locally.",
-                symbol: "envelope.open.fill"
+                detail: hasActiveFilters ? "Clear search or filters to return to all local drafts." : "Add a local draft. Drafts stay local until you send the message outside ParcelOps and mark it sent locally.",
+                symbol: "envelope.open.fill",
+                actionTitle: hasActiveFilters ? "Clear filters" : "Add draft",
+                action: hasActiveFilters ? clearFilters : store.addDraftMessagePlaceholder
               )
             }
           }
@@ -208,7 +230,6 @@ struct CommunicationView: View {
           Text(entityType.rawValue).tag(entityType as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review states").tag(nil as ReviewState?)
@@ -216,7 +237,6 @@ struct CommunicationView: View {
         Text(ReviewState.needsReview.rawValue).tag(ReviewState.needsReview as ReviewState?)
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
-      .pickerStyle(.menu)
 
       if selectedMode == .drafts {
         Picker("Draft status", selection: $selectedDraftStatus) {
@@ -225,22 +245,71 @@ struct CommunicationView: View {
             Text(status.rawValue).tag(status as DraftMessageStatus?)
           }
         }
-        .pickerStyle(.menu)
       }
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        searchText = ""
-        selectedEntityType = nil
-        selectedReviewState = nil
-        selectedDraftStatus = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    searchText = ""
+    selectedEntityType = nil
+    selectedReviewState = nil
+    selectedDraftStatus = nil
   }
 
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
     guard draft.linkedEntityType == .order, let orderID = UUID(uuidString: draft.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func communicationTemplateSearchParts(_ template: CommunicationTemplate) -> [String] {
+    [
+      template.id.uuidString,
+      template.name,
+      template.linkedEntityType.rawValue,
+      template.subjectTemplate,
+      template.bodyTemplate,
+      template.channel.rawValue,
+      template.isEnabled ? "Enabled" : "Disabled",
+      template.createdDate,
+      template.lastUsedDate,
+      "\(template.usageCount)",
+      template.reviewState.rawValue
+    ]
+  }
+
+  private func draftSearchParts(_ draft: DraftMessage) -> [String] {
+    let order = linkedOrder(for: draft)
+    let template = draft.templateID.flatMap { templateID in
+      store.communicationTemplates.first { $0.id == templateID }
+    }
+    return [
+      draft.id.uuidString,
+      draft.linkedEntityType.rawValue,
+      draft.linkedEntityID,
+      draft.templateID?.uuidString ?? "",
+      draft.recipient,
+      draft.subject,
+      draft.body,
+      draft.channel.rawValue,
+      draft.createdDate,
+      draft.status.rawValue,
+      draft.reviewState.rawValue,
+      template?.name ?? "",
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
   }
 }
 
