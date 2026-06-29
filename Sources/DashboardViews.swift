@@ -29,8 +29,16 @@ struct DashboardView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(isInboxCreatedOrder)
   }
+  private var inboxDispatchGapOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      isInboxCreatedOrder(order)
+        && [.shipped, .inTransit, .exception].contains(order.status)
+        && store.suggestedShipmentManifestRecords(for: order).isEmpty
+        && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
+    }
+  }
   private var dispatchAttentionCount: Int {
-    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count
+    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count
   }
   private var taskAttentionCount: Int {
     store.reviewTasksNeedingAttention.count
@@ -615,8 +623,8 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, undispatched batches, incomplete checklists, and readiness work.",
-              nextAction: dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work",
+              detail: "Blocked manifests, undispatched batches, incomplete checklists, and Inbox-created orders missing dispatch setup.",
+              nextAction: inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup",
               symbol: "shippingbox.and.arrow.backward.fill",
               tint: dispatchAttentionCount == 0 ? .green : .blue
             ) {
@@ -687,10 +695,12 @@ struct DashboardView: View {
           AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
             MetricStrip(items: [
               ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+              ("Inbox gaps", "\(inboxDispatchGapOrders.count)", inboxDispatchGapOrders.isEmpty ? .green : .purple),
               ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
+            CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)))
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
           }
         }
@@ -1133,6 +1143,32 @@ struct CompactInboxCreatedOrderList: View {
             detail: "\(order.latestStatus) • \(order.trackingNumber)",
             badge: order.reviewState.rawValue,
             color: order.reviewState.color
+          )
+        }
+      }
+    }
+  }
+}
+
+struct CompactInboxDispatchGapList: View {
+  var orders: [TrackedOrder]
+
+  var body: some View {
+    CompactList(title: "Inbox orders missing dispatch setup", symbol: "tray.and.arrow.down.fill") {
+      if orders.isEmpty {
+        CompactRow(
+          title: "No Inbox dispatch gaps",
+          detail: "Reviewed or active Inbox-created orders have no promoted dispatch setup gap.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(orders) { order in
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: "\(order.status.rawValue) • \(order.carrier) • \(order.trackingNumber)",
+            badge: order.reviewState == .accepted ? "Dispatch gap" : "Review first",
+            color: order.reviewState == .accepted ? .purple : .orange
           )
         }
       }
