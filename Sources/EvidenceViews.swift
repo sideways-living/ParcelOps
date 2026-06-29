@@ -4,14 +4,29 @@ struct EvidenceView: View {
   var store: ParcelOpsStore
   @State private var selectedEntityType: EvidenceLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var evidenceSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private var filteredAttachments: [EvidenceAttachment] {
+  private var baseFilteredAttachments: [EvidenceAttachment] {
     store.evidenceAttachments.filter { attachment in
       let matchesEntity = selectedEntityType == nil || attachment.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || attachment.reviewState == selectedReviewState
       return matchesEntity && matchesReview
     }
+  }
+
+  private var filteredAttachments: [EvidenceAttachment] {
+    let query = evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredAttachments }
+    return baseFilteredAttachments.filter { attachment in
+      evidenceAttachment(attachment, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedEntityType != nil
+      || selectedReviewState != nil
+      || !evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -27,13 +42,18 @@ struct EvidenceView: View {
         filterBar
 
         SettingsPanel(title: "Attachments", symbol: "paperclip") {
-          if filteredAttachments.isEmpty {
-            Text("No evidence attachments match the selected filters.")
+          HStack {
+            Text("\(filteredAttachments.count) visible attachments")
+              .font(.caption)
               .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            if hasActiveFilters {
+              Badge("\(baseFilteredAttachments.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+
+          if filteredAttachments.isEmpty {
+            MVPEmptyState(title: "No evidence matches this view", detail: hasActiveFilters ? "Clear search or filters to return to all local evidence records." : "Evidence appears here when local attachments or placeholder file references are linked to operational records.", symbol: "paperclip", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
           } else {
             ForEach(filteredAttachments) { attachment in
               EvidenceAttachmentRow(attachment: attachment, store: store, linkedOrder: linkedOrder(for: attachment), shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
@@ -62,6 +82,9 @@ struct EvidenceView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search file, summary, linked record, order, customer, destination, or item", text: $evidenceSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as EvidenceLinkedEntityType?)
         ForEach(EvidenceLinkedEntityType.allCases) { entityType in
@@ -76,12 +99,57 @@ struct EvidenceView: View {
         Text(ReviewState.monitor.rawValue).tag(ReviewState.monitor as ReviewState?)
       }
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedEntityType = nil
+    selectedReviewState = nil
+    evidenceSearchText = ""
+  }
+
+  private func evidenceAttachment(_ attachment: EvidenceAttachment, matches query: String) -> Bool {
+    let order = linkedOrder(for: attachment)
+    let shipmentGroups = store.suggestedShipmentGroups(for: attachment)
+    let customerProfiles = store.suggestedCustomerProfiles(for: attachment)
+    let destinationAddresses = store.suggestedDestinationAddresses(for: attachment)
+    let deliveryInstructions = store.suggestedDeliveryInstructions(for: attachment)
+    let packageContents = store.suggestedPackageContents(for: attachment)
+    var searchParts: [String] = [
+      attachment.id.uuidString,
+      attachment.linkedEntityType.rawValue,
+      attachment.linkedEntityID.uuidString,
+      attachment.fileName,
+      attachment.fileType,
+      attachment.source.rawValue,
+      attachment.addedDate,
+      attachment.summary,
+      attachment.reviewState.rawValue,
+      attachment.localFilePath,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: shipmentGroups.map(\.groupName))
+    searchParts.append(contentsOf: customerProfiles.map(\.displayName))
+    searchParts.append(contentsOf: destinationAddresses.map(\.label))
+    searchParts.append(contentsOf: destinationAddresses.map(\.addressLineSummary))
+    searchParts.append(contentsOf: deliveryInstructions.map(\.title))
+    searchParts.append(contentsOf: deliveryInstructions.map(\.instructionSummary))
+    searchParts.append(contentsOf: packageContents.map(\.title))
+    searchParts.append(contentsOf: packageContents.map(\.itemSummary))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
