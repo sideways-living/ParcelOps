@@ -278,6 +278,27 @@ private struct OrderQueueItem: Identifiable {
   var dispatchContextCount: Int {
     manifests.count + checklists.count
   }
+  var isInboxCreated: Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+  }
+  var inboxHandoffLabel: String {
+    if order.source == .forwardedMailbox { return "Inbox-created order" }
+    if order.latestStatus.localizedCaseInsensitiveContains("acceptance") { return "Acceptance-created order" }
+    if order.latestStatus.localizedCaseInsensitiveContains("import queue") || order.checkedMailbox == "manual-import" { return "Import-created order" }
+    return "Inbox handoff"
+  }
+  var inboxHandoffDetail: String {
+    if order.reviewState != .accepted {
+      return "Confirm customer, destination, tracking, and dispatch setup before marking reviewed."
+    }
+    if dispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status) {
+      return "Order is reviewed, but dispatch context is not linked yet."
+    }
+    return "Source handoff is reviewed; keep monitoring status and linked tasks."
+  }
   var riskLabel: String {
     if order.status == .exception || criticalTrackingCount > 0 || blockedDispatchCount > 0 {
       "High risk"
@@ -406,6 +427,9 @@ private struct OrderQueueRow: View {
             Badge(order.status.rawValue, color: order.status.color)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
             Badge(order.fulfillment.rawValue, color: .blue)
+            if item.isInboxCreated {
+              Badge(item.inboxHandoffLabel, color: .teal)
+            }
             Label(order.eta, systemImage: "calendar")
               .font(.caption)
               .foregroundStyle(.secondary)
@@ -423,6 +447,13 @@ private struct OrderQueueRow: View {
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
             .font(.caption)
             .foregroundStyle(item.riskColor)
+
+          if item.isInboxCreated {
+            Label(item.inboxHandoffDetail, systemImage: "tray.and.arrow.down.fill")
+              .font(.caption)
+              .foregroundStyle(.teal)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
       }
 
