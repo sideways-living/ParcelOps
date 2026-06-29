@@ -995,12 +995,22 @@ struct DispatchView: View {
           }
         }
 
-        if visibleDispatchItems.isEmpty {
+        if visibleDispatchItems.isEmpty && visibleInboxDispatchSetupOrders.isEmpty {
           MVPEmptyState(
             title: dispatchItems.isEmpty ? "Dispatch queue is clear" : "No matching dispatch rows",
             detail: dispatchItems.isEmpty ? "Shipment manifests and readiness checklists that need outbound action will appear here." : "Clear the search to return to the full dispatch queue.",
             symbol: "checkmark.seal.fill"
           )
+        } else if visibleDispatchItems.isEmpty {
+          Label(
+            dispatchItems.isEmpty
+              ? "No manifest or readiness rows need action yet. Inbox-created orders needing dispatch setup are shown above."
+              : "No manifest or readiness rows match this search. Inbox-created order setup results are shown above when they match.",
+            systemImage: "tray.and.arrow.down.fill"
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
         } else {
           ForEach(visibleDispatchItems.prefix(12)) { item in
             DispatchQueueRow(item: item, store: store)
@@ -1049,12 +1059,12 @@ struct DispatchView: View {
         .foregroundStyle(.secondary)
 
       MetricStrip(items: [
-        ("Queue", "\(dispatchItems.count)", .red),
+        ("Queue", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue),
         ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
-        ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .purple),
-        ("Blocked", "\(store.blockedShipmentManifests.count)", .red),
-        ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
-        ("High risk", "\(store.highRiskShipmentManifests.count + store.highRiskDispatchChecklists.count)", .pink)
+        ("Undispatched", "\(store.undispatchedShipmentManifests.count)", store.undispatchedShipmentManifests.isEmpty ? .green : .purple),
+        ("Blocked", "\(store.blockedShipmentManifests.count)", store.blockedShipmentManifests.isEmpty ? .green : .red),
+        ("Incomplete", "\(store.incompleteDispatchChecklists.count)", store.incompleteDispatchChecklists.isEmpty ? .green : .orange),
+        ("High risk", "\(store.highRiskShipmentManifests.count + store.highRiskDispatchChecklists.count)", store.highRiskShipmentManifests.isEmpty && store.highRiskDispatchChecklists.isEmpty ? .green : .pink)
       ])
     }
   }
