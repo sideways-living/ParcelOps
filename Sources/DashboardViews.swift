@@ -3,8 +3,12 @@ import SwiftUI
 struct DashboardView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var dashboardSearchText = ""
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var normalizedDashboardSearch: String {
+    dashboardSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
   private var metricColumns: [GridItem] {
     Array(repeating: GridItem(.flexible(), spacing: 12), count: isCompact ? 2 : 4)
   }
@@ -38,6 +42,21 @@ struct DashboardView: View {
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
+  }
+  private var visibleDashboardMatchCount: Int {
+    [
+      dashboardMatches("inbox", "mailbox", "spacemail", "email", "parser", "import", "acceptance", "triage", "intake"),
+      dashboardMatches("orders", "order", "tracking", "customer", "destination", "inbox-created"),
+      dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
+      dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff"),
+      dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
+      dashboardMatches("audit", "activity", "history", "record change", "workflow"),
+      dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance"),
+      dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "customer", "destination"),
+      dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched"),
+      dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high"),
+      dashboardMatches("recent local activity", "audit", "activity", "recent", "history")
+    ].filter { $0 }.count
   }
 
   private var dailyStartTone: Color {
@@ -516,134 +535,182 @@ struct DashboardView: View {
           detailWhenBusy: "Start with the cards below. The advanced backlog is still available, but it is not the first daily operating queue."
         )
 
+        FilterControlGrid {
+          TextField("Find daily work: Inbox, SpaceMail, orders, dispatch, tasks", text: $dashboardSearchText)
+            .textFieldStyle(.roundedBorder)
+          Badge("\(visibleDashboardMatchCount) daily areas", color: visibleDashboardMatchCount == 0 ? .orange : .blue)
+          if !normalizedDashboardSearch.isEmpty {
+            Button("Clear filter", systemImage: "xmark.circle") {
+              dashboardSearchText = ""
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+
+        if visibleDashboardMatchCount == 0 {
+          MVPEmptyState(
+            title: "No daily areas match",
+            detail: "Clear the Dashboard filter or try Inbox, SpaceMail, order, dispatch, task, workbench, or audit.",
+            symbol: "magnifyingglass"
+          )
+        }
+
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 12) {
-          OperatorDashboardCard(
-            title: "Inbox",
-            count: incomingAttentionCount,
-            detail: "Forwarded emails, parser diagnostics, import items, and acceptance records waiting for triage.",
-            nextAction: incomingAttentionCount == 0 ? "Inbox is clear" : "Triage incoming work",
-            symbol: "tray.full.fill",
-            tint: incomingAttentionCount == 0 ? .green : .orange
-          ) {
-            InboxView(store: store)
+          if dashboardMatches("inbox", "mailbox", "spacemail", "email", "parser", "import", "acceptance", "triage", "intake") {
+            OperatorDashboardCard(
+              title: "Inbox",
+              count: incomingAttentionCount,
+              detail: "Forwarded emails, parser diagnostics, import items, and acceptance records waiting for triage.",
+              nextAction: incomingAttentionCount == 0 ? "Inbox is clear" : "Triage incoming work",
+              symbol: "tray.full.fill",
+              tint: incomingAttentionCount == 0 ? .green : .orange
+            ) {
+              InboxView(store: store)
+            }
           }
 
-          OperatorDashboardCard(
-            title: "Orders",
-            count: problemOrdersCount,
-            detail: "Review-needed orders, exceptions, warning tracking events, and orders newly created from Inbox.",
-            nextAction: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders",
-            symbol: "shippingbox.fill",
-            tint: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple
-          ) {
-            OrdersView(store: store)
+          if dashboardMatches("orders", "order", "tracking", "customer", "destination", "inbox-created") {
+            OperatorDashboardCard(
+              title: "Orders",
+              count: problemOrdersCount,
+              detail: "Review-needed orders, exceptions, warning tracking events, and orders newly created from Inbox.",
+              nextAction: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders",
+              symbol: "shippingbox.fill",
+              tint: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple
+            ) {
+              OrdersView(store: store)
+            }
           }
 
-          OperatorDashboardCard(
-            title: "Workbench",
-            count: store.highPriorityWorkbenchItems.count,
-            detail: "Highest-priority local work from exceptions, validation, reconciliation, and follow-up records.",
-            nextAction: store.highPriorityWorkbenchItems.isEmpty ? "No urgent workbench items" : "Open high-priority work",
-            symbol: "rectangle.stack.badge.person.crop.fill",
-            tint: store.highPriorityWorkbenchItems.isEmpty ? .green : .purple
-          ) {
-            OperationsWorkbenchView(store: store)
+          if dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority") {
+            OperatorDashboardCard(
+              title: "Workbench",
+              count: store.highPriorityWorkbenchItems.count,
+              detail: "Highest-priority local work from exceptions, validation, reconciliation, and follow-up records.",
+              nextAction: store.highPriorityWorkbenchItems.isEmpty ? "No urgent workbench items" : "Open high-priority work",
+              symbol: "rectangle.stack.badge.person.crop.fill",
+              tint: store.highPriorityWorkbenchItems.isEmpty ? .green : .purple
+            ) {
+              OperationsWorkbenchView(store: store)
+            }
           }
 
-          OperatorDashboardCard(
-            title: "Dispatch",
-            count: dispatchAttentionCount,
-            detail: "Blocked manifests, undispatched batches, incomplete checklists, and readiness work.",
-            nextAction: dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work",
-            symbol: "shippingbox.and.arrow.backward.fill",
-            tint: dispatchAttentionCount == 0 ? .green : .blue
-          ) {
-            DispatchView(store: store)
+          if dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff") {
+            OperatorDashboardCard(
+              title: "Dispatch",
+              count: dispatchAttentionCount,
+              detail: "Blocked manifests, undispatched batches, incomplete checklists, and readiness work.",
+              nextAction: dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work",
+              symbol: "shippingbox.and.arrow.backward.fill",
+              tint: dispatchAttentionCount == 0 ? .green : .blue
+            ) {
+              DispatchView(store: store)
+            }
           }
 
-          OperatorDashboardCard(
-            title: "Tasks",
-            count: taskAttentionCount,
-            detail: "Open review tasks, handoff notes, and draft messages that need ownership, completion, or local send status.",
-            nextAction: taskAttentionCount == 0 ? "No task escalations" : "Work follow-ups and drafts",
-            symbol: "checklist",
-            tint: taskAttentionCount == 0 ? .green : .orange
-          ) {
-            TasksView(store: store)
+          if dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue") {
+            OperatorDashboardCard(
+              title: "Tasks",
+              count: taskAttentionCount,
+              detail: "Open review tasks, handoff notes, and draft messages that need ownership, completion, or local send status.",
+              nextAction: taskAttentionCount == 0 ? "No task escalations" : "Work follow-ups and drafts",
+              symbol: "checklist",
+              tint: taskAttentionCount == 0 ? .green : .orange
+            ) {
+              TasksView(store: store)
+            }
           }
 
-          OperatorDashboardCard(
-            title: "Audit",
-            count: store.recentAuditEvents.count,
-            detail: "Recent local actions, record changes, reviews, creates, removes, tasks, and drafts.",
-            nextAction: "Check recent activity",
-            symbol: "list.clipboard.fill",
-            tint: .teal
-          ) {
-            AuditView(store: store)
+          if dashboardMatches("audit", "activity", "history", "record change", "workflow") {
+            OperatorDashboardCard(
+              title: "Audit",
+              count: store.recentAuditEvents.count,
+              detail: "Recent local actions, record changes, reviews, creates, removes, tasks, and drafts.",
+              nextAction: "Check recent activity",
+              symbol: "list.clipboard.fill",
+              tint: .teal
+            ) {
+              AuditView(store: store)
+            }
           }
         }
       }
 
       LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
-        AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
-          MetricStrip(items: [
-            ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
-            ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
-            ("Mailbox", "\(spaceMailHealthAttentionCount)", spaceMailHealthAttentionCount == 0 ? .green : .orange),
-            ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
-            ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
-          ])
-          SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
-          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-          CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
-          CompactIntakeList(emails: store.newestIntakeEmails)
+        if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance") {
+          AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
+            MetricStrip(items: [
+              ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
+              ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
+              ("Mailbox", "\(spaceMailHealthAttentionCount)", spaceMailHealthAttentionCount == 0 ? .green : .orange),
+              ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
+              ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
+            ])
+            SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
+            CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+            CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
+            CompactIntakeList(emails: store.newestIntakeEmails)
+          }
         }
 
-        AnalyticsSection(title: "Active/problem orders", symbol: "shippingbox.fill") {
-          MetricStrip(items: [
-            ("Active", "\(store.activeCount)", .teal),
-            ("Review", "\(store.reviewOrders.count)", .orange),
-            ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
-            ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
-            ("Delivered", "\(store.deliveredCount)", .green)
-          ])
-          CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)))
-          CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
+        if dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "customer", "destination") {
+          AnalyticsSection(title: "Active/problem orders", symbol: "shippingbox.fill") {
+            MetricStrip(items: [
+              ("Active", "\(store.activeCount)", .teal),
+              ("Review", "\(store.reviewOrders.count)", .orange),
+              ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
+              ("Delivered", "\(store.deliveredCount)", .green)
+            ])
+            CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)))
+            CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
+          }
         }
 
-        AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
-          MetricStrip(items: [
-            ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
-            ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
-            ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
-            ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
-          ])
-          CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
+        if dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched") {
+          AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
+            MetricStrip(items: [
+              ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+              ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
+              ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
+              ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
+            ])
+            CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
+          }
         }
 
-        AnalyticsSection(title: "Open tasks, handoffs, and drafts", symbol: "checklist") {
-          MetricStrip(items: [
-            ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .orange),
-            ("Handoffs", "\(store.handoffNotesNeedingAttention.count)", .blue),
-            ("Drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
-            ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
-            ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
-          ])
-          CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)))
-          CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)))
-          CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)))
+        if dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high") {
+          AnalyticsSection(title: "Open tasks, handoffs, and drafts", symbol: "checklist") {
+            MetricStrip(items: [
+              ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .orange),
+              ("Handoffs", "\(store.handoffNotesNeedingAttention.count)", .blue),
+              ("Drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
+              ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
+              ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
+            ])
+            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)))
+            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)))
+            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)))
+          }
         }
       }
 
-      AnalyticsSection(title: "Recent local activity", symbol: "list.clipboard.fill") {
-        if store.recentAuditEvents.isEmpty {
-          MVPEmptyState(title: "No recent local activity", detail: "Create, edit, review, accept, dispatch, or complete a local record and it will appear here.", symbol: "list.clipboard.fill")
-        } else {
-          CompactAuditList(events: store.recentAuditEvents)
+      if dashboardMatches("recent local activity", "audit", "activity", "recent", "history") {
+        AnalyticsSection(title: "Recent local activity", symbol: "list.clipboard.fill") {
+          if store.recentAuditEvents.isEmpty {
+            MVPEmptyState(title: "No recent local activity", detail: "Create, edit, review, accept, dispatch, or complete a local record and it will appear here.", symbol: "list.clipboard.fill")
+          } else {
+            CompactAuditList(events: store.recentAuditEvents)
+          }
         }
       }
     }
+  }
+
+  private func dashboardMatches(_ terms: String...) -> Bool {
+    let query = normalizedDashboardSearch
+    guard !query.isEmpty else { return true }
+    return terms.contains { $0.localizedCaseInsensitiveContains(query) }
   }
 
   private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
