@@ -9,10 +9,11 @@ struct ReceivingInspectionsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var inspectionSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredInspections: [ReceivingInspectionRecord] {
+  private var baseFilteredInspections: [ReceivingInspectionRecord] {
     store.filteredReceivingInspections(
       inspectionType: selectedInspectionType,
       inspectionStatus: selectedInspectionStatus,
@@ -22,6 +23,25 @@ struct ReceivingInspectionsView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredInspections: [ReceivingInspectionRecord] {
+    let query = inspectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredInspections }
+    return baseFilteredInspections.filter { inspection in
+      receivingInspection(inspection, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedInspectionType != nil
+      || selectedInspectionStatus != nil
+      || selectedDiscrepancyType != nil
+      || !inspectorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !inspectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -35,18 +55,16 @@ struct ReceivingInspectionsView: View {
             Text("\(filteredInspections.count) visible receiving inspections")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredInspections.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add inspection", systemImage: "plus", action: store.addReceivingInspectionPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredInspections.isEmpty {
-            Text("No receiving inspections match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No receiving inspections match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local receiving inspection records." : "Add a receiving inspection to track item condition, quantity checks, discrepancies, and receiving follow-up.", symbol: "checklist.checked", actionTitle: hasActiveFilters ? "Clear filters" : "Add inspection", action: hasActiveFilters ? clearFilters : store.addReceivingInspectionPlaceholder)
           } else {
             ForEach(filteredInspections) { inspection in
               ReceivingInspectionRow(inspection: inspection, store: store, linkedOrder: linkedOrder(for: inspection), inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: inspection)) { updatedInspection in
@@ -93,14 +111,16 @@ struct ReceivingInspectionsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search inspection, item, discrepancy, inspector, order, receipt, storage, or dispatch", text: $inspectionSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedInspectionType) {
         Text("All types").tag(nil as ReceivingInspectionType?)
         ForEach(ReceivingInspectionType.allCases) { type in
           Text(type.rawValue).tag(type as ReceivingInspectionType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedInspectionStatus) {
         Text("All status").tag(nil as ReceivingInspectionStatus?)
@@ -108,7 +128,6 @@ struct ReceivingInspectionsView: View {
           Text(status.rawValue).tag(status as ReceivingInspectionStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Discrepancy", selection: $selectedDiscrepancyType) {
         Text("All discrepancy").tag(nil as ReceivingDiscrepancyType?)
@@ -116,11 +135,9 @@ struct ReceivingInspectionsView: View {
           Text(type.rawValue).tag(type as ReceivingDiscrepancyType?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Inspector/team", text: $inspectorTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -128,7 +145,6 @@ struct ReceivingInspectionsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -136,7 +152,6 @@ struct ReceivingInspectionsView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -144,27 +159,89 @@ struct ReceivingInspectionsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedInspectionType = nil
-        selectedInspectionStatus = nil
-        selectedDiscrepancyType = nil
-        inspectorTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedInspectionType = nil
+    selectedInspectionStatus = nil
+    selectedDiscrepancyType = nil
+    inspectorTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    inspectionSearchText = ""
   }
 
   private func linkedOrder(for inspection: ReceivingInspectionRecord) -> TrackedOrder? {
     let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func receivingInspection(_ inspection: ReceivingInspectionRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: inspection)
+    let inventoryReceipts = store.suggestedInventoryReceipts(for: inspection)
+    let storageLocations = store.suggestedStorageLocations(for: inspection)
+    let custodyRecords = store.suggestedCustodyRecords(for: inspection)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: inspection)
+    let scanSessions = store.suggestedScanSessionRecords(for: inspection)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: inspection)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: inspection)
+    var searchParts: [String] = [
+      inspection.id.uuidString,
+      inspection.title,
+      inspection.linkedEntityType.rawValue,
+      inspection.linkedEntityID,
+      inspection.orderID?.uuidString ?? "",
+      inspection.shipmentGroupID?.uuidString ?? "",
+      inspection.packageContentID?.uuidString ?? "",
+      inspection.procurementRequestID?.uuidString ?? "",
+      inspection.returnClaimID?.uuidString ?? "",
+      inspection.destinationAddressID?.uuidString ?? "",
+      inspection.customerProfileID?.uuidString ?? "",
+      inspection.inspectionType.rawValue,
+      inspection.inspectionStatus.rawValue,
+      inspection.expectedItemSummary,
+      inspection.receivedItemSummary,
+      "\(inspection.quantityExpected)",
+      "\(inspection.quantityReceived)",
+      inspection.conditionSummary,
+      inspection.discrepancyType.rawValue,
+      inspection.discrepancySummary,
+      inspection.assignedInspectorTeam,
+      inspection.inspectionDate,
+      inspection.dueDate,
+      inspection.riskLevel.rawValue,
+      inspection.createdDate,
+      inspection.lastReviewedDate,
+      inspection.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: inspection.carrierTrackingEventIDs.map(\.uuidString))
+    searchParts.append(contentsOf: inspection.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: inventoryReceipts.map(\.title))
+    searchParts.append(contentsOf: storageLocations.map(\.title))
+    searchParts.append(contentsOf: custodyRecords.map(\.title))
+    searchParts.append(contentsOf: labelReferences.map(\.title))
+    searchParts.append(contentsOf: scanSessions.map(\.title))
+    searchParts.append(contentsOf: shipmentManifests.map(\.title))
+    searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 

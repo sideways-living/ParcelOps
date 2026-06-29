@@ -10,10 +10,11 @@ struct ProcurementView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var procurementSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredRequests: [ProcurementRequest] {
+  private var baseFilteredRequests: [ProcurementRequest] {
     store.filteredProcurementRequests(
       approvalStatus: selectedApprovalStatus,
       procurementStatus: selectedProcurementStatus,
@@ -24,6 +25,26 @@ struct ProcurementView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredRequests: [ProcurementRequest] {
+    let query = procurementSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredRequests }
+    return baseFilteredRequests.filter { request in
+      procurementRequest(request, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedApprovalStatus != nil
+      || selectedProcurementStatus != nil
+      || !requesterTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !assignedBuyerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !procurementSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -37,18 +58,16 @@ struct ProcurementView: View {
             Text("\(filteredRequests.count) visible procurement requests")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredRequests.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add request", systemImage: "plus", action: store.addProcurementRequestPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredRequests.isEmpty {
-            Text("No procurement requests match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No procurement requests match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local procurement requests." : "Add a local procurement request to track approval, buyer assignment, ordering, receiving, and budget follow-up.", symbol: "cart.badge.plus", actionTitle: hasActiveFilters ? "Clear filters" : "Add request", action: hasActiveFilters ? clearFilters : store.addProcurementRequestPlaceholder)
           } else {
             ForEach(filteredRequests) { request in
               ProcurementRequestRow(request: request, store: store, linkedOrder: linkedOrder(for: request), receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request), shipmentManifests: store.suggestedShipmentManifestRecords(for: request), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: request)) { updatedRequest in
@@ -95,14 +114,16 @@ struct ProcurementView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search request, item, budget, requester, buyer, order, receiving, storage, or dispatch", text: $procurementSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Approval", selection: $selectedApprovalStatus) {
         Text("All approval").tag(nil as ProcurementApprovalStatus?)
         ForEach(ProcurementApprovalStatus.allCases) { status in
           Text(status.rawValue).tag(status as ProcurementApprovalStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Procurement", selection: $selectedProcurementStatus) {
         Text("All status").tag(nil as ProcurementStatus?)
@@ -110,19 +131,15 @@ struct ProcurementView: View {
           Text(status.rawValue).tag(status as ProcurementStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Requester/team", text: $requesterTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 150)
 
       TextField("Buyer/team", text: $assignedBuyerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
 
       TextField("Budget", text: $budgetCode)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 120)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -130,7 +147,6 @@ struct ProcurementView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -138,7 +154,6 @@ struct ProcurementView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -146,28 +161,90 @@ struct ProcurementView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedApprovalStatus = nil
-        selectedProcurementStatus = nil
-        requesterTeam = ""
-        assignedBuyerTeam = ""
-        budgetCode = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedApprovalStatus = nil
+    selectedProcurementStatus = nil
+    requesterTeam = ""
+    assignedBuyerTeam = ""
+    budgetCode = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    procurementSearchText = ""
   }
 
   private func linkedOrder(for request: ProcurementRequest) -> TrackedOrder? {
     guard request.linkedEntityType == .order,
           let orderID = UUID(uuidString: request.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func procurementRequest(_ request: ProcurementRequest, matches query: String) -> Bool {
+    let order = linkedOrder(for: request)
+    let receivingInspections = store.suggestedReceivingInspections(for: request)
+    let inventoryReceipts = store.suggestedInventoryReceipts(for: request)
+    let storageLocations = store.suggestedStorageLocations(for: request)
+    let custodyRecords = store.suggestedCustodyRecords(for: request)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: request)
+    let scanSessions = store.suggestedScanSessionRecords(for: request)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: request)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: request)
+    var searchParts: [String] = [
+      request.id.uuidString,
+      request.title,
+      request.linkedEntityType.rawValue,
+      request.linkedEntityID,
+      request.requesterTeam,
+      request.requestedDate,
+      request.neededByDate,
+      request.vendorProfileID?.uuidString ?? "",
+      request.accountID?.uuidString ?? "",
+      request.customerProfileID?.uuidString ?? "",
+      request.destinationAddressID?.uuidString ?? "",
+      request.packageContentID?.uuidString ?? "",
+      request.costRecordID?.uuidString ?? "",
+      request.returnClaimID?.uuidString ?? "",
+      request.requestedItemsSummary,
+      request.estimatedCostText,
+      request.currency,
+      request.budgetCode,
+      request.approvalStatus.rawValue,
+      request.procurementStatus.rawValue,
+      request.assignedBuyerTeam,
+      request.notes,
+      request.riskLevel.rawValue,
+      request.createdDate,
+      request.lastReviewedDate,
+      request.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: request.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: receivingInspections.map(\.title))
+    searchParts.append(contentsOf: inventoryReceipts.map(\.title))
+    searchParts.append(contentsOf: storageLocations.map(\.title))
+    searchParts.append(contentsOf: custodyRecords.map(\.title))
+    searchParts.append(contentsOf: labelReferences.map(\.title))
+    searchParts.append(contentsOf: scanSessions.map(\.title))
+    searchParts.append(contentsOf: shipmentManifests.map(\.title))
+    searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
