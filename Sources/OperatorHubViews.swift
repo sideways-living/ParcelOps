@@ -1298,6 +1298,29 @@ private extension TrackedOrder {
   }
 }
 
+private extension ShipmentManifestRecord {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox order handoff")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
+  }
+}
+
 private struct DispatchQueueItem: Identifiable {
   var id: String
   var source: DispatchQueueSource
@@ -1319,10 +1342,10 @@ private struct DispatchQueueItem: Identifiable {
     DispatchQueueItem(
       id: "manifest-\(record.id.uuidString)",
       source: .manifest(record),
-      sourceLabel: "Manifest",
-      title: "\(record.carrierCourier) • \(record.manifestType.rawValue)",
+      sourceLabel: record.isInboxHandoffSetup ? "Inbox manifest" : "Manifest",
+      title: record.isInboxHandoffSetup ? "Inbox handoff • \(record.carrierCourier)" : "\(record.carrierCourier) • \(record.manifestType.rawValue)",
       subtitle: record.title,
-      detail: record.destinationSummary,
+      detail: record.isInboxHandoffSetup ? "Destination: \(record.destinationSummary). Next: confirm readiness, labels, scans, custody, and handoff." : record.destinationSummary,
       plannedDate: record.plannedDispatchDate,
       statusLabel: record.dispatchStatus.rawValue,
       riskLevel: record.riskLevel,
@@ -1339,10 +1362,12 @@ private struct DispatchQueueItem: Identifiable {
     DispatchQueueItem(
       id: "checklist-\(checklist.id.uuidString)",
       source: .checklist(checklist),
-      sourceLabel: "Readiness",
-      title: "\(checklist.checklistType.rawValue) • \(checklist.assignedOwnerTeam)",
+      sourceLabel: checklist.isInboxHandoffSetup ? "Inbox readiness" : "Readiness",
+      title: checklist.isInboxHandoffSetup ? "Inbox readiness • \(checklist.assignedOwnerTeam)" : "\(checklist.checklistType.rawValue) • \(checklist.assignedOwnerTeam)",
       subtitle: checklist.title,
-      detail: checklist.missingRequirementsSummary.isPlaceholderValidationValue ? checklist.requiredChecksSummary : "Missing: \(checklist.missingRequirementsSummary)",
+      detail: checklist.isInboxHandoffSetup
+        ? "Confirmed intake fields are ready. Missing: \(checklist.missingRequirementsSummary)"
+        : checklist.missingRequirementsSummary.isPlaceholderValidationValue ? checklist.requiredChecksSummary : "Missing: \(checklist.missingRequirementsSummary)",
       plannedDate: checklist.plannedDispatchDate,
       statusLabel: checklist.checklistStatus.rawValue,
       riskLevel: checklist.riskLevel,
@@ -1356,6 +1381,9 @@ private struct DispatchQueueItem: Identifiable {
   }
 
   private static func manifestNextAction(_ record: ShipmentManifestRecord) -> String {
+    if record.isInboxHandoffSetup && (record.dispatchStatus == .draft || record.dispatchStatus == .reopened) {
+      return "Confirm readiness checklist"
+    }
     switch record.dispatchStatus {
     case .blockedNeedsReview:
       return "Resolve blocked manifest"
@@ -1371,6 +1399,9 @@ private struct DispatchQueueItem: Identifiable {
   }
 
   private static func checklistNextAction(_ checklist: DispatchReadinessChecklist) -> String {
+    if checklist.isInboxHandoffSetup && (checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened) {
+      return "Confirm labels, scans, custody, and handoff"
+    }
     switch checklist.checklistStatus {
     case .blockedNeedsReview:
       return "Resolve blocked checklist"
@@ -1387,6 +1418,7 @@ private struct DispatchQueueItem: Identifiable {
     if record.dispatchStatus == .blockedNeedsReview { return 100 }
     if record.riskLevel == .critical { return 95 }
     if record.riskLevel == .high { return 90 }
+    if record.isInboxHandoffSetup && (record.dispatchStatus == .draft || record.dispatchStatus == .reopened) { return 86 }
     if record.dispatchStatus == .prepared { return 82 }
     if record.dispatchStatus == .draft || record.dispatchStatus == .reopened { return 75 }
     if record.reviewState != .accepted { return 65 }
@@ -1397,6 +1429,7 @@ private struct DispatchQueueItem: Identifiable {
     if checklist.checklistStatus == .blockedNeedsReview { return 100 }
     if checklist.riskLevel == .critical { return 95 }
     if checklist.riskLevel == .high { return 90 }
+    if checklist.isInboxHandoffSetup && (checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened) { return 86 }
     if checklist.checklistStatus == .ready { return 82 }
     if checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened { return 75 }
     if checklist.reviewState != .accepted { return 65 }
