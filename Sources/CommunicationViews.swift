@@ -7,13 +7,22 @@ struct CommunicationView: View {
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var selectedDraftStatus: DraftMessageStatus?
+  @State private var searchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var searchQuery: String {
+    searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
 
   private var filteredTemplates: [CommunicationTemplate] {
     store.communicationTemplates.filter { template in
       let matchesEntity = selectedEntityType == nil || template.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || template.reviewState == selectedReviewState
-      return matchesEntity && matchesReview
+      let matchesSearch = searchQuery.isEmpty
+        || template.name.localizedCaseInsensitiveContains(searchQuery)
+        || template.subjectTemplate.localizedCaseInsensitiveContains(searchQuery)
+        || template.bodyTemplate.localizedCaseInsensitiveContains(searchQuery)
+      return matchesEntity && matchesReview && matchesSearch
     }
   }
 
@@ -22,7 +31,12 @@ struct CommunicationView: View {
       let matchesEntity = selectedEntityType == nil || draft.linkedEntityType == selectedEntityType
       let matchesReview = selectedReviewState == nil || draft.reviewState == selectedReviewState
       let matchesStatus = selectedDraftStatus == nil || draft.status == selectedDraftStatus
-      return matchesEntity && matchesReview && matchesStatus
+      let matchesSearch = searchQuery.isEmpty
+        || draft.subject.localizedCaseInsensitiveContains(searchQuery)
+        || draft.recipient.localizedCaseInsensitiveContains(searchQuery)
+        || draft.body.localizedCaseInsensitiveContains(searchQuery)
+        || draft.linkedEntityID.localizedCaseInsensitiveContains(searchQuery)
+      return matchesEntity && matchesReview && matchesStatus && matchesSearch
     }
   }
 
@@ -185,6 +199,9 @@ struct CommunicationView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search drafts and templates", text: $searchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Record", selection: $selectedEntityType) {
         Text("All records").tag(nil as ReviewTaskLinkedEntityType?)
         ForEach(ReviewTaskLinkedEntityType.allCases) { entityType in
@@ -212,6 +229,7 @@ struct CommunicationView: View {
       }
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+        searchText = ""
         selectedEntityType = nil
         selectedReviewState = nil
         selectedDraftStatus = nil
