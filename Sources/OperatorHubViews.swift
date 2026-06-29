@@ -68,26 +68,24 @@ struct InboxView: View {
   }
 
   private var inboxSummaryTone: Color {
-    if blockedIncomingCount > 0 || parserIssueCount > 0 { return .orange }
+    if blockedIncomingCount > 0 { return .orange }
     if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount > 0 { return .teal }
+    if parserIssueCount > 0 { return .orange }
     return .green
   }
 
   private var inboxSummaryTitle: String {
     if blockedIncomingCount > 0 { return "Clear blocked incoming records" }
-    if parserIssueCount > 0 { return "Review parser diagnostics" }
     if readyAcceptanceCount > 0 { return "Accept or link ready intake" }
     if uncertainSpaceMailCount > 0 { return "Review uncertain SpaceMail messages" }
     if !triageItems.isEmpty { return "Work the triage queue" }
+    if parserIssueCount > 0 { return "Parser diagnostics are available" }
     return "Inbox is clear"
   }
 
   private var inboxSummaryDetail: String {
     if blockedIncomingCount > 0 {
       return "Start with blocked import rows because they can prevent otherwise valid intake from becoming orders."
-    }
-    if parserIssueCount > 0 {
-      return "Parser diagnostics explain why a mailbox message did not produce a clean order, tracking number, or destination. They are hidden from the primary triage queue until you turn on parser diagnostics below."
     }
     if readyAcceptanceCount > 0 {
       return "Acceptance rows are closest to becoming operational records. Link to an existing order or create a new local order."
@@ -97,6 +95,9 @@ struct InboxView: View {
     }
     if !triageItems.isEmpty {
       return "Use the top triage row first, then create/link orders, mark reviewed, or create follow-up tasks as needed."
+    }
+    if parserIssueCount > 0 {
+      return "The primary Inbox queue is clear. Parser diagnostics are hidden by default and should only be opened when investigating a specific intake problem."
     }
     return "No forwarded emails, staged imports, acceptance records, or parser checks currently need operator action."
   }
@@ -239,12 +240,12 @@ struct InboxView: View {
         .foregroundStyle(.secondary)
 
       MetricStrip(items: [
-        ("Triage", "\(triageItems.count)", .red),
-        ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
-        ("Parser", "\(store.intakeParserDiagnostics.count)", .orange),
+        ("Triage", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
+        ("Emails", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .blue),
+        ("Parser", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .secondary),
         ("Mailbox", "\(store.spaceMailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0 }.count)", .purple),
-        ("Imports", "\(store.importQueueItemsNeedingReview.count)", .teal),
-        ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .orange),
+        ("Imports", "\(store.importQueueItemsNeedingReview.count)", store.importQueueItemsNeedingReview.isEmpty ? .green : .teal),
+        ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", store.acceptanceRecordsNeedingReview.isEmpty ? .green : .orange),
         ("All records", "\(store.intakeEmails.count + store.importQueueItems.count)", .gray)
       ])
     }
