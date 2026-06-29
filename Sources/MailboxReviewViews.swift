@@ -58,6 +58,8 @@ struct MailboxView: View {
           symbol: "envelope.open.fill"
         )
 
+        MailboxReviewStartPanel(store: store)
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
@@ -300,6 +302,91 @@ struct MailboxView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+}
+
+private struct MailboxReviewStartPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var reviewEmailCount: Int {
+    store.reviewIntakeEmails.count
+  }
+
+  private var parserIssueCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var uncertainCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  private var tone: Color {
+    if parserIssueCount > 0 || uncertainCount > 0 { return .orange }
+    if reviewEmailCount > 0 { return .teal }
+    if latestSummary == nil { return .orange }
+    return .green
+  }
+
+  private var title: String {
+    if parserIssueCount > 0 { return "Start with parser checks" }
+    if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
+    if reviewEmailCount > 0 { return "Review imported order emails" }
+    if latestSummary == nil { return "Set up SpaceMail before real intake" }
+    return "Mailbox review is clear"
+  }
+
+  private var detail: String {
+    if parserIssueCount > 0 {
+      return "Parser checks mean a captured message still has weak order, tracking, merchant, or destination evidence. Reprocess or edit before creating orders."
+    }
+    if uncertainCount > 0 {
+      return "Uncertain messages are held out of Inbox. Import only if the subject and preview look order-related; otherwise dismiss or add classifier hints."
+    }
+    if reviewEmailCount > 0 {
+      return "Work the detected order emails below. Confirm fields, then create/link orders, mark reviewed, ignore, task, or draft."
+    }
+    if latestSummary == nil {
+      return "Add SpaceMail setup, confirm host/folder, save the Keychain credential, then run one manual read-only refresh."
+    }
+    return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning SpaceMail or investigating Audit evidence."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Mailbox review first", symbol: "arrow.forward.circle.fill") {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: tone == .green ? "checkmark.seal.fill" : "tray.full.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(tone == .green ? "Clear" : "Review", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(latestSummary?.fetchedCount ?? 0)", .blue),
+        ("Imported", "\(latestSummary?.importedCount ?? 0)", (latestSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+        ("Filtered", "\(latestSummary?.filteredCount ?? 0)", (latestSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+        ("Uncertain", "\(uncertainCount)", uncertainCount == 0 ? .green : .orange),
+        ("Parser", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
+        ("Review rows", "\(reviewEmailCount)", reviewEmailCount == 0 ? .green : .teal)
+      ])
+
+      Text("Filtered mixed-mailbox messages are not imported into Inbox. Setup controls below are for configuration and diagnostics; the review queue is the operational work.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 }
