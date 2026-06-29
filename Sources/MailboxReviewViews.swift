@@ -791,6 +791,59 @@ struct NeedsReviewView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var showAdvancedBacklog = false
+  @State private var reviewSearchText = ""
+
+  private var normalizedReviewSearch: String {
+    reviewSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func matchesReviewSection(_ terms: String...) -> Bool {
+    let query = normalizedReviewSearch
+    guard !query.isEmpty else { return true }
+    return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private var showsInboxOrderHandoff: Bool { matchesReviewSection("inbox", "created", "order", "handoff", "import queue", "acceptance") }
+  private var showsDraftMessageFollowUp: Bool { matchesReviewSection("draft", "message", "communication", "follow-up", "outbound") }
+  private var showsOperationsWorkbench: Bool { matchesReviewSection("operations", "workbench", "exceptions", "blocked", "priority") }
+  private var showsTimelineWatchlist: Bool { matchesReviewSection("timeline", "watchlist", "activity", "history") }
+  private var showsValidationIssues: Bool { matchesReviewSection("validation", "issues", "missing", "invalid") }
+  private var showsReconciliation: Bool { matchesReviewSection("reconciliation", "mismatch", "difference", "duplicate") }
+  private var showsShipmentGroups: Bool { matchesReviewSection("shipment", "groups", "risk", "group") }
+  private var showsAcceptanceReview: Bool { matchesReviewSection("acceptance", "review", "candidate", "blocked", "reopened") }
+  private var showsImportQueue: Bool { matchesReviewSection("import", "queue", "blocked", "low confidence", "staged") }
+  private var showsOrderMatches: Bool { matchesReviewSection("order", "matches", "orders", "tracking") }
+  private var showsMailboxEvents: Bool { matchesReviewSection("mailbox", "events", "mail", "email") }
+  private var showsParserChecks: Bool { matchesReviewSection("parser", "intake", "diagnostics", "merchant", "tracking", "order number") }
+  private var showsMixedMailboxReview: Bool { matchesReviewSection("spacemail", "mixed", "mailbox", "uncertain", "filtered") }
+  private var showsForwardedEmails: Bool { matchesReviewSection("forwarded", "emails", "intake", "mailbox", "order") }
+  private var showsEvidence: Bool { matchesReviewSection("evidence", "attachments", "paperclip") }
+  private var showsTrackingEvents: Bool { matchesReviewSection("tracking", "carrier", "events", "shipment") }
+  private var showsTaskEscalations: Bool { matchesReviewSection("task", "escalations", "review tasks", "follow-up") }
+  private var showsHandoffNotes: Bool { matchesReviewSection("handoff", "notes", "shift", "assigned") }
+
+  private var visiblePrimaryReviewSectionCount: Int {
+    [
+      showsInboxOrderHandoff,
+      showsDraftMessageFollowUp,
+      showsOperationsWorkbench,
+      showsTimelineWatchlist,
+      showsValidationIssues,
+      showsReconciliation,
+      showsShipmentGroups,
+      showsAcceptanceReview,
+      showsImportQueue,
+      showsOrderMatches,
+      showsMailboxEvents,
+      showsParserChecks,
+      showsMixedMailboxReview,
+      showsForwardedEmails,
+      showsEvidence,
+      showsTrackingEvents,
+      showsTaskEscalations,
+      showsHandoffNotes
+    ].filter(\.self).count
+  }
 
   private var inboxCreatedOrders: [TrackedOrder] {
     Array(
@@ -852,6 +905,31 @@ struct NeedsReviewView: View {
           detailWhenBusy: "Work through the primary review sections first. The advanced backlog is collapsed so it does not dominate daily triage."
         )
 
+        SettingsPanel(title: "Find review work", symbol: "magnifyingglass") {
+          VStack(alignment: .leading, spacing: 10) {
+            FilterControlGrid {
+              TextField("Search review areas: Inbox, Workbench, validation, tracking, tasks, handoff", text: $reviewSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                reviewSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedReviewSearch.isEmpty)
+
+              Badge("\(visiblePrimaryReviewSectionCount) sections", color: visiblePrimaryReviewSectionCount == 0 ? .orange : .blue)
+            }
+
+            Text("This narrows the primary Needs Review sections only. Advanced backlog records remain under the disclosure below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if visiblePrimaryReviewSectionCount == 0 {
+          MVPEmptyState(title: "No review sections match", detail: "Clear the review search or try Inbox, Workbench, validation, tracking, tasks, handoff, SpaceMail, import, acceptance, evidence, or dispatch.", symbol: "magnifyingglass")
+        }
+
         NeedsReviewSectionHeader(
           title: "Primary daily review",
           detail: "Use these sections for intake, order handoff, dispatch blockers, task follow-up, and the highest-priority operational exceptions.",
@@ -860,7 +938,7 @@ struct NeedsReviewView: View {
           color: dailyAttentionCount == 0 ? .green : .orange
         )
 
-        if !inboxCreatedOrders.isEmpty {
+        if showsInboxOrderHandoff && !inboxCreatedOrders.isEmpty {
           SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
             Text("Orders created from Inbox, Import Queue, or Acceptance Review stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
               .font(.callout)
@@ -871,7 +949,7 @@ struct NeedsReviewView: View {
           }
         }
 
-        if !store.draftMessagesNeedingReview.isEmpty {
+        if showsDraftMessageFollowUp && !store.draftMessagesNeedingReview.isEmpty {
           SettingsPanel(title: "Draft message follow-up", symbol: "envelope.open.fill") {
             Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch stay in primary review until they are ready, sent locally, or reopened for editing. ParcelOps does not send outbound email.")
               .font(.callout)
@@ -901,7 +979,8 @@ struct NeedsReviewView: View {
           }
         }
 
-        SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
+        if showsOperationsWorkbench {
+          SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
           ForEach(Array(store.highPriorityWorkbenchItems.prefix(8))) { item in
             WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
               store.createReviewTask(from: item)
@@ -912,8 +991,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
+        if showsTimelineWatchlist {
+          SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
           ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
             TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
               store.createReviewTask(from: activity)
@@ -922,8 +1003,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
+        if showsValidationIssues {
+          SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
           ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
             ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
               store.createReviewTask(from: issue)
@@ -932,8 +1015,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+        if showsReconciliation {
+          SettingsPanel(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
           ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
             ReconciliationIssueRow(
               issue: issue,
@@ -958,8 +1043,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
+        if showsShipmentGroups {
+          SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
           }) { group in
@@ -976,8 +1063,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
+        if showsAcceptanceReview {
+          SettingsPanel(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
           ForEach(Array(store.acceptanceCandidates.filter { candidate in
             candidate.reviewState == .needsReview || candidate.decision == .blocked || candidate.decision == .reopened
           }.prefix(8))) { candidate in
@@ -1007,8 +1096,10 @@ struct NeedsReviewView: View {
             )
           }
         }
+        }
 
-        SettingsPanel(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
+        if showsImportQueue {
+          SettingsPanel(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
           ForEach(Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)) { item in
             ImportQueueItemRow(
               item: item,
@@ -1035,8 +1126,10 @@ struct NeedsReviewView: View {
             )
           }
         }
+        }
 
-        SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
+        if showsOrderMatches {
+          SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
           ForEach(store.reviewOrders) { order in
             ReviewOrderRow(order: order) { updatedOrder in
               store.updateOrder(updatedOrder)
@@ -1051,8 +1144,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
+        if showsMailboxEvents {
+          SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
           ForEach(store.reviewMailEvents) { event in
             ReviewMailEventRow(event: event) {
               store.clearIssue(for: event.matchedOrder)
@@ -1069,8 +1164,9 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        if !store.intakeParserDiagnostics.isEmpty {
+        if showsParserChecks && !store.intakeParserDiagnostics.isEmpty {
           SettingsPanel(title: "Intake parser checks", symbol: "text.magnifyingglass") {
             Text("These forwarded emails reached intake, but the local parser still needs a person to confirm order, tracking, merchant, or destination details.")
               .font(.caption)
@@ -1089,7 +1185,7 @@ struct NeedsReviewView: View {
           }
         }
 
-        if store.spaceMailIMAPConnections.contains(where: { !$0.uncertainMessages.isEmpty || !$0.filteredMessages.isEmpty }) {
+        if showsMixedMailboxReview && store.spaceMailIMAPConnections.contains(where: { !$0.uncertainMessages.isEmpty || !$0.filteredMessages.isEmpty }) {
           SettingsPanel(title: "SpaceMail mixed-mailbox review", symbol: "questionmark.folder.fill") {
             Text("These previews were held out of the primary Inbox by the mixed-mailbox filter. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
               .font(.caption)
@@ -1149,7 +1245,8 @@ struct NeedsReviewView: View {
           }
         }
 
-        SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
+        if showsForwardedEmails {
+          SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
           ForEach(store.reviewIntakeEmails) { email in
             IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
               store.updateIntakeEmail(updatedEmail)
@@ -1190,8 +1287,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Evidence", symbol: "paperclip") {
+        if showsEvidence {
+          SettingsPanel(title: "Evidence", symbol: "paperclip") {
           ForEach(store.reviewEvidenceAttachments) { attachment in
             EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
               store.markEvidenceReviewed(attachment)
@@ -1206,8 +1305,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
+        if showsTrackingEvents {
+          SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
           ForEach(store.reviewCarrierTrackingEvents) { event in
             TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
               store.markTrackingEventReviewed(event)
@@ -1230,8 +1331,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Task escalations", symbol: "checklist") {
+        if showsTaskEscalations {
+          SettingsPanel(title: "Task escalations", symbol: "checklist") {
           ForEach(store.reviewTasksNeedingAttention) { task in
             ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
               store.updateReviewTask(updatedTask)
@@ -1250,8 +1353,10 @@ struct NeedsReviewView: View {
             }
           }
         }
+        }
 
-        SettingsPanel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
+        if showsHandoffNotes {
+          SettingsPanel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
           ForEach(store.handoffNotesNeedingAttention) { note in
             HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
               store.updateHandoffNote(updatedNote)
@@ -1271,6 +1376,7 @@ struct NeedsReviewView: View {
               store.removeHandoffNote(note)
             }
           }
+        }
         }
 
         DisclosureGroup(isExpanded: $showAdvancedBacklog) {
