@@ -29,6 +29,11 @@ struct DashboardView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(isInboxCreatedOrder)
   }
+  private var partialInboxOrderBlockers: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      hasPartialInboxOrderTask(order) || order.missingInboxOrderFieldCount > 0
+    }
+  }
   private var inboxDispatchGapOrders: [TrackedOrder] {
     store.orders.filter { order in
       isInboxCreatedOrder(order)
@@ -38,7 +43,7 @@ struct DashboardView: View {
     }
   }
   private var dispatchAttentionCount: Int {
-    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count
+    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + partialInboxOrderBlockers.count
   }
   private var taskAttentionCount: Int {
     store.reviewTasksNeedingAttention.count
@@ -84,6 +89,7 @@ struct DashboardView: View {
 
   private var dailyStartTone: Color {
     if incomingAttentionCount > 0 { return .orange }
+    if !partialInboxOrderBlockers.isEmpty { return .orange }
     if problemOrdersCount > 0 { return .red }
     if highPriorityOperatorWorkbenchItems.count > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
@@ -93,6 +99,7 @@ struct DashboardView: View {
 
   private var dailyStartTitle: String {
     if incomingAttentionCount > 0 { return "Start in Inbox" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify Inbox-created orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
     if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
@@ -103,6 +110,9 @@ struct DashboardView: View {
   private var dailyStartDetail: String {
     if incomingAttentionCount > 0 {
       return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, SpaceMail review, import queue, or acceptance review."
+    }
+    if !partialInboxOrderBlockers.isEmpty {
+      return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Confirm those before dispatch setup."
     }
     if problemOrdersCount > 0 {
       return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or Inbox-created order handoff."
@@ -598,9 +608,9 @@ struct DashboardView: View {
               title: "Orders",
               count: problemOrdersCount,
               detail: "Review-needed orders, exceptions, warning tracking events, and orders newly created from Inbox.",
-              nextAction: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders",
+              nextAction: partialInboxOrderBlockers.isEmpty ? (inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders") : "Verify missing Inbox details",
               symbol: "shippingbox.fill",
-              tint: inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple
+              tint: partialInboxOrderBlockers.isEmpty ? (inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
             ) {
               OrdersView(store: store)
             }
@@ -623,10 +633,10 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, undispatched batches, incomplete checklists, and Inbox-created orders missing dispatch setup.",
-              nextAction: inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup",
+              detail: "Blocked manifests, undispatched batches, incomplete checklists, and Inbox-created orders that need verification or dispatch setup.",
+              nextAction: partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
               symbol: "shippingbox.and.arrow.backward.fill",
-              tint: dispatchAttentionCount == 0 ? .green : .blue
+              tint: partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange
             ) {
               DispatchView(store: store)
             }
@@ -683,9 +693,11 @@ struct DashboardView: View {
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
               ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
+            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
             CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)))
             CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
           }
@@ -695,11 +707,13 @@ struct DashboardView: View {
           AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
             MetricStrip(items: [
               ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+              ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Inbox gaps", "\(inboxDispatchGapOrders.count)", inboxDispatchGapOrders.isEmpty ? .green : .purple),
               ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
+            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)))
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
           }
@@ -744,6 +758,31 @@ struct DashboardView: View {
       || order.checkedMailbox == "manual-import"
       || order.latestStatus.localizedCaseInsensitiveContains("import queue")
       || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+
+  private func hasPartialInboxOrderTask(_ order: TrackedOrder) -> Bool {
+    store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
+      task.status != .completed && task.isPartialInboxOrderFollowUp
+    }
+  }
+}
+
+private extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+}
+
+private extension TrackedOrder {
+  var missingInboxOrderFieldCount: Int {
+    [orderNumber, trackingNumber, destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
   }
 }
 
@@ -1143,6 +1182,32 @@ struct CompactInboxCreatedOrderList: View {
             detail: "\(order.latestStatus) • \(order.trackingNumber)",
             badge: order.reviewState.rawValue,
             color: order.reviewState.color
+          )
+        }
+      }
+    }
+  }
+}
+
+struct CompactPartialInboxOrderList: View {
+  var orders: [TrackedOrder]
+
+  var body: some View {
+    CompactList(title: "Verify before dispatch", symbol: "exclamationmark.triangle.fill") {
+      if orders.isEmpty {
+        CompactRow(
+          title: "No partial Inbox order blockers",
+          detail: "Inbox-created orders have no promoted missing-detail blocker.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(orders) { order in
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: "\(order.latestStatus) • \(order.trackingNumber) • \(order.destination)",
+            badge: "\(order.missingInboxOrderFieldCount) missing",
+            color: .orange
           )
         }
       }
