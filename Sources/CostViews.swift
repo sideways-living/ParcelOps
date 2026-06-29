@@ -10,10 +10,11 @@ struct CostsBudgetsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var costSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredCosts: [CostRecord] {
+  private var baseFilteredCosts: [CostRecord] {
     store.filteredCostRecords(
       costCategory: selectedCategory,
       reimbursementStatus: selectedReimbursementStatus,
@@ -24,6 +25,26 @@ struct CostsBudgetsView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredCosts: [CostRecord] {
+    let query = costSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredCosts }
+    return baseFilteredCosts.filter { cost in
+      costRecord(cost, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedCategory != nil
+      || selectedReimbursementStatus != nil
+      || selectedApprovalStatus != nil
+      || !budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !costSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -37,18 +58,16 @@ struct CostsBudgetsView: View {
             Text("\(filteredCosts.count) visible cost records")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredCosts.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add cost", systemImage: "plus", action: store.addCostRecordPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredCosts.isEmpty {
-            Text("No costs match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No costs match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local cost and budget records." : "Add a local cost record to track approvals, reimbursements, budget codes, evidence, and claims.", symbol: "creditcard.and.123", actionTitle: hasActiveFilters ? "Clear filters" : "Add cost", action: hasActiveFilters ? clearFilters : store.addCostRecordPlaceholder)
           } else {
             ForEach(filteredCosts) { cost in
               CostRecordRow(cost: cost, store: store, linkedOrder: linkedOrder(for: cost), returnClaims: store.suggestedReturnClaims(for: cost), procurementRequests: store.suggestedProcurementRequests(for: cost)) { updatedCost in
@@ -93,14 +112,16 @@ struct CostsBudgetsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search cost, budget, owner, order, vendor, account, evidence, claim, or procurement", text: $costSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Category", selection: $selectedCategory) {
         Text("All categories").tag(nil as CostCategory?)
         ForEach(CostCategory.allCases) { category in
           Text(category.rawValue).tag(category as CostCategory?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Reimbursement", selection: $selectedReimbursementStatus) {
         Text("All reimbursement").tag(nil as ReimbursementStatus?)
@@ -108,7 +129,6 @@ struct CostsBudgetsView: View {
           Text(status.rawValue).tag(status as ReimbursementStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Approval", selection: $selectedApprovalStatus) {
         Text("All approval").tag(nil as CostApprovalStatus?)
@@ -116,15 +136,12 @@ struct CostsBudgetsView: View {
           Text(status.rawValue).tag(status as CostApprovalStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Budget code", text: $budgetCode)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 140)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -132,7 +149,6 @@ struct CostsBudgetsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -140,7 +156,6 @@ struct CostsBudgetsView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -148,28 +163,77 @@ struct CostsBudgetsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedCategory = nil
-        selectedReimbursementStatus = nil
-        selectedApprovalStatus = nil
-        budgetCode = ""
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedCategory = nil
+    selectedReimbursementStatus = nil
+    selectedApprovalStatus = nil
+    budgetCode = ""
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    costSearchText = ""
   }
 
   private func linkedOrder(for cost: CostRecord) -> TrackedOrder? {
     let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func costRecord(_ cost: CostRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: cost)
+    let returnClaims = store.suggestedReturnClaims(for: cost)
+    let procurementRequests = store.suggestedProcurementRequests(for: cost)
+    var searchParts: [String] = [
+      cost.id.uuidString,
+      cost.title,
+      cost.linkedEntityType.rawValue,
+      cost.linkedEntityID,
+      cost.orderID?.uuidString ?? "",
+      cost.shipmentGroupID?.uuidString ?? "",
+      cost.packageContentID?.uuidString ?? "",
+      cost.customerProfileID?.uuidString ?? "",
+      cost.vendorProfileID?.uuidString ?? "",
+      cost.accountID?.uuidString ?? "",
+      cost.costCategory.rawValue,
+      cost.amountText,
+      cost.currency,
+      cost.taxGSTText,
+      cost.reimbursementStatus.rawValue,
+      cost.approvalStatus.rawValue,
+      cost.budgetCode,
+      cost.costOwnerTeam,
+      cost.notes,
+      cost.riskLevel.rawValue,
+      cost.createdDate,
+      cost.lastReviewedDate,
+      cost.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: cost.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: returnClaims.map(\.title))
+    searchParts.append(contentsOf: returnClaims.map(\.reasonSummary))
+    searchParts.append(contentsOf: procurementRequests.map(\.title))
+    searchParts.append(contentsOf: procurementRequests.map(\.requestedItemsSummary))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 

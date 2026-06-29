@@ -9,10 +9,11 @@ struct ReturnsClaimsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var claimSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredClaims: [ReturnClaimRecord] {
+  private var baseFilteredClaims: [ReturnClaimRecord] {
     store.filteredReturnClaims(
       claimType: selectedClaimType,
       claimStatus: selectedStatus,
@@ -22,6 +23,25 @@ struct ReturnsClaimsView: View {
       linkedEntityType: selectedLinkedEntityType,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredClaims: [ReturnClaimRecord] {
+    let query = claimSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredClaims }
+    return baseFilteredClaims.filter { claim in
+      returnClaim(claim, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedClaimType != nil
+      || selectedStatus != nil
+      || selectedOutcome != nil
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !claimSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -35,18 +55,16 @@ struct ReturnsClaimsView: View {
             Text("\(filteredClaims.count) visible return/claim records")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredClaims.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add claim", systemImage: "plus", action: store.addReturnClaimPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredClaims.isEmpty {
-            Text("No returns or claims match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No returns or claims match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local return and claim records." : "Add a local return or claim to track refund, replacement, missing item, damage, evidence, and carrier claim work.", symbol: "arrow.uturn.backward.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add claim", action: hasActiveFilters ? clearFilters : store.addReturnClaimPlaceholder)
           } else {
             ForEach(filteredClaims) { claim in
               ReturnClaimRow(claim: claim, store: store, linkedOrder: linkedOrder(for: claim), procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim), shipmentManifests: store.suggestedShipmentManifestRecords(for: claim), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: claim)) { updatedClaim in
@@ -93,14 +111,16 @@ struct ReturnsClaimsView: View {
   }
 
   private var filterBar: some View {
-    HStack {
+    FilterControlGrid {
+      TextField("Search claim, reason, order, tracking, evidence, procurement, receiving, or storage", text: $claimSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedClaimType) {
         Text("All types").tag(nil as ReturnClaimType?)
         ForEach(ReturnClaimType.allCases) { type in
           Text(type.rawValue).tag(type as ReturnClaimType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Status", selection: $selectedStatus) {
         Text("All status").tag(nil as ReturnClaimStatus?)
@@ -108,7 +128,6 @@ struct ReturnsClaimsView: View {
           Text(status.rawValue).tag(status as ReturnClaimStatus?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Outcome", selection: $selectedOutcome) {
         Text("All outcomes").tag(nil as ReturnClaimOutcome?)
@@ -116,11 +135,9 @@ struct ReturnsClaimsView: View {
           Text(outcome.rawValue).tag(outcome as ReturnClaimOutcome?)
         }
       }
-      .pickerStyle(.menu)
 
       TextField("Owner/team", text: $ownerTeam)
         .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: 160)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -128,7 +145,6 @@ struct ReturnsClaimsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Linked", selection: $selectedLinkedEntityType) {
         Text("All links").tag(nil as ReviewTaskLinkedEntityType?)
@@ -136,7 +152,6 @@ struct ReturnsClaimsView: View {
           Text(type.rawValue).tag(type as ReviewTaskLinkedEntityType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -144,27 +159,90 @@ struct ReturnsClaimsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Spacer()
-
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedClaimType = nil
-        selectedStatus = nil
-        selectedOutcome = nil
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedClaimType = nil
+    selectedStatus = nil
+    selectedOutcome = nil
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    claimSearchText = ""
   }
 
   private func linkedOrder(for claim: ReturnClaimRecord) -> TrackedOrder? {
     let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func returnClaim(_ claim: ReturnClaimRecord, matches query: String) -> Bool {
+    let order = linkedOrder(for: claim)
+    let procurementRequests = store.suggestedProcurementRequests(for: claim)
+    let receivingInspections = store.suggestedReceivingInspections(for: claim)
+    let inventoryReceipts = store.suggestedInventoryReceipts(for: claim)
+    let storageLocations = store.suggestedStorageLocations(for: claim)
+    let custodyRecords = store.suggestedCustodyRecords(for: claim)
+    let labelReferences = store.suggestedLabelReferenceRecords(for: claim)
+    let scanSessions = store.suggestedScanSessionRecords(for: claim)
+    let shipmentManifests = store.suggestedShipmentManifestRecords(for: claim)
+    let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: claim)
+    var searchParts: [String] = [
+      claim.id.uuidString,
+      claim.title,
+      claim.linkedEntityType.rawValue,
+      claim.linkedEntityID,
+      claim.orderID?.uuidString ?? "",
+      claim.shipmentGroupID?.uuidString ?? "",
+      claim.packageContentID?.uuidString ?? "",
+      claim.costRecordID?.uuidString ?? "",
+      claim.customerProfileID?.uuidString ?? "",
+      claim.vendorProfileID?.uuidString ?? "",
+      claim.accountID?.uuidString ?? "",
+      claim.claimType.rawValue,
+      claim.reasonSummary,
+      claim.requestedOutcome.rawValue,
+      claim.claimStatus.rawValue,
+      claim.refundReplacementAmountText,
+      claim.currency,
+      claim.assignedOwnerTeam,
+      claim.dueDate,
+      claim.riskLevel.rawValue,
+      claim.createdDate,
+      claim.lastReviewedDate,
+      claim.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? ""
+    ]
+    searchParts.append(contentsOf: claim.evidenceAttachmentIDs.map(\.uuidString))
+    searchParts.append(contentsOf: claim.carrierTrackingEventIDs.map(\.uuidString))
+    searchParts.append(contentsOf: procurementRequests.map(\.title))
+    searchParts.append(contentsOf: procurementRequests.map(\.requestedItemsSummary))
+    searchParts.append(contentsOf: receivingInspections.map(\.title))
+    searchParts.append(contentsOf: inventoryReceipts.map(\.title))
+    searchParts.append(contentsOf: storageLocations.map(\.title))
+    searchParts.append(contentsOf: custodyRecords.map(\.title))
+    searchParts.append(contentsOf: labelReferences.map(\.title))
+    searchParts.append(contentsOf: scanSessions.map(\.title))
+    searchParts.append(contentsOf: shipmentManifests.map(\.title))
+    searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    let searchableText = searchParts.joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
