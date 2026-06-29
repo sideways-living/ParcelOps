@@ -2045,7 +2045,7 @@ struct ReviewOrderRow: View {
         Spacer()
         Badge(order.reviewState.rawValue, color: order.reviewState.color)
       }
-      HStack {
+      CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         Button("Add to orders", systemImage: "checkmark.circle.fill", action: onClear)
@@ -2089,7 +2089,7 @@ struct ReviewMailEventRow: View {
         Spacer()
         Badge(event.severity.rawValue, color: event.severity.color)
       }
-      HStack {
+      CompactActionRow {
         Button("Add to order", systemImage: "checkmark.circle.fill", action: onClear)
           .buttonStyle(.borderedProminent)
         Button("Discard spam", systemImage: "trash", action: onDiscard)
