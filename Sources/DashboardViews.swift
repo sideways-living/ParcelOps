@@ -16,7 +16,7 @@ struct DashboardView: View {
     Array(repeating: GridItem(.flexible(), spacing: 14), count: isCompact ? 1 : 2)
   }
   private var incomingAttentionCount: Int {
-    store.reviewIntakeEmails.count + store.intakeParserDiagnostics.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
+    store.reviewIntakeEmails.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
   }
   private var spaceMailHealthAttentionCount: Int {
     store.spaceMailIntakeHealthSummaries.filter {
@@ -37,8 +37,23 @@ struct DashboardView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
   }
+  private var operatorWorkbenchItems: [WorkbenchItem] {
+    store.openWorkbenchItems.filter { $0.source != .intakeParser }
+  }
+  private var highPriorityOperatorWorkbenchItems: [WorkbenchItem] {
+    operatorWorkbenchItems.filter { $0.rank >= 3 }
+  }
+  private var overdueOperatorWorkbenchItems: [WorkbenchItem] {
+    operatorWorkbenchItems.filter(\.isDueOrOverdue)
+  }
+  private var blockedOperatorWorkbenchItems: [WorkbenchItem] {
+    operatorWorkbenchItems.filter(\.isBlocked)
+  }
+  private var operatorWorkbenchReviewItems: [WorkbenchItem] {
+    operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
+  }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + store.highPriorityWorkbenchItems.count
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -62,7 +77,7 @@ struct DashboardView: View {
   private var dailyStartTone: Color {
     if incomingAttentionCount > 0 { return .orange }
     if problemOrdersCount > 0 { return .red }
-    if store.highPriorityWorkbenchItems.count > 0 { return .purple }
+    if highPriorityOperatorWorkbenchItems.count > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
     if taskAttentionCount > 0 { return .orange }
     return .green
@@ -71,7 +86,7 @@ struct DashboardView: View {
   private var dailyStartTitle: String {
     if incomingAttentionCount > 0 { return "Start in Inbox" }
     if problemOrdersCount > 0 { return "Start with Orders" }
-    if store.highPriorityWorkbenchItems.count > 0 { return "Start in Workbench" }
+    if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
     if taskAttentionCount > 0 { return "Start with Tasks" }
     return "Daily queue is clear"
@@ -79,13 +94,13 @@ struct DashboardView: View {
 
   private var dailyStartDetail: String {
     if incomingAttentionCount > 0 {
-      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, parser diagnostics, import queue, or acceptance review."
+      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, SpaceMail review, import queue, or acceptance review."
     }
     if problemOrdersCount > 0 {
       return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or Inbox-created order handoff."
     }
-    if store.highPriorityWorkbenchItems.count > 0 {
-      return "\(store.highPriorityWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
+    if highPriorityOperatorWorkbenchItems.count > 0 {
+      return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
     }
     if dispatchAttentionCount > 0 {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
@@ -136,12 +151,12 @@ struct DashboardView: View {
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
           AnalyticsSection(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
             MetricStrip(items: [
-              ("Open", "\(store.openWorkbenchItems.count)", .blue),
-              ("Overdue", "\(store.overdueWorkbenchItems.count)", .red),
-              ("Blocked", "\(store.blockedWorkbenchItems.count)", .red),
-              ("Review", "\(store.workbenchItemsNeedingReview.count)", .orange)
+              ("Open", "\(operatorWorkbenchItems.count)", .blue),
+              ("Overdue", "\(overdueOperatorWorkbenchItems.count)", overdueOperatorWorkbenchItems.isEmpty ? .green : .red),
+              ("Blocked", "\(blockedOperatorWorkbenchItems.count)", blockedOperatorWorkbenchItems.isEmpty ? .green : .red),
+              ("Review", "\(operatorWorkbenchReviewItems.count)", operatorWorkbenchReviewItems.isEmpty ? .green : .orange)
             ])
-            CompactWorkbenchList(items: Array(store.highPriorityWorkbenchItems.prefix(4)))
+            CompactWorkbenchList(items: Array(highPriorityOperatorWorkbenchItems.prefix(4)))
           }
 
           AnalyticsSection(title: "Review workload", symbol: "exclamationmark.triangle.fill") {
