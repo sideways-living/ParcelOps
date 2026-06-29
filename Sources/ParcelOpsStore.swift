@@ -8767,28 +8767,38 @@ final class ParcelOpsStore {
       let beforeDetail = orders[index].auditDetail
       let statusSummary: String
       let reviewState: ReviewState
+      let orderStatus: OrderStatus?
 
       switch manifest.dispatchStatus {
       case .draft:
         statusSummary = "Inbox dispatch setup is in draft manifest stage"
         reviewState = orders[index].reviewState
+        orderStatus = nil
       case .prepared:
         statusSummary = "Inbox dispatch manifest prepared locally"
         reviewState = .monitor
+        orderStatus = .shipped
       case .dispatched:
         statusSummary = "Inbox dispatch manifest marked dispatched locally"
         reviewState = .monitor
+        orderStatus = .inTransit
       case .handedOff:
         statusSummary = "Inbox dispatch manifest handed off locally"
         reviewState = .accepted
+        orderStatus = .inTransit
       case .blockedNeedsReview:
         statusSummary = "Inbox dispatch manifest blocked and needs review"
         reviewState = .needsReview
+        orderStatus = .exception
       case .reopened:
         statusSummary = "Inbox dispatch manifest reopened for review"
         reviewState = .needsReview
+        orderStatus = .exception
       }
 
+      if let orderStatus, orders[index].status != .delivered {
+        orders[index].status = orderStatus
+      }
       orders[index].latestStatus = statusSummary
       orders[index].reviewState = reviewState
       orders[index].contactHistory.insert(
@@ -8797,7 +8807,7 @@ final class ParcelOpsStore {
           source: .manual,
           contactPoint: "Dispatch manifest",
           summary: statusSummary,
-          evidence: "\(manifest.title): \(summary)",
+          evidence: "\(manifest.title): \(summary). Order status is \(orders[index].status.rawValue).",
           reviewState: reviewState
         ),
         at: 0
@@ -8960,25 +8970,34 @@ final class ParcelOpsStore {
       let beforeDetail = orders[index].auditDetail
       let statusSummary: String
       let reviewState: ReviewState
+      let orderStatus: OrderStatus?
 
       switch checklist.checklistStatus {
       case .draft:
         statusSummary = "Inbox dispatch readiness is in draft stage"
         reviewState = orders[index].reviewState
+        orderStatus = nil
       case .ready:
         statusSummary = "Inbox dispatch readiness marked ready locally"
         reviewState = .monitor
+        orderStatus = .shipped
       case .blockedNeedsReview:
         statusSummary = "Inbox dispatch readiness blocked and needs review"
         reviewState = .needsReview
+        orderStatus = .exception
       case .completed:
         statusSummary = "Inbox dispatch readiness completed locally"
         reviewState = .accepted
+        orderStatus = .shipped
       case .reopened:
         statusSummary = "Inbox dispatch readiness reopened for review"
         reviewState = .needsReview
+        orderStatus = .exception
       }
 
+      if let orderStatus, orders[index].status != .delivered {
+        orders[index].status = orderStatus
+      }
       orders[index].latestStatus = statusSummary
       orders[index].reviewState = reviewState
       orders[index].contactHistory.insert(
@@ -8987,7 +9006,7 @@ final class ParcelOpsStore {
           source: .manual,
           contactPoint: "Dispatch readiness",
           summary: statusSummary,
-          evidence: "\(checklist.title): \(summary)",
+          evidence: "\(checklist.title): \(summary). Order status is \(orders[index].status.rawValue).",
           reviewState: reviewState
         ),
         at: 0
