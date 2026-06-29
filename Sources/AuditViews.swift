@@ -20,8 +20,17 @@ struct AuditView: View {
     searchMatchedEvents.filter { event in
       let matchesAction = selectedAction == nil || event.action == selectedAction
       let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
-      return matchesAction && matchesEntity
+      let matchesDiagnosticMode = showTechnicalDiagnostics || !event.isTechnicalSpaceMailDiagnostic
+      return matchesAction && matchesEntity && matchesDiagnosticMode
     }
+  }
+
+  private var hiddenFilteredTechnicalDiagnosticCount: Int {
+    searchMatchedEvents.filter { event in
+      let matchesAction = selectedAction == nil || event.action == selectedAction
+      let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
+      return matchesAction && matchesEntity && event.isTechnicalSpaceMailDiagnostic
+    }.count
   }
 
   private var visibleActivityEvents: [AuditEvent] {
@@ -141,14 +150,21 @@ struct AuditView: View {
         activityFeed
 
         SettingsPanel(title: "Detailed audit log", symbol: "line.3.horizontal.decrease.circle.fill") {
-          Text("Filter the full local audit history when you need to inspect a specific action or record type.")
+          Text("Filter local audit history for a specific action or record type. Technical SpaceMail diagnostics stay hidden here too unless Show technical diagnostics is enabled.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
           filterBar
 
+          if hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
+            Label("\(hiddenFilteredTechnicalDiagnosticCount) matching technical diagnostics are hidden. Turn on Show technical diagnostics in the activity feed when investigating parser, duplicate, or mailbox internals.", systemImage: "eye.slash")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
           if filteredEvents.isEmpty {
-            MVPEmptyState(title: "No audit events match this view", detail: "Clear filters or perform a local action such as creating a task, reviewing intake, or updating dispatch readiness.", symbol: "list.clipboard.fill")
+            MVPEmptyState(title: "No operator audit events match this view", detail: hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics ? "Matching technical diagnostics are hidden. Enable Show technical diagnostics to inspect parser, duplicate, or mailbox internals." : "Clear filters or perform a local action such as creating a task, reviewing intake, or updating dispatch readiness.", symbol: "list.clipboard.fill")
           } else {
             ForEach(filteredEvents.prefix(30)) { event in
               AuditEventRow(event: event) {
