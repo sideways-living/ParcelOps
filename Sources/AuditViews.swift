@@ -24,8 +24,12 @@ struct AuditView: View {
     }
   }
 
+  private var visibleActivityEvents: [AuditEvent] {
+    showTechnicalDiagnostics ? searchMatchedEvents : searchMatchedEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+  }
+
   private var recentEvents: [AuditEvent] {
-    Array(searchMatchedEvents.prefix(18))
+    Array(visibleActivityEvents.prefix(18))
   }
 
   private var workflowEvents: [AuditEvent] {
@@ -50,6 +54,10 @@ struct AuditView: View {
 
   private var visibleSpaceMailEvidenceEvents: [AuditEvent] {
     showTechnicalDiagnostics ? spaceMailEvidenceEvents : spaceMailEvidenceEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+  }
+
+  private var hiddenTechnicalDiagnosticCount: Int {
+    searchMatchedEvents.filter(\.isTechnicalSpaceMailDiagnostic).count
   }
 
   private var auditNextCheckTitle: String {
@@ -166,6 +174,7 @@ struct AuditView: View {
 
         MetricStrip(items: [
           ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+          ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
           ("Workflow", "\(workflowEvents.count)", workflowEvents.isEmpty ? .secondary : .teal),
           ("Record changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange)
@@ -189,6 +198,7 @@ struct AuditView: View {
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
         ("SpaceMail", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+        ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
@@ -217,6 +227,13 @@ struct AuditView: View {
           Toggle("Show technical diagnostics", isOn: $showTechnicalDiagnostics)
             .font(.caption.weight(.semibold))
             .toggleStyle(.switch)
+
+          if hiddenTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
+            Label("\(hiddenTechnicalDiagnosticCount) SpaceMail parser, duplicate, and no-change diagnostics are hidden from the operator feed. Open the detailed log or enable technical diagnostics when investigating intake internals.", systemImage: "line.3.horizontal.decrease.circle")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
 
           AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox MVP.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
