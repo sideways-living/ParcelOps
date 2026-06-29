@@ -5743,6 +5743,72 @@ final class ParcelOpsStore {
       beforeDetail: beforeDetail,
       afterDetail: updatedOrder.auditDetail
     )
+    resolvePartialInboxOrderFollowUpIfReady(for: updatedOrder, source: "Order details updated by user review")
+  }
+
+  func partialInboxOrderMissingFields(for order: TrackedOrder) -> [String] {
+    [
+      order.orderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+      order.destination == "Pending review" || order.destination.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+  }
+
+  func unresolvedPartialInboxOrderFollowUps(for order: TrackedOrder) -> [ReviewTask] {
+    reviewTasks.filter { task in
+      task.linkedEntityType == .order
+        && task.linkedEntityID == order.id.uuidString
+        && task.isPartialInboxOrderFollowUp
+        && task.status != .completed
+    }
+  }
+
+  func resolvePartialInboxOrderFollowUpIfReady(for order: TrackedOrder, source: String = "Manual order verification") {
+    let tasks = unresolvedPartialInboxOrderFollowUps(for: order)
+    guard !tasks.isEmpty else { return }
+
+    let missingFields = partialInboxOrderMissingFields(for: order)
+    guard missingFields.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Partial Inbox-created order still needs verification.",
+        afterDetail: "Open follow-up tasks: \(tasks.count)\nMissing fields: \(missingFields.joined(separator: ", "))\nSource: \(source)\nNo task was completed because the order still has placeholder details."
+      )
+      return
+    }
+
+    let timestamp = Self.auditTimestamp()
+    var resolvedTaskLabels: [String] = []
+    for task in tasks {
+      guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { continue }
+      let beforeDetail = reviewTasks[index].auditDetail
+      reviewTasks[index].status = .completed
+      reviewTasks[index].completedDate = timestamp
+      reviewTasks[index].reviewState = .accepted
+      resolvedTaskLabels.append(reviewTasks[index].title)
+      logAudit(
+        action: .completed,
+        entityType: .reviewTask,
+        entityID: reviewTasks[index].id.uuidString,
+        entityLabel: reviewTasks[index].title,
+        summary: "Partial Inbox-created order follow-up resolved.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[index].auditDetail)\nOrder: \(order.orderNumber)\nSource: \(source)\nAll required order handoff fields are now present. No mailbox fetch, mailbox mutation, or external service call occurred."
+      )
+    }
+
+    persistReviewTasks()
+    logAudit(
+      action: .reviewed,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Inbox-created order verification follow-up closed.",
+      afterDetail: "Resolved tasks: \(resolvedTaskLabels.joined(separator: ", "))\nSource: \(source)\nOrder number, tracking number, and destination are no longer placeholders."
+    )
   }
 
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
@@ -11655,6 +11721,12 @@ private extension SavedFilter {
 private extension ReviewTask {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); due: \(dueDate); assignee: \(assignee); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate ?? "not completed"); summary: \(summary)."
+  }
+
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
   }
 }
 

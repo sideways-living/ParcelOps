@@ -1310,6 +1310,14 @@ private struct PartialInboxOrderFollowUpRow: View {
     order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
   }
 
+  private var missingFields: [String] {
+    store.partialInboxOrderMissingFields(for: order)
+  }
+
+  private var canResolveFollowUp: Bool {
+    task.status != .completed && missingFields.isEmpty
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
@@ -1333,8 +1341,23 @@ private struct PartialInboxOrderFollowUpRow: View {
       CompactMetadataGrid(minimumWidth: 135) {
         Badge(missingTracking ? "Tracking needs check" : "Tracking present", color: missingTracking ? .orange : .green)
         Badge(missingDestination ? "Destination needs check" : "Destination present", color: missingDestination ? .orange : .green)
+        if canResolveFollowUp {
+          Badge("Ready to close", color: .green)
+        } else if !missingFields.isEmpty {
+          Badge("Missing \(missingFields.joined(separator: ", "))", color: .orange)
+        }
         Badge(task.priority.rawValue, color: task.priority.color)
         Badge(task.reviewState.rawValue, color: task.reviewState.color)
+      }
+
+      if !missingFields.isEmpty {
+        Label("Edit the order first. Still missing: \(missingFields.joined(separator: ", ")).", systemImage: "pencil.and.list.clipboard")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if task.status != .completed {
+        Label("The required handoff fields are present. Resolve this follow-up to clear the Inbox verification task.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
       }
 
       CompactActionRow {
@@ -1343,6 +1366,11 @@ private struct PartialInboxOrderFollowUpRow: View {
             store.reopenReviewTask(task)
           }
           .buttonStyle(.bordered)
+        } else if canResolveFollowUp {
+          Button("Resolve follow-up", systemImage: "checkmark.seal.fill") {
+            store.resolvePartialInboxOrderFollowUpIfReady(for: order)
+          }
+          .buttonStyle(.borderedProminent)
         } else {
           Button("Complete task", systemImage: "checkmark.circle.fill") {
             store.completeReviewTask(task)
