@@ -196,6 +196,7 @@ struct OperationsWorkbenchView: View {
         )
         operatorSummary
         SpaceMailPrimaryStatusStrip(store: store)
+        workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
         operatorQueue
@@ -249,6 +250,32 @@ struct OperationsWorkbenchView: View {
           ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
           ("Open", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])
+      }
+    }
+  }
+
+  private var workbenchDiagnosticsBoundary: some View {
+    SettingsPanel(title: "Diagnostics boundary", symbol: "text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Parser diagnostics and mixed-mailbox classifier checks are supporting evidence. Keep the Workbench focused on urgent, blocked, exception, review, and dispatch work; open Inbox or Mailbox Monitor when you need to tune intake parsing.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .orange),
+          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .orange : .green),
+          ("Filtered mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count })", .teal),
+          ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .teal),
+          ("Primary work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
+        ])
+
+        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty }
+          ? "No parser or uncertain-message diagnostics are currently pulling attention away from the operator queue."
+          : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered SpaceMail review. Do not treat filtered non-order mail as Workbench work.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
