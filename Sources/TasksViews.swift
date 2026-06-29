@@ -4,6 +4,7 @@ struct TasksView: View {
   var store: ParcelOpsStore
 
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var queueSearchText = ""
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.reviewTasks
@@ -23,6 +24,19 @@ struct TasksView: View {
 
   private var draftFollowUpItems: [DraftMessage] {
     Array(store.draftMessagesNeedingReview.prefix(6))
+  }
+
+  private var visibleQueueItems: [TaskQueueItem] {
+    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return queueItems }
+    return queueItems.filter { item in
+      item.title.localizedCaseInsensitiveContains(query)
+        || item.summary.localizedCaseInsensitiveContains(query)
+        || item.assignee.localizedCaseInsensitiveContains(query)
+        || item.linkedEntityType.rawValue.localizedCaseInsensitiveContains(query)
+        || item.linkedEntityID.localizedCaseInsensitiveContains(query)
+        || item.sourceLabel.localizedCaseInsensitiveContains(query)
+    }
   }
 
   var body: some View {
@@ -204,16 +218,27 @@ struct TasksView: View {
           .font(.subheadline)
           .foregroundStyle(.secondary)
 
-        if queueItems.isEmpty {
+        FilterControlGrid {
+          TextField("Search tasks and handoffs", text: $queueSearchText)
+            .textFieldStyle(.roundedBorder)
+          if !queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button("Clear search", systemImage: "xmark.circle") {
+              queueSearchText = ""
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+
+        if visibleQueueItems.isEmpty {
           MVPEmptyState(
-            title: "No open actions",
-            detail: "Review tasks and handoff notes that need operator attention will appear here.",
+            title: queueItems.isEmpty ? "No open actions" : "No matching actions",
+            detail: queueItems.isEmpty ? "Review tasks and handoff notes that need operator attention will appear here." : "Clear the search to return to the full task and handoff queue.",
             symbol: "checkmark.circle.fill",
             actionTitle: "Add task",
             action: store.addReviewTaskPlaceholder
           )
         } else {
-          ForEach(queueItems.prefix(16)) { item in
+          ForEach(visibleQueueItems.prefix(16)) { item in
             TaskQueueRow(item: item, store: store)
           }
         }
