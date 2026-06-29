@@ -8,11 +8,30 @@ struct DispatchReadinessView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var readinessSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
-  private var filteredChecklists: [DispatchReadinessChecklist] {
+  private var baseFilteredChecklists: [DispatchReadinessChecklist] {
     store.filteredDispatchReadinessChecklists(checklistType: selectedType, checklistStatus: selectedStatus, ownerTeam: ownerTeam, riskLevel: selectedRiskLevel, linkedEntityType: selectedLinkedEntityType, reviewState: selectedReviewState)
+  }
+
+  private var filteredChecklists: [DispatchReadinessChecklist] {
+    let query = readinessSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredChecklists }
+    return baseFilteredChecklists.filter { checklist in
+      dispatchChecklist(checklist, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedType != nil
+      || selectedStatus != nil
+      || !ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || selectedRiskLevel != nil
+      || selectedLinkedEntityType != nil
+      || selectedReviewState != nil
+      || !readinessSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -37,13 +56,22 @@ struct DispatchReadinessView: View {
             Text("\(filteredChecklists.count) visible checklists")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredChecklists.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add checklist", systemImage: "plus", action: store.addDispatchReadinessChecklistPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredChecklists.isEmpty {
-            MVPEmptyState(title: "No readiness checklists match this view", detail: "Clear filters or add a placeholder checklist to test local dispatch checks.", symbol: "checkmark.rectangle.stack.fill", actionTitle: "Add checklist", action: store.addDispatchReadinessChecklistPlaceholder)
+            MVPEmptyState(
+              title: "No readiness checklists match this view",
+              detail: hasActiveFilters ? "Clear search or filters to return to all readiness checklists." : "Add a placeholder checklist to test local dispatch checks.",
+              symbol: "checkmark.rectangle.stack.fill",
+              actionTitle: hasActiveFilters ? "Clear filters" : "Add checklist",
+              action: hasActiveFilters ? clearFilters : store.addDispatchReadinessChecklistPlaceholder
+            )
           } else {
             ForEach(filteredChecklists) { checklist in
               DispatchReadinessRow(checklist: checklist, store: store, linkedOrders: linkedOrders(for: checklist)) { updatedChecklist in
@@ -91,6 +119,9 @@ struct DispatchReadinessView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search title, required checks, missing items, owner, order, manifest, label, scan, or evidence", text: $readinessSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as DispatchChecklistType?)
         ForEach(DispatchChecklistType.allCases) { type in Text(type.rawValue).tag(type as DispatchChecklistType?) }
@@ -124,15 +155,85 @@ struct DispatchReadinessView: View {
       .pickerStyle(.menu)
 
       Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedType = nil
-        selectedStatus = nil
-        ownerTeam = ""
-        selectedRiskLevel = nil
-        selectedLinkedEntityType = nil
-        selectedReviewState = nil
+        clearFilters()
       }
       .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedType = nil
+    selectedStatus = nil
+    ownerTeam = ""
+    selectedRiskLevel = nil
+    selectedLinkedEntityType = nil
+    selectedReviewState = nil
+    readinessSearchText = ""
+  }
+
+  private func dispatchChecklist(_ checklist: DispatchReadinessChecklist, matches query: String) -> Bool {
+    let linkedOrders = linkedOrders(for: checklist)
+    let linkedManifest = checklist.shipmentManifestID.flatMap { manifestID in
+      store.shipmentManifestRecords.first { $0.id == manifestID }
+    }
+    let linkedGroups = checklist.shipmentGroupIDs.compactMap { groupID in
+      store.shipmentGroups.first { $0.id == groupID }
+    }
+    let orderText = linkedOrders.map { order in
+      [
+        order.store,
+        order.orderNumber,
+        order.customer,
+        order.recipientEmail,
+        order.carrier,
+        order.trackingNumber,
+        order.destination
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let manifestText = [
+      linkedManifest?.title ?? "",
+      linkedManifest?.carrierCourier ?? "",
+      linkedManifest?.destinationSummary ?? "",
+      linkedManifest?.manifestReferencePlaceholder ?? "",
+      linkedManifest?.dispatchStatus.rawValue ?? ""
+    ].joined(separator: " ")
+    let groupText = linkedGroups.map { group in
+      [
+        group.groupName,
+        group.destinationSummary,
+        group.recipientCustomerSummary,
+        group.carrierSummary,
+        group.statusSummary
+      ].joined(separator: " ")
+    }.joined(separator: " ")
+    let searchableText = [
+      checklist.title,
+      checklist.linkedEntityType.rawValue,
+      checklist.linkedEntityID,
+      checklist.shipmentManifestID?.uuidString ?? "",
+      checklist.orderIDs.map(\.uuidString).joined(separator: " "),
+      checklist.shipmentGroupIDs.map(\.uuidString).joined(separator: " "),
+      checklist.inventoryReceiptIDs.map(\.uuidString).joined(separator: " "),
+      checklist.packageContentIDs.map(\.uuidString).joined(separator: " "),
+      checklist.custodyRecordIDs.map(\.uuidString).joined(separator: " "),
+      checklist.labelReferenceIDs.map(\.uuidString).joined(separator: " "),
+      checklist.scanSessionIDs.map(\.uuidString).joined(separator: " "),
+      checklist.evidenceAttachmentIDs.map(\.uuidString).joined(separator: " "),
+      checklist.checklistType.rawValue,
+      checklist.checklistStatus.rawValue,
+      checklist.requiredChecksSummary,
+      checklist.completedChecksSummary,
+      checklist.missingRequirementsSummary,
+      checklist.assignedOwnerTeam,
+      checklist.plannedDispatchDate,
+      checklist.completedDate,
+      checklist.riskLevel.rawValue,
+      checklist.reviewState.rawValue,
+      orderText,
+      manifestText,
+      groupText
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 
   private func linkedOrders(for checklist: DispatchReadinessChecklist) -> [TrackedOrder] {
