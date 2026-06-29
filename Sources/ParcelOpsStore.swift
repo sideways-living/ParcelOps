@@ -5525,9 +5525,17 @@ final class ParcelOpsStore {
   }
 
   func createOrder(from email: ForwardedEmailIntake) {
+    let missingFields = missingIntakeOrderFields(email)
+    let isPartialOrder = !missingFields.isEmpty
     let orderNumber = email.detectedOrderNumber.isPlaceholder ? "EMAIL-\(3000 + orders.count + 1)" : email.detectedOrderNumber
     let trackingNumber = email.detectedTrackingNumber.isPlaceholder ? "Pending" : email.detectedTrackingNumber
     let destination = email.detectedDestinationAddress.isPlaceholder ? "Pending review" : email.detectedDestinationAddress
+    let latestStatus = isPartialOrder
+      ? "Created from forwarded email with missing \(missingFields.joined(separator: ", "))"
+      : "Created from forwarded email and awaiting review"
+    let handoffDetail = isPartialOrder
+      ? "Created as a partial order because \(missingFields.joined(separator: ", ")) needs confirmation."
+      : "Created from forwarded email with usable detected order fields."
 
     let order = TrackedOrder(
       orderNumber: orderNumber,
@@ -5543,12 +5551,13 @@ final class ParcelOpsStore {
       source: .forwardedMailbox,
       status: trackingNumber == "Pending" ? .intake : .shipped,
       reviewState: .needsReview,
-      latestStatus: "Created from forwarded email and awaiting review",
+      latestStatus: latestStatus,
       timeline: [
-        TimelineEvent(title: "Forwarded email captured", detail: email.subject, time: "Now", symbol: "envelope.open.fill")
+        TimelineEvent(title: "Forwarded email captured", detail: email.subject, time: "Now", symbol: "envelope.open.fill"),
+        TimelineEvent(title: isPartialOrder ? "Partial order created" : "Order created", detail: handoffDetail, time: "Now", symbol: isPartialOrder ? "exclamationmark.triangle.fill" : "shippingbox.fill")
       ],
       contactHistory: [
-        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: "Forwarded email intake", summary: "Order draft created from forwarded email.", evidence: email.rawBodyPreview, reviewState: .needsReview)
+        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: "Forwarded email intake", summary: handoffDetail, evidence: email.rawBodyPreview, reviewState: .needsReview)
       ]
     )
 
@@ -5561,13 +5570,16 @@ final class ParcelOpsStore {
 
     persistOrders()
     persistIntakeEmails()
+    if isPartialOrder {
+      createPartialInboxOrderFollowUp(for: order, email: email, missingFields: missingFields)
+    }
     logAudit(
       action: .created,
       entityType: .order,
       entityID: order.id.uuidString,
       entityLabel: order.orderNumber,
-      summary: "Tracked order created from forwarded intake email.",
-      afterDetail: order.auditDetail
+      summary: isPartialOrder ? "Partial tracked order created from forwarded intake email." : "Tracked order created from forwarded intake email.",
+      afterDetail: "\(order.auditDetail)\nInbox handoff: \(handoffDetail)"
     )
     logAudit(
       action: .reviewed,
@@ -5577,6 +5589,41 @@ final class ParcelOpsStore {
       summary: "Forwarded intake email marked reviewed after order creation.",
       beforeDetail: email.auditDetail,
       afterDetail: intakeEmails.first { $0.id == email.id }?.auditDetail
+    )
+  }
+
+  private func missingIntakeOrderFields(_ email: ForwardedEmailIntake) -> [String] {
+    [
+      email.detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+      email.detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+      email.detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+  }
+
+  private func createPartialInboxOrderFollowUp(for order: TrackedOrder, email: ForwardedEmailIntake, missingFields: [String]) {
+    let missingSummary = missingFields.joined(separator: ", ")
+    let task = ReviewTask(
+      title: "Verify Inbox-created order \(order.orderNumber)",
+      summary: "Confirm missing \(missingSummary) from forwarded email '\(email.subject)' before dispatch setup.",
+      linkedEntityType: .order,
+      linkedEntityID: order.id.uuidString,
+      priority: missingFields.contains("order number") || missingFields.contains("tracking number") ? .high : .normal,
+      dueDate: "Today",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task created for partial Inbox-created order.")
+    logAudit(
+      action: .created,
+      entityType: .reviewTask,
+      entityID: task.id.uuidString,
+      entityLabel: task.title,
+      summary: "Partial Inbox-created order follow-up task added.",
+      afterDetail: "Order: \(order.orderNumber)\nMissing fields: \(missingSummary)\nSource email: \(email.subject)\nNo mailbox fetch, mailbox mutation, or external service call occurred."
     )
   }
 
