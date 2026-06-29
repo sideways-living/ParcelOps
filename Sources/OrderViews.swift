@@ -18,8 +18,25 @@ struct OrdersView: View {
   private var inboxCreatedOrderItems: [OrderQueueItem] {
     store.orders
       .filter(isInboxCreatedOrder)
-      .prefix(4)
       .map(queueItem)
+      .sorted { first, second in
+        if first.inboxHandoffPriority == second.inboxHandoffPriority {
+          return first.order.orderNumber.localizedCaseInsensitiveCompare(second.order.orderNumber) == .orderedAscending
+        }
+        return first.inboxHandoffPriority > second.inboxHandoffPriority
+      }
+      .prefix(4)
+      .map { $0 }
+  }
+  private var inboxCreatedOrderCount: Int {
+    store.orders.filter(isInboxCreatedOrder).count
+  }
+  private var inboxCreatedOrdersActionableCount: Int {
+    store.orders
+      .filter(isInboxCreatedOrder)
+      .map(queueItem)
+      .filter(\.needsInboxHandoffAction)
+      .count
   }
   private var inboxCreatedOrdersNeedingReviewCount: Int {
     store.orders.filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }.count
@@ -61,16 +78,17 @@ struct OrdersView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
               MetricStrip(items: [
-                ("Inbox orders", "\(store.orders.filter(isInboxCreatedOrder).count)", .teal),
+                ("Inbox orders", "\(inboxCreatedOrderCount)", .teal),
+                ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
                 ("Need review", "\(inboxCreatedOrdersNeedingReviewCount)", inboxCreatedOrdersNeedingReviewCount == 0 ? .green : .orange),
                 ("Need dispatch setup", "\(inboxCreatedOrdersMissingDispatchCount)", inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .purple)
               ])
 
-              Text(inboxCreatedOrdersNeedingReviewCount == 0 && inboxCreatedOrdersMissingDispatchCount == 0
+              Text(inboxCreatedOrdersActionableCount == 0
                 ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
-                : "Confirm detected order details first, then add manifest or readiness context for dispatch-relevant orders.")
+                : "The rows below are sorted by handoff risk: review gaps, missing dispatch setup, exceptions, then routine monitoring.")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(inboxCreatedOrdersNeedingReviewCount == 0 && inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .orange)
+                .foregroundStyle(inboxCreatedOrdersActionableCount == 0 ? .green : .orange)
                 .fixedSize(horizontal: false, vertical: true)
 
               ForEach(inboxCreatedOrderItems) { item in
@@ -302,6 +320,22 @@ private struct OrderQueueItem: Identifiable {
   var dispatchContextCount: Int {
     manifests.count + checklists.count
   }
+  var needsDispatchSetup: Bool {
+    dispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status)
+  }
+  var needsInboxHandoffAction: Bool {
+    isInboxCreated && (order.reviewState != .accepted || needsDispatchSetup || order.status == .exception || criticalTrackingCount > 0 || urgentTaskCount > 0)
+  }
+  var inboxHandoffPriority: Int {
+    guard isInboxCreated else { return 0 }
+    if order.status == .exception || criticalTrackingCount > 0 { return 120 }
+    if order.reviewState != .accepted { return 110 }
+    if needsDispatchSetup { return 100 }
+    if urgentTaskCount > 0 { return 90 }
+    if warningTrackingCount > 0 { return 80 }
+    if order.status == .delivered { return 10 }
+    return 50
+  }
   var isInboxCreated: Bool {
     order.source == .forwardedMailbox
       || order.checkedMailbox == "manual-import"
@@ -318,7 +352,7 @@ private struct OrderQueueItem: Identifiable {
     if order.reviewState != .accepted {
       return "Confirm customer, destination, tracking, and dispatch setup before marking reviewed."
     }
-    if dispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status) {
+    if needsDispatchSetup {
       return "Order is reviewed, but dispatch context is not linked yet."
     }
     return "Source handoff is reviewed; keep monitoring status and linked tasks."
