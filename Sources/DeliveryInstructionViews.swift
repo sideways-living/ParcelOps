@@ -8,6 +8,7 @@ struct DeliveryInstructionsView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedEnabledState: Bool?
   @State private var selectedReviewState: ReviewState?
+  @State private var instructionSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -15,7 +16,7 @@ struct DeliveryInstructionsView: View {
     Array(Set(store.deliveryInstructions.map(\.carrierNotes).filter { !$0.isEmpty })).sorted()
   }
 
-  private var filteredInstructions: [DeliveryInstructionRecord] {
+  private var baseFilteredInstructions: [DeliveryInstructionRecord] {
     store.filteredDeliveryInstructions(
       instructionType: selectedType,
       profileID: selectedProfileID,
@@ -24,6 +25,24 @@ struct DeliveryInstructionsView: View {
       isEnabled: selectedEnabledState,
       reviewState: selectedReviewState
     )
+  }
+
+  private var filteredInstructions: [DeliveryInstructionRecord] {
+    let query = instructionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredInstructions }
+    return baseFilteredInstructions.filter { instruction in
+      deliveryInstructionSearchParts(instruction).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedType != nil
+      || selectedProfileID != nil
+      || selectedCarrierContext != nil
+      || selectedRiskLevel != nil
+      || selectedEnabledState != nil
+      || selectedReviewState != nil
+      || !instructionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -37,18 +56,16 @@ struct DeliveryInstructionsView: View {
             Text("\(filteredInstructions.count) visible instructions")
               .font(.caption)
               .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredInstructions.count) after filters", color: .blue)
+            }
             Spacer()
             Button("Add instruction", systemImage: "plus", action: store.addDeliveryInstructionPlaceholder)
               .buttonStyle(.borderedProminent)
           }
 
           if filteredInstructions.isEmpty {
-            Text("No delivery instructions match the selected filters.")
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            MVPEmptyState(title: "No delivery instructions match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local delivery instructions." : "Add a local instruction to reuse delivery windows, access constraints, and carrier notes.", symbol: "signpost.right.and.left.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add instruction", action: hasActiveFilters ? clearFilters : store.addDeliveryInstructionPlaceholder)
           } else {
             ForEach(filteredInstructions) { instruction in
               DeliveryInstructionRow(
@@ -97,13 +114,15 @@ struct DeliveryInstructionsView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search title, instruction, access constraint, window, carrier, customer, address, or order", text: $instructionSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedType) {
         Text("All types").tag(nil as DeliveryInstructionType?)
         ForEach(DeliveryInstructionType.allCases) { type in
           Text(type.rawValue).tag(type as DeliveryInstructionType?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Profile", selection: $selectedProfileID) {
         Text("All profiles").tag(nil as UUID?)
@@ -111,7 +130,6 @@ struct DeliveryInstructionsView: View {
           Text(profile.displayName).tag(profile.id as UUID?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Carrier/context", selection: $selectedCarrierContext) {
         Text("All contexts").tag(nil as String?)
@@ -119,7 +137,6 @@ struct DeliveryInstructionsView: View {
           Text(context).tag(context as String?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Risk", selection: $selectedRiskLevel) {
         Text("All risk").tag(nil as ShipmentRiskLevel?)
@@ -127,14 +144,12 @@ struct DeliveryInstructionsView: View {
           Text(risk.rawValue).tag(risk as ShipmentRiskLevel?)
         }
       }
-      .pickerStyle(.menu)
 
       Picker("Enabled", selection: $selectedEnabledState) {
         Text("All states").tag(nil as Bool?)
         Text("Enabled").tag(true as Bool?)
         Text("Disabled").tag(false as Bool?)
       }
-      .pickerStyle(.menu)
 
       Picker("Review", selection: $selectedReviewState) {
         Text("All review").tag(nil as ReviewState?)
@@ -142,23 +157,69 @@ struct DeliveryInstructionsView: View {
           Text(state.rawValue).tag(state as ReviewState?)
         }
       }
-      .pickerStyle(.menu)
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedType = nil
-        selectedProfileID = nil
-        selectedCarrierContext = nil
-        selectedRiskLevel = nil
-        selectedEnabledState = nil
-        selectedReviewState = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedType = nil
+    selectedProfileID = nil
+    selectedCarrierContext = nil
+    selectedRiskLevel = nil
+    selectedEnabledState = nil
+    selectedReviewState = nil
+    instructionSearchText = ""
   }
 
   private func linkedOrder(for instruction: DeliveryInstructionRecord) -> TrackedOrder? {
     guard instruction.linkedEntityType == .order, let orderID = UUID(uuidString: instruction.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func deliveryInstructionSearchParts(_ instruction: DeliveryInstructionRecord) -> [String] {
+    let order = linkedOrder(for: instruction)
+    let address = store.destinationAddresses.first { $0.id == instruction.destinationAddressID }
+    let profile = store.customerRecipientProfiles.first { $0.id == instruction.customerProfileID }
+    let packageContents = store.suggestedPackageContents(for: instruction)
+    var parts = [
+      instruction.id.uuidString,
+      instruction.title,
+      instruction.destinationAddressID?.uuidString ?? "",
+      instruction.customerProfileID?.uuidString ?? "",
+      instruction.linkedEntityType.rawValue,
+      instruction.linkedEntityID,
+      instruction.instructionType.rawValue,
+      instruction.instructionSummary,
+      instruction.accessConstraintSummary,
+      instruction.preferredDeliveryWindow,
+      instruction.restrictedDeliveryWindow,
+      instruction.carrierNotes,
+      instruction.riskLevel.rawValue,
+      instruction.isEnabled ? "Enabled" : "Disabled",
+      instruction.createdDate,
+      instruction.lastReviewedDate,
+      instruction.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? "",
+      address?.label ?? "",
+      address?.addressLineSummary ?? "",
+      address?.cityRegion ?? "",
+      profile?.displayName ?? "",
+      profile?.primaryEmail ?? ""
+    ]
+    parts.append(contentsOf: packageContents.flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    return parts
   }
 }
 

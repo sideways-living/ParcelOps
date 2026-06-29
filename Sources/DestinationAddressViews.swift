@@ -7,6 +7,7 @@ struct DestinationAddressesView: View {
   @State private var selectedRiskLevel: ShipmentRiskLevel?
   @State private var selectedEnabled: Bool?
   @State private var selectedReviewState: ReviewState?
+  @State private var addressSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var teams: [String] {
@@ -17,7 +18,7 @@ struct DestinationAddressesView: View {
     Array(Set(store.destinationAddresses.map(\.preferredCarrier))).sorted()
   }
 
-  private var filteredAddresses: [DestinationAddressRecord] {
+  private var baseFilteredAddresses: [DestinationAddressRecord] {
     store.filteredDestinationAddresses(
       organisationTeam: selectedOrganisationTeam,
       preferredCarrier: selectedPreferredCarrier,
@@ -27,6 +28,23 @@ struct DestinationAddressesView: View {
     )
   }
 
+  private var filteredAddresses: [DestinationAddressRecord] {
+    let query = addressSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredAddresses }
+    return baseFilteredAddresses.filter { address in
+      destinationAddressSearchParts(address).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedOrganisationTeam != nil
+      || selectedPreferredCarrier != nil
+      || selectedRiskLevel != nil
+      || selectedEnabled != nil
+      || selectedReviewState != nil
+      || !addressSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -34,19 +52,35 @@ struct DestinationAddressesView: View {
         filters
 
         SettingsPanel(title: "Addresses", symbol: "mappin.and.ellipse") {
-          ForEach(filteredAddresses) { address in
+          HStack {
+            Text("\(filteredAddresses.count) visible addresses")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredAddresses.count) after filters", color: .blue)
+            }
+            Spacer()
+            Button("Add address", systemImage: "plus", action: store.addDestinationAddressPlaceholder)
+              .buttonStyle(.borderedProminent)
+          }
+
+          if filteredAddresses.isEmpty {
+            MVPEmptyState(title: "No destination addresses match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local destination addresses." : "Add a local destination address to reuse delivery instructions, access notes, preferred carrier, and risk context.", symbol: "mappin.and.ellipse", actionTitle: hasActiveFilters ? "Clear filters" : "Add address", action: hasActiveFilters ? clearFilters : store.addDestinationAddressPlaceholder)
+          } else {
+            ForEach(filteredAddresses) { address in
               DestinationAddressRow(address: address, customerProfiles: store.customerRecipientProfiles, deliveryInstructions: store.suggestedDeliveryInstructions(for: address), packageContents: store.suggestedPackageContents(for: address)) { updatedAddress in
-              store.updateDestinationAddress(updatedAddress)
-            } onToggle: {
-              store.toggleDestinationAddress(address)
-            } onReviewed: {
-              store.markDestinationAddressReviewed(address)
-            } onCreateTask: {
-              store.createReviewTask(from: address)
-            } onCreateDraft: {
-              store.createDraftMessage(from: address)
-            } onRemove: {
-              store.removeDestinationAddress(address)
+                store.updateDestinationAddress(updatedAddress)
+              } onToggle: {
+                store.toggleDestinationAddress(address)
+              } onReviewed: {
+                store.markDestinationAddressReviewed(address)
+              } onCreateTask: {
+                store.createReviewTask(from: address)
+              } onCreateDraft: {
+                store.createDraftMessage(from: address)
+              } onRemove: {
+                store.removeDestinationAddress(address)
+              }
             }
           }
         }
@@ -75,6 +109,9 @@ struct DestinationAddressesView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search label, address, city, country, instructions, access notes, carrier, or customer", text: $addressSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Team", selection: $selectedOrganisationTeam) {
         Text("All teams").tag(String?.none)
         ForEach(teams, id: \.self) { team in Text(team).tag(Optional(team)) }
@@ -98,7 +135,53 @@ struct DestinationAddressesView: View {
           Text(state.rawValue).tag(Optional(state))
         }
       }
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    selectedOrganisationTeam = nil
+    selectedPreferredCarrier = nil
+    selectedRiskLevel = nil
+    selectedEnabled = nil
+    selectedReviewState = nil
+    addressSearchText = ""
+  }
+
+  private func destinationAddressSearchParts(_ address: DestinationAddressRecord) -> [String] {
+    let profile = address.customerProfileID.flatMap { profileID in
+      store.customerRecipientProfiles.first { $0.id == profileID }
+    }
+    let instructions = store.suggestedDeliveryInstructions(for: address)
+    let packageContents = store.suggestedPackageContents(for: address)
+    var parts = [
+      address.id.uuidString,
+      address.label,
+      address.customerProfileID?.uuidString ?? "",
+      address.organisationTeam,
+      address.addressLineSummary,
+      address.cityRegion,
+      address.country,
+      address.deliveryInstructions,
+      address.accessNotes,
+      address.preferredCarrier,
+      address.riskLevel.rawValue,
+      address.isEnabled ? "Enabled" : "Disabled",
+      address.createdDate,
+      address.lastReviewedDate,
+      address.reviewState.rawValue,
+      profile?.displayName ?? "",
+      profile?.primaryEmail ?? ""
+    ]
+    parts.append(contentsOf: instructions.flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
+    parts.append(contentsOf: packageContents.flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    return parts
   }
 }
 

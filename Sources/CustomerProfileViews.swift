@@ -7,13 +7,14 @@ struct CustomerProfilesView: View {
   @State private var selectedEnabled: Bool?
   @State private var selectedDeliveryPreference: DeliveryPreference?
   @State private var selectedReviewState: ReviewState?
+  @State private var profileSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisationTeams: [String] {
     Array(Set(store.customerRecipientProfiles.map(\.organisationTeam))).sorted()
   }
 
-  private var filteredProfiles: [CustomerRecipientProfile] {
+  private var baseFilteredProfiles: [CustomerRecipientProfile] {
     store.filteredCustomerRecipientProfiles(
       profileType: selectedProfileType,
       organisationTeam: selectedOrganisationTeam,
@@ -23,6 +24,23 @@ struct CustomerProfilesView: View {
     )
   }
 
+  private var filteredProfiles: [CustomerRecipientProfile] {
+    let query = profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return baseFilteredProfiles }
+    return baseFilteredProfiles.filter { profile in
+      customerProfileSearchParts(profile).joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedProfileType != nil
+      || selectedOrganisationTeam != nil
+      || selectedEnabled != nil
+      || selectedDeliveryPreference != nil
+      || selectedReviewState != nil
+      || !profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -30,19 +48,35 @@ struct CustomerProfilesView: View {
         filters
 
         SettingsPanel(title: "Profiles", symbol: "person.text.rectangle.fill") {
-          ForEach(filteredProfiles) { profile in
-            CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
-              store.updateCustomerRecipientProfile(updatedProfile)
-            } onToggle: {
-              store.toggleCustomerRecipientProfile(profile)
-            } onReviewed: {
-              store.markCustomerRecipientProfileReviewed(profile)
-            } onCreateTask: {
-              store.createReviewTask(from: profile)
-            } onCreateDraft: {
-              store.createDraftMessage(from: profile)
-            } onRemove: {
-              store.removeCustomerRecipientProfile(profile)
+          HStack {
+            Text("\(filteredProfiles.count) visible profiles")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredProfiles.count) after filters", color: .blue)
+            }
+            Spacer()
+            Button("Add profile", systemImage: "plus", action: store.addCustomerRecipientProfilePlaceholder)
+              .buttonStyle(.borderedProminent)
+          }
+
+          if filteredProfiles.isEmpty {
+            MVPEmptyState(title: "No customer profiles match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local customer and recipient profiles." : "Add a local customer or recipient profile to reuse email, destination, team, and delivery preference details.", symbol: "person.text.rectangle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add profile", action: hasActiveFilters ? clearFilters : store.addCustomerRecipientProfilePlaceholder)
+          } else {
+            ForEach(filteredProfiles) { profile in
+              CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
+                store.updateCustomerRecipientProfile(updatedProfile)
+              } onToggle: {
+                store.toggleCustomerRecipientProfile(profile)
+              } onReviewed: {
+                store.markCustomerRecipientProfileReviewed(profile)
+              } onCreateTask: {
+                store.createReviewTask(from: profile)
+              } onCreateDraft: {
+                store.createDraftMessage(from: profile)
+              } onRemove: {
+                store.removeCustomerRecipientProfile(profile)
+              }
             }
           }
         }
@@ -71,6 +105,9 @@ struct CustomerProfilesView: View {
 
   private var filters: some View {
     FilterControlGrid {
+      TextField("Search name, team, email, phone, address, delivery preference, or notes", text: $profileSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Type", selection: $selectedProfileType) {
         Text("All types").tag(CustomerProfileType?.none)
         ForEach(CustomerProfileType.allCases) { type in
@@ -100,7 +137,48 @@ struct CustomerProfilesView: View {
           Text(state.rawValue).tag(Optional(state))
         }
       }
+
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
+      }
     }
+  }
+
+  private func clearFilters() {
+    selectedProfileType = nil
+    selectedOrganisationTeam = nil
+    selectedEnabled = nil
+    selectedDeliveryPreference = nil
+    selectedReviewState = nil
+    profileSearchText = ""
+  }
+
+  private func customerProfileSearchParts(_ profile: CustomerRecipientProfile) -> [String] {
+    let addresses = store.suggestedDestinationAddresses(for: profile)
+    let instructions = store.suggestedDeliveryInstructions(for: profile)
+    let packageContents = store.suggestedPackageContents(for: profile)
+    var parts = [
+      profile.id.uuidString,
+      profile.displayName,
+      profile.profileType.rawValue,
+      profile.organisationTeam,
+      profile.primaryEmail,
+      profile.phone,
+      profile.defaultDestinationAddress,
+      profile.deliveryPreference.rawValue,
+      profile.notes,
+      profile.isEnabled ? "Enabled" : "Disabled",
+      profile.createdDate,
+      profile.lastReviewedDate,
+      profile.reviewState.rawValue
+    ]
+    parts.append(contentsOf: addresses.flatMap { [$0.label, $0.addressLineSummary, $0.cityRegion, $0.country, $0.preferredCarrier] })
+    parts.append(contentsOf: instructions.flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
+    parts.append(contentsOf: packageContents.flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    return parts
   }
 }
 
