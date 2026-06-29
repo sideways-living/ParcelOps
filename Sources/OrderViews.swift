@@ -1176,6 +1176,10 @@ struct OrderDetailView: View {
           }
         }
 
+        if !manifests.isEmpty || !checklists.isEmpty {
+          OrderDispatchHandoffRows(manifests: manifests, checklists: checklists, store: store)
+        }
+
         CompactActionRow {
           Button("Edit order", systemImage: "pencil") {
             isEditing = true
@@ -1408,6 +1412,163 @@ private struct PartialInboxOrderFollowUpRow: View {
   }
 }
 
+private struct OrderDispatchHandoffRows: View {
+  var manifests: [ShipmentManifestRecord]
+  var checklists: [DispatchReadinessChecklist]
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Linked dispatch setup")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      ForEach(manifests.prefix(2)) { manifest in
+        OrderDispatchManifestRow(record: manifest, store: store)
+      }
+
+      ForEach(checklists.prefix(2)) { checklist in
+        OrderDispatchReadinessRow(checklist: checklist, store: store)
+      }
+    }
+  }
+}
+
+private struct OrderDispatchManifestRow: View {
+  var record: ShipmentManifestRecord
+  var store: ParcelOpsStore
+
+  private var nextAction: String {
+    switch record.dispatchStatus {
+    case .draft, .reopened:
+      return record.isInboxHandoffSetup ? "Prepare after readiness is checked." : "Prepare this manifest."
+    case .prepared:
+      return "Dispatch or block this manifest."
+    case .dispatched:
+      return "Confirm handoff."
+    case .handedOff:
+      return "Handoff is complete."
+    case .blockedNeedsReview:
+      return "Resolve the blocked manifest."
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: record.manifestType.symbol)
+          .foregroundStyle(record.dispatchStatus.color)
+          .frame(width: 20)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Text(record.title)
+            .font(.callout.weight(.semibold))
+          Text("\(record.carrierCourier) • \(record.destinationSummary)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(nextAction)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(record.dispatchStatus.color)
+        }
+
+        Spacer()
+        Badge(record.isInboxHandoffSetup ? "Inbox manifest" : record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
+      }
+
+      CompactActionRow {
+        Button("Prepared", systemImage: "checkmark.circle.fill") {
+          store.markShipmentManifestPrepared(record)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Dispatched", systemImage: "paperplane.fill") {
+          store.markShipmentManifestDispatched(record)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Handed off", systemImage: "person.badge.shield.checkmark.fill") {
+          store.markShipmentManifestHandedOff(record)
+        }
+        .buttonStyle(.borderedProminent)
+
+        Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+          store.markShipmentManifestBlocked(record)
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct OrderDispatchReadinessRow: View {
+  var checklist: DispatchReadinessChecklist
+  var store: ParcelOpsStore
+
+  private var nextAction: String {
+    switch checklist.checklistStatus {
+    case .draft, .reopened:
+      return checklist.isInboxHandoffSetup ? "Confirm labels, scans, custody, and handoff." : "Mark ready or block."
+    case .ready:
+      return "Complete readiness checks."
+    case .completed:
+      return "Readiness complete."
+    case .blockedNeedsReview:
+      return "Resolve the blocked checklist."
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: checklist.checklistType.symbol)
+          .foregroundStyle(checklist.checklistStatus.color)
+          .frame(width: 20)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Text(checklist.title)
+            .font(.callout.weight(.semibold))
+          Text(checklist.missingRequirementsSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(nextAction)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(checklist.checklistStatus.color)
+        }
+
+        Spacer()
+        Badge(checklist.isInboxHandoffSetup ? "Inbox readiness" : checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
+      }
+
+      CompactActionRow {
+        Button("Ready", systemImage: "checkmark.circle.fill") {
+          store.markDispatchChecklistReady(checklist)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Complete", systemImage: "checkmark.seal.fill") {
+          store.markDispatchChecklistCompleted(checklist)
+        }
+        .buttonStyle(.borderedProminent)
+
+        Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+          store.markDispatchChecklistBlocked(checklist)
+        }
+        .buttonStyle(.bordered)
+
+        Button("Reopen", systemImage: "arrow.counterclockwise") {
+          store.reopenDispatchChecklist(checklist)
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private extension ReviewTask {
   var isPartialInboxOrderFollowUp: Bool {
     linkedEntityType == .order
@@ -1429,6 +1590,28 @@ private extension ReviewTask {
 
     let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
     return value.isEmpty ? "order intake fields" : value
+  }
+}
+
+private extension ShipmentManifestRecord {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
   }
 }
 
