@@ -1116,7 +1116,9 @@ struct OrderDetailView: View {
     let checklists = store.suggestedDispatchReadinessChecklists(for: order)
     let missingTracking = order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
     let missingDestination = order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
+    let missingHandoffFields = store.partialInboxOrderMissingFields(for: order)
     let needsDispatchSetup = [.shipped, .inTransit, .exception].contains(order.status) && manifests.isEmpty && checklists.isEmpty
+    let canCreateDispatchSetup = needsDispatchSetup && missingHandoffFields.isEmpty
 
     return Panel(title: "Inbox handoff checklist", symbol: "tray.and.arrow.down.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1152,9 +1154,13 @@ struct OrderDetailView: View {
           )
           checklistLine(
             title: needsDispatchSetup ? "Dispatch setup is missing" : "Dispatch context is present or not needed yet",
-            detail: needsDispatchSetup ? "Open Dispatch, Manifests, or Readiness to plan outbound work for this order." : "Manifest/readiness links: \(manifests.count + checklists.count).",
+            detail: canCreateDispatchSetup
+              ? "Create local manifest and readiness records now that Inbox handoff fields are usable."
+              : needsDispatchSetup
+                ? "Confirm missing handoff details before creating manifest or readiness records."
+                : "Manifest/readiness links: \(manifests.count + checklists.count).",
             symbol: "shippingbox.and.arrow.backward.fill",
-            color: needsDispatchSetup ? .orange : .teal
+            color: canCreateDispatchSetup ? .green : needsDispatchSetup ? .orange : .teal
           )
         }
 
@@ -1180,6 +1186,13 @@ struct OrderDetailView: View {
             store.createReviewTask(from: order)
           }
           .buttonStyle(.bordered)
+
+          if canCreateDispatchSetup {
+            Button("Create dispatch setup", systemImage: "shippingbox.and.arrow.backward.fill") {
+              store.createDispatchSetup(for: order)
+            }
+            .buttonStyle(.borderedProminent)
+          }
 
           NavigationLink {
             DispatchView(store: store)

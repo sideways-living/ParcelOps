@@ -5811,6 +5811,142 @@ final class ParcelOpsStore {
     )
   }
 
+  func createDispatchSetup(for order: TrackedOrder) {
+    guard let orderIndex = orders.firstIndex(where: { $0.id == order.id }) else { return }
+
+    let missingFields = partialInboxOrderMissingFields(for: order)
+    guard missingFields.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Dispatch setup blocked by missing Inbox handoff fields.",
+        afterDetail: "Missing fields: \(missingFields.joined(separator: ", "))\nEdit the order before creating manifest and readiness context. No dispatch records were created."
+      )
+      return
+    }
+
+    let existingManifests = suggestedShipmentManifestRecords(for: order)
+    let existingChecklists = suggestedDispatchReadinessChecklists(for: order)
+    guard existingManifests.isEmpty && existingChecklists.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Dispatch setup already exists for Inbox-created order.",
+        afterDetail: "Existing manifests: \(existingManifests.count)\nExisting readiness checklists: \(existingChecklists.count)\nNo duplicate dispatch records were created."
+      )
+      return
+    }
+
+    let timestamp = Self.auditTimestamp()
+    let ownerTeam = order.customer.isPlaceholderValidationValue || order.customer == "Unassigned" ? "ParcelOps Operations" : order.customer
+    let carrierCourier = order.carrier.isPlaceholderValidationValue || order.carrier == "Pending" ? "Carrier pending" : order.carrier
+    let riskLevel: ShipmentRiskLevel = order.status == .exception ? .high : .medium
+    let manifest = ShipmentManifestRecord(
+      title: "Dispatch setup for \(order.orderNumber)",
+      manifestType: .dispatchBatch,
+      linkedEntityType: .order,
+      linkedEntityID: order.id.uuidString,
+      carrierCourier: carrierCourier,
+      destinationSummary: order.destination,
+      includedOrderIDs: [order.id],
+      shipmentGroupIDs: [],
+      inventoryReceiptIDs: [],
+      packageContentIDs: [],
+      custodyRecordIDs: [],
+      labelReferenceIDs: [],
+      scanSessionIDs: [],
+      evidenceAttachmentIDs: [],
+      assignedOwnerTeam: ownerTeam,
+      dispatchStatus: .draft,
+      plannedDispatchDate: "To schedule",
+      actualDispatchDate: "Not dispatched",
+      handoffLocationStorageLocationID: nil,
+      manifestReferencePlaceholder: "INBOX-\(order.orderNumber)",
+      notes: "Created locally from verified Inbox order handoff. No carrier booking, label printing, or mailbox mutation was performed.",
+      riskLevel: riskLevel,
+      createdDate: timestamp,
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    let checklist = DispatchReadinessChecklist(
+      title: "Readiness for \(order.orderNumber)",
+      linkedEntityType: .order,
+      linkedEntityID: order.id.uuidString,
+      shipmentManifestID: manifest.id,
+      orderIDs: [order.id],
+      shipmentGroupIDs: [],
+      inventoryReceiptIDs: [],
+      packageContentIDs: [],
+      custodyRecordIDs: [],
+      labelReferenceIDs: [],
+      scanSessionIDs: [],
+      evidenceAttachmentIDs: [],
+      checklistType: .manifestReadiness,
+      checklistStatus: .draft,
+      requiredChecksSummary: "Confirm label, scan, custody, destination, and handoff before dispatch.",
+      completedChecksSummary: "Order number, tracking, and destination were confirmed from Inbox handoff.",
+      missingRequirementsSummary: "Label, scan, custody, and handoff location still need local confirmation.",
+      assignedOwnerTeam: ownerTeam,
+      plannedDispatchDate: "To schedule",
+      completedDate: "Not completed",
+      riskLevel: riskLevel,
+      createdDate: timestamp,
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+
+    shipmentManifestRecords.insert(manifest, at: 0)
+    dispatchReadinessChecklists.insert(checklist, at: 0)
+
+    let beforeDetail = orders[orderIndex].auditDetail
+    orders[orderIndex].latestStatus = "Dispatch setup created from Inbox handoff"
+    orders[orderIndex].contactHistory.insert(
+      ContactHistoryEvent(
+        time: "Now",
+        source: .manual,
+        contactPoint: "Inbox handoff checklist",
+        summary: "Local dispatch setup records created.",
+        evidence: "Manifest \(manifest.title) and readiness checklist \(checklist.title) were linked to this order.",
+        reviewState: .needsReview
+      ),
+      at: 0
+    )
+
+    persistShipmentManifestRecords()
+    persistDispatchReadinessChecklists()
+    persistOrders()
+
+    logAudit(
+      action: .created,
+      entityType: .shipmentManifest,
+      entityID: manifest.id.uuidString,
+      entityLabel: manifest.title,
+      summary: "Shipment manifest created from verified Inbox order.",
+      afterDetail: manifest.auditDetail
+    )
+    logAudit(
+      action: .created,
+      entityType: .dispatchChecklist,
+      entityID: checklist.id.uuidString,
+      entityLabel: checklist.title,
+      summary: "Dispatch readiness checklist created from verified Inbox order.",
+      afterDetail: checklist.auditDetail
+    )
+    logAudit(
+      action: .linked,
+      entityType: .order,
+      entityID: orders[orderIndex].id.uuidString,
+      entityLabel: orders[orderIndex].orderNumber,
+      summary: "Inbox-created order linked to dispatch setup.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(orders[orderIndex].auditDetail)\nCreated manifest: \(manifest.title)\nCreated readiness checklist: \(checklist.title)\nNo external carrier, label, scanner, or mailbox action occurred."
+    )
+  }
+
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
     updateIntakeEmail(email, reviewState: .reviewed)
   }
