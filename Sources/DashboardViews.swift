@@ -595,6 +595,7 @@ struct DashboardView: View {
             ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
           ])
           SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
+          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
           CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
           CompactIntakeList(emails: store.newestIntakeEmails)
         }
@@ -901,6 +902,11 @@ struct CompactSpaceMailActionPlan: View {
             .lineLimit(2)
         }
       }
+
+      Text("Use Mailbox Monitor for uncertain or filtered message review; use Inbox for imported order emails.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
