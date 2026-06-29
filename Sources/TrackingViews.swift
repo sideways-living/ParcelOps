@@ -5,13 +5,14 @@ struct TrackingView: View {
   @State private var selectedCarrier: String?
   @State private var selectedSeverity: Severity?
   @State private var selectedOrderStatus: OrderStatus?
+  @State private var trackingSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var carriers: [String] {
     Array(Set(store.carrierTrackingEvents.map(\.carrier))).sorted()
   }
 
-  private var filteredEvents: [CarrierTrackingEvent] {
+  private var baseFilteredEvents: [CarrierTrackingEvent] {
     store.carrierTrackingEvents.filter { event in
       let order = store.orders.first { $0.id == event.orderID }
       let matchesCarrier = selectedCarrier == nil || event.carrier == selectedCarrier
@@ -19,6 +20,21 @@ struct TrackingView: View {
       let matchesOrderStatus = selectedOrderStatus == nil || order?.status == selectedOrderStatus
       return matchesCarrier && matchesSeverity && matchesOrderStatus
     }
+  }
+
+  private var filteredEvents: [CarrierTrackingEvent] {
+    let query = trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return baseFilteredEvents }
+    return baseFilteredEvents.filter { event in
+      trackingEvent(event, matches: query)
+    }
+  }
+
+  private var hasActiveFilters: Bool {
+    selectedCarrier != nil
+      || selectedSeverity != nil
+      || selectedOrderStatus != nil
+      || !trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -34,13 +50,18 @@ struct TrackingView: View {
         filterBar
 
         SettingsPanel(title: "Carrier events", symbol: "location.fill.viewfinder") {
-          if filteredEvents.isEmpty {
-            Text("No tracking events match the selected filters.")
+          HStack {
+            Text("\(filteredEvents.count) visible tracking events")
+              .font(.caption)
               .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(.quinary)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
+            if hasActiveFilters {
+              Badge("\(baseFilteredEvents.count) after filters", color: .blue)
+            }
+            Spacer()
+          }
+
+          if filteredEvents.isEmpty {
+            MVPEmptyState(title: "No tracking events match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local carrier events." : "Tracking events appear here when local carrier warnings or placeholder updates are captured.", symbol: "location.fill.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
           } else {
             ForEach(filteredEvents) { event in
               TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
@@ -72,6 +93,9 @@ struct TrackingView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
+      TextField("Search carrier, tracking, status, location, order, customer, or destination", text: $trackingSearchText)
+        .textFieldStyle(.roundedBorder)
+
       Picker("Carrier", selection: $selectedCarrier) {
         Text("All carriers").tag(nil as String?)
         ForEach(carriers, id: \.self) { carrier in
@@ -93,13 +117,47 @@ struct TrackingView: View {
         }
       }
 
-      Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
-        selectedCarrier = nil
-        selectedSeverity = nil
-        selectedOrderStatus = nil
+      if hasActiveFilters {
+        Button("Clear filters", systemImage: "line.3.horizontal.decrease.circle") {
+          clearFilters()
+        }
+        .buttonStyle(.bordered)
       }
-      .buttonStyle(.bordered)
     }
+  }
+
+  private func clearFilters() {
+    selectedCarrier = nil
+    selectedSeverity = nil
+    selectedOrderStatus = nil
+    trackingSearchText = ""
+  }
+
+  private func trackingEvent(_ event: CarrierTrackingEvent, matches query: String) -> Bool {
+    let order = store.orders.first { $0.id == event.orderID }
+    let shipmentGroups = store.suggestedShipmentGroups(for: event)
+    let searchableText = [
+      event.carrier,
+      event.trackingNumber,
+      event.eventTime,
+      event.location,
+      event.status,
+      event.detail,
+      event.severity.rawValue,
+      event.source.rawValue,
+      event.reviewState.rawValue,
+      order?.orderNumber ?? "",
+      order?.store ?? "",
+      order?.customer ?? "",
+      order?.recipientEmail ?? "",
+      order?.trackingNumber ?? "",
+      order?.carrier ?? "",
+      order?.destination ?? "",
+      shipmentGroups.map(\.groupName).joined(separator: " "),
+      shipmentGroups.map(\.destinationSummary).joined(separator: " "),
+      shipmentGroups.map(\.recipientCustomerSummary).joined(separator: " ")
+    ].joined(separator: " ")
+    return searchableText.localizedCaseInsensitiveContains(query)
   }
 }
 
