@@ -597,6 +597,51 @@ struct IntakeEmailRow: View {
     orders.first { $0.id == email.linkedOrderID }
   }
 
+  private var missingDetectedFields: [String] {
+    [
+      email.detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+      email.detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+      email.detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+  }
+
+  private var hasCriticalMissingFields: Bool {
+    email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue
+  }
+
+  private var recommendedActionTitle: String {
+    if email.reviewState == .ignored { return "Ignored locally" }
+    if let linkedOrder { return "Linked to \(linkedOrder.orderNumber)" }
+    if hasCriticalMissingFields { return "Fix parser fields before creating an order" }
+    if !missingDetectedFields.isEmpty { return "Check remaining fields, then create or link" }
+    return "Ready to create or link order"
+  }
+
+  private var recommendedActionDetail: String {
+    if email.reviewState == .ignored {
+      return "This row is hidden from the default queue unless resolved rows are shown. Reprocess or edit only if it was ignored by mistake."
+    }
+    if linkedOrder != nil {
+      return "Open the linked order to continue dispatch setup or mark the intake email reviewed once the source trail looks right."
+    }
+    if hasCriticalMissingFields {
+      return "Missing or weak \(missingDetectedFields.joined(separator: ", ")). Use Reprocess or Edit first. Create order remains available for manual fallback."
+    }
+    if !missingDetectedFields.isEmpty {
+      return "Detected order and tracking look usable, but \(missingDetectedFields.joined(separator: ", ")) still needs a human check."
+    }
+    return "Detected merchant, order, tracking, and destination look usable. Create a new local order or link an existing one."
+  }
+
+  private var recommendedActionColor: Color {
+    if email.reviewState == .ignored { return .secondary }
+    if linkedOrder != nil { return .green }
+    if hasCriticalMissingFields { return .orange }
+    if !missingDetectedFields.isEmpty { return .yellow }
+    return .green
+  }
+
   private var factColumns: [GridItem] {
     Array(repeating: GridItem(.flexible()), count: horizontalSizeClass == .compact ? 1 : 2)
   }
@@ -629,6 +674,7 @@ struct IntakeEmailRow: View {
             IntakeFact(title: "Destination", value: email.detectedDestinationAddress, symbol: "mappin.and.ellipse")
           }
           IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
+          intakeRecommendedActionPanel
           if let linkedOrder {
             Text("Linked to \(linkedOrder.orderNumber) • \(linkedOrder.store)")
               .font(.caption.weight(.semibold))
@@ -637,6 +683,17 @@ struct IntakeEmailRow: View {
           if !shipmentGroups.isEmpty {
             ShipmentGroupContextStrip(groups: shipmentGroups)
           }
+        }
+      }
+
+      if hasCriticalMissingFields && linkedOrder == nil && email.reviewState != .ignored {
+        CompactActionRow {
+          Button("Reprocess first", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
+            .buttonStyle(.borderedProminent)
+          Button("Edit detected fields", systemImage: "pencil", action: { isEditing = true })
+            .buttonStyle(.bordered)
+          Button("Create task", systemImage: "checklist", action: onCreateTask)
+            .buttonStyle(.bordered)
         }
       }
 
@@ -655,8 +712,13 @@ struct IntakeEmailRow: View {
         }
         .buttonStyle(.bordered)
 
-        Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
-          .buttonStyle(.borderedProminent)
+        if hasCriticalMissingFields {
+          Button("Create partial order", systemImage: "plus.circle.fill", action: onCreateOrder)
+            .buttonStyle(.bordered)
+        } else {
+          Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
+            .buttonStyle(.borderedProminent)
+        }
         if let linkedOrder {
           NavigationLink {
             OrderDetailView(order: linkedOrder, store: store)
@@ -791,6 +853,27 @@ struct IntakeEmailRow: View {
         onSave(updatedEmail)
       }
     }
+  }
+
+  private var intakeRecommendedActionPanel: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(recommendedActionTitle, systemImage: linkedOrder == nil ? "arrow.forward.circle.fill" : "link.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(recommendedActionColor)
+        Spacer()
+        if !missingDetectedFields.isEmpty {
+          Badge("\(missingDetectedFields.count) checks", color: recommendedActionColor)
+        }
+      }
+      Text(recommendedActionDetail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(recommendedActionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

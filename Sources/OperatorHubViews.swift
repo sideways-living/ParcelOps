@@ -335,6 +335,13 @@ private struct InboxTriageItem: Identifiable {
 
   static func email(_ email: ForwardedEmailIntake) -> InboxTriageItem {
     let readiness = emailReadiness(email)
+    let missingFields = missingDetectedFields(
+      merchant: email.detectedMerchant,
+      order: email.detectedOrderNumber,
+      tracking: email.detectedTrackingNumber,
+      destination: email.detectedDestinationAddress
+    )
+    let missingCriticalFields = missingFields.contains("order number") || missingFields.contains("tracking number")
     return InboxTriageItem(
       id: "email-\(email.id.uuidString)",
       source: .email(email),
@@ -347,11 +354,15 @@ private struct InboxTriageItem: Identifiable {
       reviewLabel: email.reviewState.rawValue,
       linkedOrderID: email.linkedOrderID,
       linkedShipmentGroupID: nil,
-      nextAction: email.linkedOrderID == nil ? "Link or create order" : "Review detected fields",
+      nextAction: email.linkedOrderID != nil
+        ? "Review linked order context"
+        : missingCriticalFields
+          ? "Reprocess or edit before order creation"
+          : "Create or link order",
       readinessLabel: readiness.label,
       readinessDetail: readiness.detail,
       readinessTone: readiness.tone,
-      sortPriority: email.reviewState == .needsReview ? 80 : 35
+      sortPriority: missingCriticalFields ? 88 : email.reviewState == .needsReview ? 80 : 35
     )
   }
 
@@ -635,12 +646,22 @@ private struct InboxTriageRow: View {
 
         switch item.source {
         case .email(let email):
-          Button("Create order", systemImage: "plus.circle.fill") {
-            store.createOrder(from: email)
-            feedbackMessage = "Order created and linked locally. Check Orders."
+          let missingCriticalFields = email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue
+          if missingCriticalFields {
+            Button("Create partial order", systemImage: "plus.circle.fill") {
+              store.createOrder(from: email)
+              feedbackMessage = "Partial order created and linked locally. Check Orders."
+            }
+            .buttonStyle(.bordered)
+            .disabled(email.linkedOrderID != nil)
+          } else {
+            Button("Create order", systemImage: "plus.circle.fill") {
+              store.createOrder(from: email)
+              feedbackMessage = "Order created and linked locally. Check Orders."
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(email.linkedOrderID != nil)
           }
-          .buttonStyle(.borderedProminent)
-          .disabled(email.linkedOrderID != nil)
           Button("Reviewed", systemImage: "checkmark.circle.fill") {
             store.markIntakeEmailReviewed(email)
             feedbackMessage = "Email marked reviewed locally."
