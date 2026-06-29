@@ -767,6 +767,7 @@ private extension ForwardedEmailIntake {
 struct DispatchView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var dispatchSearchText = ""
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var dispatchItems: [DispatchQueueItem] {
@@ -796,6 +797,20 @@ struct DispatchView: View {
         }
         return lhs.sortPriority > rhs.sortPriority
       }
+  }
+
+  private var visibleDispatchItems: [DispatchQueueItem] {
+    let query = dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return dispatchItems }
+    return dispatchItems.filter { item in
+      item.title.localizedCaseInsensitiveContains(query)
+        || item.subtitle.localizedCaseInsensitiveContains(query)
+        || item.detail.localizedCaseInsensitiveContains(query)
+        || item.plannedDate.localizedCaseInsensitiveContains(query)
+        || item.statusLabel.localizedCaseInsensitiveContains(query)
+        || item.sourceLabel.localizedCaseInsensitiveContains(query)
+        || item.nextAction.localizedCaseInsensitiveContains(query)
+    }
   }
 
   private var inboxDispatchSetupOrders: [TrackedOrder] {
@@ -905,14 +920,25 @@ struct DispatchView: View {
           .font(.callout)
           .foregroundStyle(.secondary)
 
-        if dispatchItems.isEmpty {
+        FilterControlGrid {
+          TextField("Search dispatch queue", text: $dispatchSearchText)
+            .textFieldStyle(.roundedBorder)
+          if !dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button("Clear search", systemImage: "xmark.circle") {
+              dispatchSearchText = ""
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+
+        if visibleDispatchItems.isEmpty {
           MVPEmptyState(
-            title: "Dispatch queue is clear",
-            detail: "Shipment manifests and readiness checklists that need outbound action will appear here.",
+            title: dispatchItems.isEmpty ? "Dispatch queue is clear" : "No matching dispatch rows",
+            detail: dispatchItems.isEmpty ? "Shipment manifests and readiness checklists that need outbound action will appear here." : "Clear the search to return to the full dispatch queue.",
             symbol: "checkmark.seal.fill"
           )
         } else {
-          ForEach(dispatchItems.prefix(12)) { item in
+          ForEach(visibleDispatchItems.prefix(12)) { item in
             DispatchQueueRow(item: item, store: store)
           }
         }
