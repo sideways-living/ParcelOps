@@ -298,6 +298,9 @@ struct ShipmentManifestRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactMetadataGrid {
+            if record.isInboxDispatchHandoffSetup {
+              Badge("Inbox handoff", color: .teal)
+            }
             Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
             Badge(record.reviewState.rawValue, color: record.reviewState.color)
             Label("\(record.includedOrderIDs.count) orders", systemImage: "shippingbox.fill")
@@ -308,6 +311,10 @@ struct ShipmentManifestRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if record.isInboxDispatchHandoffSetup {
+        ShipmentManifestInboxHandoffContext(record: record, linkedOrders: linkedOrders)
       }
 
       CompactActionRow {
@@ -355,6 +362,72 @@ struct ShipmentManifestRow: View {
         onSave(updatedRecord)
       }
     }
+  }
+}
+
+private struct ShipmentManifestInboxHandoffContext: View {
+  var record: ShipmentManifestRecord
+  var linkedOrders: [TrackedOrder]
+
+  private var nextAction: String {
+    switch record.dispatchStatus {
+    case .draft, .reopened:
+      return "Next: prepare this manifest after readiness checks are clear."
+    case .prepared:
+      return "Next: dispatch, hand off, or block if the local handoff is not ready."
+    case .dispatched:
+      return "Next: confirm the courier/internal handoff."
+    case .handedOff:
+      return "Handoff is complete. The linked Inbox-created order can be monitored from Orders."
+    case .blockedNeedsReview:
+      return "Next: resolve the blocked handoff before progressing the linked order."
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "tray.and.arrow.down.fill")
+          .foregroundStyle(record.dispatchStatus.color)
+          .frame(width: 20)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Inbox-created order dispatch setup")
+            .font(.caption.weight(.semibold))
+          Text(nextAction)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        if linkedOrders.isEmpty {
+          Badge("No linked order found", color: .orange)
+        } else {
+          ForEach(linkedOrders.prefix(3)) { order in
+            Badge(order.orderNumber, color: order.reviewState == .accepted ? .green : .orange)
+          }
+        }
+        Badge(record.manifestReferencePlaceholder, color: .teal)
+      }
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension ShipmentManifestRecord {
+  var isInboxDispatchHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
   }
 }
 

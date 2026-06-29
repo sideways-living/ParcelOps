@@ -289,6 +289,9 @@ struct DispatchReadinessRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(2)
           CompactMetadataGrid {
+            if checklist.isInboxDispatchHandoffSetup {
+              Badge("Inbox handoff", color: .teal)
+            }
             Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
             Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
             Label(checklist.plannedDispatchDate, systemImage: "calendar")
@@ -299,6 +302,10 @@ struct DispatchReadinessRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if checklist.isInboxDispatchHandoffSetup {
+        DispatchReadinessInboxHandoffContext(checklist: checklist, linkedOrders: linkedOrders)
       }
 
       CompactActionRow {
@@ -340,6 +347,71 @@ struct DispatchReadinessRow: View {
         onSave(updatedChecklist)
       }
     }
+  }
+}
+
+private struct DispatchReadinessInboxHandoffContext: View {
+  var checklist: DispatchReadinessChecklist
+  var linkedOrders: [TrackedOrder]
+
+  private var nextAction: String {
+    switch checklist.checklistStatus {
+    case .draft, .reopened:
+      return "Next: confirm labels, scans, custody, destination, and handoff requirements."
+    case .ready:
+      return "Next: complete the checklist after the local handoff is done."
+    case .completed:
+      return "Readiness is complete. The linked Inbox-created order can move through dispatch monitoring."
+    case .blockedNeedsReview:
+      return "Next: resolve the blocked readiness item before progressing dispatch."
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "tray.and.arrow.down.fill")
+          .foregroundStyle(checklist.checklistStatus.color)
+          .frame(width: 20)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Inbox-created order readiness check")
+            .font(.caption.weight(.semibold))
+          Text(nextAction)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        if linkedOrders.isEmpty {
+          Badge("No linked order found", color: .orange)
+        } else {
+          ForEach(linkedOrders.prefix(3)) { order in
+            Badge(order.orderNumber, color: order.reviewState == .accepted ? .green : .orange)
+          }
+        }
+        Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
+        Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
+      }
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var isInboxDispatchHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
   }
 }
 
