@@ -3,6 +3,7 @@ import SwiftUI
 struct InboxView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var triageSearchText = ""
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -29,6 +30,22 @@ struct InboxView: View {
         }
         return lhs.sortPriority > rhs.sortPriority
       }
+  }
+
+  private var visibleTriageItems: [InboxTriageItem] {
+    let query = triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return triageItems }
+    return triageItems.filter { item in
+      item.sourceLabel.localizedCaseInsensitiveContains(query)
+        || item.title.localizedCaseInsensitiveContains(query)
+        || item.subtitle.localizedCaseInsensitiveContains(query)
+        || item.detail.localizedCaseInsensitiveContains(query)
+        || item.capturedDate.localizedCaseInsensitiveContains(query)
+        || item.reviewLabel.localizedCaseInsensitiveContains(query)
+        || item.nextAction.localizedCaseInsensitiveContains(query)
+        || item.readinessLabel.localizedCaseInsensitiveContains(query)
+        || item.readinessDetail.localizedCaseInsensitiveContains(query)
+    }
   }
 
   private var parserIssueCount: Int {
@@ -133,14 +150,25 @@ struct InboxView: View {
           .font(.callout)
           .foregroundStyle(.secondary)
 
-        if triageItems.isEmpty {
+        FilterControlGrid {
+          TextField("Search inbox triage", text: $triageSearchText)
+            .textFieldStyle(.roundedBorder)
+          if !triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button("Clear search", systemImage: "xmark.circle") {
+              triageSearchText = ""
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+
+        if visibleTriageItems.isEmpty {
           MVPEmptyState(
-            title: "Inbox triage is clear",
-            detail: "Forwarded emails, staged imports, and acceptance decisions that need action will appear here.",
+            title: triageItems.isEmpty ? "Inbox triage is clear" : "No matching triage rows",
+            detail: triageItems.isEmpty ? "Forwarded emails, staged imports, and acceptance decisions that need action will appear here." : "Clear the search to return to the full Inbox triage queue.",
             symbol: "checkmark.seal.fill"
           )
         } else {
-          ForEach(triageItems.prefix(12)) { item in
+          ForEach(visibleTriageItems.prefix(12)) { item in
             InboxTriageRow(item: item, store: store)
           }
         }
