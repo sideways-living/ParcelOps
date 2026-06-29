@@ -86,7 +86,7 @@ struct OperationsWorkbenchView: View {
       store.orders
         .filter { order in
           isInboxCreatedOrder(order)
-            && (order.reviewState != .accepted || needsDispatchSetup(order))
+            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order))
         }
         .sorted { first, second in
           let firstPriority = inboxOrderFollowUpPriority(first)
@@ -130,6 +130,7 @@ struct OperationsWorkbenchView: View {
 
   private var workbenchNextActionTone: Color {
     if urgentWorkbenchCount > 0 || defaultQueueItems.filter(\.isBlocked).count > 0 { return .red }
+    if !partialInboxOrderBlockers.isEmpty { return .orange }
     if !inboxCreatedOrders.isEmpty { return .teal }
     if !draftFollowUpItems.isEmpty { return .orange }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return .purple }
@@ -140,6 +141,7 @@ struct OperationsWorkbenchView: View {
   private var workbenchNextActionTitle: String {
     if urgentWorkbenchCount > 0 { return "Start with urgent work" }
     if defaultQueueItems.filter(\.isBlocked).count > 0 { return "Clear blocked work" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify partial Inbox orders" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
     if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return "Review open exceptions" }
@@ -155,6 +157,9 @@ struct OperationsWorkbenchView: View {
     let needsReviewCount = defaultQueueItems.filter { $0.reviewState == .needsReview }.count
     if blockedCount > 0 {
       return "\(blockedCount) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
+    }
+    if !partialInboxOrderBlockers.isEmpty {
+      return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Open the order before dispatch setup."
     }
     if !inboxCreatedOrders.isEmpty {
       return "\(inboxCreatedOrders.count) Inbox-created order needs operational confirmation or dispatch setup before it disappears from daily follow-up."
@@ -268,6 +273,7 @@ struct OperationsWorkbenchView: View {
           ("Urgent", "\(urgentWorkbenchCount)", urgentWorkbenchCount == 0 ? .green : .red),
           ("Blocked", "\(defaultQueueItems.filter(\.isBlocked).count)", defaultQueueItems.contains(where: \.isBlocked) ? .orange : .green),
           ("Review", "\(defaultQueueItems.filter { $0.reviewState == .needsReview }.count)", defaultQueueItems.contains { $0.reviewState == .needsReview } ? .purple : .green),
+          ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
           ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
           ("Open", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .blue)
@@ -305,12 +311,20 @@ struct OperationsWorkbenchView: View {
   @ViewBuilder
   private var inboxCreatedOrderFollowUp: some View {
     if !inboxCreatedOrders.isEmpty {
-      SettingsPanel(title: "Inbox-created order follow-up", symbol: "tray.and.arrow.down.fill") {
-        Text("Orders created from Inbox, Import Queue, or Acceptance Review stay here until someone confirms the operational details and dispatch setup.")
+      SettingsPanel(title: partialInboxOrderBlockers.isEmpty ? "Inbox-created order follow-up" : "Inbox-created order verification", symbol: partialInboxOrderBlockers.isEmpty ? "tray.and.arrow.down.fill" : "exclamationmark.triangle.fill") {
+        Text(partialInboxOrderBlockers.isEmpty
+          ? "Orders created from Inbox, Import Queue, or Acceptance Review stay here until someone confirms the operational details and dispatch setup."
+          : "Partial Inbox-created orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
         ForEach(inboxCreatedOrders) { order in
-          WorkbenchInboxOrderRow(order: order, needsDispatchSetup: needsDispatchSetup(order), store: store)
+          WorkbenchInboxOrderRow(
+            order: order,
+            needsDispatchSetup: needsDispatchSetup(order),
+            needsPreDispatchVerification: needsPreDispatchVerification(order),
+            partialTaskCount: partialInboxTaskCount(for: order),
+            store: store
+          )
         }
       }
     }
@@ -475,11 +489,26 @@ struct OperationsWorkbenchView: View {
 
   private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
     if order.status == .exception { return 120 }
+    if needsPreDispatchVerification(order) { return 115 }
     if order.reviewState != .accepted { return 110 }
     if needsDispatchSetup(order) { return 100 }
     if order.status == .inTransit { return 80 }
     if order.status == .shipped { return 70 }
     return 40
+  }
+
+  private var partialInboxOrderBlockers: [TrackedOrder] {
+    inboxCreatedOrders.filter(needsPreDispatchVerification)
+  }
+
+  private func partialInboxTaskCount(for order: TrackedOrder) -> Int {
+    store.tasks(for: .order, linkedEntityID: order.id.uuidString).filter { task in
+      task.status != .completed && task.isPartialInboxOrderFollowUp
+    }.count
+  }
+
+  private func needsPreDispatchVerification(_ order: TrackedOrder) -> Bool {
+    partialInboxTaskCount(for: order) > 0 || order.missingWorkbenchInboxOrderFieldCount > 0
   }
 
   @ViewBuilder
@@ -575,14 +604,22 @@ struct OperationsWorkbenchView: View {
 private struct WorkbenchInboxOrderRow: View {
   var order: TrackedOrder
   var needsDispatchSetup: Bool
+  var needsPreDispatchVerification: Bool
+  var partialTaskCount: Int
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
+
+  private var rowColor: Color {
+    if needsPreDispatchVerification { return .orange }
+    if needsDispatchSetup { return .purple }
+    return order.status == .exception ? .orange : .teal
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
         Image(systemName: "shippingbox.fill")
-          .foregroundStyle(order.status == .exception ? .orange : .teal)
+          .foregroundStyle(rowColor)
           .frame(width: 22)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -591,16 +628,19 @@ private struct WorkbenchInboxOrderRow: View {
           Text("\(order.customer) • \(order.destination)")
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          Text(needsDispatchSetup ? "Next: add or link dispatch manifest/readiness context." : "Next: confirm tracking, destination, and linked follow-up from the order detail.")
+          Text(needsPreDispatchVerification ? "Next: verify missing Inbox details from the order before dispatch setup." : needsDispatchSetup ? "Next: add or link dispatch manifest/readiness context." : "Next: confirm tracking, destination, and linked follow-up from the order detail.")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(needsDispatchSetup ? .purple : .teal)
+            .foregroundStyle(rowColor)
         }
 
         Spacer()
 
         VStack(alignment: .trailing, spacing: 6) {
-          Badge(order.status.rawValue, color: order.status == .exception ? .orange : .blue)
+          Badge(order.status.rawValue, color: rowColor)
           Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          if needsPreDispatchVerification {
+            Badge("Verify first", color: .orange)
+          }
           if needsDispatchSetup {
             Badge("Dispatch gap", color: .purple)
           }
@@ -611,6 +651,12 @@ private struct WorkbenchInboxOrderRow: View {
         Label(order.trackingNumber, systemImage: "number")
         Label(order.carrier, systemImage: "truck.box.fill")
         Label(order.latestStatus, systemImage: "waveform.path.ecg")
+        if partialTaskCount > 0 {
+          Badge("\(partialTaskCount) verify task", color: .orange)
+        }
+        if order.missingWorkbenchInboxOrderFieldCount > 0 {
+          Badge("\(order.missingWorkbenchInboxOrderFieldCount) missing", color: .orange)
+        }
       }
       .font(.caption)
       .foregroundStyle(.secondary)
@@ -623,7 +669,14 @@ private struct WorkbenchInboxOrderRow: View {
         }
         .buttonStyle(.bordered)
 
-        if needsDispatchSetup {
+        if needsPreDispatchVerification {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        } else if needsDispatchSetup {
           NavigationLink {
             DispatchView(store: store)
           } label: {
@@ -644,13 +697,15 @@ private struct WorkbenchInboxOrderRow: View {
         }
         .buttonStyle(.bordered)
 
-        Button("Reviewed", systemImage: "checkmark.circle.fill") {
-          var reviewedOrder = order
-          reviewedOrder.reviewState = .accepted
-          store.updateOrder(reviewedOrder)
-          feedbackMessage = "Order marked reviewed."
+        if !needsPreDispatchVerification {
+          Button("Reviewed", systemImage: "checkmark.circle.fill") {
+            var reviewedOrder = order
+            reviewedOrder.reviewState = .accepted
+            store.updateOrder(reviewedOrder)
+            feedbackMessage = "Order marked reviewed."
+          }
+          .buttonStyle(.bordered)
         }
-        .buttonStyle(.bordered)
       }
 
       if let feedbackMessage {
@@ -662,6 +717,24 @@ private struct WorkbenchInboxOrderRow: View {
     .padding(12)
     .background(.thinMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+}
+
+private extension TrackedOrder {
+  var missingWorkbenchInboxOrderFieldCount: Int {
+    [orderNumber, trackingNumber, destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
   }
 }
 
