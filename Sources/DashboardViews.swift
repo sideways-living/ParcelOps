@@ -114,6 +114,7 @@ struct DashboardView: View {
           symbol: "map.fill"
         )
         MVPReadinessCallout(store: store)
+        MVPHandsOnDashboardStatus(store: store)
         dailyOperatorStart
 
         VStack(alignment: .leading, spacing: 6) {
@@ -803,6 +804,84 @@ struct MVPReadinessCallout: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct MVPHandsOnDashboardStatus: View {
+  var store: ParcelOpsStore
+
+  private var inboxCreatedOrdersCount: Int {
+    store.orders.filter { order in
+      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+    }.count
+  }
+
+  private var hasManualRefresh: Bool {
+    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var blockedDailyCount: Int {
+    store.blockedWorkbenchItems.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+  }
+
+  private var tone: Color {
+    if !hasManualRefresh { return .orange }
+    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 { return .orange }
+    if blockedDailyCount > 0 { return .red }
+    return .green
+  }
+
+  private var title: String {
+    if !hasManualRefresh { return "Run one supervised intake test" }
+    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 { return "Create or link one intake order" }
+    if blockedDailyCount > 0 { return "Resolve blocked daily work" }
+    return "Hands-on test path is ready"
+  }
+
+  private var detail: String {
+    if !hasManualRefresh {
+      return "Start in Mailbox Monitor, run a manual SpaceMail refresh, then check imported, filtered, duplicate, and uncertain counts."
+    }
+    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 {
+      return "Use Inbox to import, reprocess, create, or link one order so the Dashboard, Orders, Workbench, Tasks, and Audit trail can be verified."
+    }
+    if blockedDailyCount > 0 {
+      return "\(blockedDailyCount) blocked work item needs review before this is a clean release-candidate test run."
+    }
+    return "Use MVP Setup for the full checklist, then quit and reopen the app to confirm local JSON persistence."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Hands-on test status", symbol: "checklist.checked") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: tone == .green ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(tone == .green ? "Ready" : "Check", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("SpaceMail runs", "\(store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasManualRefresh ? .green : .orange),
+        ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .secondary : .orange),
+        ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
+        ("Blocked", "\(blockedDailyCount)", blockedDailyCount == 0 ? .green : .red),
+        ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
+      ])
+
+      Text("This card is local-only. It does not trigger refresh, background sync, mailbox mutation, Shopify, carrier APIs, OCR, scanners, notifications, or outbound email.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 
