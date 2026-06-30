@@ -282,6 +282,14 @@ struct AcceptanceCandidateRow: View {
           .foregroundStyle(.secondary)
       }
 
+      LinkedOrderContextPanel(
+        order: linkedOrder,
+        sourceLabel: "Acceptance review",
+        emptyDetail: "No order is linked yet. Choose an existing order when this candidate represents known work, or create a new local order before accepting it.",
+        linkedDetail: "This candidate has linked order context. Confirm the order details before accepting the record into operations.",
+        store: store
+      )
+
       AcceptanceHistoryStrip(records: history)
 
       if !playbooks.isEmpty {

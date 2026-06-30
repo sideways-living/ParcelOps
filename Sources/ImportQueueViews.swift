@@ -315,6 +315,14 @@ struct ImportQueueItemRow: View {
           .foregroundStyle(.secondary)
       }
 
+      LinkedOrderContextPanel(
+        order: linkedOrder,
+        sourceLabel: "Import queue",
+        emptyDetail: "No order is linked yet. Link to an existing order when this staged import matches known work, or create a new local order when it is genuinely new.",
+        linkedDetail: "This staged import already has linked order context. Open the order before accepting if tracking, destination, or review status needs confirmation.",
+        store: store
+      )
+
       if isEditing {
         ImportQueueEditForm(item: $draft)
       }

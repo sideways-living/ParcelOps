@@ -3319,3 +3319,81 @@ private struct IntakeSourceContext {
   var capturedLabel: String
   var detail: String
 }
+
+struct LinkedOrderContextPanel: View {
+  var order: TrackedOrder?
+  var sourceLabel: String
+  var emptyDetail: String
+  var linkedDetail: String
+  var store: ParcelOpsStore?
+
+  init(
+    order: TrackedOrder?,
+    sourceLabel: String,
+    emptyDetail: String,
+    linkedDetail: String,
+    store: ParcelOpsStore? = nil
+  ) {
+    self.order = order
+    self.sourceLabel = sourceLabel
+    self.emptyDetail = emptyDetail
+    self.linkedDetail = linkedDetail
+    self.store = store
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(order == nil ? "No linked order" : "Linked order", systemImage: order == nil ? "link.badge.plus" : "link.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+        Spacer()
+        Badge(sourceLabel, color: tone)
+      }
+
+      if let order {
+        CompactMetadataGrid(minimumWidth: 130) {
+          Badge(order.orderNumber, color: .teal)
+          Badge(order.status.rawValue, color: order.status.color)
+          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          Badge(order.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: order.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+        }
+        Text("\(order.store) • \(order.customer) • \(order.destination)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        Text(linkedDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if let store {
+          NavigationLink {
+            OrderDetailView(order: order, store: store)
+          } label: {
+            Label("Open linked order", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
+      } else {
+        Text(emptyDetail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var tone: Color {
+    if let order {
+      if order.reviewState != .accepted || order.trackingNumber.isPlaceholderValidationValue || order.destination.isPlaceholderValidationValue {
+        return .orange
+      }
+      return .teal
+    }
+    return .secondary
+  }
+}
