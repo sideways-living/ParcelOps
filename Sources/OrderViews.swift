@@ -239,6 +239,25 @@ struct OrdersView: View {
           ("Linked tasks", "\(urgentTaskOrderCount)", urgentTaskOrderCount == 0 ? .green : .orange),
           ("Needs review", "\(reviewOrderCount)", reviewOrderCount == 0 ? .green : .purple)
         ])
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
