@@ -188,10 +188,33 @@ struct DashboardView: View {
 
         AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
           LazyVGrid(columns: metricColumns, spacing: 12) {
-            MetricCard(title: "Active", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
-            MetricCard(title: "Delivered", value: "\(store.deliveredCount)", symbol: "checkmark.circle.fill", color: .green)
-            MetricCard(title: "Orders review", value: "\(store.reviewOrders.count)", symbol: "checkmark.shield.fill", color: .orange)
-            MetricCard(title: "Total orders", value: "\(store.orders.count)", symbol: "tray.full.fill", color: .blue)
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              MetricCard(title: "Active", value: "\(store.activeCount)", symbol: "shippingbox.fill", color: .teal)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              MetricCard(title: "Delivered", value: "\(store.deliveredCount)", symbol: "checkmark.circle.fill", color: .green)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              MetricCard(title: "Orders review", value: "\(store.reviewOrders.count)", symbol: "checkmark.shield.fill", color: .orange)
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              MetricCard(title: "Total orders", value: "\(store.orders.count)", symbol: "tray.full.fill", color: .blue)
+            }
+            .buttonStyle(.plain)
           }
         }
 
