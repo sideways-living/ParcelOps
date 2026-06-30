@@ -438,7 +438,7 @@ struct DashboardView: View {
               ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
               ("Missing", "\(store.shipmentManifestsMissingIncludedOrders.count + store.shipmentManifestsMissingHandoffLocation.count)", .red)
             ])
-            CompactShipmentManifestList(records: Array((store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans).prefix(4)))
+            CompactShipmentManifestList(records: Array((store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
@@ -448,7 +448,7 @@ struct DashboardView: View {
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .blue),
               ("Missing", "\(store.dispatchChecklistsMissingRequirements.count)", .red)
             ])
-            CompactDispatchReadinessList(checklists: Array((store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests).prefix(4)))
+            CompactDispatchReadinessList(checklists: Array((store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Accounts", symbol: "key.horizontal.fill") {
@@ -749,7 +749,7 @@ struct DashboardView: View {
             CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)), store: store)
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)), store: store)
             CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
-            CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
+            CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)), store: store)
           }
         }
 
@@ -1875,16 +1875,22 @@ struct CompactScanSessionList: View {
 
 struct CompactShipmentManifestList: View {
   var records: [ShipmentManifestRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
       ForEach(records) { record in
-        CompactRow(
-          title: record.title,
-          detail: "\(record.carrierCourier) • \(record.destinationSummary)",
-          badge: record.dispatchStatus.rawValue,
-          color: record.dispatchStatus.color
-        )
+        NavigationLink {
+          ShipmentManifestsView(store: store)
+        } label: {
+          CompactRow(
+            title: record.title,
+            detail: "\(record.carrierCourier) • \(record.destinationSummary)",
+            badge: record.dispatchStatus.rawValue,
+            color: record.dispatchStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1892,16 +1898,22 @@ struct CompactShipmentManifestList: View {
 
 struct CompactDispatchReadinessList: View {
   var checklists: [DispatchReadinessChecklist]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
       ForEach(checklists) { checklist in
-        CompactRow(
-          title: checklist.title,
-          detail: "\(checklist.checklistType.rawValue) • \(checklist.plannedDispatchDate)",
-          badge: checklist.checklistStatus.rawValue,
-          color: checklist.checklistStatus.color
-        )
+        NavigationLink {
+          DispatchReadinessView(store: store)
+        } label: {
+          CompactRow(
+            title: checklist.title,
+            detail: "\(checklist.checklistType.rawValue) • \(checklist.plannedDispatchDate)",
+            badge: checklist.checklistStatus.rawValue,
+            color: checklist.checklistStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
