@@ -41,7 +41,7 @@ struct ImportQueueView: View {
         header
         MVPWorkflowGuide(
           title: "Import queue workflow",
-          detail: "Use this screen when order information is staged manually or captured from a local placeholder source.",
+          detail: "Use this screen when order information is staged manually or captured from a local intake source.",
           steps: [
             "Review confidence and detected merchant/order/tracking fields.",
             "Edit notes or detected values if the staged record is wrong.",
@@ -64,7 +64,7 @@ struct ImportQueueView: View {
           }
 
           if filteredItems.isEmpty {
-            MVPEmptyState(title: "No staged imports match this view", detail: hasActiveFilters ? "Clear search or filters to return to the full import queue." : "Add a placeholder import item to test the local acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add import item", action: hasActiveFilters ? clearFilters : store.addImportQueueItemPlaceholder)
+            MVPEmptyState(title: "No staged imports match this view", detail: hasActiveFilters ? "Clear search or filters to return to the full import queue." : "Add a local import item to test the acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add import item", action: hasActiveFilters ? clearFilters : store.addImportQueueItemPlaceholder)
           } else {
             ForEach(filteredItems) { item in
               ImportQueueItemRow(

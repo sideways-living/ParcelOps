@@ -84,9 +84,9 @@ struct MailboxView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+            Button("Add SpaceMail setup", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)
-            Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
+            Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
           }
           if store.spaceMailIMAPConnections.isEmpty {
             MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup, confirm host/folder details, set the Keychain password, then use either Mock SpaceMail refresh or the manual real read-only refresh.", symbol: "server.rack")
@@ -187,18 +187,18 @@ struct MailboxView: View {
           }
         }
 
-        SettingsPanel(title: "Microsoft 365 setup placeholders", symbol: "mail.stack.fill") {
+        SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
           Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add mailbox placeholder", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+            Button("Add mailbox setup", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
               .buttonStyle(.bordered)
-            Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
+            Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
           if store.microsoft365MailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
+            MVPEmptyState(title: "No Microsoft 365 mailbox setup", detail: "Add a setup record in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
@@ -237,12 +237,12 @@ struct MailboxView: View {
           }
         }
 
-        SettingsPanel(title: "Local mailbox ingest test", symbol: "tray.and.arrow.down.fill") {
-          Text("Import simulated fetched mailbox messages through the same provider-neutral intake path that a real mailbox connector will use later. No mailbox is contacted.")
+        SettingsPanel(title: "Local sample mailbox import", symbol: "tray.and.arrow.down.fill") {
+          Text("Import sample fetched mailbox messages through the same provider-neutral intake path. No mailbox is contacted.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("Import local test messages", systemImage: "envelope.badge.fill") {
+            Button("Import sample messages", systemImage: "envelope.badge.fill") {
               store.importSimulatedFetchedMailboxMessages()
             }
             .buttonStyle(.borderedProminent)
