@@ -2703,9 +2703,26 @@ struct SpaceMailShiftHandoffCard: View {
 
 struct SpaceMailRefreshTrendCard: View {
   var summary: SpaceMailRefreshTrendSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
 
   private var color: Color {
     color(for: summary.tone)
+  }
+
+  private var visibleEntries: [SpaceMailRefreshTrendEntry] {
+    Array(summary.entries.prefix(isCompact ? 3 : 6))
+  }
+
+  private var hiddenEntryCount: Int {
+    max(0, summary.entries.count - visibleEntries.count)
+  }
+
+  private var entryColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)]
   }
 
   var body: some View {
@@ -2737,12 +2754,13 @@ struct SpaceMailRefreshTrendCard: View {
           symbol: "clock.arrow.circlepath"
         )
       } else {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
-          ForEach(summary.entries) { entry in
+        LazyVGrid(columns: entryColumns, alignment: .leading, spacing: 10) {
+          ForEach(visibleEntries) { entry in
             VStack(alignment: .leading, spacing: 6) {
-              HStack(alignment: .firstTextBaseline, spacing: 8) {
+              HStack(alignment: .top, spacing: 8) {
                 Text(entry.timestamp)
                   .font(.caption.weight(.semibold))
+                  .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Badge(entry.status, color: color(for: entry.tone))
               }
@@ -2758,6 +2776,13 @@ struct SpaceMailRefreshTrendCard: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(color(for: entry.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
+        }
+
+        if hiddenEntryCount > 0 {
+          Text("\(hiddenEntryCount) older refresh event\(hiddenEntryCount == 1 ? "" : "s") hidden here. Open Mailbox Monitor or Audit for full refresh detail.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
     }
