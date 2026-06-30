@@ -506,7 +506,7 @@ struct ParcelNavigationGroup: Identifiable {
   static var mobileSecondaryGroups: [ParcelNavigationGroup] {
     let primarySet = Set(mobilePrimarySections)
     let dailyOverflow = ParcelNavigationGroup(
-      title: "More Primary Workflow",
+      title: "More daily tools",
       sections: dailyOperations.sections.filter { !primarySet.contains($0) }
     )
     return [dailyOverflow] + secondaryDesktopGroups
