@@ -175,6 +175,25 @@ struct IntegrationsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
+            CompactActionRow {
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "server.rack")
+              }
+              NavigationLink {
+                InboxView(store: store)
+              } label: {
+                Label("Open Inbox", systemImage: "tray.full.fill")
+              }
+              NavigationLink {
+                AuditView(store: store)
+              } label: {
+                Label("Open Audit", systemImage: "list.clipboard.fill")
+              }
+            }
+            .buttonStyle(.bordered)
+
             SettingsReleaseCandidateCard(store: store)
           }
         }
