@@ -4626,7 +4626,7 @@ final class ParcelOpsStore {
 
   func syncSources() {
     let actions = workflowTemplateEngine.actions(for: .manualSync).map(\.rawValue).joined(separator: ", ")
-    appendSystemContact("Sync requested", evidence: "Workflow template actions queued: \(actions).")
+    appendSystemContact("Local test import requested", evidence: "Local workflow template actions recorded: \(actions). Simulated mailbox messages were imported through local intake only.")
     importSimulatedFetchedMailboxMessages()
   }
 

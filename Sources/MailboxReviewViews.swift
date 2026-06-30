@@ -205,7 +205,7 @@ struct MailboxView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("Import simulated mailbox messages", systemImage: "envelope.badge.fill") {
+            Button("Import local test messages", systemImage: "envelope.badge.fill") {
               store.importSimulatedFetchedMailboxMessages()
             }
             .buttonStyle(.borderedProminent)

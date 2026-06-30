@@ -374,7 +374,7 @@ struct Microsoft365SetupFlowGuide: View {
     ("1", "Setup mailbox placeholder", "Record the mailbox address, tenant hint, folders, and local setup notes."),
     ("2", "Prepare OAuth placeholders", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
     ("3", "Review implementation checklist", "Confirm the plan for app registration, consent, token storage, refresh, errors, and audit."),
-    ("4", "Run Mock Graph refresh", "Import deterministic sample messages through the provider-neutral intake path."),
+    ("4", "Run mock Graph test", "Import deterministic sample messages through the provider-neutral intake path."),
     ("5", "Review imported intake", "Open Inbox or Mailbox Monitor and accept, ignore, review, task, or draft from local records."),
     ("6", "Check Audit and Tasks", "Confirm local actions were logged and follow-up work was created where needed.")
   ]
@@ -522,7 +522,7 @@ struct Microsoft365MailboxConnectionRow: View {
         CompactActionRow {
           Button("Test real Microsoft sign-in", systemImage: "person.crop.circle.badge.checkmark", action: onRealAuthConnect)
             .buttonStyle(.borderedProminent)
-          Button("Connect Microsoft 365 mock", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+          Button("Use mock Microsoft auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
             .buttonStyle(.bordered)
           Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
             .buttonStyle(.bordered)
@@ -538,7 +538,7 @@ struct Microsoft365MailboxConnectionRow: View {
           Button("Clear token ref", systemImage: "trash", action: onTokenClear)
             .buttonStyle(.bordered)
         }
-        ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
+        ActionGroupHeader(title: "Setup and mock test refresh", symbol: "mail.and.text.magnifyingglass")
         CompactActionRow {
           Button("Edit setup", systemImage: "pencil") {
             isEditing = true
@@ -546,7 +546,7 @@ struct Microsoft365MailboxConnectionRow: View {
           .buttonStyle(.bordered)
           Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
             .buttonStyle(.bordered)
-          Button("Run Mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+          Button("Run mock Graph test", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
             .buttonStyle(.borderedProminent)
         }
         ActionGroupHeader(title: "Real mailbox read", symbol: "envelope.open.fill")
@@ -792,7 +792,7 @@ struct Microsoft365RealSignInChecklist: View {
         ReadinessPill(title: "User.Read only", isReady: connection.requestedScopesSummary.localizedCaseInsensitiveContains("User.Read"))
         ReadinessPill(title: "Planning reviewed", isReady: readiness.isReady)
       }
-      Text("Fallback: Connect Microsoft 365 mock tests auth state locally. Run Mock Graph refresh imports deterministic sample messages without contacting Microsoft Graph.")
+      Text("Fallback: mock Microsoft auth tests auth state locally. Mock Graph test imports deterministic sample messages without contacting Microsoft Graph.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
