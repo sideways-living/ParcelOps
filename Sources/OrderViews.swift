@@ -1580,6 +1580,26 @@ private struct OrderDispatchHandoffRows: View {
           .foregroundStyle(.green)
       }
 
+      CompactActionRow {
+        if !manifests.isEmpty {
+          NavigationLink {
+            ShipmentManifestsView(store: store)
+          } label: {
+            Label("Open manifests", systemImage: "shippingbox.and.arrow.backward.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if !checklists.isEmpty {
+          NavigationLink {
+            DispatchReadinessView(store: store)
+          } label: {
+            Label("Open readiness", systemImage: "checklist.checked")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
       ForEach(manifests.prefix(2)) { manifest in
         OrderDispatchManifestRow(record: manifest, store: store)
       }
