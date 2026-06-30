@@ -4459,16 +4459,17 @@ final class ParcelOpsStore {
   private func intakeEmailSearchResults() -> [SearchResult] {
     intakeEmails.map { email in
       let linkedOrderLabel = email.linkedOrderID.flatMap(orderLabel(for:)) ?? "No linked order"
-      let sourceMailboxLabel = intakeSourceMailboxLabel(for: email)
+      let source = intakeSourceSummary(for: email)
       let readiness = intakeSearchReadiness(for: email)
       return SearchResult(
         id: "intake-\(email.id.uuidString)",
         entityType: .intakeEmail,
         title: email.subject,
-        subtitle: "\(readiness.label) • \(email.detectedMerchant) from \(email.sender)",
+        subtitle: "\(readiness.label) • \(source.label) • \(email.detectedMerchant) from \(email.sender)",
         detail: [
           "Order \(email.detectedOrderNumber), tracking \(email.detectedTrackingNumber), destination \(email.detectedDestinationAddress).",
-          "Inbox source: \(sourceMailboxLabel) • \(linkedOrderLabel).",
+          "Inbox source: \(source.label), \(source.status), captured \(source.captured) • \(linkedOrderLabel).",
+          source.detail,
           readiness.detail,
           email.rawBodyPreview
         ].joined(separator: " "),
@@ -4477,22 +4478,6 @@ final class ParcelOpsStore {
         linkedEntityID: email.id.uuidString
       )
     }
-  }
-
-  private func intakeSourceMailboxLabel(for email: ForwardedEmailIntake) -> String {
-    guard let ingestRecord = mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
-      return "local intake"
-    }
-    if let spaceMailConnection = spaceMailIMAPConnections.first(where: { trackedMailbox(for: $0).id == ingestRecord.sourceMailboxID }) {
-      return "SpaceMail \(spaceMailConnection.emailAddressUsername)"
-    }
-    if let microsoftConnection = microsoft365MailboxConnections.first(where: { trackedMailbox(for: $0).id == ingestRecord.sourceMailboxID }) {
-      return "Microsoft 365 \(microsoftConnection.mailboxAddress)"
-    }
-    if let mailbox = mailboxes.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
-      return mailbox.address
-    }
-    return ingestRecord.sourceMailboxID.uuidString
   }
 
   func intakeSourceSummary(for email: ForwardedEmailIntake) -> (label: String, detail: String, tone: String, status: String, captured: String) {
