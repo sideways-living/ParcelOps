@@ -214,6 +214,25 @@ struct AuditView: View {
           ("Record changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange)
         ])
 
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox", systemImage: "tray.and.arrow.down.fill")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+
         Text("Use Show technical diagnostics only when investigating mailbox connection or parser behavior; the default feed keeps routine operator history readable.")
           .font(.caption)
           .foregroundStyle(.secondary)
