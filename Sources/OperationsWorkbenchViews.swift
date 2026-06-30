@@ -234,6 +234,11 @@ struct OperationsWorkbenchView: View {
         )
         operatorSummary
         SpaceMailPrimaryStatusStrip(store: store)
+        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+        Text("SpaceMail refresh trend is context for triage. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
