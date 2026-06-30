@@ -86,7 +86,7 @@ struct OperationsWorkbenchView: View {
       store.orders
         .filter { order in
           isInboxCreatedOrder(order)
-            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order) || needsInboxDispatchReadiness(order))
+            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order) || needsInboxDispatchReadiness(order) || hasReopenedInboxDispatchHandoff(order))
         }
         .sorted { first, second in
           let firstPriority = inboxOrderFollowUpPriority(first)
@@ -117,6 +117,7 @@ struct OperationsWorkbenchView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
       + store.highPriorityWorkbenchItems.count
+      + reopenedInboxDispatchHandoffCount
   }
 
   private var advancedBacklogCount: Int {
@@ -130,6 +131,7 @@ struct OperationsWorkbenchView: View {
 
   private var workbenchNextActionTone: Color {
     if urgentWorkbenchCount > 0 || defaultQueueItems.filter(\.isBlocked).count > 0 { return .red }
+    if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if !partialInboxOrderBlockers.isEmpty { return .orange }
     if !inboxDispatchReadinessOrders.isEmpty { return .teal }
     if !inboxCreatedOrders.isEmpty { return .teal }
@@ -142,6 +144,7 @@ struct OperationsWorkbenchView: View {
   private var workbenchNextActionTitle: String {
     if urgentWorkbenchCount > 0 { return "Start with urgent work" }
     if defaultQueueItems.filter(\.isBlocked).count > 0 { return "Clear blocked work" }
+    if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify partial Inbox orders" }
     if !inboxDispatchReadinessOrders.isEmpty { return "Finish Inbox dispatch readiness" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
@@ -159,6 +162,9 @@ struct OperationsWorkbenchView: View {
     let needsReviewCount = defaultQueueItems.filter { $0.reviewState == .needsReview }.count
     if blockedCount > 0 {
       return "\(blockedCount) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
+    }
+    if reopenedInboxDispatchHandoffCount > 0 {
+      return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open the linked order and Dispatch context before closing it again."
     }
     if !partialInboxOrderBlockers.isEmpty {
       return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Open the order before dispatch setup."
@@ -278,6 +284,7 @@ struct OperationsWorkbenchView: View {
           ("Urgent", "\(urgentWorkbenchCount)", urgentWorkbenchCount == 0 ? .green : .red),
           ("Blocked", "\(defaultQueueItems.filter(\.isBlocked).count)", defaultQueueItems.contains(where: \.isBlocked) ? .orange : .green),
           ("Review", "\(defaultQueueItems.filter { $0.reviewState == .needsReview }.count)", defaultQueueItems.contains { $0.reviewState == .needsReview } ? .purple : .green),
+          ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
           ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
           ("Readiness", "\(inboxDispatchReadinessOrders.count)", inboxDispatchReadinessOrders.isEmpty ? .green : .teal),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
@@ -328,6 +335,7 @@ struct OperationsWorkbenchView: View {
             order: order,
             needsDispatchSetup: needsDispatchSetup(order),
             needsInboxDispatchReadiness: needsInboxDispatchReadiness(order),
+            hasReopenedInboxDispatchHandoff: hasReopenedInboxDispatchHandoff(order),
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
             store: store
@@ -524,6 +532,19 @@ struct OperationsWorkbenchView: View {
     inboxCreatedOrders.filter(needsInboxDispatchReadiness)
   }
 
+  private var reopenedInboxDispatchHandoffCount: Int {
+    store.shipmentManifestRecords.filter { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }.count
+      + store.dispatchReadinessChecklists.filter { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }.count
+  }
+
+  private func hasReopenedInboxDispatchHandoff(_ order: TrackedOrder) -> Bool {
+    store.suggestedShipmentManifestRecords(for: order).contains { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }
+      || store.suggestedDispatchReadinessChecklists(for: order).contains { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }
+      || store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
+        task.status != .completed && task.summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+      }
+  }
+
   private func partialInboxTaskCount(for order: TrackedOrder) -> Int {
     store.tasks(for: .order, linkedEntityID: order.id.uuidString).filter { task in
       task.status != .completed && task.isPartialInboxOrderFollowUp
@@ -662,12 +683,14 @@ private struct WorkbenchInboxOrderRow: View {
   var order: TrackedOrder
   var needsDispatchSetup: Bool
   var needsInboxDispatchReadiness: Bool
+  var hasReopenedInboxDispatchHandoff: Bool
   var needsPreDispatchVerification: Bool
   var partialTaskCount: Int
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
   private var rowColor: Color {
+    if hasReopenedInboxDispatchHandoff { return .purple }
     if needsPreDispatchVerification { return .orange }
     if needsInboxDispatchReadiness { return .teal }
     if needsDispatchSetup { return .purple }
@@ -675,6 +698,9 @@ private struct WorkbenchInboxOrderRow: View {
   }
 
   private var nextActionText: String {
+    if hasReopenedInboxDispatchHandoff {
+      return "Next: inspect the reopened dispatch handoff from the order and Dispatch before closing it again."
+    }
     if needsPreDispatchVerification {
       return "Next: verify missing Inbox details from the order before dispatch setup."
     }
@@ -712,6 +738,9 @@ private struct WorkbenchInboxOrderRow: View {
           Badge(order.reviewState.rawValue, color: order.reviewState.color)
           if needsPreDispatchVerification {
             Badge("Verify first", color: .orange)
+          }
+          if hasReopenedInboxDispatchHandoff {
+            Badge("Reopened handoff", color: .purple)
           }
           if needsDispatchSetup {
             Badge("Dispatch gap", color: .purple)
@@ -751,11 +780,11 @@ private struct WorkbenchInboxOrderRow: View {
             Label("Open Tasks", systemImage: "checklist")
           }
           .buttonStyle(.bordered)
-        } else if needsDispatchSetup || needsInboxDispatchReadiness {
+        } else if needsDispatchSetup || needsInboxDispatchReadiness || hasReopenedInboxDispatchHandoff {
           NavigationLink {
             DispatchView(store: store)
           } label: {
-            Label(needsInboxDispatchReadiness ? "Open Readiness" : "Open Dispatch", systemImage: "shippingbox.and.arrow.backward.fill")
+            Label(needsInboxDispatchReadiness || hasReopenedInboxDispatchHandoff ? "Open Readiness" : "Open Dispatch", systemImage: "shippingbox.and.arrow.backward.fill")
           }
           .buttonStyle(.bordered)
         }
