@@ -213,6 +213,29 @@ struct TasksView: View {
           ("Drafts", "\(draftActionCount)", draftActionCount == 0 ? .green : .blue),
           ("Needs review", "\(reviewActionCount)", reviewActionCount == 0 ? .green : .purple)
         ])
+
+        CompactActionRow {
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
       }
     }
   }
