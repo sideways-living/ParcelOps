@@ -6052,6 +6052,95 @@ final class ParcelOpsStore {
     )
   }
 
+  func reopenInboxDispatchHandoff(for order: TrackedOrder) {
+    guard let orderIndex = orders.firstIndex(where: { $0.id == order.id }) else { return }
+
+    let linkedManifests = suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+    let linkedChecklists = suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+    guard !linkedManifests.isEmpty || !linkedChecklists.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .order,
+        entityID: order.id.uuidString,
+        entityLabel: order.orderNumber,
+        summary: "Inbox dispatch handoff reopen skipped.",
+        afterDetail: "No linked Inbox dispatch manifest or readiness checklist was found. No order, dispatch, mailbox, carrier, label, scanner, or external service action occurred."
+      )
+      return
+    }
+
+    let timestamp = Self.auditTimestamp()
+    var reopenedManifestTitles: [String] = []
+    for manifest in linkedManifests where manifest.dispatchStatus == .handedOff {
+      guard let manifestIndex = shipmentManifestRecords.firstIndex(where: { $0.id == manifest.id }) else { continue }
+      let beforeDetail = shipmentManifestRecords[manifestIndex].auditDetail
+      shipmentManifestRecords[manifestIndex].dispatchStatus = .reopened
+      shipmentManifestRecords[manifestIndex].reviewState = .needsReview
+      shipmentManifestRecords[manifestIndex].lastReviewedDate = timestamp
+      reopenedManifestTitles.append(shipmentManifestRecords[manifestIndex].title)
+      logAudit(
+        action: .reopened,
+        entityType: .shipmentManifest,
+        entityID: shipmentManifestRecords[manifestIndex].id.uuidString,
+        entityLabel: shipmentManifestRecords[manifestIndex].title,
+        summary: "Inbox dispatch manifest reopened from order handoff.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(shipmentManifestRecords[manifestIndex].auditDetail)\nSource order: \(order.orderNumber)\nReopened locally from Order detail. No carrier, label, scanner, mailbox, or external service action occurred."
+      )
+    }
+
+    var reopenedChecklistTitles: [String] = []
+    for checklist in linkedChecklists where checklist.checklistStatus == .completed {
+      guard let checklistIndex = dispatchReadinessChecklists.firstIndex(where: { $0.id == checklist.id }) else { continue }
+      let beforeDetail = dispatchReadinessChecklists[checklistIndex].auditDetail
+      dispatchReadinessChecklists[checklistIndex].checklistStatus = .reopened
+      dispatchReadinessChecklists[checklistIndex].reviewState = .needsReview
+      dispatchReadinessChecklists[checklistIndex].lastReviewedDate = timestamp
+      reopenedChecklistTitles.append(dispatchReadinessChecklists[checklistIndex].title)
+      logAudit(
+        action: .reopened,
+        entityType: .dispatchChecklist,
+        entityID: dispatchReadinessChecklists[checklistIndex].id.uuidString,
+        entityLabel: dispatchReadinessChecklists[checklistIndex].title,
+        summary: "Inbox dispatch readiness reopened from order handoff.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(dispatchReadinessChecklists[checklistIndex].auditDetail)\nSource order: \(order.orderNumber)\nReopened locally from Order detail. No carrier, label, scanner, mailbox, or external service action occurred."
+      )
+    }
+
+    let beforeOrderDetail = orders[orderIndex].auditDetail
+    if orders[orderIndex].status != .delivered {
+      orders[orderIndex].status = .exception
+    }
+    orders[orderIndex].reviewState = .needsReview
+    orders[orderIndex].latestStatus = "Inbox dispatch handoff reopened for review"
+    orders[orderIndex].contactHistory.insert(
+      ContactHistoryEvent(
+        time: "Now",
+        source: .manual,
+        contactPoint: "Order dispatch handoff",
+        summary: "Inbox dispatch handoff reopened locally.",
+        evidence: "Manifests: \(reopenedManifestTitles.isEmpty ? "already open or unavailable" : reopenedManifestTitles.joined(separator: ", ")). Readiness: \(reopenedChecklistTitles.isEmpty ? "already open or unavailable" : reopenedChecklistTitles.joined(separator: ", ")).",
+        reviewState: .needsReview
+      ),
+      at: 0
+    )
+
+    persistShipmentManifestRecords()
+    persistDispatchReadinessChecklists()
+    persistOrders()
+
+    logAudit(
+      action: .reopened,
+      entityType: .order,
+      entityID: orders[orderIndex].id.uuidString,
+      entityLabel: orders[orderIndex].orderNumber,
+      summary: "Inbox-created order dispatch handoff reopened.",
+      beforeDetail: beforeOrderDetail,
+      afterDetail: "\(orders[orderIndex].auditDetail)\nReopened manifests: \(reopenedManifestTitles.joined(separator: ", "))\nReopened readiness: \(reopenedChecklistTitles.joined(separator: ", "))\nNo mailbox item was mutated and no carrier, label, scanner, or external service action occurred."
+    )
+  }
+
   func markIntakeEmailReviewed(_ email: ForwardedEmailIntake) {
     updateIntakeEmail(email, reviewState: .reviewed)
   }

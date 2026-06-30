@@ -1441,6 +1441,12 @@ private struct OrderDispatchHandoffRows: View {
           }
           .buttonStyle(.borderedProminent)
           .controlSize(.small)
+        } else if !hasBlockedRecord {
+          Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
+            store.reopenInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
         }
       }
 
@@ -1452,6 +1458,10 @@ private struct OrderDispatchHandoffRows: View {
         Label("Use Complete handoff after local readiness and courier/internal handoff are confirmed.", systemImage: "hand.raised.fill")
           .font(.caption)
           .foregroundStyle(.secondary)
+      } else {
+        Label("Dispatch handoff is complete. Reopen only if the local handoff needs correction.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
       }
 
       ForEach(manifests.prefix(2)) { manifest in
