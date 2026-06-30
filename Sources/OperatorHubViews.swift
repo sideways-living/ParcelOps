@@ -1050,6 +1050,25 @@ struct DispatchView: View {
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
           ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
         ])
+
+        CompactActionRow {
+          NavigationLink {
+            ShipmentManifestsView(store: store)
+          } label: {
+            Label("Open Manifests", systemImage: "list.bullet.clipboard.fill")
+          }
+          NavigationLink {
+            DispatchReadinessView(store: store)
+          } label: {
+            Label("Open Readiness", systemImage: "checkmark.rectangle.stack.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
