@@ -239,7 +239,7 @@ struct DashboardView: View {
               ("Disabled", "\(store.disabledAutomationRuleCount)", .gray),
               ("Rules", "\(store.automationRules.count)", .teal)
             ])
-            CompactAutomationList(rules: Array(store.automationRules.prefix(4)))
+            CompactAutomationList(rules: Array(store.automationRules.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Tasks", symbol: "checklist") {
@@ -268,7 +268,7 @@ struct DashboardView: View {
               ("Review", "\(store.policiesNeedingReview.count)", .orange),
               ("Overdue", "\(store.overdueOpenReviewTasks.count)", .red)
             ])
-            CompactSLAPolicyList(policies: store.recentPolicyMatches)
+            CompactSLAPolicyList(policies: store.recentPolicyMatches, store: store)
           }
 
           AnalyticsSection(title: "Exception playbooks", symbol: "book.closed.fill") {
@@ -278,7 +278,7 @@ struct DashboardView: View {
               ("Review", "\(store.playbooksNeedingReview.count)", .orange),
               ("High", "\(store.enabledHighPriorityPlaybooks.count)", .red)
             ])
-            CompactExceptionPlaybookList(playbooks: Array((store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks).prefix(4)))
+            CompactExceptionPlaybookList(playbooks: Array((store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Drafts & Templates", symbol: "bubble.left.and.text.bubble.right.fill") {
@@ -298,7 +298,7 @@ struct DashboardView: View {
               ("Review", "\(store.contactsNeedingReview.count)", .orange),
               ("Total", "\(store.contactDirectoryEntries.count)", .blue)
             ])
-            CompactContactList(contacts: Array(store.contactsNeedingReview.prefix(4)))
+            CompactContactList(contacts: Array(store.contactsNeedingReview.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
@@ -308,7 +308,7 @@ struct DashboardView: View {
               ("Review", "\(store.customerProfilesNeedingReview.count)", .orange),
               ("Total", "\(store.customerRecipientProfiles.count)", .blue)
             ])
-            CompactCustomerProfileList(profiles: Array((store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }).prefix(4)))
+            CompactCustomerProfileList(profiles: Array((store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Destination addresses", symbol: "mappin.and.ellipse") {
@@ -318,7 +318,7 @@ struct DashboardView: View {
               ("Review", "\(store.destinationAddressesNeedingReview.count)", .orange),
               ("High risk", "\(store.highRiskDestinationAddresses.count)", .red)
             ])
-            CompactDestinationAddressList(addresses: Array((store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled }).prefix(4)))
+            CompactDestinationAddressList(addresses: Array((store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled }).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
@@ -328,7 +328,7 @@ struct DashboardView: View {
               ("Review", "\(store.deliveryInstructionsNeedingReview.count)", .orange),
               ("Access", "\(store.deliveryInstructionsWithAccessConstraints.count)", .red)
             ])
-            CompactDeliveryInstructionList(instructions: Array((store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled }).prefix(4)))
+            CompactDeliveryInstructionList(instructions: Array((store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled }).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Package contents", symbol: "shippingbox.circle.fill") {
@@ -1559,16 +1559,22 @@ struct CompactEvidenceList: View {
 
 struct CompactAutomationList: View {
   var rules: [AutomationRule]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Automation rules", symbol: "arrow.triangle.branch") {
       ForEach(rules) { rule in
-        CompactRow(
-          title: rule.name,
-          detail: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
-          badge: rule.isEnabled ? "Enabled" : "Disabled",
-          color: rule.isEnabled ? .green : .gray
-        )
+        NavigationLink {
+          AutomationView(store: store)
+        } label: {
+          CompactRow(
+            title: rule.name,
+            detail: "\(rule.triggerType.rawValue) • \(rule.runCount) runs",
+            badge: rule.isEnabled ? "Enabled" : "Disabled",
+            color: rule.isEnabled ? .green : .gray
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1622,16 +1628,22 @@ struct CompactHandoffNoteList: View {
 
 struct CompactSLAPolicyList: View {
   var policies: [SLAPolicy]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Recent policy matches", symbol: "timer") {
       ForEach(policies) { policy in
-        CompactRow(
-          title: policy.name,
-          detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
-          badge: "\(policy.matchCount)",
-          color: policy.priority.color
-        )
+        NavigationLink {
+          SLAPoliciesView(store: store)
+        } label: {
+          CompactRow(
+            title: policy.name,
+            detail: "\(policy.linkedEntityType.rawValue) • \(policy.lastEvaluatedDate)",
+            badge: "\(policy.matchCount)",
+            color: policy.priority.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1639,16 +1651,22 @@ struct CompactSLAPolicyList: View {
 
 struct CompactExceptionPlaybookList: View {
   var playbooks: [ExceptionPlaybook]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Exception playbooks", symbol: "book.closed.fill") {
       ForEach(playbooks) { playbook in
-        CompactRow(
-          title: playbook.name,
-          detail: "\(playbook.issueType.rawValue) • \(playbook.escalationContact)",
-          badge: playbook.priority.rawValue,
-          color: playbook.priority.color
-        )
+        NavigationLink {
+          ExceptionPlaybooksView(store: store)
+        } label: {
+          CompactRow(
+            title: playbook.name,
+            detail: "\(playbook.issueType.rawValue) • \(playbook.escalationContact)",
+            badge: playbook.priority.rawValue,
+            color: playbook.priority.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1679,16 +1697,22 @@ struct CompactDraftMessageList: View {
 
 struct CompactContactList: View {
   var contacts: [ContactDirectoryEntry]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Contacts needing review", symbol: "person.crop.circle.badge.checkmark") {
       ForEach(contacts) { contact in
-        CompactRow(
-          title: contact.name,
-          detail: "\(contact.organisation) • \(contact.channelPreference.rawValue)",
-          badge: contact.reviewState.rawValue,
-          color: contact.reviewState.color
-        )
+        NavigationLink {
+          ContactsView(store: store)
+        } label: {
+          CompactRow(
+            title: contact.name,
+            detail: "\(contact.organisation) • \(contact.channelPreference.rawValue)",
+            badge: contact.reviewState.rawValue,
+            color: contact.reviewState.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1696,16 +1720,22 @@ struct CompactContactList: View {
 
 struct CompactCustomerProfileList: View {
   var profiles: [CustomerRecipientProfile]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
       ForEach(profiles) { profile in
-        CompactRow(
-          title: profile.displayName,
-          detail: "\(profile.organisationTeam) • \(profile.deliveryPreference.rawValue)",
-          badge: profile.isEnabled ? profile.reviewState.rawValue : "Disabled",
-          color: profile.isEnabled ? profile.reviewState.color : .gray
-        )
+        NavigationLink {
+          CustomerProfilesView(store: store)
+        } label: {
+          CompactRow(
+            title: profile.displayName,
+            detail: "\(profile.organisationTeam) • \(profile.deliveryPreference.rawValue)",
+            badge: profile.isEnabled ? profile.reviewState.rawValue : "Disabled",
+            color: profile.isEnabled ? profile.reviewState.color : .gray
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1713,16 +1743,22 @@ struct CompactCustomerProfileList: View {
 
 struct CompactDestinationAddressList: View {
   var addresses: [DestinationAddressRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Destination addresses", symbol: "mappin.and.ellipse") {
       ForEach(addresses) { address in
-        CompactRow(
-          title: address.label,
-          detail: "\(address.addressLineSummary), \(address.cityRegion) • \(address.preferredCarrier)",
-          badge: address.riskLevel.rawValue,
-          color: address.riskLevel.color
-        )
+        NavigationLink {
+          DestinationAddressesView(store: store)
+        } label: {
+          CompactRow(
+            title: address.label,
+            detail: "\(address.addressLineSummary), \(address.cityRegion) • \(address.preferredCarrier)",
+            badge: address.riskLevel.rawValue,
+            color: address.riskLevel.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1730,16 +1766,22 @@ struct CompactDestinationAddressList: View {
 
 struct CompactDeliveryInstructionList: View {
   var instructions: [DeliveryInstructionRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
       ForEach(instructions) { instruction in
-        CompactRow(
-          title: instruction.title,
-          detail: "\(instruction.instructionType.rawValue) • \(instruction.preferredDeliveryWindow)",
-          badge: instruction.riskLevel.rawValue,
-          color: instruction.riskLevel.color
-        )
+        NavigationLink {
+          DeliveryInstructionsView(store: store)
+        } label: {
+          CompactRow(
+            title: instruction.title,
+            detail: "\(instruction.instructionType.rawValue) • \(instruction.preferredDeliveryWindow)",
+            badge: instruction.riskLevel.rawValue,
+            color: instruction.riskLevel.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
