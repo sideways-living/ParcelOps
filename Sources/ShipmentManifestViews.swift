@@ -106,18 +106,39 @@ struct ShipmentManifestsView: View {
   }
 
   private var header: some View {
-    HStack(alignment: .top) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Shipment Manifests")
-          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local dispatch batches for grouping orders before readiness checks and handoff.")
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Shipment Manifests")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Local dispatch batches for grouping orders before readiness checks and handoff.")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge("\(store.blockedShipmentManifests.count) blocked", color: .red)
+          Badge("\(store.undispatchedShipmentManifests.count) undispatched", color: .orange)
+        }
       }
-      Spacer()
-      VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.blockedShipmentManifests.count) blocked", color: .red)
-        Badge("\(store.undispatchedShipmentManifests.count) undispatched", color: .orange)
+
+      CompactActionRow {
+        NavigationLink {
+          DispatchView(store: store)
+        } label: {
+          Label("Open Dispatch", systemImage: "paperplane.fill")
+        }
+        NavigationLink {
+          DispatchReadinessView(store: store)
+        } label: {
+          Label("Open Readiness", systemImage: "checkmark.rectangle.stack.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
       }
+      .buttonStyle(.bordered)
     }
   }
 

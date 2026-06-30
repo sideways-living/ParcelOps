@@ -102,18 +102,39 @@ struct DispatchReadinessView: View {
   }
 
   private var header: some View {
-    HStack(alignment: .top) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Dispatch Readiness")
-          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Local go/no-go checks for manifests, labels, scans, custody, destinations, and handoff work.")
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Dispatch Readiness")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Local go/no-go checks for manifests, labels, scans, custody, destinations, and handoff work.")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge("\(store.blockedDispatchChecklists.count) blocked", color: .red)
+          Badge("\(store.incompleteDispatchChecklists.count) incomplete", color: .orange)
+        }
       }
-      Spacer()
-      VStack(alignment: .trailing, spacing: 6) {
-        Badge("\(store.blockedDispatchChecklists.count) blocked", color: .red)
-        Badge("\(store.incompleteDispatchChecklists.count) incomplete", color: .orange)
+
+      CompactActionRow {
+        NavigationLink {
+          DispatchView(store: store)
+        } label: {
+          Label("Open Dispatch", systemImage: "paperplane.fill")
+        }
+        NavigationLink {
+          ShipmentManifestsView(store: store)
+        } label: {
+          Label("Open Manifests", systemImage: "list.bullet.clipboard.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
       }
+      .buttonStyle(.bordered)
     }
   }
 
