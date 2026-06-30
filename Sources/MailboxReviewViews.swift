@@ -764,15 +764,15 @@ struct IntakeEmailRow: View {
           Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
             .buttonStyle(.borderedProminent)
         }
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
         Button("Ignore", systemImage: "trash", action: onIgnore)
           .buttonStyle(.bordered)
         Button("Reprocess", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
       }
 

@@ -845,20 +845,20 @@ private struct WorkbenchInboxOrderRow: View {
           .buttonStyle(.bordered)
         }
 
-        Button("Task", systemImage: "checklist") {
+        Button("Create task", systemImage: "checklist") {
           store.createReviewTask(from: order)
           feedbackMessage = "Review task created."
         }
         .buttonStyle(.bordered)
 
-        Button("Draft", systemImage: "envelope.open.fill") {
+        Button("Create draft", systemImage: "envelope.open.fill") {
           store.createDraftMessage(from: order)
           feedbackMessage = "Draft created."
         }
         .buttonStyle(.bordered)
 
         if !needsPreDispatchVerification {
-          Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          Button("Mark reviewed", systemImage: "checkmark.circle.fill") {
             var reviewedOrder = order
             reviewedOrder.reviewState = .accepted
             store.updateOrder(reviewedOrder)

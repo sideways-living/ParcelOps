@@ -619,17 +619,17 @@ private struct OrderQueueRow: View {
         }
         .buttonStyle(.bordered)
 
-        Button("Task", systemImage: "checklist") {
+        Button("Create task", systemImage: "checklist") {
           store.createReviewTask(from: order)
         }
         .buttonStyle(.bordered)
 
-        Button("Draft", systemImage: "envelope.open.fill") {
+        Button("Create draft", systemImage: "envelope.open.fill") {
           store.createDraftMessage(from: order)
         }
         .buttonStyle(.bordered)
 
-        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+        Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
           var reviewedOrder = order
           reviewedOrder.reviewState = .accepted
           store.updateOrder(reviewedOrder)

@@ -515,7 +515,7 @@ private struct AuditActivityRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }
@@ -589,7 +589,7 @@ struct AuditEventRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
       }
     }

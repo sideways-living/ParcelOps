@@ -710,7 +710,7 @@ private struct InboxTriageRow: View {
             .buttonStyle(.borderedProminent)
             .disabled(email.linkedOrderID != nil)
           }
-          Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          Button("Mark reviewed", systemImage: "checkmark.circle.fill") {
             store.markIntakeEmailReviewed(email)
             feedbackMessage = "Email marked reviewed locally."
           }
@@ -1317,13 +1317,13 @@ private struct DispatchInboxOrderRow: View {
           .buttonStyle(.bordered)
         }
 
-        Button("Task", systemImage: "checklist") {
+        Button("Create task", systemImage: "checklist") {
           store.createReviewTask(from: order)
           feedbackMessage = "Dispatch setup task created."
         }
         .buttonStyle(.bordered)
 
-        Button("Draft", systemImage: "envelope.open.fill") {
+        Button("Create draft", systemImage: "envelope.open.fill") {
           store.createDraftMessage(from: order)
           feedbackMessage = "Draft created."
         }
@@ -1654,15 +1654,15 @@ private struct DispatchQueueRow: View {
             store.reopenShipmentManifest(record)
           }
           .buttonStyle(.bordered)
-          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
             store.markShipmentManifestReviewed(record)
           }
           .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
+          Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: record)
           }
           .buttonStyle(.bordered)
-          Button("Draft", systemImage: "envelope.open.fill") {
+          Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: record)
           }
           .buttonStyle(.bordered)
@@ -1684,15 +1684,15 @@ private struct DispatchQueueRow: View {
             store.reopenDispatchChecklist(checklist)
           }
           .buttonStyle(.bordered)
-          Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
             store.markDispatchChecklistReviewed(checklist)
           }
           .buttonStyle(.bordered)
-          Button("Task", systemImage: "checklist") {
+          Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: checklist)
           }
           .buttonStyle(.bordered)
-          Button("Draft", systemImage: "envelope.open.fill") {
+          Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: checklist)
           }
           .buttonStyle(.bordered)
