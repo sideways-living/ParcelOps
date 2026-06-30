@@ -2139,6 +2139,24 @@ private struct NeedsReviewInboxOrderRow: View {
   @State private var isEditing = false
   @State private var feedbackMessage: String?
 
+  private var linkedTasks: [ReviewTask] {
+    store.tasks(for: .order, linkedEntityID: order.id.uuidString)
+  }
+
+  private var linkedManifests: [ShipmentManifestRecord] {
+    store.suggestedShipmentManifestRecords(for: order)
+  }
+
+  private var linkedChecklists: [DispatchReadinessChecklist] {
+    store.suggestedDispatchReadinessChecklists(for: order)
+  }
+
+  private var warningTrackingEvents: [CarrierTrackingEvent] {
+    store.trackingEvents(for: order.id).filter { event in
+      event.severity == .watch || event.severity == .critical
+    }
+  }
+
   private var missingTracking: Bool {
     order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
   }
@@ -2147,11 +2165,80 @@ private struct NeedsReviewInboxOrderRow: View {
     order.destination == "Pending review" || order.destination.isPlaceholderValidationValue
   }
 
+  private var missingFieldCount: Int {
+    [order.orderNumber, order.trackingNumber, order.destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
+  }
+
+  private var inboxDispatchContextCount: Int {
+    linkedManifests.filter(\.needsReviewInboxHandoffSetup).count
+      + linkedChecklists.filter(\.needsReviewInboxHandoffSetup).count
+  }
+
+  private var reopenedInboxDispatchCount: Int {
+    linkedManifests.filter { $0.needsReviewInboxHandoffSetup && $0.dispatchStatus == .reopened }.count
+      + linkedChecklists.filter { $0.needsReviewInboxHandoffSetup && $0.checklistStatus == .reopened }.count
+  }
+
+  private var operationalTimelineSignalCount: Int {
+    1
+      + 1
+      + linkedTasks.count
+      + linkedManifests.count
+      + linkedChecklists.count
+      + warningTrackingEvents.count
+  }
+
+  private var nextActionText: String {
+    if reopenedInboxDispatchCount > 0 {
+      return "Next: review reopened dispatch handoff before closing this order."
+    }
+    if missingFieldCount > 0 {
+      return "Next: confirm missing order, tracking, or destination details."
+    }
+    if inboxDispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status) {
+      return "Next: add or link dispatch setup before treating this order as ready."
+    }
+    if !linkedTasks.isEmpty {
+      return "Next: finish linked task follow-up, then mark the order reviewed."
+    }
+    return "Next: confirm linked context, then mark reviewed or create follow-up."
+  }
+
+  private var timelineDetail: String {
+    if reopenedInboxDispatchCount > 0 {
+      return "Timeline includes reopened dispatch handoff context."
+    }
+    if missingFieldCount > 0 {
+      return "Timeline includes Inbox handoff and missing-detail review."
+    }
+    if inboxDispatchContextCount > 0 {
+      return "Timeline links Inbox handoff, order detail, and dispatch setup."
+    }
+    if !linkedTasks.isEmpty {
+      return "Timeline includes \(linkedTasks.count) linked task signal."
+    }
+    if !warningTrackingEvents.isEmpty {
+      return "Timeline includes \(warningTrackingEvents.count) tracking warning signal."
+    }
+    return "Timeline links the Inbox source trail to this order."
+  }
+
+  private var rowTint: Color {
+    if reopenedInboxDispatchCount > 0 { return .purple }
+    if missingFieldCount > 0 { return .orange }
+    if !warningTrackingEvents.isEmpty { return .red }
+    return .teal
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
         Image(systemName: "shippingbox.fill")
-          .foregroundStyle(order.reviewState.color)
+          .foregroundStyle(rowTint)
           .frame(width: 22)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -2160,9 +2247,9 @@ private struct NeedsReviewInboxOrderRow: View {
           Text("\(order.customer) • \(order.destination)")
             .foregroundStyle(.secondary)
             .lineLimit(2)
-          Text("Next: confirm order details, then mark reviewed or create a follow-up task.")
+          Text(nextActionText)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.teal)
+            .foregroundStyle(rowTint)
         }
 
         Spacer()
@@ -2170,6 +2257,12 @@ private struct NeedsReviewInboxOrderRow: View {
         VStack(alignment: .trailing, spacing: 6) {
           Badge(order.status.rawValue, color: order.status.color)
           Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          if operationalTimelineSignalCount > 1 {
+            Badge("\(operationalTimelineSignalCount) timeline", color: rowTint)
+          }
+          if reopenedInboxDispatchCount > 0 {
+            Badge("Reopened", color: .purple)
+          }
         }
       }
 
@@ -2178,9 +2271,22 @@ private struct NeedsReviewInboxOrderRow: View {
         Label(missingDestination ? "Destination needs check" : order.destination, systemImage: "mappin.and.ellipse")
         Label(order.carrier, systemImage: "truck.box.fill")
         Label(order.latestStatus, systemImage: "waveform.path.ecg")
+        if inboxDispatchContextCount > 0 {
+          Label("\(inboxDispatchContextCount) dispatch setup", systemImage: "shippingbox.and.arrow.backward.fill")
+        }
+        if !linkedTasks.isEmpty {
+          Label("\(linkedTasks.count) linked task", systemImage: "checklist")
+        }
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      if operationalTimelineSignalCount > 1 {
+        Label(timelineDetail, systemImage: "calendar.badge.clock")
+          .font(.caption)
+          .foregroundStyle(rowTint)
+          .fixedSize(horizontal: false, vertical: true)
+      }
 
       CompactActionRow {
         NavigationLink {
@@ -2230,6 +2336,28 @@ private struct NeedsReviewInboxOrderRow: View {
         store.updateOrder(updatedOrder)
       }
     }
+  }
+}
+
+private extension ShipmentManifestRecord {
+  var needsReviewInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
+private extension DispatchReadinessChecklist {
+  var needsReviewInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
   }
 }
 
