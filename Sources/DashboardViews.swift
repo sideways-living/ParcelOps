@@ -248,7 +248,7 @@ struct DashboardView: View {
               ("Attention", "\(store.reviewTasksNeedingAttention.count)", .orange),
               ("Total", "\(store.reviewTasks.count)", .teal)
             ])
-            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)))
+            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
@@ -258,7 +258,7 @@ struct DashboardView: View {
               ("Overdue", "\(store.overdueHandoffNotes.count)", .red),
               ("High", "\(store.highPriorityHandoffNotes.count)", .red)
             ])
-            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(4)))
+            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "SLA policies", symbol: "timer") {
@@ -288,7 +288,7 @@ struct DashboardView: View {
               ("Drafts", "\(store.draftMessages.count)", .blue),
               ("Review", "\(store.draftMessagesNeedingReview.count)", .orange)
             ])
-            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(4)))
+            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
@@ -762,9 +762,9 @@ struct DashboardView: View {
               ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
               ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
             ])
-            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)))
-            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)))
-            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)))
+            CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)), store: store)
+            CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)), store: store)
+            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)), store: store)
           }
         }
       }
@@ -1534,16 +1534,22 @@ struct CompactAutomationList: View {
 
 struct CompactTaskList: View {
   var tasks: [ReviewTask]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Task escalations", symbol: "checklist") {
       ForEach(tasks) { task in
-        CompactRow(
-          title: task.title,
-          detail: "\(task.assignee) • due \(task.dueDate)",
-          badge: task.priority.rawValue,
-          color: task.priority.color
-        )
+        NavigationLink {
+          TasksView(store: store)
+        } label: {
+          CompactRow(
+            title: task.title,
+            detail: "\(task.assignee) • due \(task.dueDate)",
+            badge: task.priority.rawValue,
+            color: task.priority.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1551,16 +1557,22 @@ struct CompactTaskList: View {
 
 struct CompactHandoffNoteList: View {
   var notes: [HandoffNote]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
       ForEach(notes) { note in
-        CompactRow(
-          title: note.title,
-          detail: "\(note.assignee) • due \(note.dueDate)",
-          badge: note.status.rawValue,
-          color: note.status.color
-        )
+        NavigationLink {
+          HandoffNotesView(store: store)
+        } label: {
+          CompactRow(
+            title: note.title,
+            detail: "\(note.assignee) • due \(note.dueDate)",
+            badge: note.status.rawValue,
+            color: note.status.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1602,16 +1614,22 @@ struct CompactExceptionPlaybookList: View {
 
 struct CompactDraftMessageList: View {
   var drafts: [DraftMessage]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Draft messages", symbol: "envelope.open.fill") {
       ForEach(drafts) { draft in
-        CompactRow(
-          title: draft.subject,
-          detail: "\(draft.recipient) • \(draft.channel.rawValue)",
-          badge: draft.status.rawValue,
-          color: draft.status.color
-        )
+        NavigationLink {
+          CommunicationView(store: store)
+        } label: {
+          CompactRow(
+            title: draft.subject,
+            detail: "\(draft.recipient) • \(draft.channel.rawValue)",
+            badge: draft.status.rawValue,
+            color: draft.status.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
