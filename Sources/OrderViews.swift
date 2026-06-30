@@ -1071,6 +1071,8 @@ struct OrderDetailView: View {
           }
         }
 
+        operationalTimelinePanel(order)
+
         Panel(title: "Timeline", symbol: "clock.fill") {
           VStack(spacing: 0) {
             ForEach(order.timeline) { event in
@@ -1286,6 +1288,81 @@ struct OrderDetailView: View {
             || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
         }
         .prefix(5)
+    )
+  }
+
+  private func operationalTimelinePanel(_ order: TrackedOrder) -> some View {
+    let activities = orderOperationalTimelineActivities(for: order)
+
+    return Panel(title: "Operational timeline", symbol: "calendar.badge.clock") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Local activity linked to this order across Inbox intake, import, acceptance, dispatch setup, readiness, and follow-up tasks.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        if activities.isEmpty {
+          MVPEmptyState(
+            title: "No linked operational timeline yet",
+            detail: "Create or link intake, dispatch, readiness, or task records and they will appear here without calling external services.",
+            symbol: "calendar.badge.clock"
+          )
+        } else {
+          MetricStrip(items: [
+            ("Events", "\(activities.count)", .blue),
+            ("Dispatch", "\(activities.filter { $0.entityType == .shipmentManifest || $0.entityType == .dispatchChecklist }.count)", .purple),
+            ("Tasks", "\(activities.filter { $0.entityType == .reviewTask }.count)", .orange),
+            ("Inbox", "\(activities.filter { $0.entityType == .intakeEmail || $0.entityType == .importQueueItem || $0.entityType == .acceptanceRecord }.count)", .teal)
+          ])
+
+          VStack(spacing: 8) {
+            ForEach(activities) { activity in
+              OrderOperationalTimelineRow(activity: activity, store: store)
+            }
+          }
+
+          NavigationLink {
+            TimelineView(store: store)
+          } label: {
+            Label("Open full timeline", systemImage: "arrow.up.right.square.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
+  private func orderOperationalTimelineActivities(for order: TrackedOrder) -> [TimelineActivity] {
+    let orderID = order.id.uuidString
+    let intakeIDs = Set(linkedIntakeEmails(for: order).map { $0.id.uuidString })
+    let importIDs = Set(store.importQueueItems(for: order).map { $0.id.uuidString })
+    let acceptanceIDs = Set(store.acceptanceRecords(for: order).map { $0.id.uuidString })
+    let taskIDs = Set(store.tasks(for: .order, linkedEntityID: orderID).map { $0.id.uuidString })
+    let manifestIDs = Set(store.suggestedShipmentManifestRecords(for: order).map { $0.id.uuidString })
+    let checklistIDs = Set(store.suggestedDispatchReadinessChecklists(for: order).map { $0.id.uuidString })
+
+    return Array(
+      store.timelineActivities
+        .filter { activity in
+          switch activity.entityType {
+          case .order:
+            return activity.entityID == orderID
+          case .intakeEmail:
+            return intakeIDs.contains(activity.entityID)
+          case .importQueueItem:
+            return importIDs.contains(activity.entityID)
+          case .acceptanceRecord:
+            return acceptanceIDs.contains(activity.entityID)
+          case .reviewTask:
+            return taskIDs.contains(activity.entityID)
+          case .shipmentManifest:
+            return manifestIDs.contains(activity.entityID)
+          case .dispatchChecklist:
+            return checklistIDs.contains(activity.entityID)
+          default:
+            return false
+          }
+        }
+        .prefix(8)
     )
   }
 
@@ -1607,6 +1684,74 @@ private struct OrderDispatchReadinessRow: View {
     }
     .padding(10)
     .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct OrderOperationalTimelineRow: View {
+  var activity: TimelineActivity
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: activity.entityType.symbol)
+          .foregroundStyle(activity.risk.color)
+          .frame(width: 22)
+
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(activity.title)
+                .font(.callout.weight(.semibold))
+              Text(activity.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Badge(activity.entityType.rawValue, color: activity.risk.color)
+          }
+
+          Text(activity.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+
+          CompactMetadataGrid(minimumWidth: 130) {
+            Badge(activity.risk.rawValue, color: activity.risk.color)
+            if let reviewState = activity.reviewState {
+              Badge(reviewState.rawValue, color: reviewState.color)
+            }
+            Label(activity.timestampText, systemImage: "clock.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Label(activity.suggestedActionText, systemImage: "arrow.forward.circle.fill")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      CompactActionRow {
+        if activity.supportsReviewTask {
+          Button("Task", systemImage: "checklist") {
+            store.createReviewTask(from: activity)
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if activity.supportsDraftMessage {
+          Button("Draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessage(from: activity)
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
