@@ -44,15 +44,36 @@ struct HandoffNotesView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        HStack(alignment: .top) {
-          VStack(alignment: .leading, spacing: 6) {
-            Text("Handoff Notes")
-              .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-            Text("Local shift notes and operational handoffs for records that need continuity between teams.")
-              .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+          HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Handoff Notes")
+                .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+              Text("Local shift notes and operational handoffs for records that need continuity between teams.")
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("\(store.handoffNotesNeedingAttention.count) attention", color: .orange)
           }
-          Spacer()
-          Badge("\(store.handoffNotesNeedingAttention.count) attention", color: .orange)
+
+          CompactActionRow {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              OperationsWorkbenchView(store: store)
+            } label: {
+              Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Open Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
         }
 
         filters

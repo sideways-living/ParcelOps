@@ -869,6 +869,25 @@ struct ReviewTasksDetailView: View {
             .foregroundStyle(.secondary)
         }
 
+        CompactActionRow {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Action Queue", systemImage: "checklist")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
         MVPWorkflowGuide(
           title: "Task workflow",
           detail: "Tasks are the simplest way to turn a confusing record into assigned follow-up.",
