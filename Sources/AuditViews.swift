@@ -161,6 +161,7 @@ struct AuditView: View {
         )
 
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
 
         inboxDispatchHandoffTrailPanel
 
