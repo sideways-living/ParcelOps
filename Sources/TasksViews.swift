@@ -476,10 +476,14 @@ private struct TaskDraftFollowUpRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
-          if let linkedOrder {
-            Label("\(linkedOrder.store) \(linkedOrder.orderNumber) • \(linkedOrder.customer)", systemImage: "shippingbox.fill")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.teal)
+          if linkedOrder != nil {
+            LinkedOrderContextPanel(
+              order: linkedOrder,
+              sourceLabel: "Draft follow-up",
+              emptyDetail: "No order is linked to this draft. Return to the source record if the message should reference an order before it is marked ready.",
+              linkedDetail: "This draft is tied to order context. Open the order before marking the draft ready if tracking, destination, or dispatch setup still needs confirmation.",
+              store: store
+            )
           }
 
           CompactMetadataGrid {
@@ -495,15 +499,6 @@ private struct TaskDraftFollowUpRow: View {
       }
 
       CompactActionRow {
-        if let linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "shippingbox.fill")
-          }
-          .buttonStyle(.bordered)
-        }
-
         Button("Ready", systemImage: "checkmark.seal.fill") {
           store.markDraftMessageReady(draft)
         }
@@ -568,23 +563,16 @@ private struct TaskQueueRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
-          if let linkedOrder {
-            VStack(alignment: .leading, spacing: 4) {
-              Label("\(linkedOrder.store) \(linkedOrder.orderNumber) • \(linkedOrder.customer)", systemImage: "shippingbox.fill")
-                .font(.caption.weight(.semibold))
-              Text("\(linkedOrder.carrier) • \(linkedOrder.trackingNumber) • \(linkedOrder.destination)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-              if linkedOrder.isInboxCreatedForOperations {
-                Label("Inbox-created order follow-up", systemImage: "tray.and.arrow.down.fill")
-                  .font(.caption.weight(.semibold))
-                  .foregroundStyle(.teal)
-              }
-            }
-            .padding(10)
-            .background(.thinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+          if item.linkedEntityType == .order || linkedOrder != nil {
+            LinkedOrderContextPanel(
+              order: linkedOrder,
+              sourceLabel: item.sourceLabel,
+              emptyDetail: "This action is tied to an order ID, but the matching local order was not found. Open the detailed task or handoff before completing the work.",
+              linkedDetail: linkedOrder?.isInboxCreatedForOperations == true
+                ? "Inbox-created order follow-up. Open the order before completing this task if tracking, destination, or dispatch setup still needs confirmation."
+                : "This action has linked order context. Open the order before completing the task if tracking, destination, or dispatch setup still needs confirmation.",
+              store: store
+            )
           }
 
           if case .task(let task) = item.source, task.isPartialInboxOrderFollowUp {
@@ -700,30 +688,21 @@ private struct TaskQueueRow: View {
 
   @ViewBuilder
   private var openLink: some View {
-    if let linkedOrder {
+    switch item.source {
+    case .task:
       NavigationLink {
-        OrderDetailView(order: linkedOrder, store: store)
+        ReviewTasksDetailView(store: store)
       } label: {
-        Label("Open order", systemImage: "arrow.up.right.square.fill")
+        Label("Open task", systemImage: "arrow.right.circle.fill")
       }
       .buttonStyle(.bordered)
-    } else {
-      switch item.source {
-      case .task:
-        NavigationLink {
-          ReviewTasksDetailView(store: store)
-        } label: {
-          Label("Open task", systemImage: "arrow.right.circle.fill")
-        }
-        .buttonStyle(.bordered)
-      case .handoff:
-        NavigationLink {
-          HandoffNotesView(store: store)
-        } label: {
-          Label("Open handoff", systemImage: "arrow.right.circle.fill")
-        }
-        .buttonStyle(.bordered)
+    case .handoff:
+      NavigationLink {
+        HandoffNotesView(store: store)
+      } label: {
+        Label("Open handoff", systemImage: "arrow.right.circle.fill")
       }
+      .buttonStyle(.bordered)
     }
   }
 }
@@ -1064,6 +1043,16 @@ struct ReviewTaskRow: View {
             PackageContentStrip(contents: packageContents)
           }
 
+          if task.linkedEntityType == .order || linkedOrder != nil {
+            LinkedOrderContextPanel(
+              order: linkedOrder,
+              sourceLabel: "Review task",
+              emptyDetail: "This task references an order ID, but the matching local order was not found. Check the task details before completing it.",
+              linkedDetail: "This task has linked order context. Open the order before completing it if tracking, destination, or dispatch setup still needs confirmation.",
+              store: store
+            )
+          }
+
           if task.isPartialInboxOrderFollowUp {
             PartialInboxOrderTaskCallout(task: task, linkedOrder: linkedOrder)
           }
@@ -1071,14 +1060,6 @@ struct ReviewTaskRow: View {
       }
 
       CompactActionRow {
-        if let store, let linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "arrow.up.right.square.fill")
-          }
-          .buttonStyle(.bordered)
-        }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         if task.status == .completed {
