@@ -314,7 +314,15 @@ struct ShipmentManifestRow: View {
       }
 
       if record.isInboxDispatchHandoffSetup {
-        ShipmentManifestInboxHandoffContext(record: record, linkedOrders: linkedOrders)
+        LinkedOrdersContextPanel(
+          title: "Inbox-created order dispatch setup",
+          linkedOrders: linkedOrders,
+          sourceLabel: record.dispatchStatus.rawValue,
+          emptyDetail: "This manifest was created from Inbox handoff context, but no matching local order was found. Check the manifest before dispatching.",
+          linkedDetail: manifestHandoffDetail,
+          tone: record.dispatchStatus.color,
+          store: store
+        )
       }
 
       CompactActionRow {
@@ -336,16 +344,6 @@ struct ShipmentManifestRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
-        if let store {
-          ForEach(linkedOrders.prefix(3)) { order in
-            NavigationLink {
-              OrderDetailView(order: order, store: store)
-            } label: {
-              Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
-            }
-            .buttonStyle(.bordered)
-          }
-        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
@@ -363,60 +361,20 @@ struct ShipmentManifestRow: View {
       }
     }
   }
-}
 
-private struct ShipmentManifestInboxHandoffContext: View {
-  var record: ShipmentManifestRecord
-  var linkedOrders: [TrackedOrder]
-
-  private var nextAction: String {
+  private var manifestHandoffDetail: String {
     switch record.dispatchStatus {
     case .draft, .reopened:
-      return "Next: prepare this manifest after readiness checks are clear."
+      return "Prepare this manifest after readiness checks are clear. Open linked orders here when source context or dispatch setup needs confirmation."
     case .prepared:
-      return "Next: dispatch, hand off, or block if the local handoff is not ready."
+      return "Manifest is prepared. Open linked orders here before dispatching if tracking, destination, or handoff setup still needs confirmation."
     case .dispatched:
-      return "Next: confirm the courier/internal handoff."
+      return "Manifest is dispatched. Confirm courier/internal handoff and monitor the linked order from Orders."
     case .handedOff:
       return "Handoff is complete. The linked Inbox-created order can be monitored from Orders."
     case .blockedNeedsReview:
-      return "Next: resolve the blocked handoff before progressing the linked order."
+      return "Resolve the blocked handoff before progressing the linked order."
     }
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "tray.and.arrow.down.fill")
-          .foregroundStyle(record.dispatchStatus.color)
-          .frame(width: 20)
-
-        VStack(alignment: .leading, spacing: 3) {
-          Text("Inbox-created order dispatch setup")
-            .font(.caption.weight(.semibold))
-          Text(nextAction)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-
-        Spacer()
-        Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
-      }
-
-      CompactMetadataGrid(minimumWidth: 150) {
-        if linkedOrders.isEmpty {
-          Badge("No linked order found", color: .orange)
-        } else {
-          ForEach(linkedOrders.prefix(3)) { order in
-            Badge(order.orderNumber, color: order.reviewState == .accepted ? .green : .orange)
-          }
-        }
-        Badge(record.manifestReferencePlaceholder, color: .teal)
-      }
-    }
-    .padding(10)
-    .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

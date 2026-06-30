@@ -3397,3 +3397,58 @@ struct LinkedOrderContextPanel: View {
     return .secondary
   }
 }
+
+struct LinkedOrdersContextPanel: View {
+  var title: String
+  var linkedOrders: [TrackedOrder]
+  var sourceLabel: String
+  var emptyDetail: String
+  var linkedDetail: String
+  var tone: Color = .teal
+  var store: ParcelOpsStore? = nil
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(title, systemImage: linkedOrders.isEmpty ? "link.badge.plus" : "shippingbox.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(linkedOrders.isEmpty ? .orange : tone)
+        Spacer()
+        Badge(sourceLabel, color: linkedOrders.isEmpty ? .orange : tone)
+      }
+
+      Text(linkedOrders.isEmpty ? emptyDetail : linkedDetail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if linkedOrders.isEmpty {
+        Badge("No linked order found", color: .orange)
+      } else {
+        CompactMetadataGrid(minimumWidth: 140) {
+          ForEach(linkedOrders.prefix(4)) { order in
+            Badge(order.orderNumber, color: order.reviewState == .accepted ? .green : .orange)
+            Badge(order.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: order.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+          }
+        }
+
+        if let store {
+          CompactActionRow {
+            ForEach(linkedOrders.prefix(3)) { order in
+              NavigationLink {
+                OrderDetailView(order: order, store: store)
+              } label: {
+                Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((linkedOrders.isEmpty ? Color.orange : tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}

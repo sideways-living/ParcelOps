@@ -305,7 +305,15 @@ struct DispatchReadinessRow: View {
       }
 
       if checklist.isInboxDispatchHandoffSetup {
-        DispatchReadinessInboxHandoffContext(checklist: checklist, linkedOrders: linkedOrders)
+        LinkedOrdersContextPanel(
+          title: "Inbox-created order readiness check",
+          linkedOrders: linkedOrders,
+          sourceLabel: checklist.checklistStatus.rawValue,
+          emptyDetail: "This checklist was created from Inbox handoff context, but no matching local order was found. Check the checklist before completing readiness.",
+          linkedDetail: readinessHandoffDetail,
+          tone: checklist.checklistStatus.color,
+          store: store
+        )
       }
 
       CompactActionRow {
@@ -325,16 +333,6 @@ struct DispatchReadinessRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
-        if let store {
-          ForEach(linkedOrders.prefix(3)) { order in
-            NavigationLink {
-              OrderDetailView(order: order, store: store)
-            } label: {
-              Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
-            }
-            .buttonStyle(.bordered)
-          }
-        }
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
@@ -348,59 +346,18 @@ struct DispatchReadinessRow: View {
       }
     }
   }
-}
 
-private struct DispatchReadinessInboxHandoffContext: View {
-  var checklist: DispatchReadinessChecklist
-  var linkedOrders: [TrackedOrder]
-
-  private var nextAction: String {
+  private var readinessHandoffDetail: String {
     switch checklist.checklistStatus {
     case .draft, .reopened:
-      return "Next: confirm labels, scans, custody, destination, and handoff requirements."
+      return "Confirm labels, scans, custody, destination, and handoff requirements. Open linked orders here when source context needs confirmation."
     case .ready:
-      return "Next: complete the checklist after the local handoff is done."
+      return "Checklist is ready. Open linked orders here before completing readiness if tracking, destination, or handoff setup still needs confirmation."
     case .completed:
       return "Readiness is complete. The linked Inbox-created order can move through dispatch monitoring."
     case .blockedNeedsReview:
-      return "Next: resolve the blocked readiness item before progressing dispatch."
+      return "Resolve the blocked readiness item before progressing dispatch."
     }
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "tray.and.arrow.down.fill")
-          .foregroundStyle(checklist.checklistStatus.color)
-          .frame(width: 20)
-
-        VStack(alignment: .leading, spacing: 3) {
-          Text("Inbox-created order readiness check")
-            .font(.caption.weight(.semibold))
-          Text(nextAction)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-
-        Spacer()
-        Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
-      }
-
-      CompactMetadataGrid(minimumWidth: 150) {
-        if linkedOrders.isEmpty {
-          Badge("No linked order found", color: .orange)
-        } else {
-          ForEach(linkedOrders.prefix(3)) { order in
-            Badge(order.orderNumber, color: order.reviewState == .accepted ? .green : .orange)
-          }
-        }
-        Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
-        Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
-      }
-    }
-    .padding(10)
-    .background(Color.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
