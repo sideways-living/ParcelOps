@@ -27,7 +27,7 @@ struct DashboardView: View {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
   private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter(isInboxCreatedOrder)
+    store.orders.filter(\.isInboxCreatedLocalOrder)
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
     inboxCreatedOrders.filter { order in
@@ -36,7 +36,7 @@ struct DashboardView: View {
   }
   private var inboxDispatchGapOrders: [TrackedOrder] {
     store.orders.filter { order in
-      isInboxCreatedOrder(order)
+      order.isInboxCreatedLocalOrder
         && [.shipped, .inTransit, .exception].contains(order.status)
         && store.suggestedShipmentManifestRecords(for: order).isEmpty
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
@@ -44,7 +44,7 @@ struct DashboardView: View {
   }
   private var inboxDispatchSetupPendingOrders: [TrackedOrder] {
     store.orders.filter { order in
-      isInboxCreatedOrder(order)
+      order.isInboxCreatedLocalOrder
         && !hasPartialInboxOrderTask(order)
         && order.missingInboxOrderFieldCount == 0
         && !inboxDispatchHandoffCompleted(order)
@@ -834,10 +834,6 @@ struct DashboardView: View {
     return terms.contains { $0.localizedLowercase.contains(query) }
   }
 
-  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    dashboardIsInboxCreatedOrder(order)
-  }
-
   private func hasPartialInboxOrderTask(_ order: TrackedOrder) -> Bool {
     store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
       task.status != .completed && task.isPartialInboxOrderFollowUp
@@ -1265,14 +1261,6 @@ struct CompactSpaceMailActionPlan: View {
   }
 }
 
-private func dashboardIsInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-  order.source == .forwardedMailbox
-    || order.checkedMailbox == "manual-import"
-    || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-    || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-    || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
-}
-
 private func dashboardOrderTimelineSignalCount(for order: TrackedOrder, store: ParcelOpsStore) -> Int {
   let taskCount = store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
   let manifestCount = store.suggestedShipmentManifestRecords(for: order).count
@@ -1282,7 +1270,7 @@ private func dashboardOrderTimelineSignalCount(for order: TrackedOrder, store: P
   }.count
 
   return 1
-    + (dashboardIsInboxCreatedOrder(order) ? 1 : 0)
+    + (order.isInboxCreatedLocalOrder ? 1 : 0)
     + taskCount
     + manifestCount
     + checklistCount
@@ -1297,10 +1285,10 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
     event.severity == .watch || event.severity == .critical
   }.count
 
-  if dashboardIsInboxCreatedOrder(order) && (manifestCount + checklistCount) > 0 {
+  if order.isInboxCreatedLocalOrder && (manifestCount + checklistCount) > 0 {
     return "Inbox handoff linked to dispatch setup • \(order.trackingNumber)"
   }
-  if dashboardIsInboxCreatedOrder(order) {
+  if order.isInboxCreatedLocalOrder {
     return "Inbox-created order needs local follow-up • \(order.trackingNumber)"
   }
   if taskCount > 0 {

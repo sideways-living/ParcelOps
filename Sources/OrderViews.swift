@@ -17,7 +17,7 @@ struct OrdersView: View {
   }
   private var inboxCreatedOrderItems: [OrderQueueItem] {
     store.orders
-      .filter(isInboxCreatedOrder)
+      .filter(\.isInboxCreatedLocalOrder)
       .map(queueItem)
       .sorted { first, second in
         if first.inboxHandoffPriority == second.inboxHandoffPriority {
@@ -29,21 +29,21 @@ struct OrdersView: View {
       .map { $0 }
   }
   private var inboxCreatedOrderCount: Int {
-    store.orders.filter(isInboxCreatedOrder).count
+    store.orders.filter(\.isInboxCreatedLocalOrder).count
   }
   private var inboxCreatedOrdersActionableCount: Int {
     store.orders
-      .filter(isInboxCreatedOrder)
+      .filter(\.isInboxCreatedLocalOrder)
       .map(queueItem)
       .filter(\.needsInboxHandoffAction)
       .count
   }
   private var inboxCreatedOrdersNeedingReviewCount: Int {
-    store.orders.filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }.count
+    store.orders.filter { $0.isInboxCreatedLocalOrder && $0.reviewState != .accepted }.count
   }
   private var inboxCreatedOrdersMissingDispatchCount: Int {
     store.orders.filter { order in
-      isInboxCreatedOrder(order)
+      order.isInboxCreatedLocalOrder
         && [.shipped, .inTransit, .exception].contains(order.status)
         && store.suggestedShipmentManifestRecords(for: order).isEmpty
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
@@ -138,7 +138,7 @@ struct OrdersView: View {
         ("Queue", "\(orderItems.count)", .blue),
         ("Active", "\(store.orders.filter { $0.status != .delivered }.count)", .teal),
         ("Review", "\(store.orders.filter { $0.reviewState != .accepted }.count)", .orange),
-        ("From Inbox", "\(store.orders.filter(isInboxCreatedOrder).count)", .purple),
+        ("From Inbox", "\(store.orders.filter(\.isInboxCreatedLocalOrder).count)", .purple),
         ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
         ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
       ])
@@ -309,12 +309,6 @@ struct OrdersView: View {
     )
   }
 
-  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    order.source == .forwardedMailbox
-      || order.checkedMailbox == "manual-import"
-      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-  }
 }
 
 private struct OrderQueueItem: Identifiable {
@@ -682,7 +676,7 @@ struct OrderDetailView: View {
           }
         }
 
-        if isInboxCreatedOrder(order) {
+        if order.isInboxCreatedLocalOrder {
           inboxHandoffChecklist(order)
           inboxSourceTrail(order)
         }
@@ -1422,14 +1416,6 @@ struct OrderDetailView: View {
         }
         .prefix(8)
     )
-  }
-
-  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    order.source == .forwardedMailbox
-      || order.checkedMailbox == "manual-import"
-      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 
   @ViewBuilder

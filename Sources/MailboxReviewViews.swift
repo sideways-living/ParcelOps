@@ -1085,7 +1085,7 @@ struct NeedsReviewView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     Array(
       store.orders
-        .filter { isInboxCreatedOrder($0) && $0.reviewState != .accepted }
+        .filter { $0.isInboxCreatedLocalOrder && $0.reviewState != .accepted }
         .prefix(8)
     )
   }
@@ -2075,14 +2075,6 @@ struct NeedsReviewView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
-  }
-
-  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    order.source == .forwardedMailbox
-      || order.checkedMailbox == "manual-import"
-      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 
   private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {

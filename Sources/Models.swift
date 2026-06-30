@@ -220,6 +220,16 @@ struct TrackedOrder: Identifiable, Hashable, Codable {
   var contactHistory: [ContactHistoryEvent]
 }
 
+extension TrackedOrder {
+  var isInboxCreatedLocalOrder: Bool {
+    source == .forwardedMailbox
+      || checkedMailbox == "manual-import"
+      || latestStatus.localizedCaseInsensitiveContains("import queue")
+      || latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || latestStatus.localizedCaseInsensitiveContains("forwarded email")
+  }
+}
+
 struct TimelineEvent: Identifiable, Hashable, Codable {
   var id = UUID()
   var title: String

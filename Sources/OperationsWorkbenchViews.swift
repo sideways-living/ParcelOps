@@ -85,7 +85,7 @@ struct OperationsWorkbenchView: View {
     Array(
       store.orders
         .filter { order in
-          isInboxCreatedOrder(order)
+          order.isInboxCreatedLocalOrder
             && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order) || needsInboxDispatchReadiness(order) || hasReopenedInboxDispatchHandoff(order))
         }
         .sorted { first, second in
@@ -510,14 +510,6 @@ struct OperationsWorkbenchView: View {
       guard !excludedIDs.contains(item.id) else { return false }
       return seen.insert(item.id).inserted
     }
-  }
-
-  private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    order.source == .forwardedMailbox
-      || order.checkedMailbox == "manual-import"
-      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
 
   private func needsDispatchSetup(_ order: TrackedOrder) -> Bool {
