@@ -278,7 +278,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
-            MVPEmptyState(title: "No forwarded emails yet", detail: "This MVP uses local sample records. Add or seed intake records before testing the mailbox review flow.", symbol: "envelope.badge")
+            MVPEmptyState(title: "No forwarded emails yet", detail: "Run a SpaceMail refresh or import sample messages to populate the mailbox review flow.", symbol: "envelope.badge")
           } else {
             Text("Default view shows actionable intake only. Reviewed and ignored rows are preserved locally, but hidden unless you search or show resolved rows.")
               .font(.caption)

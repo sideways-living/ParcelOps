@@ -67,7 +67,7 @@ struct DispatchReadinessView: View {
           if filteredChecklists.isEmpty {
             MVPEmptyState(
               title: "No readiness checklists match this view",
-              detail: hasActiveFilters ? "Clear search or filters to return to all readiness checklists." : "Add a placeholder checklist to test local dispatch checks.",
+              detail: hasActiveFilters ? "Clear search or filters to return to all readiness checklists." : "Add a local checklist to confirm dispatch requirements.",
               symbol: "checkmark.rectangle.stack.fill",
               actionTitle: hasActiveFilters ? "Clear filters" : "Add checklist",
               action: hasActiveFilters ? clearFilters : store.addDispatchReadinessChecklistPlaceholder

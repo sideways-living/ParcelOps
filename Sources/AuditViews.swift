@@ -151,7 +151,7 @@ struct AuditView: View {
 
         MVPWorkflowGuide(
           title: "Audit workflow",
-          detail: "Use this screen to confirm local workflow actions, record changes, and follow-up creation while testing the MVP.",
+          detail: "Use this screen to confirm local workflow actions, record changes, and follow-up creation.",
           steps: [
             "Start with the grouped feed to understand what happened recently.",
             "Use the detailed log when you need to filter by action or record type.",

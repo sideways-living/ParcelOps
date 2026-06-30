@@ -69,7 +69,7 @@ struct ShipmentManifestsView: View {
           if filteredRecords.isEmpty {
             MVPEmptyState(
               title: "No manifests match this view",
-              detail: hasActiveFilters ? "Clear search or filters to return to all shipment manifests." : "Add a placeholder manifest to test dispatch batching.",
+              detail: hasActiveFilters ? "Clear search or filters to return to all shipment manifests." : "Add a local manifest to prepare an outbound dispatch batch.",
               symbol: "list.bullet.clipboard.fill",
               actionTitle: hasActiveFilters ? "Clear filters" : "Add manifest",
               action: hasActiveFilters ? clearFilters : store.addShipmentManifestPlaceholder
