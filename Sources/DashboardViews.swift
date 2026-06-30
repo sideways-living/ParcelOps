@@ -230,7 +230,7 @@ struct DashboardView: View {
               ("Total", "\(store.evidenceAttachments.count)", .blue),
               ("Needs review", "\(store.reviewEvidenceAttachments.count)", .orange)
             ])
-            CompactEvidenceList(attachments: Array(store.evidenceAttachments.prefix(4)))
+            CompactEvidenceList(attachments: Array(store.evidenceAttachments.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Automation", symbol: "arrow.triangle.branch") {
@@ -1536,16 +1536,22 @@ struct CompactTrackingList: View {
 
 struct CompactEvidenceList: View {
   var attachments: [EvidenceAttachment]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Latest evidence", symbol: "paperclip") {
       ForEach(attachments) { attachment in
-        CompactRow(
-          title: attachment.fileName,
-          detail: "\(attachment.fileType) • \(attachment.source.rawValue)",
-          badge: attachment.reviewState.rawValue,
-          color: attachment.reviewState.color
-        )
+        NavigationLink {
+          EvidenceView(store: store)
+        } label: {
+          CompactRow(
+            title: attachment.fileName,
+            detail: "\(attachment.fileType) • \(attachment.source.rawValue)",
+            badge: attachment.reviewState.rawValue,
+            color: attachment.reviewState.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
