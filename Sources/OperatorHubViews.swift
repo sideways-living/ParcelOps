@@ -631,6 +631,18 @@ private struct InboxTriageRow: View {
             IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
           }
 
+          if case .parserDiagnostic = item.source {
+            EmptyView()
+          } else {
+            LinkedOrderContextPanel(
+              order: linkedOrder,
+              sourceLabel: item.sourceLabel,
+              emptyDetail: "No order is linked yet. Open the detailed view to link known work, or create a new local order from this queue when the intake details are ready.",
+              linkedDetail: "This queue item already has linked order context. Open the order before completing the intake action if tracking, destination, or dispatch setup still needs confirmation.",
+              store: store
+            )
+          }
+
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(item.readinessTone.color)
@@ -644,15 +656,6 @@ private struct InboxTriageRow: View {
           Label("Open", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
-
-        if let linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "shippingbox.fill")
-          }
-          .buttonStyle(.borderedProminent)
-        }
 
         switch item.source {
         case .email(let email):
