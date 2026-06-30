@@ -57,8 +57,17 @@ struct DashboardView: View {
         }
     }
   }
+  private var reopenedInboxDispatchManifests: [ShipmentManifestRecord] {
+    store.shipmentManifestRecords.filter { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }
+  }
+  private var reopenedInboxDispatchChecklists: [DispatchReadinessChecklist] {
+    store.dispatchReadinessChecklists.filter { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }
+  }
+  private var reopenedInboxDispatchHandoffCount: Int {
+    reopenedInboxDispatchManifests.count + reopenedInboxDispatchChecklists.count
+  }
   private var dispatchAttentionCount: Int {
-    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count
+    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count + reopenedInboxDispatchHandoffCount
   }
   private var taskAttentionCount: Int {
     store.reviewTasksNeedingAttention.count
@@ -91,12 +100,12 @@ struct DashboardView: View {
       dashboardMatches("inbox", "mailbox", "spacemail", "email", "parser", "import", "acceptance", "triage", "intake"),
       dashboardMatches("orders", "order", "tracking", "customer", "destination", "inbox-created"),
       dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
-      dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff"),
+      dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened"),
       dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
       dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance"),
       dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "customer", "destination"),
-      dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched"),
+      dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened"),
       dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high"),
       dashboardMatches("recent local activity", "audit", "activity", "recent", "history")
     ].filter { $0 }.count
@@ -107,6 +116,7 @@ struct DashboardView: View {
     if !partialInboxOrderBlockers.isEmpty { return .orange }
     if problemOrdersCount > 0 { return .red }
     if highPriorityOperatorWorkbenchItems.count > 0 { return .purple }
+    if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
     if taskAttentionCount > 0 { return .orange }
     return .green
@@ -117,6 +127,7 @@ struct DashboardView: View {
     if !partialInboxOrderBlockers.isEmpty { return "Verify Inbox-created orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
     if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
+    if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
     if taskAttentionCount > 0 { return "Start with Tasks" }
     return "Daily queue is clear"
@@ -134,6 +145,9 @@ struct DashboardView: View {
     }
     if highPriorityOperatorWorkbenchItems.count > 0 {
       return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
+    }
+    if reopenedInboxDispatchHandoffCount > 0 {
+      return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open Dispatch or the linked order to complete or block it."
     }
     if dispatchAttentionCount > 0 {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
@@ -568,6 +582,7 @@ struct DashboardView: View {
           ("Orders", "\(problemOrdersCount)", problemOrdersCount == 0 ? .green : .red),
           ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
           ("Dispatch", "\(dispatchAttentionCount)", dispatchAttentionCount == 0 ? .green : .blue),
+          ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
           ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
         ])
       }
@@ -644,14 +659,14 @@ struct DashboardView: View {
             }
           }
 
-          if dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff") {
+          if dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened") {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, undispatched batches, incomplete checklists, and Inbox-created orders that need verification or dispatch setup.",
-              nextAction: partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
+              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and Inbox-created orders that need verification or dispatch setup.",
+              nextAction: reopenedInboxDispatchHandoffCount > 0 ? "Review reopened handoffs" : partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
               symbol: "shippingbox.and.arrow.backward.fill",
-              tint: partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange
+              tint: reopenedInboxDispatchHandoffCount > 0 ? .purple : partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange
             ) {
               DispatchView(store: store)
             }
@@ -718,10 +733,11 @@ struct DashboardView: View {
           }
         }
 
-        if dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched") {
+        if dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened") {
           AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
             MetricStrip(items: [
               ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+              ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Inbox gaps", "\(inboxDispatchGapOrders.count)", inboxDispatchGapOrders.isEmpty ? .green : .purple),
               ("Inbox setup", "\(inboxDispatchSetupPendingOrders.count)", inboxDispatchSetupPendingOrders.isEmpty ? .green : .teal),
@@ -730,6 +746,7 @@ struct DashboardView: View {
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
+            CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)))
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)))
             CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
@@ -1313,6 +1330,41 @@ struct CompactInboxDispatchSetupList: View {
             detail: checklists.first?.missingRequirementsSummary ?? "\(order.carrier) • \(order.trackingNumber)",
             badge: checklists.first?.checklistStatus.rawValue ?? "Readiness",
             color: .teal
+          )
+        }
+      }
+    }
+  }
+}
+
+struct CompactReopenedInboxDispatchHandoffList: View {
+  var manifests: [ShipmentManifestRecord]
+  var checklists: [DispatchReadinessChecklist]
+
+  var body: some View {
+    CompactList(title: "Reopened Inbox dispatch handoffs", symbol: "arrow.counterclockwise.circle.fill") {
+      if manifests.isEmpty && checklists.isEmpty {
+        CompactRow(
+          title: "No reopened handoffs",
+          detail: "Inbox-created dispatch handoffs have no promoted reopened records.",
+          badge: "Clear",
+          color: .green
+        )
+      } else {
+        ForEach(manifests) { manifest in
+          CompactRow(
+            title: manifest.title,
+            detail: "\(manifest.carrierCourier) • planned \(manifest.plannedDispatchDate)",
+            badge: manifest.dispatchStatus.rawValue,
+            color: .purple
+          )
+        }
+        ForEach(checklists) { checklist in
+          CompactRow(
+            title: checklist.title,
+            detail: "\(checklist.assignedOwnerTeam) • \(checklist.missingRequirementsSummary)",
+            badge: checklist.checklistStatus.rawValue,
+            color: .purple
           )
         }
       }
