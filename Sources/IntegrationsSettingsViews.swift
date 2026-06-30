@@ -2231,10 +2231,10 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var title: String {
-    if manualRefreshCount == 0 { return "Release test needs a SpaceMail refresh" }
-    if inboxCreatedOrdersCount == 0 { return "Release test needs one Inbox-created order" }
-    if unresolvedOperatorCount > 0 { return "Release test has open operator work" }
-    return "Release test path is clean"
+    if manualRefreshCount == 0 { return "SpaceMail refresh needed" }
+    if inboxCreatedOrdersCount == 0 { return "Inbox-created order needed" }
+    if unresolvedOperatorCount > 0 { return "Open operator work remains" }
+    return "Daily workflow is clean"
   }
 
   private var detail: String {
@@ -2245,7 +2245,7 @@ struct SettingsReleaseCandidateCard: View {
       return "Create or link one order from Inbox so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
     }
     if unresolvedOperatorCount > 0 {
-      return "Open work is expected during testing. Use Inbox, Workbench, Dispatch, Tasks, and Audit to verify the path is understandable."
+      return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
     }
     return "Core local workflow has refresh evidence, Inbox-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
   }
@@ -2276,7 +2276,7 @@ struct SettingsReleaseCandidateCard: View {
         ("Open work", "\(unresolvedOperatorCount)", unresolvedOperatorCount == 0 ? .green : .teal)
       ])
 
-      Text("Release boundary: manual read-only intake, local JSON records, SpaceMail credential in Keychain, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
+      Text("Local boundary: manual read-only intake, local JSON records, SpaceMail credential in Keychain, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -2466,7 +2466,7 @@ struct SettingsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
-            ActionGroupHeader(title: "Continue the setup test", symbol: "arrow.right.circle.fill")
+            ActionGroupHeader(title: "Continue setup", symbol: "arrow.right.circle.fill")
             CompactActionRow {
               NavigationLink {
                 MailboxView(store: store)
@@ -2506,8 +2506,8 @@ struct SettingsView: View {
             symbol: "gearshape.2.fill"
           )
 
-          SettingsPanel(title: "MVP local-only status", symbol: "checklist") {
-          Text("ParcelOps stores operational records in local JSON. SpaceMail password/app-password values use Keychain and manual read-only refresh; the rest of the integration surface remains placeholder or planning-only.")
+          SettingsPanel(title: "Local-only status", symbol: "checklist") {
+          Text("ParcelOps stores operational records in local JSON. SpaceMail password/app-password values use Keychain and manual read-only refresh; the rest of the integration surface remains planning-only.")
             .foregroundStyle(.secondary)
 
           LocalDataSafetyCard(store: store, compact: isCompact)
