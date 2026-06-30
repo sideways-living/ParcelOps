@@ -549,6 +549,15 @@ private enum InboxTriageSource {
   }
 }
 
+private struct IntakeSourceContext {
+  var providerLabel: String
+  var providerColor: Color
+  var statusLabel: String
+  var statusColor: Color
+  var capturedLabel: String
+  var detail: String
+}
+
 private struct InboxTriageRow: View {
   var item: InboxTriageItem
   var store: ParcelOpsStore
@@ -566,6 +575,69 @@ private struct InboxTriageRow: View {
 
   private var linkedShipmentGroupLabel: String? {
     item.linkedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) }
+  }
+
+  private var intakeSourceContext: IntakeSourceContext? {
+    guard case .email(let email) = item.source else { return nil }
+    guard let ingestRecord = store.mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return IntakeSourceContext(
+        providerLabel: "Manual/local",
+        providerColor: .secondary,
+        statusLabel: email.reviewState.rawValue,
+        statusColor: email.reviewState.color,
+        capturedLabel: email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate,
+        detail: "No mailbox ingest record is linked to this intake row. Treat it as local/manual until a source record is linked."
+      )
+    }
+
+    let provider = mailboxProviderContext(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    return IntakeSourceContext(
+      providerLabel: provider.label,
+      providerColor: provider.color,
+      statusLabel: ingestRecord.status.rawValue,
+      statusColor: ingestRecord.status == .imported ? .green : .orange,
+      capturedLabel: ingestRecord.capturedDate,
+      detail: "\(provider.detail) Duplicate-safe source metadata is present; provider message IDs are not shown in the primary queue."
+    )
+  }
+
+  private func mailboxProviderContext(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, color: Color) {
+    if let connection = store.spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "SpaceMail IMAP",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        .teal
+      )
+    }
+
+    if let connection = store.microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Graph" : "Microsoft Graph",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+        isMock ? .purple : .blue
+      )
+    }
+
+    if let mailbox = store.mailboxes.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "\(mailbox.provider.rawValue) mailbox",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        .blue
+      )
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
+      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", .teal)
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
+      return ("Local test mail", "Captured through a local simulated mailbox import.", .purple)
+    }
+
+    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", .blue)
   }
 
   var body: some View {
@@ -593,6 +665,18 @@ private struct InboxTriageRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
+
+          if let sourceContext = intakeSourceContext {
+            CompactMetadataGrid(minimumWidth: 120) {
+              Badge(sourceContext.providerLabel, color: sourceContext.providerColor)
+              Badge(sourceContext.statusLabel, color: sourceContext.statusColor)
+              Badge(sourceContext.capturedLabel, color: .secondary)
+            }
+            Text(sourceContext.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
 
           CompactMetadataGrid {
             if let confidenceScore = item.confidenceScore {
