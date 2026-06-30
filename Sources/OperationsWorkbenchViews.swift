@@ -931,27 +931,23 @@ private struct WorkbenchDraftFollowUpRow: View {
         .lineLimit(3)
 
       CompactMetadataGrid {
-        if let linkedOrder {
-          Label("\(linkedOrder.store) \(linkedOrder.orderNumber)", systemImage: "shippingbox.fill")
-            .foregroundStyle(.teal)
-        } else {
-          Label(draft.linkedEntityType.rawValue, systemImage: draft.linkedEntityType.symbol)
-        }
+        Label(draft.linkedEntityType.rawValue, systemImage: draft.linkedEntityType.symbol)
         Label(draft.createdDate, systemImage: "calendar")
       }
       .font(.caption)
       .foregroundStyle(.secondary)
 
-      CompactActionRow {
-        if let linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "shippingbox.fill")
-          }
-          .buttonStyle(.bordered)
-        }
+      if linkedOrder != nil {
+        LinkedOrderContextPanel(
+          order: linkedOrder,
+          sourceLabel: "Workbench draft",
+          emptyDetail: "No order is linked to this draft. Open drafts or the source record before marking it ready if the message should reference an order.",
+          linkedDetail: "This draft has linked order context. Open the order before marking the draft ready if tracking, destination, or dispatch setup still needs confirmation.",
+          store: store
+        )
+      }
 
+      CompactActionRow {
         NavigationLink {
           CommunicationView(store: store)
         } label: {
