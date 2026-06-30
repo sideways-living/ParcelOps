@@ -203,7 +203,7 @@ struct DashboardView: View {
               ("Blocked", "\(blockedOperatorWorkbenchItems.count)", blockedOperatorWorkbenchItems.isEmpty ? .green : .red),
               ("Review", "\(operatorWorkbenchReviewItems.count)", operatorWorkbenchReviewItems.isEmpty ? .green : .orange)
             ])
-            CompactWorkbenchList(items: Array(highPriorityOperatorWorkbenchItems.prefix(4)))
+            CompactWorkbenchList(items: Array(highPriorityOperatorWorkbenchItems.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Review workload", symbol: "exclamationmark.triangle.fill") {
@@ -1481,16 +1481,22 @@ private struct DashboardOrderCompactLink<Content: View>: View {
 
 struct CompactWorkbenchList: View {
   var items: [WorkbenchItem]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Highest priority work", symbol: "rectangle.stack.badge.person.crop.fill") {
       ForEach(items) { item in
-        CompactRow(
-          title: item.title,
-          detail: "\(item.source.rawValue) • \(item.suggestedNextAction)",
-          badge: item.prioritySeverity,
-          color: item.color
-        )
+        NavigationLink {
+          OperationsWorkbenchView(store: store)
+        } label: {
+          CompactRow(
+            title: item.title,
+            detail: "\(item.source.rawValue) • \(item.suggestedNextAction)",
+            badge: item.prioritySeverity,
+            color: item.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
