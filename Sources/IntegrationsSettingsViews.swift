@@ -174,6 +174,8 @@ struct IntegrationsView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
+
+            SettingsReleaseCandidateCard(store: store)
           }
         }
         }
@@ -186,7 +188,7 @@ struct IntegrationsView: View {
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
-          SpaceMailOperatorGuidanceStack(store: store, showReleaseSnapshot: false)
+          SpaceMailOperatorGuidanceStack(store: store)
           CompactActionRow {
             Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)
