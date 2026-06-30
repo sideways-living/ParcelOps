@@ -35,11 +35,20 @@ struct TimelineView: View {
       || !timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var inboxDispatchTimelineActivities: [TimelineActivity] {
+    store.timelineActivities.filter(\.isInboxDispatchHandoffActivity)
+  }
+
+  private var visibleInboxDispatchTimelineActivities: [TimelineActivity] {
+    Array(inboxDispatchTimelineActivities.prefix(4))
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxDispatchTimelinePanel
 
         SettingsPanel(title: "Timeline results", symbol: "calendar.badge.clock") {
           HStack {
@@ -122,6 +131,52 @@ struct TimelineView: View {
           clearFilters()
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var inboxDispatchTimelinePanel: some View {
+    if !inboxDispatchTimelineActivities.isEmpty {
+      SettingsPanel(title: "Inbox dispatch handoff timeline", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Local dispatch setup created from Inbox orders is now visible as one timeline: order, manifest, readiness, task, and audit context.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          MetricStrip(items: [
+            ("Trail events", "\(inboxDispatchTimelineActivities.count)", .blue),
+            ("Dispatch records", "\(inboxDispatchTimelineActivities.filter { $0.entityType == .shipmentManifest || $0.entityType == .dispatchChecklist }.count)", .purple),
+            ("Reopened", "\(inboxDispatchTimelineActivities.filter(\.isReopenedInboxDispatchHandoffActivity).count)", .orange),
+            ("Completed", "\(inboxDispatchTimelineActivities.filter(\.isCompletedInboxDispatchHandoffActivity).count)", .green)
+          ])
+
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(visibleInboxDispatchTimelineActivities) { activity in
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: activity.inboxDispatchTimelineSymbol)
+                  .foregroundStyle(activity.inboxDispatchTimelineColor)
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(activity.title)
+                    .font(.subheadline.weight(.semibold))
+                  Text(activity.inboxDispatchTimelineLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                  Text(activity.suggestedActionText)
+                    .font(.caption)
+                    .foregroundStyle(activity.inboxDispatchTimelineColor)
+                }
+                Spacer()
+                Badge(activity.entityType.rawValue, color: activity.inboxDispatchTimelineColor)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(.thinMaterial)
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
       }
     }
   }
@@ -238,6 +293,10 @@ struct TimelineActivityRow: View {
         }
       }
 
+      if activity.isInboxDispatchHandoffActivity {
+        TimelineInboxDispatchCallout(activity: activity)
+      }
+
       if !shipmentGroups.isEmpty {
         ShipmentGroupContextStrip(groups: shipmentGroups)
       }
@@ -252,6 +311,117 @@ struct TimelineActivityRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct TimelineInboxDispatchCallout: View {
+  var activity: TimelineActivity
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: activity.inboxDispatchTimelineSymbol)
+        .foregroundStyle(activity.inboxDispatchTimelineColor)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(activity.inboxDispatchTimelineLabel)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(activity.inboxDispatchTimelineColor)
+        Text(activity.inboxDispatchTimelineGuidance)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+    }
+    .padding(10)
+    .background(activity.inboxDispatchTimelineColor.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension TimelineActivity {
+  var isInboxDispatchHandoffActivity: Bool {
+    inboxDispatchSearchText.contains("inbox dispatch")
+      || inboxDispatchSearchText.contains("inbox readiness")
+      || inboxDispatchSearchText.contains("inbox-created order dispatch")
+      || inboxDispatchSearchText.contains("dispatch handoff")
+  }
+
+  var isReopenedInboxDispatchHandoffActivity: Bool {
+    isInboxDispatchHandoffActivity && inboxDispatchSearchText.contains("reopened")
+  }
+
+  var isCompletedInboxDispatchHandoffActivity: Bool {
+    isInboxDispatchHandoffActivity
+      && (inboxDispatchSearchText.contains("completed") || inboxDispatchSearchText.contains("handed off"))
+  }
+
+  var inboxDispatchTimelineLabel: String {
+    switch entityType {
+    case .shipmentManifest:
+      return "Manifest generated from Inbox order handoff"
+    case .dispatchChecklist:
+      return "Readiness checklist generated from Inbox order handoff"
+    case .order:
+      return "Inbox-created order in dispatch setup"
+    case .reviewTask:
+      return "Follow-up task for Inbox dispatch handoff"
+    case .auditEvent:
+      return "Audit trail for Inbox-to-dispatch handoff"
+    default:
+      return "Inbox dispatch handoff context"
+    }
+  }
+
+  var inboxDispatchTimelineColor: Color {
+    switch risk {
+    case .critical, .high:
+      return .red
+    case .watch:
+      return .orange
+    case .normal:
+      return entityType == .dispatchChecklist ? .purple : .blue
+    }
+  }
+
+  var inboxDispatchTimelineSymbol: String {
+    switch entityType {
+    case .shipmentManifest:
+      return "paperplane.fill"
+    case .dispatchChecklist:
+      return "checklist.checked"
+    case .reviewTask:
+      return "checklist"
+    case .auditEvent:
+      return "list.clipboard.fill"
+    default:
+      return "arrow.triangle.2.circlepath.circle.fill"
+    }
+  }
+
+  var inboxDispatchTimelineGuidance: String {
+    if inboxDispatchSearchText.contains("blocked") {
+      return "Resolve the blocked local dispatch setup before treating the order as ready to send."
+    }
+    if inboxDispatchSearchText.contains("reopened") {
+      return "Recheck the local manifest or readiness checklist before continuing dispatch."
+    }
+    if inboxDispatchSearchText.contains("completed") || inboxDispatchSearchText.contains("handed off") {
+      return "Completed local dispatch handoff. Confirm downstream order context if needed."
+    }
+    return "Continue the local handoff in Dispatch or Order detail. No carrier booking, label printing, scanner, or mailbox mutation is implied."
+  }
+
+  private var inboxDispatchSearchText: String {
+    [
+      title,
+      subtitle,
+      detail,
+      suggestedActionText,
+      source.rawValue,
+      entityType.rawValue
+    ]
+    .joined(separator: " ")
+    .localizedLowercase
   }
 }
 

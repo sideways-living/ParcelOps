@@ -1602,6 +1602,7 @@ final class ParcelOpsStore {
       + accountTimelineActivities()
       + vendorProfileTimelineActivities()
       + shipmentGroupTimelineActivities()
+      + dispatchTimelineActivities()
       + importQueueTimelineActivities()
       + acceptanceTimelineActivities()
       + automationTimelineActivities()
@@ -4181,6 +4182,102 @@ final class ParcelOpsStore {
         source: .shipmentGroup,
         suggestedActionText: "Review shipment group context"
       )
+    }
+  }
+
+  private func dispatchTimelineActivities() -> [TimelineActivity] {
+    let manifests = shipmentManifestRecords.map { manifest in
+      let linkedOrderLabels = manifest.includedOrderIDs.compactMap(orderLabel(for:))
+      let isInboxHandoff = manifest.isInboxHandoffSetup
+      return TimelineActivity(
+        id: "timeline-manifest-\(manifest.id.uuidString)",
+        timestampText: manifest.lastReviewedDate == "Never" ? manifest.createdDate : manifest.lastReviewedDate,
+        entityType: .shipmentManifest,
+        entityID: manifest.id.uuidString,
+        title: manifest.title,
+        subtitle: [
+          manifest.dispatchStatus.rawValue,
+          manifest.carrierCourier,
+          isInboxHandoff ? "Inbox dispatch handoff" : ""
+        ].filter { !$0.isEmpty }.joined(separator: " • "),
+        detail: [
+          manifest.destinationSummary,
+          "Orders: \(linkedOrderLabels.isEmpty ? "\(manifest.includedOrderIDs.count) linked" : linkedOrderLabels.joined(separator: ", ")).",
+          "Planned \(manifest.plannedDispatchDate); actual \(manifest.actualDispatchDate).",
+          isInboxHandoff ? "Local Inbox-created order dispatch setup. No carrier booking, label printing, scanner, or mailbox mutation is implied." : manifest.notes
+        ].joined(separator: " "),
+        risk: manifest.dispatchStatus == .blockedNeedsReview ? .high : manifest.dispatchStatus == .reopened ? .watch : manifest.riskLevel.timelineRisk,
+        reviewState: manifest.reviewState,
+        source: .order,
+        suggestedActionText: dispatchTimelineSuggestedAction(for: manifest)
+      )
+    }
+
+    let checklists = dispatchReadinessChecklists.map { checklist in
+      let linkedOrderLabels = checklist.orderIDs.compactMap(orderLabel(for:))
+      let isInboxHandoff = checklist.isInboxHandoffSetup
+      return TimelineActivity(
+        id: "timeline-dispatch-checklist-\(checklist.id.uuidString)",
+        timestampText: checklist.lastReviewedDate == "Never" ? checklist.createdDate : checklist.lastReviewedDate,
+        entityType: .dispatchChecklist,
+        entityID: checklist.id.uuidString,
+        title: checklist.title,
+        subtitle: [
+          checklist.checklistStatus.rawValue,
+          checklist.checklistType.rawValue,
+          isInboxHandoff ? "Inbox readiness handoff" : ""
+        ].filter { !$0.isEmpty }.joined(separator: " • "),
+        detail: [
+          "Orders: \(linkedOrderLabels.isEmpty ? "\(checklist.orderIDs.count) linked" : linkedOrderLabels.joined(separator: ", ")).",
+          checklist.requiredChecksSummary,
+          checklist.missingRequirementsSummary,
+          isInboxHandoff ? "Local Inbox-created order readiness record. Complete or block it from Dispatch or Order detail after local checks." : ""
+        ].filter { !$0.isEmpty }.joined(separator: " "),
+        risk: checklist.checklistStatus == .blockedNeedsReview ? .high : checklist.checklistStatus == .reopened ? .watch : checklist.riskLevel.timelineRisk,
+        reviewState: checklist.reviewState,
+        source: .order,
+        suggestedActionText: dispatchTimelineSuggestedAction(for: checklist)
+      )
+    }
+
+    return manifests + checklists
+  }
+
+  private func dispatchTimelineSuggestedAction(for manifest: ShipmentManifestRecord) -> String {
+    if manifest.isInboxHandoffSetup && manifest.dispatchStatus == .reopened {
+      return "Review reopened Inbox dispatch handoff"
+    }
+    switch manifest.dispatchStatus {
+    case .draft:
+      return manifest.isInboxHandoffSetup ? "Prepare local Inbox handoff manifest" : "Prepare manifest"
+    case .prepared:
+      return "Move to dispatch or handoff"
+    case .dispatched:
+      return "Confirm handoff"
+    case .handedOff:
+      return "Review completed handoff"
+    case .blockedNeedsReview:
+      return "Resolve blocked dispatch"
+    case .reopened:
+      return "Review reopened dispatch"
+    }
+  }
+
+  private func dispatchTimelineSuggestedAction(for checklist: DispatchReadinessChecklist) -> String {
+    if checklist.isInboxHandoffSetup && checklist.checklistStatus == .reopened {
+      return "Review reopened Inbox readiness handoff"
+    }
+    switch checklist.checklistStatus {
+    case .draft:
+      return checklist.isInboxHandoffSetup ? "Confirm local Inbox readiness checks" : "Complete readiness checks"
+    case .ready:
+      return "Complete or dispatch"
+    case .blockedNeedsReview:
+      return "Resolve blocked readiness"
+    case .completed:
+      return "Review completed readiness"
+    case .reopened:
+      return "Review reopened readiness"
     }
   }
 
