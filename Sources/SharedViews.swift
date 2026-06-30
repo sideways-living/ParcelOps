@@ -2483,9 +2483,38 @@ struct SpaceMailReleaseSnapshotCard: View {
 
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
 
   private var color: Color {
     color(for: plan.tone)
+  }
+
+  private var sortedItems: [SpaceMailPostRefreshActionItem] {
+    plan.items.sorted { left, right in
+      if priority(for: left) != priority(for: right) {
+        return priority(for: left) < priority(for: right)
+      }
+      if left.count != right.count {
+        return left.count > right.count
+      }
+      return left.title < right.title
+    }
+  }
+
+  private var visibleItems: [SpaceMailPostRefreshActionItem] {
+    Array(sortedItems.prefix(isCompact ? 3 : 5))
+  }
+
+  private var hiddenItemCount: Int {
+    max(0, sortedItems.count - visibleItems.count)
+  }
+
+  private var actionColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)]
   }
 
   var body: some View {
@@ -2509,13 +2538,14 @@ struct SpaceMailPostRefreshActionCard: View {
         Badge("Post-refresh", color: color)
       }
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
-        ForEach(plan.items) { item in
+      LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+        ForEach(visibleItems) { item in
           VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
               Label(item.title, systemImage: item.symbol)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(color(for: item.tone))
+                .fixedSize(horizontal: false, vertical: true)
               Spacer()
               Badge("\(item.count)", color: color(for: item.tone))
             }
@@ -2533,10 +2563,25 @@ struct SpaceMailPostRefreshActionCard: View {
           .background(color(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
       }
+
+      if hiddenItemCount > 0 {
+        Text("\(hiddenItemCount) lower-priority post-refresh action\(hiddenItemCount == 1 ? "" : "s") hidden here. Open Mailbox Monitor for the full review list.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .padding(14)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func priority(for item: SpaceMailPostRefreshActionItem) -> Int {
+    if item.tone == "warning" { return 0 }
+    if item.tone == "attention" { return 1 }
+    if item.count > 0 { return 2 }
+    if item.tone == "success" { return 4 }
+    return 3
   }
 
   private func color(for tone: String) -> Color {
