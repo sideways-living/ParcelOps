@@ -357,10 +357,12 @@ private struct TaskQueueItem: Identifiable {
       status: task.status,
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
-      nextAction: task.isPartialInboxOrderFollowUp
+      nextAction: task.isReopenedInboxDispatchHandoff
+        ? "Open the order, inspect dispatch setup, then complete or block the handoff"
+        : task.isPartialInboxOrderFollowUp
         ? "Open the order, confirm missing fields, then complete this handoff"
         : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isPartialInboxOrderFollowUp ? 8 : 0)
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : 0)
     )
   }
 
@@ -589,6 +591,10 @@ private struct TaskQueueRow: View {
             PartialInboxOrderTaskCallout(task: task, linkedOrder: linkedOrder)
           }
 
+          if case .task(let task) = item.source, task.isReopenedInboxDispatchHandoff {
+            ReopenedDispatchHandoffTaskCallout(linkedOrder: linkedOrder)
+          }
+
           CompactMetadataGrid {
             Badge(item.priority.rawValue, color: item.priority.color)
             Badge(item.status.rawValue, color: item.status.color)
@@ -754,6 +760,39 @@ private struct PartialInboxOrderTaskCallout: View {
   }
 }
 
+private struct ReopenedDispatchHandoffTaskCallout: View {
+  var linkedOrder: TrackedOrder?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Reopened dispatch handoff", systemImage: "arrow.counterclockwise.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.purple)
+
+      Text("This task was created because an Inbox-created order handoff was reopened after dispatch setup had already been prepared. Check the order, linked manifest, and dispatch readiness before closing it again.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let linkedOrder {
+        CompactMetadataGrid(minimumWidth: 130) {
+          Badge(linkedOrder.latestStatus, color: linkedOrder.reviewState == .accepted ? .green : .orange)
+          Badge(linkedOrder.reviewState.rawValue, color: linkedOrder.reviewState.color)
+          Badge(linkedOrder.carrier.isPlaceholderValidationValue ? "Carrier needs review" : linkedOrder.carrier, color: linkedOrder.carrier.isPlaceholderValidationValue ? .orange : .blue)
+          Badge(linkedOrder.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: linkedOrder.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+        }
+      }
+
+      Text("Use Open order to inspect the source trail and linked dispatch records. Complete this task after the handoff is complete again.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .background(Color.purple.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private extension TrackedOrder {
   var isInboxCreatedForOperations: Bool {
     source == .forwardedMailbox
@@ -765,6 +804,11 @@ private extension TrackedOrder {
 }
 
 private extension ReviewTask {
+  var isReopenedInboxDispatchHandoff: Bool {
+    linkedEntityType == .order
+      && summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+  }
+
   var isPartialInboxOrderFollowUp: Bool {
     linkedEntityType == .order
       && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
