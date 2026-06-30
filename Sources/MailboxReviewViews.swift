@@ -169,6 +169,13 @@ struct MailboxView: View {
               ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
             ])
 
+            SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+
+            Text("Trend rows summarize recent manual refreshes. Filtered mixed-mailbox messages are counted here but stay out of Inbox unless you explicitly promote or import them.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
             CompactActionRow {
               NavigationLink {
                 InboxView(store: store)
