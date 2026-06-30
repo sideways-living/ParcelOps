@@ -713,6 +713,28 @@ private struct WorkbenchInboxOrderRow: View {
     return "Next: confirm tracking, destination, and linked follow-up from the order detail."
   }
 
+  private var operationalTimelineSignalCount: Int {
+    1
+      + 1
+      + store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
+      + store.suggestedShipmentManifestRecords(for: order).count
+      + store.suggestedDispatchReadinessChecklists(for: order).count
+      + store.trackingEvents(for: order.id).filter { $0.severity == .watch || $0.severity == .critical }.count
+  }
+
+  private var operationalTimelineDetail: String {
+    if hasReopenedInboxDispatchHandoff {
+      return "Order timeline includes reopened dispatch handoff context."
+    }
+    if needsPreDispatchVerification {
+      return "Order timeline includes Inbox handoff and verification work."
+    }
+    if needsInboxDispatchReadiness || needsDispatchSetup {
+      return "Order timeline links Inbox handoff and dispatch setup."
+    }
+    return "Order timeline has linked local follow-up context."
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -755,6 +777,9 @@ private struct WorkbenchInboxOrderRow: View {
         Label(order.trackingNumber, systemImage: "number")
         Label(order.carrier, systemImage: "truck.box.fill")
         Label(order.latestStatus, systemImage: "waveform.path.ecg")
+        if operationalTimelineSignalCount > 1 {
+          Badge("\(operationalTimelineSignalCount) timeline", color: hasReopenedInboxDispatchHandoff ? .purple : .blue)
+        }
         if partialTaskCount > 0 {
           Badge("\(partialTaskCount) verify task", color: .orange)
         }
@@ -764,6 +789,13 @@ private struct WorkbenchInboxOrderRow: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      if operationalTimelineSignalCount > 1 {
+        Label(operationalTimelineDetail, systemImage: "calendar.badge.clock")
+          .font(.caption)
+          .foregroundStyle(hasReopenedInboxDispatchHandoff ? .purple : rowColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
 
       CompactActionRow {
         NavigationLink {
