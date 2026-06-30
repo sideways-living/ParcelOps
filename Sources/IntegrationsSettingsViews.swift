@@ -105,7 +105,7 @@ struct IntegrationsView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          Text("SpaceMail IMAP is the current manual read-only mailbox path. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly tested.")
+          Text("SpaceMail IMAP is the current manual read-only mailbox path. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -133,7 +133,7 @@ struct IntegrationsView: View {
               Badge("\(visibleSetupSectionCount) sections", color: visibleSetupSectionCount == 0 ? .orange : .blue)
             }
 
-            Text("Use this to narrow the setup page while testing. It only changes which local setup sections are visible.")
+            Text("Use this to narrow the setup page. It only changes which local setup sections are visible.")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -502,7 +502,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Mock Graph refresh remains available for local testing. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent.")
+      Text("Mock Graph refresh remains available for local checks. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -535,7 +535,7 @@ struct Microsoft365MailboxConnectionRow: View {
 
       VStack(alignment: .leading, spacing: 8) {
         ActionGroupHeader(title: "Microsoft sign-in boundary", symbol: "person.badge.key.fill")
-        Text("Use real sign-in only after the checklist is ready. If signing, consent, or Keychain cache setup blocks the test, use mock auth and Mock Graph refresh to keep testing intake.")
+        Text("Use real sign-in only after the checklist is ready. If signing, consent, or Keychain cache setup blocks the flow, use mock auth and Mock Graph refresh to keep intake review moving.")
           .font(.caption2)
           .foregroundStyle(.secondary)
         CompactActionRow {
@@ -557,7 +557,7 @@ struct Microsoft365MailboxConnectionRow: View {
           Button("Clear token ref", systemImage: "trash", action: onTokenClear)
             .buttonStyle(.bordered)
         }
-        ActionGroupHeader(title: "Setup and mock test refresh", symbol: "mail.and.text.magnifyingglass")
+        ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
         CompactActionRow {
           Button("Edit setup", systemImage: "pencil") {
             isEditing = true
@@ -565,11 +565,11 @@ struct Microsoft365MailboxConnectionRow: View {
           .buttonStyle(.bordered)
           Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
             .buttonStyle(.bordered)
-          Button("Run mock Graph test", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+          Button("Run mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
             .buttonStyle(.borderedProminent)
         }
         ActionGroupHeader(title: "Real mailbox read", symbol: "envelope.open.fill")
-        Text("Manual read-only test: requests User.Read and Mail.Read, fetches at most 10 message previews from the configured folder, then imports through the existing duplicate-safe intake path.")
+        Text("Manual read-only refresh: requests User.Read and Mail.Read, fetches at most 10 message previews from the configured folder, then imports through the existing duplicate-safe intake path.")
           .font(.caption2)
           .foregroundStyle(.secondary)
         CompactActionRow {
@@ -648,9 +648,9 @@ struct Microsoft365MailboxConnectionRow: View {
       return "Real Graph refresh needs a successful Microsoft sign-in before it can request Mail.Read."
     }
     if authState.status == .connected {
-      return "Microsoft sign-in is connected. Real Graph refresh is ready for a manual read-only test."
+      return "Microsoft sign-in is connected. Real Graph refresh is ready for a manual read-only check."
     }
-    return "Connect Microsoft 365 before running a real Graph refresh, or use Mock Graph refresh for local testing."
+    return "Connect Microsoft 365 before running a real Graph refresh, or use Mock Graph refresh for local review."
   }
 
   private var refreshStatusDetail: String {
@@ -762,11 +762,11 @@ struct Microsoft365AuthStateSection: View {
     case .notConnected:
       authState.detailText.localizedCaseInsensitiveContains("cancelled")
         ? "Cancelled: no account was connected. You can retry real sign-in or use mock auth."
-        : "Not connected: use mock auth for local testing or complete setup before real sign-in."
+        : "Not connected: use mock auth for local review or complete setup before real sign-in."
     case .connecting:
       "Sign-in started: wait for Microsoft authentication to finish or return to ParcelOps."
     case .connected:
-      "Connected: identity sign-in succeeded. Use Run real Graph refresh only when you want a manual read-only mailbox test."
+      "Connected: identity sign-in succeeded. Use Run real Graph refresh only when you want a manual read-only mailbox check."
     case .authFailed:
       "Failed: check Xcode signing, active app window, redirect URI, and MSAL runtime setup."
     case .consentRequired:
@@ -811,7 +811,7 @@ struct Microsoft365RealSignInChecklist: View {
         ReadinessPill(title: "User.Read only", isReady: connection.requestedScopesSummary.localizedCaseInsensitiveContains("User.Read"))
         ReadinessPill(title: "Planning reviewed", isReady: readiness.isReady)
       }
-      Text("Fallback: mock Microsoft auth tests auth state locally. Mock Graph test imports deterministic sample messages without contacting Microsoft Graph.")
+      Text("Fallback: mock Microsoft auth checks auth state locally. Mock Graph refresh imports deterministic sample messages without contacting Microsoft Graph.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
