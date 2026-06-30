@@ -680,12 +680,14 @@ struct IntakeEmailRow: View {
             IntakeFact(title: "Destination", value: email.detectedDestinationAddress, symbol: "mappin.and.ellipse")
           }
           IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
+          LinkedOrderContextPanel(
+            order: linkedOrder,
+            sourceLabel: "Mailbox intake",
+            emptyDetail: "No order is linked yet. Link to an existing order when this message matches known work, or create a new local order when it is genuinely new.",
+            linkedDetail: "This forwarded email already has linked order context. Open the order before marking the intake reviewed if tracking, destination, or dispatch setup still needs confirmation.",
+            store: store
+          )
           intakeRecommendedActionPanel
-          if let linkedOrder {
-            Text("Linked to \(linkedOrder.orderNumber) • \(linkedOrder.store)")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.green)
-          }
           if !shipmentGroups.isEmpty {
             ShipmentGroupContextStrip(groups: shipmentGroups)
           }
@@ -724,14 +726,6 @@ struct IntakeEmailRow: View {
         } else {
           Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
             .buttonStyle(.borderedProminent)
-        }
-        if let linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "shippingbox.fill")
-          }
-          .buttonStyle(.bordered)
         }
         Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
           .buttonStyle(.bordered)
