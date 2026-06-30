@@ -12440,11 +12440,6 @@ private extension ReviewTask {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); priority: \(priority.rawValue); due: \(dueDate); assignee: \(assignee); status: \(status.rawValue); review: \(reviewState.rawValue); created: \(createdDate); completed: \(completedDate ?? "not completed"); summary: \(summary)."
   }
 
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
 }
 
 private extension HandoffNote {
@@ -12877,15 +12872,6 @@ private extension ShipmentManifestRecord {
     "Title: \(title); type: \(manifestType.rawValue); linked: \(linkedEntityType.rawValue) \(linkedEntityID); carrier: \(carrierCourier); destination: \(destinationSummary); orders: \(includedOrderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); owner: \(assignedOwnerTeam); status: \(dispatchStatus.rawValue); planned: \(plannedDispatchDate); actual: \(actualDispatchDate); handoff location: \(handoffLocationStorageLocationID?.uuidString ?? "none"); reference: \(manifestReferencePlaceholder); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate); notes: \(notes)."
   }
 
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Dispatch setup for")
-          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
-          || notes.localizedCaseInsensitiveContains("Inbox handoff")
-      )
-  }
-
   func matches(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
     let orderMatch = orderID != nil && includedOrderIDs.contains(orderID!)
     let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
@@ -12924,15 +12910,6 @@ private extension ShipmentManifestRecord {
 private extension DispatchReadinessChecklist {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); manifest: \(shipmentManifestID?.uuidString ?? "none"); orders: \(orderIDs.map(\.uuidString).joined(separator: ",")); groups: \(shipmentGroupIDs.map(\.uuidString).joined(separator: ",")); receipts: \(inventoryReceiptIDs.map(\.uuidString).joined(separator: ",")); contents: \(packageContentIDs.map(\.uuidString).joined(separator: ",")); custody: \(custodyRecordIDs.map(\.uuidString).joined(separator: ",")); labels: \(labelReferenceIDs.map(\.uuidString).joined(separator: ",")); scans: \(scanSessionIDs.map(\.uuidString).joined(separator: ",")); evidence: \(evidenceAttachmentIDs.map(\.uuidString).joined(separator: ",")); type: \(checklistType.rawValue); status: \(checklistStatus.rawValue); required: \(requiredChecksSummary); completed: \(completedChecksSummary); missing: \(missingRequirementsSummary); owner: \(assignedOwnerTeam); planned: \(plannedDispatchDate); completed date: \(completedDate); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); reviewed: \(lastReviewedDate)."
-  }
-
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Readiness for")
-          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
-          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
-      )
   }
 
   func matches(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {

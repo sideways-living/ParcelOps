@@ -853,46 +853,6 @@ struct DashboardView: View {
   }
 }
 
-private extension ReviewTask {
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
-}
-
-private extension TrackedOrder {
-  var missingInboxOrderFieldCount: Int {
-    [orderNumber, trackingNumber, destination]
-      .filter { value in
-        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
-      }
-      .count
-  }
-}
-
-private extension ShipmentManifestRecord {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Dispatch setup for")
-          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
-          || notes.localizedCaseInsensitiveContains("Inbox handoff")
-      )
-  }
-}
-
-private extension DispatchReadinessChecklist {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Readiness for")
-          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
-          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
-      )
-  }
-}
-
 private struct OperatorDashboardCard<Destination: View>: View {
   var title: String
   var count: Int

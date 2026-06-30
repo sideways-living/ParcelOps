@@ -568,7 +568,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private func needsPreDispatchVerification(_ order: TrackedOrder) -> Bool {
-    partialInboxTaskCount(for: order) > 0 || order.missingWorkbenchInboxOrderFieldCount > 0
+    partialInboxTaskCount(for: order) > 0 || order.missingInboxOrderFieldCount > 0
   }
 
   private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
@@ -670,28 +670,6 @@ struct OperationsWorkbenchView: View {
     case .vendorProfile:
       VendorProfilesView(store: store)
     }
-  }
-}
-
-private extension ShipmentManifestRecord {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Dispatch setup for")
-          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
-          || notes.localizedCaseInsensitiveContains("Inbox handoff")
-      )
-  }
-}
-
-private extension DispatchReadinessChecklist {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Readiness for")
-          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
-          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
-      )
   }
 }
 
@@ -799,8 +777,8 @@ private struct WorkbenchInboxOrderRow: View {
         if partialTaskCount > 0 {
           Badge("\(partialTaskCount) verify task", color: .orange)
         }
-        if order.missingWorkbenchInboxOrderFieldCount > 0 {
-          Badge("\(order.missingWorkbenchInboxOrderFieldCount) missing", color: .orange)
+        if order.missingInboxOrderFieldCount > 0 {
+          Badge("\(order.missingInboxOrderFieldCount) missing", color: .orange)
         }
       }
       .font(.caption)
@@ -869,24 +847,6 @@ private struct WorkbenchInboxOrderRow: View {
     .padding(12)
     .background(.thinMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 8))
-  }
-}
-
-private extension ReviewTask {
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
-}
-
-private extension TrackedOrder {
-  var missingWorkbenchInboxOrderFieldCount: Int {
-    [orderNumber, trackingNumber, destination]
-      .filter { value in
-        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
-      }
-      .count
   }
 }
 

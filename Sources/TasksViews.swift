@@ -111,7 +111,7 @@ struct TasksView: View {
         let orderID = UUID(uuidString: item.linkedEntityID),
         let order = store.orders.first(where: { $0.id == orderID })
       else { return false }
-      return order.isInboxCreatedForOperations
+      return order.isInboxCreatedLocalOrder
     }.count
   }
 
@@ -591,7 +591,7 @@ private struct TaskQueueRow: View {
               order: linkedOrder,
               sourceLabel: item.sourceLabel,
               emptyDetail: "This action is tied to an order ID, but the matching local order was not found. Open the detailed task or handoff before completing the work.",
-              linkedDetail: linkedOrder?.isInboxCreatedForOperations == true
+              linkedDetail: linkedOrder?.isInboxCreatedLocalOrder == true
                 ? "Inbox-created order follow-up. Open the order before completing this task if tracking, destination, or dispatch setup still needs confirmation."
                 : "This action has linked order context. Open the order before completing the task if tracking, destination, or dispatch setup still needs confirmation.",
               store: store
@@ -792,45 +792,6 @@ private struct ReopenedDispatchHandoffTaskCallout: View {
     .padding(10)
     .background(Color.purple.opacity(0.10))
     .clipShape(RoundedRectangle(cornerRadius: 8))
-  }
-}
-
-private extension TrackedOrder {
-  var isInboxCreatedForOperations: Bool {
-    source == .forwardedMailbox
-      || checkedMailbox == "manual-import"
-      || latestStatus.localizedCaseInsensitiveContains("import queue")
-      || latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || latestStatus.localizedCaseInsensitiveContains("forwarded email")
-  }
-}
-
-private extension ReviewTask {
-  var isReopenedInboxDispatchHandoff: Bool {
-    linkedEntityType == .order
-      && summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
-  }
-
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
-
-  var partialInboxMissingSummary: String {
-    let marker = "Confirm missing "
-    guard let markerRange = summary.range(of: marker, options: .caseInsensitive) else {
-      return "order intake fields"
-    }
-
-    let remainder = summary[markerRange.upperBound...]
-    if let endRange = remainder.range(of: " from forwarded email", options: .caseInsensitive) {
-      let value = String(remainder[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-      return value.isEmpty ? "order intake fields" : value
-    }
-
-    let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
-    return value.isEmpty ? "order intake fields" : value
   }
 }
 

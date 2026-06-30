@@ -949,7 +949,7 @@ struct DispatchView: View {
     Array(
       store.orders
         .filter { order in
-          guard order.isInboxCreatedForDispatch else { return false }
+          guard order.isInboxCreatedLocalOrder else { return false }
           return orderNeedsPreDispatchVerification(order) || orderNeedsDispatchSetup(order)
         }
         .sorted { first, second in
@@ -966,7 +966,7 @@ struct DispatchView: View {
 
   private var partialInboxDispatchBlockerCount: Int {
     store.orders.filter { order in
-      order.isInboxCreatedForDispatch && orderNeedsPreDispatchVerification(order)
+      order.isInboxCreatedLocalOrder && orderNeedsPreDispatchVerification(order)
     }.count
   }
 
@@ -1226,7 +1226,7 @@ struct DispatchView: View {
     let hasPartialTask = store.tasks(for: .order, linkedEntityID: order.id.uuidString).contains { task in
       task.status != .completed && task.isPartialInboxOrderFollowUp
     }
-    return hasPartialTask || order.missingDispatchReadinessFieldCount > 0
+    return hasPartialTask || order.missingInboxOrderFieldCount > 0
   }
 }
 
@@ -1241,7 +1241,7 @@ private struct DispatchInboxOrderRow: View {
   }
 
   private var needsPreDispatchVerification: Bool {
-    !partialFollowUpTasks.isEmpty || order.missingDispatchReadinessFieldCount > 0
+    !partialFollowUpTasks.isEmpty || order.missingInboxOrderFieldCount > 0
   }
 
   var body: some View {
@@ -1277,8 +1277,8 @@ private struct DispatchInboxOrderRow: View {
             if !partialFollowUpTasks.isEmpty {
               Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
             }
-            if order.missingDispatchReadinessFieldCount > 0 {
-              Badge("\(order.missingDispatchReadinessFieldCount) missing", color: .orange)
+            if order.missingInboxOrderFieldCount > 0 {
+              Badge("\(order.missingInboxOrderFieldCount) missing", color: .orange)
             }
             if order.reviewState == .accepted {
               Badge("Reviewed, dispatch gap", color: .purple)
@@ -1346,57 +1346,6 @@ private struct DispatchInboxOrderRow: View {
   private var rowColor: Color {
     if needsPreDispatchVerification { return .orange }
     return order.status == .exception ? .orange : .teal
-  }
-}
-
-private extension TrackedOrder {
-  var isInboxCreatedForDispatch: Bool {
-    source == .forwardedMailbox
-      || checkedMailbox == "manual-import"
-      || latestStatus.localizedCaseInsensitiveContains("import queue")
-      || latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || latestStatus.localizedCaseInsensitiveContains("forwarded email")
-  }
-}
-
-private extension ReviewTask {
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
-}
-
-private extension TrackedOrder {
-  var missingDispatchReadinessFieldCount: Int {
-    [orderNumber, trackingNumber, destination]
-      .filter { value in
-        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
-      }
-      .count
-  }
-}
-
-private extension ShipmentManifestRecord {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Dispatch setup for")
-          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
-          || notes.localizedCaseInsensitiveContains("Inbox order handoff")
-          || notes.localizedCaseInsensitiveContains("Inbox handoff")
-      )
-  }
-}
-
-private extension DispatchReadinessChecklist {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Readiness for")
-          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
-          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
-      )
   }
 }
 

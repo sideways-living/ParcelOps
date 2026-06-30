@@ -1819,52 +1819,6 @@ private struct OrderOperationalTimelineRow: View {
   }
 }
 
-private extension ReviewTask {
-  var isPartialInboxOrderFollowUp: Bool {
-    linkedEntityType == .order
-      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
-      && summary.localizedCaseInsensitiveContains("Confirm missing")
-  }
-
-  var partialInboxMissingSummary: String {
-    let marker = "Confirm missing "
-    guard let markerRange = summary.range(of: marker, options: .caseInsensitive) else {
-      return "order intake fields"
-    }
-
-    let remainder = summary[markerRange.upperBound...]
-    if let endRange = remainder.range(of: " from forwarded email", options: .caseInsensitive) {
-      let value = String(remainder[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-      return value.isEmpty ? "order intake fields" : value
-    }
-
-    let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
-    return value.isEmpty ? "order intake fields" : value
-  }
-}
-
-private extension ShipmentManifestRecord {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Dispatch setup for")
-          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
-          || notes.localizedCaseInsensitiveContains("Inbox handoff")
-      )
-  }
-}
-
-private extension DispatchReadinessChecklist {
-  var isInboxHandoffSetup: Bool {
-    linkedEntityType == .order
-      && (
-        title.localizedCaseInsensitiveContains("Readiness for")
-          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
-          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
-      )
-  }
-}
-
 private struct OrderIntakeSourceRow: View {
   var email: ForwardedEmailIntake
   var store: ParcelOpsStore

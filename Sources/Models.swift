@@ -228,6 +228,14 @@ extension TrackedOrder {
       || latestStatus.localizedCaseInsensitiveContains("acceptance")
       || latestStatus.localizedCaseInsensitiveContains("forwarded email")
   }
+
+  var missingInboxOrderFieldCount: Int {
+    [orderNumber, trackingNumber, destination]
+      .filter { value in
+        value == "Pending" || value == "Pending review" || value.isPlaceholderValidationValue
+      }
+      .count
+  }
 }
 
 struct TimelineEvent: Identifiable, Hashable, Codable {
@@ -723,6 +731,35 @@ struct ReviewTask: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+extension ReviewTask {
+  var isPartialInboxOrderFollowUp: Bool {
+    linkedEntityType == .order
+      && title.localizedCaseInsensitiveContains("Verify Inbox-created order")
+      && summary.localizedCaseInsensitiveContains("Confirm missing")
+  }
+
+  var isReopenedInboxDispatchHandoff: Bool {
+    linkedEntityType == .order
+      && summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+  }
+
+  var partialInboxMissingSummary: String {
+    let marker = "Confirm missing "
+    guard let markerRange = summary.range(of: marker, options: .caseInsensitive) else {
+      return "order intake fields"
+    }
+
+    let remainder = summary[markerRange.upperBound...]
+    if let endRange = remainder.range(of: " from forwarded email", options: .caseInsensitive) {
+      let value = String(remainder[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+      return value.isEmpty ? "order intake fields" : value
+    }
+
+    let value = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? "order intake fields" : value
+  }
+}
+
 struct HandoffNote: Identifiable, Hashable, Codable {
   var id = UUID()
   var title: String
@@ -1174,6 +1211,18 @@ struct ShipmentManifestRecord: Identifiable, Hashable, Codable {
   var reviewState: ReviewState
 }
 
+extension ShipmentManifestRecord {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Dispatch setup for")
+          || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
+          || notes.localizedCaseInsensitiveContains("Inbox order handoff")
+          || notes.localizedCaseInsensitiveContains("Inbox handoff")
+      )
+  }
+}
+
 struct DispatchReadinessChecklist: Identifiable, Hashable, Codable {
   var id = UUID()
   var title: String
@@ -1200,6 +1249,17 @@ struct DispatchReadinessChecklist: Identifiable, Hashable, Codable {
   var createdDate: String
   var lastReviewedDate: String
   var reviewState: ReviewState
+}
+
+extension DispatchReadinessChecklist {
+  var isInboxHandoffSetup: Bool {
+    linkedEntityType == .order
+      && (
+        title.localizedCaseInsensitiveContains("Readiness for")
+          || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
+          || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
+      )
+  }
 }
 
 struct AccountCredentialRecord: Identifiable, Hashable, Codable {
