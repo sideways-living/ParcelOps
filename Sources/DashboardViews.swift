@@ -746,7 +746,7 @@ struct DashboardView: View {
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
-            CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)))
+            CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)), store: store)
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)), store: store)
             CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
@@ -1295,12 +1295,14 @@ struct CompactInboxCreatedOrderList: View {
       } else {
         ForEach(orders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
-          CompactRow(
-            title: "\(order.store) • \(order.orderNumber)",
-            detail: dashboardOrderTimelineDetail(for: order, store: store),
-            badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.reviewState.rawValue,
-            color: timelineCount > 1 ? .purple : order.reviewState.color
-          )
+          DashboardOrderCompactLink(order: order, store: store) {
+            CompactRow(
+              title: "\(order.store) • \(order.orderNumber)",
+              detail: dashboardOrderTimelineDetail(for: order, store: store),
+              badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.reviewState.rawValue,
+              color: timelineCount > 1 ? .purple : order.reviewState.color
+            )
+          }
         }
       }
     }
@@ -1323,12 +1325,14 @@ struct CompactPartialInboxOrderList: View {
       } else {
         ForEach(orders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
-          CompactRow(
-            title: "\(order.store) • \(order.orderNumber)",
-            detail: "\(dashboardOrderTimelineDetail(for: order, store: store)) • \(order.destination)",
-            badge: timelineCount > 1 ? "\(timelineCount) timeline" : "\(order.missingInboxOrderFieldCount) missing",
-            color: .orange
-          )
+          DashboardOrderCompactLink(order: order, store: store) {
+            CompactRow(
+              title: "\(order.store) • \(order.orderNumber)",
+              detail: "\(dashboardOrderTimelineDetail(for: order, store: store)) • \(order.destination)",
+              badge: timelineCount > 1 ? "\(timelineCount) timeline" : "\(order.missingInboxOrderFieldCount) missing",
+              color: .orange
+            )
+          }
         }
       }
     }
@@ -1351,12 +1355,14 @@ struct CompactInboxDispatchGapList: View {
       } else {
         ForEach(orders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
-          CompactRow(
-            title: "\(order.store) • \(order.orderNumber)",
-            detail: dashboardOrderTimelineDetail(for: order, store: store),
-            badge: timelineCount > 1 ? "\(timelineCount) timeline" : (order.reviewState == .accepted ? "Dispatch gap" : "Review first"),
-            color: order.reviewState == .accepted ? .purple : .orange
-          )
+          DashboardOrderCompactLink(order: order, store: store) {
+            CompactRow(
+              title: "\(order.store) • \(order.orderNumber)",
+              detail: dashboardOrderTimelineDetail(for: order, store: store),
+              badge: timelineCount > 1 ? "\(timelineCount) timeline" : (order.reviewState == .accepted ? "Dispatch gap" : "Review first"),
+              color: order.reviewState == .accepted ? .purple : .orange
+            )
+          }
         }
       }
     }
@@ -1379,12 +1385,14 @@ struct CompactInboxDispatchSetupList: View {
       } else {
         ForEach(orders) { order in
           let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
-          CompactRow(
-            title: "\(order.store) • \(order.orderNumber)",
-            detail: checklists.first?.missingRequirementsSummary ?? "\(order.carrier) • \(order.trackingNumber)",
-            badge: checklists.first?.checklistStatus.rawValue ?? "Readiness",
-            color: .teal
-          )
+          DashboardOrderCompactLink(order: order, store: store) {
+            CompactRow(
+              title: "\(order.store) • \(order.orderNumber)",
+              detail: checklists.first?.missingRequirementsSummary ?? "\(order.carrier) • \(order.trackingNumber)",
+              badge: checklists.first?.checklistStatus.rawValue ?? "Readiness",
+              color: .teal
+            )
+          }
         }
       }
     }
@@ -1394,6 +1402,7 @@ struct CompactInboxDispatchSetupList: View {
 struct CompactReopenedInboxDispatchHandoffList: View {
   var manifests: [ShipmentManifestRecord]
   var checklists: [DispatchReadinessChecklist]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Reopened Inbox dispatch handoffs", symbol: "arrow.counterclockwise.circle.fill") {
@@ -1406,23 +1415,48 @@ struct CompactReopenedInboxDispatchHandoffList: View {
         )
       } else {
         ForEach(manifests) { manifest in
-          CompactRow(
-            title: manifest.title,
-            detail: "\(manifest.carrierCourier) • planned \(manifest.plannedDispatchDate)",
-            badge: manifest.dispatchStatus.rawValue,
-            color: .purple
-          )
+          NavigationLink {
+            ShipmentManifestsView(store: store)
+          } label: {
+            CompactRow(
+              title: manifest.title,
+              detail: "\(manifest.carrierCourier) • planned \(manifest.plannedDispatchDate)",
+              badge: manifest.dispatchStatus.rawValue,
+              color: .purple
+            )
+          }
+          .buttonStyle(.plain)
         }
         ForEach(checklists) { checklist in
-          CompactRow(
-            title: checklist.title,
-            detail: "\(checklist.assignedOwnerTeam) • \(checklist.missingRequirementsSummary)",
-            badge: checklist.checklistStatus.rawValue,
-            color: .purple
-          )
+          NavigationLink {
+            DispatchReadinessView(store: store)
+          } label: {
+            CompactRow(
+              title: checklist.title,
+              detail: "\(checklist.assignedOwnerTeam) • \(checklist.missingRequirementsSummary)",
+              badge: checklist.checklistStatus.rawValue,
+              color: .purple
+            )
+          }
+          .buttonStyle(.plain)
         }
       }
     }
+  }
+}
+
+private struct DashboardOrderCompactLink<Content: View>: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    NavigationLink {
+      OrderDetailView(order: order, store: store)
+    } label: {
+      content
+    }
+    .buttonStyle(.plain)
   }
 }
 
