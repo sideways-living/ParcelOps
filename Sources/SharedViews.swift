@@ -3297,25 +3297,14 @@ struct IntakeSourceContextPanel: View {
   }
 
   private var sourceContext: IntakeSourceContext {
-    guard let ingestRecord = store.mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
-      return IntakeSourceContext(
-        providerLabel: "Manual/local",
-        providerColor: .secondary,
-        statusLabel: email.reviewState.rawValue,
-        statusColor: email.reviewState.color,
-        capturedLabel: email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate,
-        detail: manualDetail
-      )
-    }
-
-    let provider = mailboxProviderContext(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    let source = store.intakeSourceSummary(for: email)
     return IntakeSourceContext(
-      providerLabel: provider.label,
-      providerColor: provider.color,
-      statusLabel: ingestRecord.status.rawValue,
-      statusColor: ingestRecord.status == .imported ? .green : .orange,
-      capturedLabel: ingestRecord.capturedDate,
-      detail: "\(provider.detail) \(linkedDetailSuffix)"
+      providerLabel: source.label,
+      providerColor: color(for: source.tone),
+      statusLabel: source.status,
+      statusColor: source.status == MailboxIngestStatus.imported.rawValue ? .green : email.reviewState.color,
+      capturedLabel: source.captured,
+      detail: source.label == "Manual/local" ? manualDetail : "\(source.detail) \(linkedDetailSuffix)"
     )
   }
 
@@ -3341,43 +3330,17 @@ struct IntakeSourceContextPanel: View {
     }
   }
 
-  private func mailboxProviderContext(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, color: Color) {
-    if let connection = store.spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
-      return (
-        "SpaceMail IMAP",
-        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
-        .teal
-      )
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
-
-    if let connection = store.microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
-      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
-      return (
-        isMock ? "Mock Graph" : "Microsoft Graph",
-        isMock
-          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
-          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
-        isMock ? .purple : .blue
-      )
-    }
-
-    if let mailbox = store.mailboxes.first(where: { $0.id == sourceMailboxID }) {
-      return (
-        "\(mailbox.provider.rawValue) mailbox",
-        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
-        .blue
-      )
-    }
-
-    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
-      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", .teal)
-    }
-
-    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
-      return ("Local test mail", "Captured through a local simulated mailbox import.", .purple)
-    }
-
-    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", .blue)
   }
 }
 

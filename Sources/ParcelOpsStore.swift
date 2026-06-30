@@ -4495,6 +4495,66 @@ final class ParcelOpsStore {
     return ingestRecord.sourceMailboxID.uuidString
   }
 
+  func intakeSourceSummary(for email: ForwardedEmailIntake) -> (label: String, detail: String, tone: String, status: String, captured: String) {
+    guard let ingestRecord = mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return (
+        "Manual/local",
+        "No mailbox ingest record is linked to this intake row. Treat it as local/manual until a source record is linked.",
+        "neutral",
+        email.reviewState.rawValue,
+        email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate
+      )
+    }
+
+    let provider = mailboxProviderSummary(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    return (
+      provider.label,
+      provider.detail,
+      provider.tone,
+      ingestRecord.status.rawValue,
+      ingestRecord.capturedDate
+    )
+  }
+
+  private func mailboxProviderSummary(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, tone: String) {
+    if let connection = spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "SpaceMail IMAP",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        "spacemail"
+      )
+    }
+
+    if let connection = microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Graph" : "Microsoft Graph",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+        isMock ? "mock" : "microsoft"
+      )
+    }
+
+    if let mailbox = mailboxes.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "\(mailbox.provider.rawValue) mailbox",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        "mailbox"
+      )
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
+      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", "spacemail")
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
+      return ("Local test mail", "Captured through a local simulated mailbox import.", "mock")
+    }
+
+    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", "mailbox")
+  }
+
   private func inboxSearchContext(for order: TrackedOrder, missingFields: [String], manifestCount: Int, checklistCount: Int) -> (subtitle: String, detail: String) {
     guard isInboxCreatedOrderForSearch(order) else { return ("", "") }
     let subtitle = missingFields.isEmpty ? "Inbox-created" : "Inbox-created, verify \(missingFields.joined(separator: ", "))"

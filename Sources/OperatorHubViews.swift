@@ -610,6 +610,13 @@ private struct InboxTriageRow: View {
     item.linkedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) }
   }
 
+  private var intakeSourceSummary: (label: String, detail: String, tone: String, status: String, captured: String)? {
+    if case .email(let email) = item.source {
+      return store.intakeSourceSummary(for: email)
+    }
+    return nil
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -628,7 +635,7 @@ private struct InboxTriageRow: View {
                 .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Badge(item.sourceLabel, color: item.source.color)
+            Badge(intakeSourceSummary?.label ?? item.sourceLabel, color: intakeSourceColor)
           }
 
           Text(item.detail)
@@ -652,6 +659,9 @@ private struct InboxTriageRow: View {
             }
             Badge(item.reviewLabel, color: item.source.color)
             Badge(item.readinessLabel, color: item.readinessTone.color)
+            if let intakeSourceSummary {
+              Badge(intakeSourceSummary.status, color: intakeSourceSummary.status == MailboxIngestStatus.imported.rawValue ? .green : .orange)
+            }
             if let linkedOrderLabel {
               Label(linkedOrderLabel, systemImage: "shippingbox.fill")
                 .font(.caption)
@@ -668,6 +678,13 @@ private struct InboxTriageRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+
+          if let intakeSourceSummary {
+            Label(intakeSourceSummary.detail, systemImage: "server.rack")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
 
           if case .email(let email) = item.source {
             IntakeReadinessStrip(email: email, hasLinkedOrder: linkedOrder != nil)
@@ -867,6 +884,20 @@ private struct InboxTriageRow: View {
       return .orange
     }
     return .green
+  }
+
+  private var intakeSourceColor: Color {
+    guard let tone = intakeSourceSummary?.tone else { return item.source.color }
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
   }
 }
 
