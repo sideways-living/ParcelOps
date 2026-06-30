@@ -27,6 +27,10 @@ struct MailboxView: View {
     return store.intakeEmails.filter { $0.reviewState == .reviewed || $0.reviewState == .ignored }.count
   }
 
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
     let query = normalizedIntakeSearch
     guard !query.isEmpty else { return true }
@@ -146,6 +150,39 @@ struct MailboxView: View {
               store.simulateSpaceMailCredentialClear(connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
+            }
+          }
+        }
+
+        SettingsPanel(title: "After mailbox refresh", symbol: "arrow.right.circle.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            Text("Use these shortcuts after a real or mock refresh. Imported order emails go to Inbox; detailed refresh and action history stays in Audit.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            MetricStrip(items: [
+              ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
+              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+              ("Duplicates", "\(latestSpaceMailSummary?.duplicateCount ?? 0)", (latestSpaceMailSummary?.duplicateCount ?? 0) > 0 ? .orange : .secondary),
+              ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+              ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
+            ])
+
+            CompactActionRow {
+              NavigationLink {
+                InboxView(store: store)
+              } label: {
+                Label("Open Inbox triage", systemImage: "tray.and.arrow.down.fill")
+              }
+              .buttonStyle(.borderedProminent)
+
+              NavigationLink {
+                AuditView(store: store)
+              } label: {
+                Label("Open Audit detail", systemImage: "list.clipboard.fill")
+              }
+              .buttonStyle(.bordered)
             }
           }
         }
