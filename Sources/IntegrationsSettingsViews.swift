@@ -2478,7 +2478,7 @@ struct SettingsView: View {
               NavigationLink {
                 InboxView(store: store)
               } label: {
-                Label("Open Inbox", systemImage: "tray.and.arrow.down.fill")
+                Label("Open Inbox", systemImage: "tray.full.fill")
               }
               .buttonStyle(.bordered)
 

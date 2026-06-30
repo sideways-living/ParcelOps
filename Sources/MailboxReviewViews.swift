@@ -173,14 +173,14 @@ struct MailboxView: View {
               NavigationLink {
                 InboxView(store: store)
               } label: {
-                Label("Open Inbox triage", systemImage: "tray.and.arrow.down.fill")
+                Label("Open Inbox", systemImage: "tray.full.fill")
               }
               .buttonStyle(.borderedProminent)
 
               NavigationLink {
                 AuditView(store: store)
               } label: {
-                Label("Open Audit detail", systemImage: "list.clipboard.fill")
+                Label("Open Audit", systemImage: "list.clipboard.fill")
               }
               .buttonStyle(.bordered)
             }

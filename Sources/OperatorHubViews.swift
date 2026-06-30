@@ -148,7 +148,7 @@ struct InboxView: View {
           NavigationLink {
             MailboxView(store: store)
           } label: {
-            Label("Open Mailbox", systemImage: "server.rack")
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
           }
           NavigationLink {
             ImportQueueView(store: store)

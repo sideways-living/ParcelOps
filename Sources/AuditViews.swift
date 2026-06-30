@@ -218,7 +218,7 @@ struct AuditView: View {
           NavigationLink {
             MailboxView(store: store)
           } label: {
-            Label("Open Mailbox", systemImage: "tray.and.arrow.down.fill")
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
           }
           NavigationLink {
             InboxView(store: store)

@@ -873,7 +873,7 @@ struct ReviewTasksDetailView: View {
           NavigationLink {
             TasksView(store: store)
           } label: {
-            Label("Open Action Queue", systemImage: "checklist")
+            Label("Open Tasks", systemImage: "checklist")
           }
           NavigationLink {
             OperationsWorkbenchView(store: store)
