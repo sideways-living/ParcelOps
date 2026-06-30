@@ -143,6 +143,25 @@ struct InboxView: View {
           ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
           ("Blocked", "\(blockedIncomingCount)", blockedIncomingCount == 0 ? .green : .red)
         ])
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox", systemImage: "server.rack")
+          }
+          NavigationLink {
+            ImportQueueView(store: store)
+          } label: {
+            Label("Open Imports", systemImage: "tray.and.arrow.down.fill")
+          }
+          NavigationLink {
+            AcceptanceReviewView(store: store)
+          } label: {
+            Label("Open Acceptance", systemImage: "checkmark.rectangle.stack.fill")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
