@@ -144,6 +144,13 @@ struct TimelineView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch queue", systemImage: "paperplane.fill")
+          }
+          .buttonStyle(.bordered)
+
           MetricStrip(items: [
             ("Trail events", "\(inboxDispatchTimelineActivities.count)", .blue),
             ("Dispatch records", "\(inboxDispatchTimelineActivities.filter { $0.entityType == .shipmentManifest || $0.entityType == .dispatchChecklist }.count)", .purple),
@@ -291,6 +298,14 @@ struct TimelineActivityRow: View {
           }
           .buttonStyle(.bordered)
         }
+        if let store, activity.hasDispatchWorkspaceRoute {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label(activity.dispatchWorkspaceRouteLabel, systemImage: activity.dispatchWorkspaceRouteSymbol)
+          }
+          .buttonStyle(.bordered)
+        }
       }
 
       if activity.isInboxDispatchHandoffActivity {
@@ -409,6 +424,34 @@ private extension TimelineActivity {
       return "Completed local dispatch handoff. Confirm downstream order context if needed."
     }
     return "Continue the local handoff in Dispatch or Order detail. No carrier booking, label printing, scanner, or mailbox mutation is implied."
+  }
+
+  var hasDispatchWorkspaceRoute: Bool {
+    entityType == .shipmentManifest
+      || entityType == .dispatchChecklist
+      || isInboxDispatchHandoffActivity
+  }
+
+  var dispatchWorkspaceRouteLabel: String {
+    switch entityType {
+    case .shipmentManifest:
+      return "Open manifests"
+    case .dispatchChecklist:
+      return "Open readiness"
+    default:
+      return "Open Dispatch"
+    }
+  }
+
+  var dispatchWorkspaceRouteSymbol: String {
+    switch entityType {
+    case .shipmentManifest:
+      return "list.bullet.clipboard.fill"
+    case .dispatchChecklist:
+      return "checkmark.rectangle.stack.fill"
+    default:
+      return "paperplane.fill"
+    }
   }
 
   private var inboxDispatchSearchText: String {
