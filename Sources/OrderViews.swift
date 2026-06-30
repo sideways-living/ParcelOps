@@ -113,7 +113,7 @@ struct OrdersView: View {
             filterControls
 
             if orderItems.isEmpty {
-              MVPEmptyState(title: "No orders match this queue", detail: "Clear the status filter or search text, or add a manual order to test the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
+              MVPEmptyState(title: "No orders match this queue", detail: "Clear the status filter or search text, or add a manual order to start the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
             } else {
               ForEach(orderItems) { item in
                 OrderQueueRow(item: item, store: store)
@@ -899,7 +899,7 @@ struct OrderDetailView: View {
 
           if accounts.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-              Text("No local account placeholders matched this order.")
+              Text("No local accounts matched this order.")
                 .foregroundStyle(.secondary)
               Button("Create account", systemImage: "key.badge.plus") {
                 store.addAccountCredentialRecord(linkedEntityType: .order, linkedEntityID: order.id.uuidString, organisation: order.store, label: order.orderNumber)

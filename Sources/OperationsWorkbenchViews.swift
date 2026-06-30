@@ -214,7 +214,7 @@ struct OperationsWorkbenchView: View {
         header
         MVPWorkflowGuide(
           title: "How to use the workbench",
-          detail: "This is the daily triage surface for the local MVP. Start here when you want the most actionable work, not every record in the system.",
+          detail: "This is the daily triage surface. Start here when you want the most actionable work, not every record in the system.",
           steps: [
             "Start with Due or overdue, High priority, and Blocked sections.",
             "Create a task when work needs ownership.",

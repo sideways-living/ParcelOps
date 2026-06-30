@@ -164,8 +164,8 @@ struct DashboardView: View {
         header
         dailyStartDecisionPanel
         MVPWorkflowGuide(
-          title: "First run path",
-          detail: "Use these screens in order when testing the local-only app in Xcode.",
+          title: "Daily operator path",
+          detail: "Use these screens in order for the local-only workflow.",
           steps: [
             "Review forwarded email and import intake.",
             "Accept or link records into orders and shipment groups.",
@@ -182,7 +182,7 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Detailed local analytics")
             .font(.title2.bold())
-          Text("Broader local record summaries remain available below for deeper review and testing.")
+          Text("Broader local record summaries remain available below for deeper review.")
             .foregroundStyle(.secondary)
         }
 
@@ -1007,10 +1007,10 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var title: String {
-    if !hasManualRefresh { return "Run one supervised intake test" }
+    if !hasManualRefresh { return "Run one supervised intake refresh" }
     if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 { return "Create or link one intake order" }
     if blockedDailyCount > 0 { return "Resolve blocked daily work" }
-    return "Hands-on test path is ready"
+    return "Hands-on workflow is ready"
   }
 
   private var detail: String {
@@ -1021,7 +1021,7 @@ struct MVPHandsOnDashboardStatus: View {
       return "Use Inbox to import, reprocess, create, or link one order so the Dashboard, Orders, Workbench, Tasks, and Audit trail can be verified."
     }
     if blockedDailyCount > 0 {
-      return "\(blockedDailyCount) blocked work item needs review before this is a clean release-candidate test run."
+      return "\(blockedDailyCount) blocked work item needs review before this is ready for regular hands-on use."
     }
     return "Use MVP Setup for the full checklist, then quit and reopen the app to confirm local JSON persistence."
   }
