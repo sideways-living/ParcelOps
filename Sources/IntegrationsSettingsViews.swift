@@ -111,10 +111,10 @@ struct IntegrationsView: View {
           CompactActionRow {
             Button("SpaceMail IMAP setup", systemImage: "server.rack", action: store.addSpaceMailIMAPConnectionPlaceholder)
             Button("Microsoft 365 setup", systemImage: "mail.stack.fill", action: store.addMicrosoft365MailboxConnectionPlaceholder)
-            Button("Mailbox placeholder", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
-            Button("Shopify placeholder", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
-            Button("Folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
-            Button("Login placeholder", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
+            Button("Mailbox setup", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
+            Button("Shopify planning", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
+            Button("Folder setup", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
+            Button("Login planning", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
           }
         }
 
@@ -209,9 +209,9 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           SpaceMailOperatorGuidanceStack(store: store)
           CompactActionRow {
-            Button("Add SpaceMail placeholder", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+            Button("Add SpaceMail setup", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
               .buttonStyle(.bordered)
-            Badge("\(store.spaceMailIMAPConnections.count) placeholders", color: .blue)
+            Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
           }
           if store.spaceMailIMAPConnections.isEmpty {
             MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup to capture host, port, folder, mixed-mailbox mode, and Keychain credential status before manual refresh.", symbol: "server.rack")
@@ -287,12 +287,12 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add mailbox placeholder", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+            Button("Add mailbox setup", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
               .buttonStyle(.bordered)
-            Badge("\(store.microsoft365MailboxConnections.count) placeholders", color: .orange)
+            Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
           if store.microsoft365MailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Microsoft 365 mailbox placeholders", detail: "Add a placeholder to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is built.", symbol: "mail.stack")
+            MVPEmptyState(title: "No Microsoft 365 mailbox setup", detail: "Add a setup record to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is used.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
@@ -390,8 +390,8 @@ struct IntegrationsView: View {
 
 struct Microsoft365SetupFlowGuide: View {
   private let steps: [(String, String, String)] = [
-    ("1", "Setup mailbox placeholder", "Record the mailbox address, tenant hint, folders, and local setup notes."),
-    ("2", "Prepare OAuth placeholders", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
+    ("1", "Set up mailbox record", "Record the mailbox address, tenant hint, folders, and local setup notes."),
+    ("2", "Prepare OAuth planning fields", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
     ("3", "Review implementation checklist", "Confirm the plan for app registration, consent, token storage, refresh, errors, and audit."),
     ("4", "Run mock Graph test", "Import deterministic sample messages through the provider-neutral intake path."),
     ("5", "Review imported intake", "Open Inbox or Mailbox Monitor and accept, ignore, review, task, or draft from local records."),
