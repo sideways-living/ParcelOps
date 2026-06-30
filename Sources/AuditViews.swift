@@ -53,6 +53,14 @@ struct AuditView: View {
     searchMatchedEvents.filter(\.isInboxOrderHandoff)
   }
 
+  private var inboxDispatchHandoffEvents: [AuditEvent] {
+    searchMatchedEvents.filter(\.isInboxDispatchHandoffTrail)
+  }
+
+  private var visibleInboxDispatchHandoffEvents: [AuditEvent] {
+    Array(inboxDispatchHandoffEvents.prefix(8))
+  }
+
   private var spaceMailEvidenceEvents: [AuditEvent] {
     searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
@@ -73,6 +81,9 @@ struct AuditView: View {
     if !spaceMailEvidenceEvents.isEmpty {
       return "Check the latest mailbox intake result"
     }
+    if !inboxDispatchHandoffEvents.isEmpty {
+      return "Confirm Inbox dispatch handoff trail"
+    }
     if !inboxOrderHandoffEvents.isEmpty {
       return "Confirm Inbox-to-order handoff"
     }
@@ -89,6 +100,9 @@ struct AuditView: View {
     if !spaceMailEvidenceEvents.isEmpty {
       return "Start with SpaceMail intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals."
     }
+    if !inboxDispatchHandoffEvents.isEmpty {
+      return "Check reopened and completed dispatch handoff events together so Inbox-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
+    }
     if !inboxOrderHandoffEvents.isEmpty {
       return "Check that created or linked orders still have a clear source trail back to Inbox, Import Queue, or Acceptance Review."
     }
@@ -103,6 +117,7 @@ struct AuditView: View {
 
   private var auditNextCheckSymbol: String {
     if !spaceMailEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
+    if !inboxDispatchHandoffEvents.isEmpty { return "arrow.triangle.2.circlepath.circle.fill" }
     if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
     if !workflowEvents.isEmpty { return "checklist" }
     if !recordChangeEvents.isEmpty { return "pencil.and.list.clipboard" }
@@ -146,6 +161,8 @@ struct AuditView: View {
         )
 
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+
+        inboxDispatchHandoffTrailPanel
 
         activityFeed
 
@@ -192,6 +209,7 @@ struct AuditView: View {
           ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
+          ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple),
           ("Workflow", "\(workflowEvents.count)", workflowEvents.isEmpty ? .secondary : .teal),
           ("Record changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange)
         ])
@@ -216,10 +234,59 @@ struct AuditView: View {
         ("SpaceMail", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
+        ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .green : .purple),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
       ])
+    }
+  }
+
+  @ViewBuilder
+  private var inboxDispatchHandoffTrailPanel: some View {
+    if !inboxDispatchHandoffEvents.isEmpty {
+      SettingsPanel(title: "Inbox dispatch handoff trail", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Recent local events that connect Inbox-created orders to Dispatch and Tasks. Use this trail when a handoff is reopened, completed, or resolved locally.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Trail events", "\(inboxDispatchHandoffEvents.count)", .purple),
+            ("Reopened", "\(inboxDispatchHandoffEvents.filter(\.isReopenedInboxDispatchHandoffTrail).count)", inboxDispatchHandoffEvents.contains(where: \.isReopenedInboxDispatchHandoffTrail) ? .orange : .secondary),
+            ("Completed", "\(inboxDispatchHandoffEvents.filter(\.isCompletedInboxDispatchHandoffTrail).count)", inboxDispatchHandoffEvents.contains(where: \.isCompletedInboxDispatchHandoffTrail) ? .green : .secondary),
+            ("Tasks", "\(inboxDispatchHandoffEvents.filter { $0.entityType == .reviewTask }.count)", inboxDispatchHandoffEvents.contains { $0.entityType == .reviewTask } ? .purple : .secondary)
+          ])
+
+          ForEach(visibleInboxDispatchHandoffEvents.prefix(4)) { event in
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: event.inboxDispatchHandoffTrailSymbol)
+                .foregroundStyle(event.inboxDispatchHandoffTrailColor)
+                .frame(width: 22, height: 22)
+              VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                  Text(event.entityLabel)
+                    .font(.subheadline.weight(.semibold))
+                  Spacer(minLength: 8)
+                  Badge(event.inboxDispatchHandoffTrailLabel, color: event.inboxDispatchHandoffTrailColor)
+                }
+                Text(event.summary)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text(event.inboxDispatchHandoffTrailGuidance)
+                  .font(.caption)
+                  .foregroundStyle(event.inboxDispatchHandoffTrailColor)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(10)
+            .background(event.inboxDispatchHandoffTrailColor.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
     }
   }
 
@@ -256,6 +323,10 @@ struct AuditView: View {
           })
 
           AuditFeedSection(title: "Inbox-to-order handoff", detail: "Order creation and review events from Inbox, Import Queue, and Acceptance Review.", events: inboxOrderHandoffEvents.prefix(8).map { $0 }, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
+          AuditFeedSection(title: "Inbox dispatch handoff trail", detail: "Reopened, completed, blocked, and resolved dispatch follow-up for Inbox-created orders.", events: visibleInboxDispatchHandoffEvents, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -304,6 +375,26 @@ struct AuditView: View {
       .buttonStyle(.bordered)
       .disabled(normalizedAuditSearch.isEmpty && selectedAction == nil && selectedEntityType == nil)
     }
+  }
+}
+
+private struct AuditDispatchHandoffTrailCallout: View {
+  var event: AuditEvent
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label(event.inboxDispatchHandoffTrailLabel, systemImage: event.inboxDispatchHandoffTrailSymbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(event.inboxDispatchHandoffTrailColor)
+      Text(event.inboxDispatchHandoffTrailGuidance)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(event.inboxDispatchHandoffTrailColor.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -380,6 +471,10 @@ private struct AuditActivityRow: View {
             }
           }
 
+          if event.isInboxDispatchHandoffTrail {
+            AuditDispatchHandoffTrailCallout(event: event)
+          }
+
           CompactMetadataGrid {
             Badge(event.entityType.rawValue, color: event.action.color)
             Badge(event.categoryLabel, color: event.action.color)
@@ -446,6 +541,10 @@ struct AuditEventRow: View {
                 Badge(line, color: event.action.color)
               }
             }
+          }
+
+          if event.isInboxDispatchHandoffTrail {
+            AuditDispatchHandoffTrailCallout(event: event)
           }
 
           CompactMetadataGrid {
@@ -584,6 +683,87 @@ private extension AuditEvent {
         || entityType == .acceptanceRecord
 
     return relevantEntity && mentionsOrderCreation
+  }
+
+  var isInboxDispatchHandoffTrail: Bool {
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? ""
+    ].joined(separator: " ")
+
+    let mentionsInboxDispatch =
+      searchableText.localizedCaseInsensitiveContains("Inbox dispatch")
+        || searchableText.localizedCaseInsensitiveContains("Inbox-created order dispatch")
+        || searchableText.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+        || searchableText.localizedCaseInsensitiveContains("dispatch handoff was completed locally")
+
+    let relevantEntity =
+      entityType == .order
+        || entityType == .shipmentManifest
+        || entityType == .dispatchChecklist
+        || entityType == .reviewTask
+
+    return relevantEntity && mentionsInboxDispatch
+  }
+
+  var isReopenedInboxDispatchHandoffTrail: Bool {
+    isInboxDispatchHandoffTrail && (
+      action == .reopened
+        || summary.localizedCaseInsensitiveContains("reopened")
+        || (afterDetail ?? "").localizedCaseInsensitiveContains("reopened")
+    )
+  }
+
+  var isCompletedInboxDispatchHandoffTrail: Bool {
+    isInboxDispatchHandoffTrail && (
+      action == .completed
+        || summary.localizedCaseInsensitiveContains("completed")
+        || summary.localizedCaseInsensitiveContains("resolved")
+        || (afterDetail ?? "").localizedCaseInsensitiveContains("completed locally")
+    )
+  }
+
+  var inboxDispatchHandoffTrailLabel: String {
+    if isReopenedInboxDispatchHandoffTrail { return "Reopened handoff" }
+    if summary.localizedCaseInsensitiveContains("blocked") || summary.localizedCaseInsensitiveContains("skipped") { return "Needs dispatch check" }
+    if entityType == .reviewTask && isCompletedInboxDispatchHandoffTrail { return "Task resolved" }
+    if isCompletedInboxDispatchHandoffTrail { return "Handoff completed" }
+    return "Inbox dispatch trail"
+  }
+
+  var inboxDispatchHandoffTrailGuidance: String {
+    if isReopenedInboxDispatchHandoffTrail {
+      return "Open the linked order or Dispatch queue, confirm manifest/readiness setup, then complete or block the handoff locally."
+    }
+    if summary.localizedCaseInsensitiveContains("blocked") {
+      return "Resolve the blocked manifest or readiness checklist before treating the Inbox-created order as dispatch-ready."
+    }
+    if summary.localizedCaseInsensitiveContains("skipped") {
+      return "No linked dispatch setup was found. Open the order to create or link the local manifest and readiness checklist."
+    }
+    if entityType == .reviewTask && isCompletedInboxDispatchHandoffTrail {
+      return "The follow-up task was resolved when the dispatch handoff was completed again."
+    }
+    if isCompletedInboxDispatchHandoffTrail {
+      return "The local dispatch handoff is complete. Audit confirms no mailbox, carrier, label, scanner, or external service action occurred."
+    }
+    return "Use this event to trace how an Inbox-created order moved through local dispatch follow-up."
+  }
+
+  var inboxDispatchHandoffTrailSymbol: String {
+    if isReopenedInboxDispatchHandoffTrail { return "arrow.counterclockwise.circle.fill" }
+    if summary.localizedCaseInsensitiveContains("blocked") || summary.localizedCaseInsensitiveContains("skipped") { return "exclamationmark.triangle.fill" }
+    if isCompletedInboxDispatchHandoffTrail { return "checkmark.seal.fill" }
+    return "arrow.triangle.2.circlepath.circle.fill"
+  }
+
+  var inboxDispatchHandoffTrailColor: Color {
+    if isReopenedInboxDispatchHandoffTrail { return .purple }
+    if summary.localizedCaseInsensitiveContains("blocked") || summary.localizedCaseInsensitiveContains("skipped") { return .orange }
+    if isCompletedInboxDispatchHandoffTrail { return .green }
+    return .teal
   }
 
   var isWorkflowAction: Bool {
