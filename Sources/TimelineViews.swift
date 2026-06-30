@@ -197,8 +197,29 @@ struct TimelineView: View {
   }
 
   private func linkedOrder(for activity: TimelineActivity) -> TrackedOrder? {
-    guard activity.entityType == .order, let id = UUID(uuidString: activity.entityID) else { return nil }
-    return store.orders.first { $0.id == id }
+    if activity.entityType == .order, let id = UUID(uuidString: activity.entityID) {
+      return store.orders.first { $0.id == id }
+    }
+
+    if activity.entityType == .shipmentManifest,
+       let manifestID = UUID(uuidString: activity.entityID),
+       let manifest = store.shipmentManifestRecords.first(where: { $0.id == manifestID }) {
+      let linkedOrderID = manifest.includedOrderIDs.first ?? (manifest.linkedEntityType == .order ? UUID(uuidString: manifest.linkedEntityID) : nil)
+      return linkedOrderID.flatMap { orderID in
+        store.orders.first { $0.id == orderID }
+      }
+    }
+
+    if activity.entityType == .dispatchChecklist,
+       let checklistID = UUID(uuidString: activity.entityID),
+       let checklist = store.dispatchReadinessChecklists.first(where: { $0.id == checklistID }) {
+      let linkedOrderID = checklist.orderIDs.first ?? (checklist.linkedEntityType == .order ? UUID(uuidString: checklist.linkedEntityID) : nil)
+      return linkedOrderID.flatMap { orderID in
+        store.orders.first { $0.id == orderID }
+      }
+    }
+
+    return nil
   }
 
   private func timelineActivity(_ activity: TimelineActivity, matches query: String) -> Bool {
