@@ -1845,6 +1845,68 @@ private struct OrderIntakeSourceRow: View {
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
+  private var sourceContext: OrderIntakeSourceContext {
+    guard let ingestRecord = store.mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return OrderIntakeSourceContext(
+        providerLabel: "Manual/local",
+        providerColor: .secondary,
+        statusLabel: email.reviewState.rawValue,
+        statusColor: email.reviewState.color,
+        capturedLabel: email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate,
+        detail: "No mailbox ingest record is linked to this intake row. Treat it as local/manual evidence for this order."
+      )
+    }
+
+    let provider = mailboxProviderContext(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    return OrderIntakeSourceContext(
+      providerLabel: provider.label,
+      providerColor: provider.color,
+      statusLabel: ingestRecord.status.rawValue,
+      statusColor: ingestRecord.status == .imported ? .green : .orange,
+      capturedLabel: ingestRecord.capturedDate,
+      detail: "\(provider.detail) Duplicate-safe source metadata is linked to this order trail."
+    )
+  }
+
+  private func mailboxProviderContext(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, color: Color) {
+    if let connection = store.spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "SpaceMail IMAP",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        .teal
+      )
+    }
+
+    if let connection = store.microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Graph" : "Microsoft Graph",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+        isMock ? .purple : .blue
+      )
+    }
+
+    if let mailbox = store.mailboxes.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "\(mailbox.provider.rawValue) mailbox",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        .blue
+      )
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
+      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", .teal)
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
+      return ("Local test mail", "Captured through a local simulated mailbox import.", .purple)
+    }
+
+    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", .blue)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
@@ -1878,6 +1940,21 @@ private struct OrderIntakeSourceRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
 
+      VStack(alignment: .leading, spacing: 6) {
+        CompactMetadataGrid(minimumWidth: 120) {
+          Badge(sourceContext.providerLabel, color: sourceContext.providerColor)
+          Badge(sourceContext.statusLabel, color: sourceContext.statusColor)
+          Badge(sourceContext.capturedLabel, color: .secondary)
+        }
+        Text(sourceContext.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(sourceContext.providerColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
       CompactActionRow {
         Button("Reprocess", systemImage: "arrow.triangle.2.circlepath") {
           store.reprocessIntakeEmail(email)
@@ -1908,6 +1985,15 @@ private struct OrderIntakeSourceRow: View {
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
+}
+
+private struct OrderIntakeSourceContext {
+  var providerLabel: String
+  var providerColor: Color
+  var statusLabel: String
+  var statusColor: Color
+  var capturedLabel: String
+  var detail: String
 }
 
 struct OrderEditView: View {
