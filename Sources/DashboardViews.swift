@@ -338,7 +338,7 @@ struct DashboardView: View {
               ("High risk", "\(store.highRiskPackageContents.count)", .red),
               ("High value", "\(store.highValuePackageContents.count)", .purple)
             ])
-            CompactPackageContentList(contents: Array((store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents).prefix(4)))
+            CompactPackageContentList(contents: Array((store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Costs & budgets", symbol: "creditcard.and.123") {
@@ -348,7 +348,7 @@ struct DashboardView: View {
               ("Unreimbursed", "\(store.unreimbursedCostRecords.count)", .orange),
               ("Missing budget", "\(store.missingBudgetCodeCostRecords.count)", .red)
             ])
-            CompactCostRecordList(costs: Array((store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords).prefix(4)))
+            CompactCostRecordList(costs: Array((store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
@@ -358,7 +358,7 @@ struct DashboardView: View {
               ("Unresolved", "\(store.unresolvedReturnClaims.count)", .orange),
               ("Missing evidence", "\(store.returnClaimsMissingEvidence.count)", .red)
             ])
-            CompactReturnClaimList(claims: Array((store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence).prefix(4)))
+            CompactReturnClaimList(claims: Array((store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Procurement", symbol: "cart.badge.plus") {
@@ -368,7 +368,7 @@ struct DashboardView: View {
               ("Rejected", "\(store.rejectedProcurementRequests.count)", .red),
               ("Missing budget", "\(store.missingBudgetCodeProcurementRequests.count)", .red)
             ])
-            CompactProcurementRequestList(requests: Array((store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests).prefix(4)))
+            CompactProcurementRequestList(requests: Array((store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Receiving inspections", symbol: "checklist.checked") {
@@ -378,7 +378,7 @@ struct DashboardView: View {
               ("Discrepancies", "\(store.unresolvedInspectionDiscrepancies.count)", .red),
               ("Qty mismatch", "\(store.quantityMismatchReceivingInspections.count)", .orange)
             ])
-            CompactReceivingInspectionList(inspections: Array((store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections).prefix(4)))
+            CompactReceivingInspectionList(inspections: Array((store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Inventory receipts", symbol: "archivebox.fill") {
@@ -388,7 +388,7 @@ struct DashboardView: View {
               ("Partial", "\(store.partiallyAcceptedInventoryReceipts.count)", .orange),
               ("Missing storage", "\(store.inventoryReceiptsMissingStorage.count)", .red)
             ])
-            CompactInventoryReceiptList(receipts: Array((store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage).prefix(4)))
+            CompactInventoryReceiptList(receipts: Array((store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Storage locations", symbol: "cabinet.fill") {
@@ -398,7 +398,7 @@ struct DashboardView: View {
               ("Missing code", "\(store.storageLocationsMissingCodes.count)", .red),
               ("Capacity", "\(store.storageLocationsWithCapacityWarnings.count)", .red)
             ])
-            CompactStorageLocationList(locations: Array((store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings).prefix(4)))
+            CompactStorageLocationList(locations: Array((store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
@@ -408,7 +408,7 @@ struct DashboardView: View {
               ("Open", "\(store.openCustodyTransfers.count)", .blue),
               ("Missing", "\(store.custodyRecordsMissingCustodians.count + store.custodyRecordsMissingLocations.count)", .red)
             ])
-            CompactCustodyRecordList(records: Array((store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations).prefix(4)))
+            CompactCustodyRecordList(records: Array((store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Label references", symbol: "barcode.viewfinder") {
@@ -418,7 +418,7 @@ struct DashboardView: View {
               ("Unverified", "\(store.unverifiedLabelReferences.count)", .blue),
               ("Missing", "\(store.labelReferencesMissingValues.count + store.labelReferencesMissingLinkedRecords.count)", .red)
             ])
-            CompactLabelReferenceList(records: Array((store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords).prefix(4)))
+            CompactLabelReferenceList(records: Array((store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Scan sessions", symbol: "qrcode.viewfinder") {
@@ -428,7 +428,7 @@ struct DashboardView: View {
               ("Incomplete", "\(store.incompleteScanSessions.count)", .blue),
               ("Missing", "\(store.scanSessionsMissingCapturedValues.count + store.scanSessionsMissingLabelReferences.count)", .red)
             ])
-            CompactScanSessionList(records: Array((store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences).prefix(4)))
+            CompactScanSessionList(records: Array((store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
@@ -1789,16 +1789,22 @@ struct CompactDeliveryInstructionList: View {
 
 struct CompactPackageContentList: View {
   var contents: [PackageContentRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Package contents", symbol: "shippingbox.circle.fill") {
       ForEach(contents) { content in
-        CompactRow(
-          title: content.title,
-          detail: "\(content.itemCategory.rawValue) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
-          badge: content.verificationStatus.rawValue,
-          color: content.verificationStatus.color
-        )
+        NavigationLink {
+          PackageContentsView(store: store)
+        } label: {
+          CompactRow(
+            title: content.title,
+            detail: "\(content.itemCategory.rawValue) • \(content.verifiedQuantity)/\(content.expectedQuantity) verified",
+            badge: content.verificationStatus.rawValue,
+            color: content.verificationStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1806,16 +1812,22 @@ struct CompactPackageContentList: View {
 
 struct CompactCostRecordList: View {
   var costs: [CostRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Costs needing action", symbol: "creditcard.and.123") {
       ForEach(costs) { cost in
-        CompactRow(
-          title: cost.title,
-          detail: "\(cost.amountText) \(cost.currency) • \(cost.budgetCode)",
-          badge: cost.approvalStatus.rawValue,
-          color: cost.approvalStatus.color
-        )
+        NavigationLink {
+          CostsBudgetsView(store: store)
+        } label: {
+          CompactRow(
+            title: cost.title,
+            detail: "\(cost.amountText) \(cost.currency) • \(cost.budgetCode)",
+            badge: cost.approvalStatus.rawValue,
+            color: cost.approvalStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1823,16 +1835,22 @@ struct CompactCostRecordList: View {
 
 struct CompactReturnClaimList: View {
   var claims: [ReturnClaimRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Returns and claims", symbol: "arrow.uturn.backward.square.fill") {
       ForEach(claims) { claim in
-        CompactRow(
-          title: claim.title,
-          detail: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)",
-          badge: claim.claimStatus.rawValue,
-          color: claim.claimStatus.color
-        )
+        NavigationLink {
+          ReturnsClaimsView(store: store)
+        } label: {
+          CompactRow(
+            title: claim.title,
+            detail: "\(claim.claimType.rawValue) • \(claim.requestedOutcome.rawValue)",
+            badge: claim.claimStatus.rawValue,
+            color: claim.claimStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1840,16 +1858,22 @@ struct CompactReturnClaimList: View {
 
 struct CompactProcurementRequestList: View {
   var requests: [ProcurementRequest]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Procurement requests", symbol: "cart.badge.plus") {
       ForEach(requests) { request in
-        CompactRow(
-          title: request.title,
-          detail: "\(request.estimatedCostText) \(request.currency) • \(request.budgetCode)",
-          badge: request.procurementStatus.rawValue,
-          color: request.procurementStatus.color
-        )
+        NavigationLink {
+          ProcurementView(store: store)
+        } label: {
+          CompactRow(
+            title: request.title,
+            detail: "\(request.estimatedCostText) \(request.currency) • \(request.budgetCode)",
+            badge: request.procurementStatus.rawValue,
+            color: request.procurementStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1857,16 +1881,22 @@ struct CompactProcurementRequestList: View {
 
 struct CompactReceivingInspectionList: View {
   var inspections: [ReceivingInspectionRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Receiving inspections", symbol: "checklist.checked") {
       ForEach(inspections) { inspection in
-        CompactRow(
-          title: inspection.title,
-          detail: "\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received",
-          badge: inspection.inspectionStatus.rawValue,
-          color: inspection.inspectionStatus.color
-        )
+        NavigationLink {
+          ReceivingInspectionsView(store: store)
+        } label: {
+          CompactRow(
+            title: inspection.title,
+            detail: "\(inspection.inspectionType.rawValue) • \(inspection.quantityReceived)/\(inspection.quantityExpected) received",
+            badge: inspection.inspectionStatus.rawValue,
+            color: inspection.inspectionStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1874,16 +1904,22 @@ struct CompactReceivingInspectionList: View {
 
 struct CompactInventoryReceiptList: View {
   var receipts: [InventoryReceiptRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Inventory receipts", symbol: "archivebox.fill") {
       ForEach(receipts) { receipt in
-        CompactRow(
-          title: receipt.title,
-          detail: "\(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
-          badge: receipt.stockHandoffStatus.rawValue,
-          color: receipt.stockHandoffStatus.color
-        )
+        NavigationLink {
+          InventoryReceiptsView(store: store)
+        } label: {
+          CompactRow(
+            title: receipt.title,
+            detail: "\(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted • \(receipt.storageLocationSummary)",
+            badge: receipt.stockHandoffStatus.rawValue,
+            color: receipt.stockHandoffStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1891,16 +1927,22 @@ struct CompactInventoryReceiptList: View {
 
 struct CompactStorageLocationList: View {
   var locations: [StorageLocationRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Storage locations", symbol: "cabinet.fill") {
       ForEach(locations) { location in
-        CompactRow(
-          title: location.title,
-          detail: "\(location.locationCode) • \(location.areaZone)",
-          badge: location.isEnabled ? "Enabled" : "Disabled",
-          color: location.isEnabled ? .green : .gray
-        )
+        NavigationLink {
+          StorageLocationsView(store: store)
+        } label: {
+          CompactRow(
+            title: location.title,
+            detail: "\(location.locationCode) • \(location.areaZone)",
+            badge: location.isEnabled ? "Enabled" : "Disabled",
+            color: location.isEnabled ? .green : .gray
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1908,16 +1950,22 @@ struct CompactStorageLocationList: View {
 
 struct CompactCustodyRecordList: View {
   var records: [CustodyRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
       ForEach(records) { record in
-        CompactRow(
-          title: record.title,
-          detail: "\(record.currentCustodianTeam) • \(record.expectedReturnCloseDate)",
-          badge: record.custodyStatus.rawValue,
-          color: record.custodyStatus.color
-        )
+        NavigationLink {
+          CustodyChainView(store: store)
+        } label: {
+          CompactRow(
+            title: record.title,
+            detail: "\(record.currentCustodianTeam) • \(record.expectedReturnCloseDate)",
+            badge: record.custodyStatus.rawValue,
+            color: record.custodyStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1925,16 +1973,22 @@ struct CompactCustodyRecordList: View {
 
 struct CompactLabelReferenceList: View {
   var records: [LabelReferenceRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Label references", symbol: "barcode.viewfinder") {
       ForEach(records) { record in
-        CompactRow(
-          title: record.title,
-          detail: "\(record.labelType.rawValue) • \(record.labelValuePlaceholder)",
-          badge: record.labelStatus.rawValue,
-          color: record.labelStatus.color
-        )
+        NavigationLink {
+          LabelReferencesView(store: store)
+        } label: {
+          CompactRow(
+            title: record.title,
+            detail: "\(record.labelType.rawValue) • \(record.labelValuePlaceholder)",
+            badge: record.labelStatus.rawValue,
+            color: record.labelStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1942,16 +1996,22 @@ struct CompactLabelReferenceList: View {
 
 struct CompactScanSessionList: View {
   var records: [ScanSessionRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Scan sessions", symbol: "qrcode.viewfinder") {
       ForEach(records) { record in
-        CompactRow(
-          title: record.title,
-          detail: "\(record.scanPurpose.rawValue) • \(record.capturedValuePlaceholder.isEmpty ? "Missing captured value" : record.capturedValuePlaceholder)",
-          badge: record.scanStatus.rawValue,
-          color: record.scanStatus.color
-        )
+        NavigationLink {
+          ScanSessionsView(store: store)
+        } label: {
+          CompactRow(
+            title: record.title,
+            detail: "\(record.scanPurpose.rawValue) • \(record.capturedValuePlaceholder.isEmpty ? "Missing captured value" : record.capturedValuePlaceholder)",
+            badge: record.scanStatus.rawValue,
+            color: record.scanStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
