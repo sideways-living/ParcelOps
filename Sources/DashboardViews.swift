@@ -1267,12 +1267,14 @@ struct CompactOrderList: View {
       } else {
         ForEach(orders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
-          CompactRow(
-            title: "\(order.store) • \(order.orderNumber)",
-            detail: dashboardOrderTimelineDetail(for: order, store: store),
-            badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.status.rawValue,
-            color: timelineCount > 1 ? .blue : order.status.color
-          )
+          DashboardOrderCompactLink(order: order, store: store) {
+            CompactRow(
+              title: "\(order.store) • \(order.orderNumber)",
+              detail: dashboardOrderTimelineDetail(for: order, store: store),
+              badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.status.rawValue,
+              color: timelineCount > 1 ? .blue : order.status.color
+            )
+          }
         }
       }
     }
