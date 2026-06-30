@@ -1074,16 +1074,16 @@ struct WorkbenchItemRow: View {
           NavigationLink {
             contextDestination
           } label: {
-            Label("Open", systemImage: "arrow.up.right.square.fill")
+            Label("Open work item", systemImage: "arrow.up.right.square.fill")
           }
           .buttonStyle(.bordered)
         }
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
           .buttonStyle(.bordered)
         if item.supportsReviewAction {
-          Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+          Button("Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
             .buttonStyle(.bordered)
         }
         Text(item.source.rawValue)

@@ -688,7 +688,7 @@ private struct InboxTriageRow: View {
         NavigationLink {
           detailDestination
         } label: {
-          Label("Open", systemImage: "arrow.up.right.square.fill")
+          Label("Open intake record", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
 
@@ -1619,7 +1619,7 @@ private struct DispatchQueueRow: View {
         NavigationLink {
           detailDestination
         } label: {
-          Label("Open", systemImage: "arrow.up.right.square.fill")
+          Label("Open dispatch record", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
 

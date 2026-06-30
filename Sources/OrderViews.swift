@@ -610,7 +610,7 @@ private struct OrderQueueRow: View {
         NavigationLink {
           OrderDetailView(order: order, store: store)
         } label: {
-          Label("Open", systemImage: "arrow.right.circle.fill")
+          Label("Open order", systemImage: "arrow.right.circle.fill")
         }
         .buttonStyle(.bordered)
 
