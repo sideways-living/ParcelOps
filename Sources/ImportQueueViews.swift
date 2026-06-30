@@ -100,16 +100,37 @@ struct ImportQueueView: View {
   }
 
   private var header: some View {
-    HStack(alignment: .top) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Import queue")
-          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Stage local order records before accepting them into orders, shipment groups, tasks, and communications.")
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Import queue")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Stage local order records before accepting them into orders, shipment groups, tasks, and communications.")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Button("Add local import", systemImage: "plus", action: store.addImportQueueItemPlaceholder)
+          .buttonStyle(.borderedProminent)
       }
-      Spacer()
-      Button("Add local import", systemImage: "plus", action: store.addImportQueueItemPlaceholder)
-        .buttonStyle(.borderedProminent)
+
+      CompactActionRow {
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label("Open Inbox", systemImage: "tray.full.fill")
+        }
+        NavigationLink {
+          AcceptanceReviewView(store: store)
+        } label: {
+          Label("Open Acceptance", systemImage: "checkmark.rectangle.stack.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
     }
   }
 

@@ -103,15 +103,36 @@ struct AcceptanceReviewView: View {
   }
 
   private var header: some View {
-    HStack(alignment: .top) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Acceptance Review")
-          .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-        Text("Compare staged imports and forwarded emails before accepting them into orders and shipment groups.")
-          .foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Acceptance Review")
+            .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
+          Text("Compare staged imports and forwarded emails before accepting them into orders and shipment groups.")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge("\(store.acceptanceRecordsNeedingReview.count)", color: .orange)
       }
-      Spacer()
-      Badge("\(store.acceptanceRecordsNeedingReview.count)", color: .orange)
+
+      CompactActionRow {
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label("Open Inbox", systemImage: "tray.full.fill")
+        }
+        NavigationLink {
+          ImportQueueView(store: store)
+        } label: {
+          Label("Open Imports", systemImage: "tray.and.arrow.down.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
     }
   }
 
