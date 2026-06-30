@@ -2446,6 +2446,30 @@ struct SettingsView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
+
+            ActionGroupHeader(title: "Continue the setup test", symbol: "arrow.right.circle.fill")
+            CompactActionRow {
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "server.rack")
+              }
+              .buttonStyle(.bordered)
+
+              NavigationLink {
+                InboxView(store: store)
+              } label: {
+                Label("Open Inbox", systemImage: "tray.and.arrow.down.fill")
+              }
+              .buttonStyle(.bordered)
+
+              NavigationLink {
+                AuditView(store: store)
+              } label: {
+                Label("Open Audit", systemImage: "list.clipboard.fill")
+              }
+              .buttonStyle(.bordered)
+            }
           }
         }
         }
