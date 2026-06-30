@@ -1098,14 +1098,17 @@ struct CompactIntakeList: View {
   var body: some View {
     CompactList(title: "Newest intake", symbol: "envelope.open.fill") {
       ForEach(emails) { email in
+        let source = store.intakeSourceSummary(for: email)
         NavigationLink {
           MailboxView(store: store)
         } label: {
           CompactRow(
             title: email.detectedOrderNumber,
-            detail: "\(email.detectedMerchant) • \(email.subject)",
+            detail: "\(source.label) • \(email.detectedMerchant) • \(email.subject)",
             badge: email.reviewState.rawValue,
-            color: email.reviewState.color
+            color: email.reviewState.color,
+            secondaryBadge: source.status,
+            secondaryColor: source.status == MailboxIngestStatus.imported.rawValue ? .green : .orange
           )
         }
         .buttonStyle(.plain)
@@ -2308,6 +2311,8 @@ struct CompactRow: View {
   var detail: String
   var badge: String
   var color: Color
+  var secondaryBadge: String? = nil
+  var secondaryColor: Color = .secondary
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
@@ -2321,7 +2326,12 @@ struct CompactRow: View {
           .lineLimit(2)
       }
       Spacer()
-      Badge(badge, color: color)
+      VStack(alignment: .trailing, spacing: 4) {
+        Badge(badge, color: color)
+        if let secondaryBadge {
+          Badge(secondaryBadge, color: secondaryColor)
+        }
+      }
     }
     .padding(10)
     .background(.quinary)
