@@ -225,6 +225,13 @@ struct InboxView: View {
         } else {
           CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
 
+          SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+
+          Text("Trend rows show recent manual refresh outcomes only. Filtered mixed-mailbox mail stays out of Inbox; imported and uncertain counts are the signals to act on.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
           ForEach(store.spaceMailIntakeHealthSummaries) { summary in
             InboxMailboxHealthRow(summary: summary)
           }
