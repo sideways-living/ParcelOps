@@ -727,9 +727,9 @@ struct DashboardView: View {
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
-            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
-            CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)))
-            CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)))
+            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
+            CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)), store: store)
+            CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)), store: store)
           }
         }
 
@@ -745,9 +745,9 @@ struct DashboardView: View {
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
               ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
             ])
-            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)))
+            CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
             CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)))
-            CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)))
+            CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)), store: store)
             CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)))
           }
@@ -788,11 +788,7 @@ struct DashboardView: View {
   }
 
   private func isInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
-    order.source == .forwardedMailbox
-      || order.checkedMailbox == "manual-import"
-      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
-      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
-      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+    dashboardIsInboxCreatedOrder(order)
   }
 
   private func hasPartialInboxOrderTask(_ order: TrackedOrder) -> Bool {
@@ -1205,8 +1201,59 @@ struct CompactSpaceMailActionPlan: View {
   }
 }
 
+private func dashboardIsInboxCreatedOrder(_ order: TrackedOrder) -> Bool {
+  order.source == .forwardedMailbox
+    || order.checkedMailbox == "manual-import"
+    || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+    || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+    || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+}
+
+private func dashboardOrderTimelineSignalCount(for order: TrackedOrder, store: ParcelOpsStore) -> Int {
+  let taskCount = store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
+  let manifestCount = store.suggestedShipmentManifestRecords(for: order).count
+  let checklistCount = store.suggestedDispatchReadinessChecklists(for: order).count
+  let warningTrackingCount = store.trackingEvents(for: order.id).filter { event in
+    event.severity == .watch || event.severity == .critical
+  }.count
+
+  return 1
+    + (dashboardIsInboxCreatedOrder(order) ? 1 : 0)
+    + taskCount
+    + manifestCount
+    + checklistCount
+    + warningTrackingCount
+}
+
+private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: ParcelOpsStore) -> String {
+  let taskCount = store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
+  let manifestCount = store.suggestedShipmentManifestRecords(for: order).count
+  let checklistCount = store.suggestedDispatchReadinessChecklists(for: order).count
+  let warningTrackingCount = store.trackingEvents(for: order.id).filter { event in
+    event.severity == .watch || event.severity == .critical
+  }.count
+
+  if dashboardIsInboxCreatedOrder(order) && (manifestCount + checklistCount) > 0 {
+    return "Inbox handoff linked to dispatch setup • \(order.trackingNumber)"
+  }
+  if dashboardIsInboxCreatedOrder(order) {
+    return "Inbox-created order needs local follow-up • \(order.trackingNumber)"
+  }
+  if taskCount > 0 {
+    return "\(taskCount) linked task signal • \(order.customer)"
+  }
+  if (manifestCount + checklistCount) > 0 {
+    return "Linked dispatch context • \(order.carrier) • \(order.trackingNumber)"
+  }
+  if warningTrackingCount > 0 {
+    return "\(warningTrackingCount) tracking warning signal • \(order.carrier)"
+  }
+  return "\(order.customer) • \(order.carrier) • \(order.trackingNumber)"
+}
+
 struct CompactOrderList: View {
   var orders: [TrackedOrder]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Active/problem orders", symbol: "shippingbox.fill") {
@@ -1219,11 +1266,12 @@ struct CompactOrderList: View {
         )
       } else {
         ForEach(orders) { order in
+          let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
-            detail: "\(order.customer) • \(order.carrier) • \(order.trackingNumber)",
-            badge: order.status.rawValue,
-            color: order.status.color
+            detail: dashboardOrderTimelineDetail(for: order, store: store),
+            badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.status.rawValue,
+            color: timelineCount > 1 ? .blue : order.status.color
           )
         }
       }
@@ -1233,6 +1281,7 @@ struct CompactOrderList: View {
 
 struct CompactInboxCreatedOrderList: View {
   var orders: [TrackedOrder]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Inbox-created orders", symbol: "tray.and.arrow.down.fill") {
@@ -1245,11 +1294,12 @@ struct CompactInboxCreatedOrderList: View {
         )
       } else {
         ForEach(orders) { order in
+          let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
-            detail: "\(order.latestStatus) • \(order.trackingNumber)",
-            badge: order.reviewState.rawValue,
-            color: order.reviewState.color
+            detail: dashboardOrderTimelineDetail(for: order, store: store),
+            badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.reviewState.rawValue,
+            color: timelineCount > 1 ? .purple : order.reviewState.color
           )
         }
       }
@@ -1259,6 +1309,7 @@ struct CompactInboxCreatedOrderList: View {
 
 struct CompactPartialInboxOrderList: View {
   var orders: [TrackedOrder]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Verify before dispatch", symbol: "exclamationmark.triangle.fill") {
@@ -1271,10 +1322,11 @@ struct CompactPartialInboxOrderList: View {
         )
       } else {
         ForEach(orders) { order in
+          let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
-            detail: "\(order.latestStatus) • \(order.trackingNumber) • \(order.destination)",
-            badge: "\(order.missingInboxOrderFieldCount) missing",
+            detail: "\(dashboardOrderTimelineDetail(for: order, store: store)) • \(order.destination)",
+            badge: timelineCount > 1 ? "\(timelineCount) timeline" : "\(order.missingInboxOrderFieldCount) missing",
             color: .orange
           )
         }
@@ -1285,6 +1337,7 @@ struct CompactPartialInboxOrderList: View {
 
 struct CompactInboxDispatchGapList: View {
   var orders: [TrackedOrder]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Inbox orders missing dispatch setup", symbol: "tray.and.arrow.down.fill") {
@@ -1297,10 +1350,11 @@ struct CompactInboxDispatchGapList: View {
         )
       } else {
         ForEach(orders) { order in
+          let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
-            detail: "\(order.status.rawValue) • \(order.carrier) • \(order.trackingNumber)",
-            badge: order.reviewState == .accepted ? "Dispatch gap" : "Review first",
+            detail: dashboardOrderTimelineDetail(for: order, store: store),
+            badge: timelineCount > 1 ? "\(timelineCount) timeline" : (order.reviewState == .accepted ? "Dispatch gap" : "Review first"),
             color: order.reviewState == .accepted ? .purple : .orange
           )
         }
