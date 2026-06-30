@@ -337,6 +337,14 @@ private struct OrderQueueItem: Identifiable {
   var dispatchContextCount: Int {
     manifests.count + checklists.count
   }
+  var operationalTimelineSignalCount: Int {
+    1
+      + (isInboxCreated ? 1 : 0)
+      + tasks.count
+      + manifests.count
+      + checklists.count
+      + warningTrackingCount
+  }
   var needsDispatchSetup: Bool {
     dispatchContextCount == 0 && [.shipped, .inTransit, .exception].contains(order.status)
   }
@@ -380,6 +388,27 @@ private struct OrderQueueItem: Identifiable {
       return "Order is reviewed, but dispatch context is not linked yet."
     }
     return "Source handoff is reviewed; keep monitoring status and linked tasks."
+  }
+  var operationalTimelineDetail: String {
+    if operationalTimelineSignalCount <= 1 {
+      return "Open detail for the base order status timeline."
+    }
+    if blockedDispatchCount > 0 {
+      return "Operational timeline includes blocked dispatch context."
+    }
+    if isInboxCreated && dispatchContextCount > 0 {
+      return "Operational timeline links Inbox handoff, order detail, and dispatch setup."
+    }
+    if isInboxCreated {
+      return "Operational timeline links Inbox handoff and order detail."
+    }
+    if urgentTaskCount > 0 {
+      return "Operational timeline includes follow-up task work."
+    }
+    if warningTrackingCount > 0 {
+      return "Operational timeline includes tracking warnings."
+    }
+    return "Operational timeline has linked local context."
   }
   var riskLabel: String {
     if order.status == .exception || criticalTrackingCount > 0 || blockedDispatchCount > 0 {
@@ -533,6 +562,9 @@ private struct OrderQueueRow: View {
             if item.dispatchContextCount > 0 {
               Badge("\(item.dispatchContextCount) dispatch", color: item.blockedDispatchCount > 0 ? .red : .purple)
             }
+            if item.operationalTimelineSignalCount > 1 {
+              Badge("\(item.operationalTimelineSignalCount) timeline", color: item.blockedDispatchCount > 0 ? .red : .blue)
+            }
           }
 
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
@@ -543,6 +575,13 @@ private struct OrderQueueRow: View {
             Label(item.inboxHandoffDetail, systemImage: "tray.and.arrow.down.fill")
               .font(.caption)
               .foregroundStyle(.teal)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          if item.operationalTimelineSignalCount > 1 {
+            Label(item.operationalTimelineDetail, systemImage: "calendar.badge.clock")
+              .font(.caption)
+              .foregroundStyle(item.blockedDispatchCount > 0 ? .red : .blue)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
