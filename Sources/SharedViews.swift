@@ -3204,3 +3204,118 @@ struct DetailCell: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
+
+struct IntakeSourceContextPanel: View {
+  var email: ForwardedEmailIntake
+  var store: ParcelOpsStore
+  var manualDetail: String
+  var linkedDetailSuffix: String
+  var compact: Bool
+
+  init(
+    email: ForwardedEmailIntake,
+    store: ParcelOpsStore,
+    manualDetail: String,
+    linkedDetailSuffix: String,
+    compact: Bool = false
+  ) {
+    self.email = email
+    self.store = store
+    self.manualDetail = manualDetail
+    self.linkedDetailSuffix = linkedDetailSuffix
+    self.compact = compact
+  }
+
+  private var sourceContext: IntakeSourceContext {
+    guard let ingestRecord = store.mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return IntakeSourceContext(
+        providerLabel: "Manual/local",
+        providerColor: .secondary,
+        statusLabel: email.reviewState.rawValue,
+        statusColor: email.reviewState.color,
+        capturedLabel: email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate,
+        detail: manualDetail
+      )
+    }
+
+    let provider = mailboxProviderContext(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    return IntakeSourceContext(
+      providerLabel: provider.label,
+      providerColor: provider.color,
+      statusLabel: ingestRecord.status.rawValue,
+      statusColor: ingestRecord.status == .imported ? .green : .orange,
+      capturedLabel: ingestRecord.capturedDate,
+      detail: "\(provider.detail) \(linkedDetailSuffix)"
+    )
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      CompactMetadataGrid(minimumWidth: 120) {
+        Badge(sourceContext.providerLabel, color: sourceContext.providerColor)
+        Badge(sourceContext.statusLabel, color: sourceContext.statusColor)
+        Badge(sourceContext.capturedLabel, color: .secondary)
+      }
+      Text(sourceContext.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(compact ? 0 : 8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background {
+      if !compact {
+        RoundedRectangle(cornerRadius: 8)
+          .fill(sourceContext.providerColor.opacity(0.07))
+      }
+    }
+  }
+
+  private func mailboxProviderContext(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, color: Color) {
+    if let connection = store.spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "SpaceMail IMAP",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        .teal
+      )
+    }
+
+    if let connection = store.microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Graph" : "Microsoft Graph",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+        isMock ? .purple : .blue
+      )
+    }
+
+    if let mailbox = store.mailboxes.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "\(mailbox.provider.rawValue) mailbox",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        .blue
+      )
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
+      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", .teal)
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
+      return ("Local test mail", "Captured through a local simulated mailbox import.", .purple)
+    }
+
+    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", .blue)
+  }
+}
+
+private struct IntakeSourceContext {
+  var providerLabel: String
+  var providerColor: Color
+  var statusLabel: String
+  var statusColor: Color
+  var capturedLabel: String
+  var detail: String
+}
