@@ -175,6 +175,13 @@ struct IntegrationsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
+            SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+
+            Text("Recent manual refresh history is shown here so setup decisions can be based on imported, filtered, duplicate, and uncertain counts instead of Audit detail alone.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
             CompactActionRow {
               NavigationLink {
                 MailboxView(store: store)
