@@ -224,6 +224,11 @@ struct ShipmentGroupRow: View {
   @State private var draft: ShipmentGroup
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store else { return [] }
+    return store.intakeEmails.filter { group.relatedIntakeEmailIDs.contains($0.id) }
+  }
+
   init(
     group: ShipmentGroup,
     store: ParcelOpsStore? = nil,
@@ -289,6 +294,10 @@ struct ShipmentGroupRow: View {
         Badge("\(group.relatedIntakeEmailIDs.count) intake", color: .teal)
         Badge("\(group.relatedTrackingEventIDs.count) tracking", color: .orange)
         Badge("\(group.relatedEvidenceIDs.count) evidence", color: .purple)
+      }
+
+      if !linkedIntakeEmails.isEmpty {
+        shipmentGroupInboxSourceTrail
       }
 
       if isEditing {
@@ -359,6 +368,44 @@ struct ShipmentGroupRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var shipmentGroupInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox source trail", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text("Linked intake rows explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(linkedIntakeEmails.prefix(4)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+            Badge(source.status, color: source.status == MailboxIngestStatus.imported.rawValue ? .green : .orange)
+          }
+          Badge(email.detectedOrderNumber, color: email.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .blue)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
   }
 }
 
