@@ -931,12 +931,18 @@ struct DispatchView: View {
       + store.dispatchReadinessChecklists.filter { $0.checklistStatus == .ready }.count
   }
 
+  private var reopenedInboxDispatchHandoffCount: Int {
+    store.shipmentManifestRecords.filter { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }.count
+      + store.dispatchReadinessChecklists.filter { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }.count
+  }
+
   private var openDispatchCount: Int {
     dispatchItems.count + inboxDispatchSetupOrders.count
   }
 
   private var dispatchSummaryTone: Color {
     if blockedDispatchCount > 0 { return .red }
+    if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if partialInboxDispatchBlockerCount > 0 { return .orange }
     if readyDispatchCount > 0 || openDispatchCount > 0 { return .orange }
     return .green
@@ -944,6 +950,7 @@ struct DispatchView: View {
 
   private var dispatchSummaryTitle: String {
     if blockedDispatchCount > 0 { return "Dispatch has blockers" }
+    if reopenedInboxDispatchHandoffCount > 0 { return "Reopened Inbox handoffs need review" }
     if partialInboxDispatchBlockerCount > 0 { return "Verify Inbox orders before dispatch" }
     if readyDispatchCount > 0 { return "Dispatch has work ready to move" }
     if !inboxDispatchSetupOrders.isEmpty { return "Inbox orders need dispatch setup" }
@@ -954,6 +961,9 @@ struct DispatchView: View {
   private var dispatchSummaryDetail: String {
     if blockedDispatchCount > 0 {
       return "Clear blocked manifests and readiness checklists before preparing new outbound work."
+    }
+    if reopenedInboxDispatchHandoffCount > 0 {
+      return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open the linked order, confirm the dispatch setup, then complete or block the handoff."
     }
     if partialInboxDispatchBlockerCount > 0 {
       return "\(partialInboxDispatchBlockerCount) Inbox-created order has missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
@@ -1005,6 +1015,7 @@ struct DispatchView: View {
 
         MetricStrip(items: [
           ("Blocked", "\(blockedDispatchCount)", blockedDispatchCount == 0 ? .green : .red),
+          ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
           ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
           ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
@@ -1098,6 +1109,7 @@ struct DispatchView: View {
 
       MetricStrip(items: [
         ("Queue", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue),
+        ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
         ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
         ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
         ("Undispatched", "\(store.undispatchedShipmentManifests.count)", store.undispatchedShipmentManifests.isEmpty ? .green : .purple),
@@ -1453,6 +1465,35 @@ private struct DispatchQueueRow: View {
   var item: DispatchQueueItem
   var store: ParcelOpsStore
 
+  private var linkedOrder: TrackedOrder? {
+    switch item.source {
+    case .manifest(let record):
+      guard let orderID = record.includedOrderIDs.first ?? UUID(uuidString: record.linkedEntityID) else { return nil }
+      return store.orders.first { $0.id == orderID }
+    case .checklist(let checklist):
+      guard let orderID = checklist.orderIDs.first ?? UUID(uuidString: checklist.linkedEntityID) else { return nil }
+      return store.orders.first { $0.id == orderID }
+    }
+  }
+
+  private var isInboxHandoff: Bool {
+    switch item.source {
+    case .manifest(let record):
+      return record.isInboxHandoffSetup
+    case .checklist(let checklist):
+      return checklist.isInboxHandoffSetup
+    }
+  }
+
+  private var isReopenedInboxHandoff: Bool {
+    switch item.source {
+    case .manifest(let record):
+      return record.isInboxHandoffSetup && record.dispatchStatus == .reopened
+    case .checklist(let checklist):
+      return checklist.isInboxHandoffSetup && checklist.checklistStatus == .reopened
+    }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -1500,6 +1541,10 @@ private struct DispatchQueueRow: View {
           Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(item.riskLevel.color)
+
+          if isInboxHandoff {
+            DispatchQueueInboxOrderContext(order: linkedOrder, isReopened: isReopenedInboxHandoff)
+          }
         }
       }
 
@@ -1510,6 +1555,15 @@ private struct DispatchQueueRow: View {
           Label("Open", systemImage: "arrow.up.right.square.fill")
         }
         .buttonStyle(.bordered)
+
+        if let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "shippingbox.fill")
+          }
+          .buttonStyle(.bordered)
+        }
 
         switch item.source {
         case .manifest(let record):
@@ -1593,6 +1647,43 @@ private struct DispatchQueueRow: View {
     case .checklist:
       DispatchReadinessView(store: store)
     }
+  }
+}
+
+private struct DispatchQueueInboxOrderContext: View {
+  var order: TrackedOrder?
+  var isReopened: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(isReopened ? "Reopened Inbox dispatch handoff" : "Inbox-created order handoff", systemImage: isReopened ? "arrow.counterclockwise.circle.fill" : "tray.and.arrow.down.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(isReopened ? .purple : .teal)
+
+      if let order {
+        CompactMetadataGrid(minimumWidth: 130) {
+          Badge(order.orderNumber, color: .teal)
+          Badge(order.status.rawValue, color: order.status.color)
+          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          Badge(order.latestStatus, color: isReopened ? .purple : .secondary)
+        }
+
+        Text(isReopened
+          ? "Open the order to inspect the Inbox source trail and complete or block the reopened handoff."
+          : "This dispatch row is linked to an Inbox-created order. Use Open order when source context matters.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        Text("Linked order context was not found. Open the detailed dispatch record to review the linked IDs before completing the handoff.")
+          .font(.caption2)
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .background((isReopened ? Color.purple : Color.teal).opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
