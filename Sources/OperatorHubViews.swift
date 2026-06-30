@@ -210,6 +210,22 @@ struct InboxView: View {
             InboxMailboxHealthRow(summary: summary)
           }
         }
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
       }
     }
   }
