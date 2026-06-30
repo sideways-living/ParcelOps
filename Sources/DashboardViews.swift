@@ -213,7 +213,7 @@ struct DashboardView: View {
               ("Evidence", "\(store.reviewEvidenceAttachments.count)", .purple),
               ("Watchlist", "\(store.timelineWatchlist.count)", .red)
             ])
-            CompactIntakeList(emails: store.newestIntakeEmails)
+            CompactIntakeList(emails: store.newestIntakeEmails, store: store)
           }
 
           AnalyticsSection(title: "Tracking health", symbol: "location.fill.viewfinder") {
@@ -712,8 +712,8 @@ struct DashboardView: View {
             ])
             SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
             CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-            CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries)
-            CompactIntakeList(emails: store.newestIntakeEmails)
+            CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries, store: store)
+            CompactIntakeList(emails: store.newestIntakeEmails, store: store)
           }
         }
 
@@ -1089,16 +1089,22 @@ struct MetricStrip: View {
 
 struct CompactIntakeList: View {
   var emails: [ForwardedEmailIntake]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Newest intake", symbol: "envelope.open.fill") {
       ForEach(emails) { email in
-        CompactRow(
-          title: email.detectedOrderNumber,
-          detail: "\(email.detectedMerchant) • \(email.subject)",
-          badge: email.reviewState.rawValue,
-          color: email.reviewState.color
-        )
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          CompactRow(
+            title: email.detectedOrderNumber,
+            detail: "\(email.detectedMerchant) • \(email.subject)",
+            badge: email.reviewState.rawValue,
+            color: email.reviewState.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -1106,24 +1112,35 @@ struct CompactIntakeList: View {
 
 struct CompactSpaceMailHealthList: View {
   var summaries: [SpaceMailIntakeHealthSummary]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Mailbox intake health", symbol: "server.rack") {
       if summaries.isEmpty {
-        CompactRow(
-          title: "No SpaceMail mailbox",
-          detail: "Add a SpaceMail setup when you are ready to use real IMAP intake.",
-          badge: "Setup",
-          color: .secondary
-        )
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          CompactRow(
+            title: "No SpaceMail mailbox",
+            detail: "Add a SpaceMail setup when you are ready to use real IMAP intake.",
+            badge: "Setup",
+            color: .secondary
+          )
+        }
+        .buttonStyle(.plain)
       } else {
         ForEach(summaries.prefix(3)) { summary in
-          CompactRow(
-            title: summary.verdict,
-            detail: "\(summary.displayName) • \(summary.nextAction)",
-            badge: "\(summary.importedCount) in / \(summary.filteredCount) filtered",
-            color: color(for: summary)
-          )
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            CompactRow(
+              title: summary.verdict,
+              detail: "\(summary.displayName) • \(summary.nextAction)",
+              badge: "\(summary.importedCount) in / \(summary.filteredCount) filtered",
+              color: color(for: summary)
+            )
+          }
+          .buttonStyle(.plain)
         }
       }
     }
