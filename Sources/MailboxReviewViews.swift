@@ -610,6 +610,68 @@ struct IntakeEmailRow: View {
     email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue
   }
 
+  private var sourceContext: MailboxIntakeSourceContext {
+    guard let ingestRecord = store.mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return MailboxIntakeSourceContext(
+        providerLabel: "Manual/local",
+        providerColor: .secondary,
+        statusLabel: email.reviewState.rawValue,
+        statusColor: email.reviewState.color,
+        capturedLabel: email.receivedDate.isEmpty ? "Date unknown" : email.receivedDate,
+        detail: "No mailbox ingest record is linked to this intake row. Treat it as local/manual until a source record is linked."
+      )
+    }
+
+    let provider = mailboxProviderContext(for: ingestRecord.sourceMailboxID, providerMessageID: ingestRecord.providerMessageID)
+    return MailboxIntakeSourceContext(
+      providerLabel: provider.label,
+      providerColor: provider.color,
+      statusLabel: ingestRecord.status.rawValue,
+      statusColor: ingestRecord.status == .imported ? .green : .orange,
+      capturedLabel: ingestRecord.capturedDate,
+      detail: "\(provider.detail) Duplicate-safe source metadata is linked; provider message IDs stay in Audit/details rather than the primary operator row."
+    )
+  }
+
+  private func mailboxProviderContext(for sourceMailboxID: UUID, providerMessageID: String) -> (label: String, detail: String, color: Color) {
+    if let connection = store.spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "SpaceMail IMAP",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        .teal
+      )
+    }
+
+    if let connection = store.microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Graph" : "Microsoft Graph",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+        isMock ? .purple : .blue
+      )
+    }
+
+    if let mailbox = store.mailboxes.first(where: { $0.id == sourceMailboxID }) {
+      return (
+        "\(mailbox.provider.rawValue) mailbox",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        .blue
+      )
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("spacemail") {
+      return ("SpaceMail intake", "Captured through SpaceMail intake; the source mailbox setup is no longer present locally.", .teal)
+    }
+
+    if providerMessageID.localizedCaseInsensitiveContains("mock") || providerMessageID.localizedCaseInsensitiveContains("simulated") {
+      return ("Local test mail", "Captured through a local simulated mailbox import.", .purple)
+    }
+
+    return ("Mailbox intake", "Captured through the provider-neutral mailbox ingestion path.", .blue)
+  }
+
   private var recommendedActionTitle: String {
     if email.reviewState == .ignored { return "Ignored locally" }
     if let linkedOrder { return "Linked to \(linkedOrder.orderNumber)" }
@@ -667,6 +729,7 @@ struct IntakeEmailRow: View {
           Text(email.rawBodyPreview)
             .foregroundStyle(.secondary)
             .lineLimit(3)
+          intakeSourcePanel
           LazyVGrid(columns: factColumns, alignment: .leading, spacing: 8) {
             IntakeFact(title: "Merchant", value: email.detectedMerchant, symbol: "storefront.fill")
             IntakeFact(title: "Order", value: email.detectedOrderNumber, symbol: "number")
@@ -875,6 +938,32 @@ struct IntakeEmailRow: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(recommendedActionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
+
+  private var intakeSourcePanel: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      CompactMetadataGrid(minimumWidth: 120) {
+        Badge(sourceContext.providerLabel, color: sourceContext.providerColor)
+        Badge(sourceContext.statusLabel, color: sourceContext.statusColor)
+        Badge(sourceContext.capturedLabel, color: .secondary)
+      }
+      Text(sourceContext.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(sourceContext.providerColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct MailboxIntakeSourceContext {
+  var providerLabel: String
+  var providerColor: Color
+  var statusLabel: String
+  var statusColor: Color
+  var capturedLabel: String
+  var detail: String
 }
 
 struct IntakeEmailEditView: View {
