@@ -101,7 +101,7 @@ enum ParcelSection: String, CaseIterable, Identifiable {
 
   var shortTitle: String {
     switch self {
-    case .dashboard: "Dashboard"
+    case .dashboard: "Home"
     case .inbox: "Inbox"
     case .orders: "Orders"
     case .workbench: "Workbench"
