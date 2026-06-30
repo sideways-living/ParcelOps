@@ -222,7 +222,7 @@ struct DashboardView: View {
               ("Critical", "\(store.criticalTrackingCount)", .red),
               ("Events", "\(store.carrierTrackingEvents.count)", .blue)
             ])
-            CompactTrackingList(events: store.highestRiskTrackingEvents, orders: store.orders)
+            CompactTrackingList(events: store.highestRiskTrackingEvents, orders: store.orders, store: store)
           }
 
           AnalyticsSection(title: "Evidence", symbol: "paperclip") {
@@ -1499,17 +1499,36 @@ struct CompactWorkbenchList: View {
 struct CompactTrackingList: View {
   var events: [CarrierTrackingEvent]
   var orders: [TrackedOrder]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Highest risk tracking", symbol: "location.fill.viewfinder") {
       ForEach(events) { event in
-        let orderNumber = orders.first { $0.id == event.orderID }?.orderNumber ?? "Unlinked"
-        CompactRow(
-          title: event.status,
-          detail: "\(orderNumber) • \(event.carrier) • \(event.location)",
-          badge: event.severity.rawValue,
-          color: event.severity.color
-        )
+        if let order = orders.first(where: { $0.id == event.orderID }) {
+          NavigationLink {
+            OrderDetailView(order: order, store: store)
+          } label: {
+            CompactRow(
+              title: event.status,
+              detail: "\(order.orderNumber) • \(event.carrier) • \(event.location)",
+              badge: event.severity.rawValue,
+              color: event.severity.color
+            )
+          }
+          .buttonStyle(.plain)
+        } else {
+          NavigationLink {
+            TrackingView(store: store)
+          } label: {
+            CompactRow(
+              title: event.status,
+              detail: "Unlinked • \(event.carrier) • \(event.location)",
+              badge: event.severity.rawValue,
+              color: event.severity.color
+            )
+          }
+          .buttonStyle(.plain)
+        }
       }
     }
   }
