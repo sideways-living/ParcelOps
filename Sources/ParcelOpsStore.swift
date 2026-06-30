@@ -6037,9 +6037,34 @@ final class ParcelOpsStore {
       at: 0
     )
 
+    var resolvedTaskTitles: [String] = []
+    for task in reviewTasks where task.linkedEntityType == .order
+      && task.linkedEntityID == orders[orderIndex].id.uuidString
+      && task.status != .completed
+      && task.summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff") {
+      guard let taskIndex = reviewTasks.firstIndex(where: { $0.id == task.id }) else { continue }
+      let beforeTaskDetail = reviewTasks[taskIndex].auditDetail
+      reviewTasks[taskIndex].status = .completed
+      reviewTasks[taskIndex].completedDate = timestamp
+      reviewTasks[taskIndex].reviewState = .accepted
+      resolvedTaskTitles.append(reviewTasks[taskIndex].title)
+      logAudit(
+        action: .completed,
+        entityType: .reviewTask,
+        entityID: reviewTasks[taskIndex].id.uuidString,
+        entityLabel: reviewTasks[taskIndex].title,
+        summary: "Reopened Inbox dispatch handoff task resolved.",
+        beforeDetail: beforeTaskDetail,
+        afterDetail: "\(reviewTasks[taskIndex].auditDetail)\nOrder: \(orders[orderIndex].orderNumber)\nDispatch handoff was completed locally again. No mailbox, carrier, label, scanner, or external service action occurred."
+      )
+    }
+
     persistShipmentManifestRecords()
     persistDispatchReadinessChecklists()
     persistOrders()
+    if !resolvedTaskTitles.isEmpty {
+      persistReviewTasks()
+    }
 
     logAudit(
       action: .completed,
@@ -6048,7 +6073,7 @@ final class ParcelOpsStore {
       entityLabel: orders[orderIndex].orderNumber,
       summary: "Inbox-created order dispatch handoff completed.",
       beforeDetail: beforeOrderDetail,
-      afterDetail: "\(orders[orderIndex].auditDetail)\nCompleted manifests: \(completedManifestTitles.joined(separator: ", "))\nCompleted readiness: \(completedChecklistTitles.joined(separator: ", "))\nNo mailbox item was mutated and no carrier, label, scanner, or external service action occurred."
+      afterDetail: "\(orders[orderIndex].auditDetail)\nCompleted manifests: \(completedManifestTitles.joined(separator: ", "))\nCompleted readiness: \(completedChecklistTitles.joined(separator: ", "))\nResolved follow-up tasks: \(resolvedTaskTitles.joined(separator: ", "))\nNo mailbox item was mutated and no carrier, label, scanner, or external service action occurred."
     )
   }
 
@@ -6125,6 +6150,29 @@ final class ParcelOpsStore {
       ),
       at: 0
     )
+
+    let hasOpenReopenTask = reviewTasks.contains { task in
+      task.linkedEntityType == .order
+        && task.linkedEntityID == orders[orderIndex].id.uuidString
+        && task.status != .completed
+        && task.summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+    }
+    if !hasOpenReopenTask {
+      let task = ReviewTask(
+        title: "Review reopened dispatch handoff for \(orders[orderIndex].orderNumber)",
+        summary: "Reopened Inbox dispatch handoff. Confirm why the local handoff was reopened, then complete or block the linked manifest/readiness records.",
+        linkedEntityType: .order,
+        linkedEntityID: orders[orderIndex].id.uuidString,
+        priority: .high,
+        dueDate: "Today",
+        assignee: orders[orderIndex].customer.isPlaceholderValidationValue ? "Operations" : orders[orderIndex].customer,
+        status: .open,
+        createdDate: timestamp,
+        completedDate: nil,
+        reviewState: .needsReview
+      )
+      addReviewTask(task, summary: "Review task created for reopened Inbox dispatch handoff.")
+    }
 
     persistShipmentManifestRecords()
     persistDispatchReadinessChecklists()
