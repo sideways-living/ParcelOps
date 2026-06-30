@@ -1699,6 +1699,25 @@ struct SpaceMailIntakeHealthCard: View {
         .font(.caption2.weight(.semibold))
         .foregroundStyle(toneColor)
         .fixedSize(horizontal: false, vertical: true)
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: queueSymbol)
+          .foregroundStyle(queueColor)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(queueTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(queueColor)
+          Text(queueDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(queueColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       CompactMetadataGrid(minimumWidth: 112) {
         Badge("\(summary.fetchedCount) fetched", color: .blue)
         Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
@@ -1761,6 +1780,68 @@ struct SpaceMailIntakeHealthCard: View {
     default:
       return "waveform.path.ecg"
     }
+  }
+
+  private var queueTitle: String {
+    if summary.parserIssueCount > 0 {
+      return "Active queue: parser review"
+    }
+    if summary.pendingUncertainReviewCount > 0 {
+      return "Active queue: uncertain SpaceMail review"
+    }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 {
+      return "Active queue: Inbox triage"
+    }
+    if summary.pendingFilteredReviewCount > 0 {
+      return "Optional queue: filtered examples"
+    }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
+      return "No primary queue: mixed-mailbox filter handled this refresh"
+    }
+    if summary.duplicateCount > 0 && summary.importedCount == 0 {
+      return "No primary queue: duplicate refresh"
+    }
+    return "No primary queue waiting"
+  }
+
+  private var queueDetail: String {
+    if summary.parserIssueCount > 0 {
+      return "Review parser diagnostics before creating orders so weak order, tracking, sender, or destination fields do not flow downstream."
+    }
+    if summary.pendingUncertainReviewCount > 0 {
+      return "Uncertain previews stayed out of Inbox. Import only true order mail, or dismiss/filter non-order messages locally."
+    }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 {
+      return "Imported SpaceMail rows are ready for human confirmation in Inbox before order creation or linking."
+    }
+    if summary.pendingFilteredReviewCount > 0 {
+      return "Filtered examples are not work items by default. Spot-check them only when an expected order email is missing."
+    }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
+      return "This is expected for a mixed-use mailbox when recent mail does not contain strong order or tracking evidence."
+    }
+    if summary.duplicateCount > 0 && summary.importedCount == 0 {
+      return "ParcelOps already saw these provider message IDs, so no duplicate Inbox rows were created."
+    }
+    return "Run a manual refresh when new order mail is expected, or wait for the next forwarded update."
+  }
+
+  private var queueColor: Color {
+    if summary.parserIssueCount > 0 { return .orange }
+    if summary.pendingUncertainReviewCount > 0 { return .orange }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 { return .green }
+    if summary.pendingFilteredReviewCount > 0 { return .teal }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 { return .teal }
+    return .secondary
+  }
+
+  private var queueSymbol: String {
+    if summary.parserIssueCount > 0 { return "text.magnifyingglass" }
+    if summary.pendingUncertainReviewCount > 0 { return "questionmark.folder.fill" }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 { return "tray.full.fill" }
+    if summary.pendingFilteredReviewCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 { return "line.3.horizontal.decrease.circle" }
+    return "clock.arrow.circlepath"
   }
 }
 
