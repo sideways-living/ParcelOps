@@ -280,7 +280,7 @@ struct ReconciliationIssueRow: View {
         AcceptanceHistoryStrip(records: acceptanceRecords)
       }
       if !validationIssues.isEmpty {
-        CompactValidationIssueList(issues: Array(validationIssues.prefix(3)))
+        CompactValidationIssueList(issues: Array(validationIssues.prefix(3)), store: store)
       }
       if !playbooks.isEmpty {
         ExceptionPlaybookStrip(playbooks: playbooks)

@@ -458,7 +458,7 @@ struct DashboardView: View {
               ("Review", "\(store.accountRecordsNeedingReview.count)", .orange),
               ("Total", "\(store.accountCredentialRecords.count)", .blue)
             ])
-            CompactAccountList(accounts: Array(store.accountRecordsNeedingReview.prefix(4)))
+            CompactAccountList(accounts: Array(store.accountRecordsNeedingReview.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Vendor profiles", symbol: "building.2.crop.circle.fill") {
@@ -468,7 +468,7 @@ struct DashboardView: View {
               ("Review", "\(store.vendorProfilesNeedingReview.count)", .orange),
               ("High risk", "\(store.highRiskEnabledVendorProfiles.count)", .red)
             ])
-            CompactVendorProfileList(profiles: Array((store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles).prefix(4)))
+            CompactVendorProfileList(profiles: Array((store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
@@ -478,7 +478,7 @@ struct DashboardView: View {
               ("High risk", "\(store.highRiskShipmentGroups.count)", .red),
               ("Critical", "\(store.shipmentGroups.filter { $0.riskLevel == .critical }.count)", .red)
             ])
-            CompactShipmentGroupList(groups: Array((store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups).prefix(4)))
+            CompactShipmentGroupList(groups: Array((store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
@@ -488,7 +488,7 @@ struct DashboardView: View {
               ("Low conf", "\(store.lowConfidenceImportQueueItems.count)", .orange),
               ("Blocked", "\(store.blockedImportQueueItems.count)", .red)
             ])
-            CompactImportQueueList(items: Array((store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview).prefix(4)))
+            CompactImportQueueList(items: Array((store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
@@ -498,7 +498,7 @@ struct DashboardView: View {
               ("Blocked", "\(store.blockedAcceptanceRecords.count)", .red),
               ("Reopened", "\(store.reopenedAcceptanceRecords.count)", .orange)
             ])
-            CompactAcceptanceList(records: Array((store.blockedAcceptanceRecords + store.reopenedAcceptanceRecords + store.ignoredAcceptanceRecords + store.acceptanceRecordsNeedingReview).prefix(4)))
+            CompactAcceptanceList(records: Array((store.blockedAcceptanceRecords + store.reopenedAcceptanceRecords + store.ignoredAcceptanceRecords + store.acceptanceRecordsNeedingReview).prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
@@ -508,7 +508,7 @@ struct DashboardView: View {
               ("Conflicts", "\(store.reconciliationIssues.filter { $0.issueType == .orderNumberConflict || $0.issueType == .trackingNumberConflict || $0.issueType == .destinationConflict }.count)", .purple),
               ("Total", "\(store.reconciliationIssues.count)", .blue)
             ])
-            CompactReconciliationIssueList(issues: Array(store.unresolvedReconciliationIssues.prefix(4)))
+            CompactReconciliationIssueList(issues: Array(store.unresolvedReconciliationIssues.prefix(4)), store: store)
           }
 
           AnalyticsSection(title: "Timeline", symbol: "clock.badge.exclamationmark.fill") {
@@ -518,7 +518,7 @@ struct DashboardView: View {
               ("Critical", "\(store.timelineWatchlist.filter { $0.risk == .critical }.count)", .red),
               ("High", "\(store.timelineWatchlist.filter { $0.risk == .high }.count)", .orange)
             ])
-            CompactTimelineList(activities: store.recentTimelineActivities)
+            CompactTimelineList(activities: store.recentTimelineActivities, store: store)
           }
 
           AnalyticsSection(title: "Validation health", symbol: "checkmark.seal.fill") {
@@ -528,12 +528,12 @@ struct DashboardView: View {
               ("Low conf", "\(store.lowConfidenceValidationCount)", .orange),
               ("Duplicates", "\(store.duplicateValidationCount)", .purple)
             ])
-            CompactValidationIssueList(issues: Array(store.validationIssues.prefix(4)))
+            CompactValidationIssueList(issues: Array(store.validationIssues.prefix(4)), store: store)
           }
         }
 
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
-          CompactAuditList(events: store.recentAuditEvents)
+          CompactAuditList(events: store.recentAuditEvents, store: store)
         }
       }
       .padding(isCompact ? 14 : 24)
@@ -774,7 +774,7 @@ struct DashboardView: View {
           if store.recentAuditEvents.isEmpty {
             MVPEmptyState(title: "No recent local activity", detail: "Create, edit, review, accept, dispatch, or complete a local record and it will appear here.", symbol: "list.clipboard.fill")
           } else {
-            CompactAuditList(events: store.recentAuditEvents)
+            CompactAuditList(events: store.recentAuditEvents, store: store)
           }
         }
       }
@@ -2065,16 +2065,22 @@ struct CompactDispatchReadinessList: View {
 
 struct CompactAccountList: View {
   var accounts: [AccountCredentialRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Accounts needing review", symbol: "key.horizontal.fill") {
       ForEach(accounts) { account in
-        CompactRow(
-          title: account.accountName,
-          detail: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
-          badge: account.mfaStatus.rawValue,
-          color: account.mfaStatus.color
-        )
+        NavigationLink {
+          AccountsView(store: store)
+        } label: {
+          CompactRow(
+            title: account.accountName,
+            detail: "\(account.organisation) • \(account.credentialStorageStatus.rawValue)",
+            badge: account.mfaStatus.rawValue,
+            color: account.mfaStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2082,16 +2088,22 @@ struct CompactAccountList: View {
 
 struct CompactVendorProfileList: View {
   var profiles: [VendorProfile]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Profile watchlist", symbol: "building.2.crop.circle.fill") {
       ForEach(profiles) { profile in
-        CompactRow(
-          title: profile.name,
-          detail: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
-          badge: profile.riskLevel.rawValue,
-          color: profile.riskLevel.color
-        )
+        NavigationLink {
+          VendorProfilesView(store: store)
+        } label: {
+          CompactRow(
+            title: profile.name,
+            detail: "\(profile.profileType.rawValue) • \(profile.primaryOrganisation)",
+            badge: profile.riskLevel.rawValue,
+            color: profile.riskLevel.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2099,16 +2111,22 @@ struct CompactVendorProfileList: View {
 
 struct CompactShipmentGroupList: View {
   var groups: [ShipmentGroup]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Shipment group watchlist", symbol: "shippingbox.and.arrow.backward.fill") {
       ForEach(groups) { group in
-        CompactRow(
-          title: group.groupName,
-          detail: "\(group.carrierSummary) • \(group.statusSummary)",
-          badge: group.riskLevel.rawValue,
-          color: group.riskLevel.color
-        )
+        NavigationLink {
+          ShipmentGroupsView(store: store)
+        } label: {
+          CompactRow(
+            title: group.groupName,
+            detail: "\(group.carrierSummary) • \(group.statusSummary)",
+            badge: group.riskLevel.rawValue,
+            color: group.riskLevel.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2116,16 +2134,22 @@ struct CompactShipmentGroupList: View {
 
 struct CompactImportQueueList: View {
   var items: [ImportQueueItem]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
       ForEach(items) { item in
-        CompactRow(
-          title: item.sourceLabel,
-          detail: "\(item.detectedMerchant) • \(item.detectedOrderNumber) • \(item.confidenceScore)%",
-          badge: item.importStatus.rawValue,
-          color: item.importStatus.color
-        )
+        NavigationLink {
+          ImportQueueView(store: store)
+        } label: {
+          CompactRow(
+            title: item.sourceLabel,
+            detail: "\(item.detectedMerchant) • \(item.detectedOrderNumber) • \(item.confidenceScore)%",
+            badge: item.importStatus.rawValue,
+            color: item.importStatus.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2133,16 +2157,22 @@ struct CompactImportQueueList: View {
 
 struct CompactAcceptanceList: View {
   var records: [AcceptanceRecord]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
       ForEach(records) { record in
-        CompactRow(
-          title: record.sourceLabel,
-          detail: "\(record.sourceType.rawValue) • \(record.confidenceScore)% • \(record.decidedDate)",
-          badge: record.decision.rawValue,
-          color: record.decision.color
-        )
+        NavigationLink {
+          AcceptanceReviewView(store: store)
+        } label: {
+          CompactRow(
+            title: record.sourceLabel,
+            detail: "\(record.sourceType.rawValue) • \(record.confidenceScore)% • \(record.decidedDate)",
+            badge: record.decision.rawValue,
+            color: record.decision.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2150,16 +2180,22 @@ struct CompactAcceptanceList: View {
 
 struct CompactAuditList: View {
   var events: [AuditEvent]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Recent audit", symbol: "list.clipboard.fill") {
       ForEach(events) { event in
-        CompactRow(
-          title: event.summary,
-          detail: "\(event.entityType.rawValue) • \(event.entityLabel) • \(event.timestamp)",
-          badge: event.action.rawValue,
-          color: event.action.color
-        )
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          CompactRow(
+            title: event.summary,
+            detail: "\(event.entityType.rawValue) • \(event.entityLabel) • \(event.timestamp)",
+            badge: event.action.rawValue,
+            color: event.action.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2167,16 +2203,22 @@ struct CompactAuditList: View {
 
 struct CompactTimelineList: View {
   var activities: [TimelineActivity]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Recent timeline", symbol: "clock.badge.exclamationmark.fill") {
       ForEach(activities) { activity in
-        CompactRow(
-          title: activity.title,
-          detail: "\(activity.entityType.rawValue) • \(activity.source.rawValue) • \(activity.timestampText)",
-          badge: activity.risk.rawValue,
-          color: activity.risk.color
-        )
+        NavigationLink {
+          TimelineView(store: store)
+        } label: {
+          CompactRow(
+            title: activity.title,
+            detail: "\(activity.entityType.rawValue) • \(activity.source.rawValue) • \(activity.timestampText)",
+            badge: activity.risk.rawValue,
+            color: activity.risk.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -2184,16 +2226,31 @@ struct CompactTimelineList: View {
 
 struct CompactValidationIssueList: View {
   var issues: [ValidationIssue]
+  var store: ParcelOpsStore?
 
   var body: some View {
     CompactList(title: "Validation issues", symbol: "checkmark.seal.fill") {
       ForEach(issues) { issue in
-        CompactRow(
-          title: issue.title,
-          detail: "\(issue.entityType.rawValue) • \(issue.status.rawValue) • confidence \(issue.confidenceScore)%",
-          badge: issue.severity.rawValue,
-          color: issue.severity.color
-        )
+        if let store {
+          NavigationLink {
+            ValidationView(store: store)
+          } label: {
+            CompactRow(
+              title: issue.title,
+              detail: "\(issue.entityType.rawValue) • \(issue.status.rawValue) • confidence \(issue.confidenceScore)%",
+              badge: issue.severity.rawValue,
+              color: issue.severity.color
+            )
+          }
+          .buttonStyle(.plain)
+        } else {
+          CompactRow(
+            title: issue.title,
+            detail: "\(issue.entityType.rawValue) • \(issue.status.rawValue) • confidence \(issue.confidenceScore)%",
+            badge: issue.severity.rawValue,
+            color: issue.severity.color
+          )
+        }
       }
     }
   }
@@ -2201,16 +2258,22 @@ struct CompactValidationIssueList: View {
 
 struct CompactReconciliationIssueList: View {
   var issues: [ReconciliationIssue]
+  var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Reconciliation issues", symbol: "arrow.triangle.2.circlepath.circle.fill") {
       ForEach(issues) { issue in
-        CompactRow(
-          title: issue.title,
-          detail: "\(issue.issueType.rawValue) • \(issue.sourceEntityType.rawValue) → \(issue.targetEntityType?.rawValue ?? "None")",
-          badge: issue.severity.rawValue,
-          color: issue.severity.color
-        )
+        NavigationLink {
+          ReconciliationView(store: store)
+        } label: {
+          CompactRow(
+            title: issue.title,
+            detail: "\(issue.issueType.rawValue) • \(issue.sourceEntityType.rawValue) → \(issue.targetEntityType?.rawValue ?? "None")",
+            badge: issue.severity.rawValue,
+            color: issue.severity.color
+          )
+        }
+        .buttonStyle(.plain)
       }
     }
   }
