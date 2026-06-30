@@ -102,7 +102,7 @@ struct ParcelOpsRootView: View {
                 }
               }
             } else {
-              Section("Daily Operations") {
+              Section("Primary Workflow") {
                 ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
                   sidebarButton(for: section)
                 }
@@ -110,7 +110,7 @@ struct ParcelOpsRootView: View {
 
               Section {
                 VStack(alignment: .leading, spacing: 8) {
-                  Text("Advanced records and setup views are available when needed. Keep this hidden for daily operator work.")
+                  Text("Reference records, setup screens, and detailed review tools are available when needed. Keep this hidden for daily operator work.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -484,12 +484,12 @@ struct ParcelNavigationGroup: Identifiable {
   var sections: [ParcelSection]
   var id: String { title }
 
-  static let dailyOperations = ParcelNavigationGroup(title: "Daily Operations", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
+  static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
 
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
-    ParcelNavigationGroup(title: "Advanced Workflow", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
-    ParcelNavigationGroup(title: "Supporting Records", sections: [.evidence, .shipmentGroups, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
-    ParcelNavigationGroup(title: "Admin & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .accounts, .vendorProfiles, .wishlist])
+    ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
+    ParcelNavigationGroup(title: "Operational Records", sections: [.evidence, .shipmentGroups, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
+    ParcelNavigationGroup(title: "Setup & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .accounts, .vendorProfiles, .wishlist])
   ]
 
   static let desktopGroups: [ParcelNavigationGroup] = [
@@ -503,7 +503,7 @@ struct ParcelNavigationGroup: Identifiable {
   static var mobileSecondaryGroups: [ParcelNavigationGroup] {
     let primarySet = Set(dailyOperations.sections.prefix(4))
     let dailyOverflow = ParcelNavigationGroup(
-      title: "More Daily Operations",
+      title: "More Primary Workflow",
       sections: dailyOperations.sections.filter { !primarySet.contains($0) }
     )
     return [dailyOverflow] + secondaryDesktopGroups
