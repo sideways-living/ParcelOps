@@ -566,19 +566,65 @@ struct SpaceMailNeedsReviewPreviewRow: View {
   var onImportHint: () -> Void
   var onFilterHint: () -> Void
 
+  private var displayTitle: String {
+    title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No subject" : title
+  }
+
+  private var displaySender: String {
+    sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown sender" : sender
+  }
+
+  private var isFiltered: Bool {
+    badge.localizedCaseInsensitiveContains("filtered")
+  }
+
+  private var recommendationTitle: String {
+    isFiltered ? "Optional review: likely non-order mail" : "Review needed: possibly order-related"
+  }
+
+  private var recommendationDetail: String {
+    if isFiltered {
+      return "This preview stayed out of Inbox. Import only if it is a real order or order update; otherwise dismiss it or add a filter hint."
+    }
+    return "This preview stayed out of Inbox because the classifier was not confident. Import true order mail, or dismiss/filter it locally."
+  }
+
+  private var recommendationSymbol: String {
+    isFiltered ? "line.3.horizontal.decrease.circle.fill" : "questionmark.folder.fill"
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 10) {
         VStack(alignment: .leading, spacing: 3) {
-          Label(title.isEmpty ? "No subject" : title, systemImage: "questionmark.folder.fill")
+          Label(displayTitle, systemImage: recommendationSymbol)
             .font(.subheadline.weight(.semibold))
-          Text("\(sender.isEmpty ? "Unknown sender" : sender) • \(receivedDate)")
+            .fixedSize(horizontal: false, vertical: true)
+          Text("\(displaySender) • \(receivedDate)")
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
         Spacer()
         Badge(badge, color: color)
       }
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: recommendationSymbol)
+          .foregroundStyle(color)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(recommendationTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(recommendationDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       Text(bodyPreview)
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -592,6 +638,9 @@ struct SpaceMailNeedsReviewPreviewRow: View {
         Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
         Button("Task", systemImage: "checklist", action: onCreateTask)
         Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+      }
+      ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+      CompactActionRow {
         Button("Trust sender", systemImage: "person.badge.shield.checkmark", action: onTrustSender)
         Button("Import hint", systemImage: "plus.circle", action: onImportHint)
         Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle", action: onFilterHint)
