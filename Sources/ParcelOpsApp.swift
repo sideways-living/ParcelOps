@@ -399,7 +399,7 @@ struct ExpandableBottomMenu: View {
   var attentionCount: (ParcelSection) -> Int?
 
   private var primaryItems: [ParcelSection] {
-    [.dashboard, .inbox, .orders, .workbench]
+    ParcelNavigationGroup.mobilePrimarySections
   }
 
   private var secondaryGroups: [ParcelNavigationGroup] {
@@ -486,6 +486,8 @@ struct ParcelNavigationGroup: Identifiable {
 
   static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
 
+  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .dispatch, .tasks]
+
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
     ParcelNavigationGroup(title: "Operational Records", sections: [.evidence, .shipmentGroups, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
@@ -497,11 +499,12 @@ struct ParcelNavigationGroup: Identifiable {
   ] + secondaryDesktopGroups
 
   static var mobileSecondarySections: [ParcelSection] {
-    desktopGroups.flatMap(\.sections).filter { !dailyOperations.sections.prefix(4).contains($0) }
+    let primarySet = Set(mobilePrimarySections)
+    return desktopGroups.flatMap(\.sections).filter { !primarySet.contains($0) }
   }
 
   static var mobileSecondaryGroups: [ParcelNavigationGroup] {
-    let primarySet = Set(dailyOperations.sections.prefix(4))
+    let primarySet = Set(mobilePrimarySections)
     let dailyOverflow = ParcelNavigationGroup(
       title: "More Primary Workflow",
       sections: dailyOperations.sections.filter { !primarySet.contains($0) }
