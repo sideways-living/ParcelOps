@@ -608,6 +608,30 @@ struct DashboardView: View {
           ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
           ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
         ])
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
