@@ -4336,12 +4336,22 @@ final class ParcelOpsStore {
 
   private func orderSearchResults() -> [SearchResult] {
     orders.map { order in
-      SearchResult(
+      let missingFields = partialInboxOrderMissingFields(for: order)
+      let manifests = suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+      let checklists = suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+      let inboxContext = inboxSearchContext(for: order, missingFields: missingFields, manifestCount: manifests.count, checklistCount: checklists.count)
+      let dispatchContext = dispatchSearchContext(for: order, manifests: manifests, checklists: checklists)
+      return SearchResult(
         id: "order-\(order.id.uuidString)",
         entityType: .order,
         title: "\(order.store) \(order.orderNumber)",
-        subtitle: "\(order.status.rawValue) to \(order.destination)",
-        detail: "Tracking \(order.trackingNumber) via \(order.carrier). \(order.latestStatus)",
+        subtitle: [order.status.rawValue, order.destination, inboxContext.subtitle].filter { !$0.isEmpty }.joined(separator: " • "),
+        detail: [
+          "Tracking \(order.trackingNumber) via \(order.carrier).",
+          order.latestStatus,
+          inboxContext.detail,
+          dispatchContext
+        ].filter { !$0.isEmpty }.joined(separator: " "),
         severity: order.status == .exception ? .critical : nil,
         reviewState: order.reviewState,
         linkedEntityID: order.id.uuidString
@@ -4351,17 +4361,109 @@ final class ParcelOpsStore {
 
   private func intakeEmailSearchResults() -> [SearchResult] {
     intakeEmails.map { email in
-      SearchResult(
+      let linkedOrderLabel = email.linkedOrderID.flatMap(orderLabel(for:)) ?? "No linked order"
+      let sourceMailboxLabel = intakeSourceMailboxLabel(for: email)
+      let readiness = intakeSearchReadiness(for: email)
+      return SearchResult(
         id: "intake-\(email.id.uuidString)",
         entityType: .intakeEmail,
         title: email.subject,
-        subtitle: "\(email.detectedMerchant) from \(email.sender)",
-        detail: "Order \(email.detectedOrderNumber), tracking \(email.detectedTrackingNumber), destination \(email.detectedDestinationAddress). \(email.rawBodyPreview)",
+        subtitle: "\(readiness.label) • \(email.detectedMerchant) from \(email.sender)",
+        detail: [
+          "Order \(email.detectedOrderNumber), tracking \(email.detectedTrackingNumber), destination \(email.detectedDestinationAddress).",
+          "Inbox source: \(sourceMailboxLabel) • \(linkedOrderLabel).",
+          readiness.detail,
+          email.rawBodyPreview
+        ].joined(separator: " "),
         severity: email.reviewState == .needsReview ? .watch : nil,
         reviewState: email.reviewState.searchReviewState,
         linkedEntityID: email.id.uuidString
       )
     }
+  }
+
+  private func intakeSourceMailboxLabel(for email: ForwardedEmailIntake) -> String {
+    guard let ingestRecord = mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return "local intake"
+    }
+    if let spaceMailConnection = spaceMailIMAPConnections.first(where: { trackedMailbox(for: $0).id == ingestRecord.sourceMailboxID }) {
+      return "SpaceMail \(spaceMailConnection.emailAddressUsername)"
+    }
+    if let microsoftConnection = microsoft365MailboxConnections.first(where: { trackedMailbox(for: $0).id == ingestRecord.sourceMailboxID }) {
+      return "Microsoft 365 \(microsoftConnection.mailboxAddress)"
+    }
+    if let mailbox = mailboxes.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return mailbox.address
+    }
+    return ingestRecord.sourceMailboxID.uuidString
+  }
+
+  private func inboxSearchContext(for order: TrackedOrder, missingFields: [String], manifestCount: Int, checklistCount: Int) -> (subtitle: String, detail: String) {
+    guard isInboxCreatedOrderForSearch(order) else { return ("", "") }
+    let subtitle = missingFields.isEmpty ? "Inbox-created" : "Inbox-created, verify \(missingFields.joined(separator: ", "))"
+    let detail: String
+    if missingFields.isEmpty {
+      detail = "Inbox handoff: order fields are usable for local dispatch setup."
+    } else {
+      detail = "Inbox handoff: verify \(missingFields.joined(separator: ", ")) before completing dispatch setup."
+    }
+    let dispatchLinks = manifestCount + checklistCount
+    return (subtitle, "\(detail) Linked dispatch records: \(dispatchLinks). Search terms: Inbox-created order, Inbox handoff, dispatch setup.")
+  }
+
+  private func dispatchSearchContext(for order: TrackedOrder, manifests: [ShipmentManifestRecord], checklists: [DispatchReadinessChecklist]) -> String {
+    guard !manifests.isEmpty || !checklists.isEmpty || order.latestStatus.localizedCaseInsensitiveContains("dispatch handoff") else { return "" }
+    let reopenedManifests = manifests.filter { $0.dispatchStatus == .reopened }.count
+    let reopenedChecklists = checklists.filter { $0.checklistStatus == .reopened }.count
+    let blockedManifests = manifests.filter { $0.dispatchStatus == .blockedNeedsReview }.count
+    let blockedChecklists = checklists.filter { $0.checklistStatus == .blockedNeedsReview }.count
+    let completedManifests = manifests.filter { $0.dispatchStatus == .handedOff }.count
+    let completedChecklists = checklists.filter { $0.checklistStatus == .completed }.count
+
+    var phrases: [String] = []
+    if reopenedManifests + reopenedChecklists > 0 {
+      phrases.append("reopened dispatch handoff")
+    }
+    if blockedManifests + blockedChecklists > 0 {
+      phrases.append("blocked dispatch handoff")
+    }
+    if completedManifests + completedChecklists == manifests.count + checklists.count, !manifests.isEmpty || !checklists.isEmpty {
+      phrases.append("completed dispatch handoff")
+    }
+    if phrases.isEmpty {
+      phrases.append("dispatch handoff setup")
+    }
+
+    return "Dispatch handoff context: \(phrases.joined(separator: ", ")); manifests \(manifests.count), readiness \(checklists.count)."
+  }
+
+  private func intakeSearchReadiness(for email: ForwardedEmailIntake) -> (label: String, detail: String) {
+    let missingFields = [
+      email.detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+      email.detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+      email.detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
+
+    if email.reviewState == .ignored {
+      return ("Ignored intake", "This message is ignored locally. Reopen from Mailbox Monitor if it should become an order signal.")
+    }
+    if !missingFields.isEmpty {
+      return ("Inbox needs correction", "Missing detected fields: \(missingFields.joined(separator: ", ")). Search terms: parser diagnostics, order number needs review, tracking needs review.")
+    }
+    if email.linkedOrderID != nil {
+      return ("Linked Inbox intake", "This intake email has linked order context. Search terms: Inbox linked order, source trail, order handoff.")
+    }
+    return ("Ready Inbox intake", "Detected order and tracking fields look usable. Link to an order or create a local order from Inbox.")
+  }
+
+  private func isInboxCreatedOrderForSearch(_ order: TrackedOrder) -> Bool {
+    order.source == .forwardedMailbox
+      || order.checkedMailbox == "manual-import"
+      || order.latestStatus.localizedCaseInsensitiveContains("import queue")
+      || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
+      || order.latestStatus.localizedCaseInsensitiveContains("forwarded email")
+      || order.latestStatus.localizedCaseInsensitiveContains("inbox")
   }
 
   private func trackingEventSearchResults() -> [SearchResult] {

@@ -30,7 +30,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 8) {
           Label("Search", systemImage: "magnifyingglass")
             .font(.largeTitle.bold())
-          Text("Find local orders, intake emails, tracking events, evidence, audit history, and automation rules.")
+          Text("Find local orders, Inbox intake, dispatch handoffs, tracking events, evidence, audit history, and automation rules.")
             .foregroundStyle(.secondary)
         }
 
@@ -48,6 +48,12 @@ struct SearchView: View {
           queryText = ""
           selectedEntityType = nil
           selectedReviewState = nil
+        }
+
+        SearchOperatorHintsPanel { query, entity, reviewState in
+          queryText = query
+          selectedEntityType = entity
+          selectedReviewState = reviewState
         }
 
         SettingsPanel(title: "Saved filters", symbol: "line.3.horizontal.decrease.circle.fill") {
@@ -107,6 +113,69 @@ struct SearchView: View {
     selectedEntityType = filter.entityTypeFilter
     selectedReviewState = filter.reviewStateFilter
   }
+}
+
+private struct SearchOperatorHintsPanel: View {
+  var onApply: (String, SearchEntityType?, ReviewState?) -> Void
+
+  private let hints: [SearchOperatorHint] = [
+    SearchOperatorHint(title: "Inbox-created orders", query: "Inbox-created order", entityType: .order, reviewState: nil, symbol: "tray.and.arrow.down.fill", detail: "Find orders created from intake, import, or acceptance handoff."),
+    SearchOperatorHint(title: "Reopened dispatch handoffs", query: "reopened dispatch handoff", entityType: .order, reviewState: nil, symbol: "arrow.counterclockwise.circle.fill", detail: "Find Inbox-created orders whose local dispatch handoff was reopened."),
+    SearchOperatorHint(title: "Missing tracking", query: "tracking number needs review", entityType: .intakeEmail, reviewState: .needsReview, symbol: "number.circle.fill", detail: "Find intake rows where the parser did not extract a usable tracking value."),
+    SearchOperatorHint(title: "SpaceMail parser checks", query: "parser diagnostics", entityType: .intakeEmail, reviewState: nil, symbol: "server.rack", detail: "Find intake and audit clues from mixed-mailbox parsing and classifier work.")
+  ]
+
+  var body: some View {
+    SettingsPanel(title: "Useful operator searches", symbol: "sparkle.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Start with these shortcuts when tracing Inbox-created orders, dispatch handoffs, or parser follow-up. They only filter local JSON records.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], spacing: 10) {
+          ForEach(hints) { hint in
+            Button {
+              onApply(hint.query, hint.entityType, hint.reviewState)
+            } label: {
+              VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline) {
+                  Label(hint.title, systemImage: hint.symbol)
+                    .font(.subheadline.weight(.semibold))
+                  Spacer(minLength: 8)
+                  Badge(hint.entityType?.rawValue ?? "All", color: hint.entityType?.color ?? .blue)
+                }
+                Text(hint.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("Search: \(hint.query)")
+                  .font(.caption2.monospaced())
+                  .foregroundStyle(.tertiary)
+                  .lineLimit(1)
+                  .truncationMode(.tail)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(.quaternary.opacity(0.24))
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct SearchOperatorHint: Identifiable {
+  var id: String { title }
+  var title: String
+  var query: String
+  var entityType: SearchEntityType?
+  var reviewState: ReviewState?
+  var symbol: String
+  var detail: String
 }
 
 struct SearchControlPanel: View {
