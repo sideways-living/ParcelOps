@@ -782,7 +782,7 @@ struct IntakeEmailRow: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
           Spacer()
-          Button("Add", systemImage: "plus", action: onAddEvidence)
+          Button("Add evidence", systemImage: "plus", action: onAddEvidence)
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
@@ -823,13 +823,13 @@ struct IntakeEmailRow: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
           Spacer()
-          Button("Add", systemImage: "key.badge.plus", action: onCreateAccount)
+          Button("Add account", systemImage: "key.badge.plus", action: onCreateAccount)
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
 
         if suggestedAccounts.isEmpty {
-          Text("No local account placeholders matched.")
+          Text("No local accounts matched.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -849,7 +849,7 @@ struct IntakeEmailRow: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
           Spacer()
-          Button("Add", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          Button("Add profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
