@@ -17,13 +17,13 @@ struct MVPSetupView: View {
 
         MVPWorkflowGuide(
           title: "First usable workflow",
-          detail: "This is the shortest route for testing whether ParcelOps works as a local operational tool.",
+          detail: "Use this path to test the current SpaceMail-first local operator workflow end to end.",
           steps: [
-            "Review Mailbox Monitor and Import Queue records.",
-            "Use Acceptance Review to link or create orders and shipment groups.",
-            "Use Needs Review and Operations Workbench to clear exceptions.",
-            "Prepare dispatch through Shipment Manifests and Dispatch Readiness.",
-            "Use Tasks and Audit to confirm follow-up and traceability."
+            "Confirm SpaceMail setup and Keychain credential, then run one manual read-only refresh.",
+            "Use Inbox or Mailbox Monitor to review imported, uncertain, filtered, and parser results.",
+            "Create or link one order from a confirmed intake row.",
+            "Use Orders and Workbench to verify the source trail, tracking, destination, and follow-up.",
+            "Use Dispatch, Tasks, and Audit to confirm handoff readiness and traceability."
           ]
         )
 
