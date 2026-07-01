@@ -607,6 +607,7 @@ struct OperationsWorkbenchView: View {
       scanSessions: store.suggestedScanSessionRecords(for: item),
       shipmentManifests: store.suggestedShipmentManifestRecords(for: item),
       dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item),
+      intakeSourceSummary: intakeSourceSummary(for: item),
       contextDestination: AnyView(workbenchDestination(for: item))
     ) {
       store.createReviewTask(from: item)
@@ -615,6 +616,16 @@ struct OperationsWorkbenchView: View {
     } onReviewed: {
       store.markWorkbenchItemReviewed(item)
     }
+  }
+
+  private func intakeSourceSummary(for item: WorkbenchItem) -> (label: String, detail: String, tone: String, status: String, captured: String)? {
+    guard item.source == .intakeEmail || item.source == .intakeParser,
+          let intakeID = UUID(uuidString: item.linkedEntityID),
+          let email = store.intakeEmails.first(where: { $0.id == intakeID })
+    else {
+      return nil
+    }
+    return store.intakeSourceSummary(for: email)
   }
 
   @ViewBuilder
@@ -987,6 +998,7 @@ struct WorkbenchItemRow: View {
   var scanSessions: [ScanSessionRecord] = []
   var shipmentManifests: [ShipmentManifestRecord] = []
   var dispatchChecklists: [DispatchReadinessChecklist] = []
+  var intakeSourceSummary: (label: String, detail: String, tone: String, status: String, captured: String)?
   var contextDestination: AnyView?
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
@@ -1022,9 +1034,16 @@ struct WorkbenchItemRow: View {
         Label(item.assignee, systemImage: "person.2.fill")
         Label(item.dueDateText, systemImage: "calendar")
         Label(item.linkedEntityType.rawValue, systemImage: item.linkedEntityType.symbol)
+        if let intakeSourceSummary {
+          Label(intakeSourceSummary.label, systemImage: "tray.full.fill")
+        }
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      if let intakeSourceSummary {
+        WorkbenchInboxSourcePanel(summary: intakeSourceSummary)
+      }
 
       CompactActionRow {
         if let contextDestination {
@@ -1098,5 +1117,42 @@ struct WorkbenchItemRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct WorkbenchInboxSourcePanel: View {
+  var summary: (label: String, detail: String, tone: String, status: String, captured: String)
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 8) {
+        Label("Inbox source", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Badge(summary.label, color: sourceColor)
+        Badge(summary.status, color: sourceColor)
+      }
+
+      Text("\(summary.detail) Captured \(summary.captured).")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(sourceColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceColor: Color {
+    switch summary.tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
   }
 }
