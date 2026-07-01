@@ -29,6 +29,26 @@ struct EvidenceView: View {
       || !evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  private var inboxCreatedOrdersWithEvidence: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !evidenceForOrder(order).isEmpty
+    }
+  }
+
+  private var inboxCreatedOrdersWithoutEvidence: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      evidenceForOrder(order).isEmpty
+    }
+  }
+
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -40,6 +60,7 @@ struct EvidenceView: View {
         }
 
         filterBar
+        inboxEvidenceCoveragePanel
 
         SettingsPanel(title: "Attachments", symbol: "paperclip") {
           HStack {
@@ -78,6 +99,56 @@ struct EvidenceView: View {
   private func linkedOrder(for attachment: EvidenceAttachment) -> TrackedOrder? {
     guard attachment.linkedEntityType == .order else { return nil }
     return store.orders.first { $0.id == attachment.linkedEntityID }
+  }
+
+  private var inboxEvidenceCoveragePanel: some View {
+    SettingsPanel(title: "Inbox evidence coverage", symbol: "envelope.open.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Evidence should support the local source trail for orders created from Inbox, Import Queue, or Acceptance Review. Missing evidence is not a blocker by itself, but it should be visible before handoff closure.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("With evidence", "\(inboxCreatedOrdersWithEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
+          ("No evidence", "\(inboxCreatedOrdersWithoutEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
+          ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
+        ])
+
+        if inboxCreatedOrdersWithoutEvidence.isEmpty && inboxCreatedOrdersMissingSourceTrail.isEmpty {
+          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "Inbox-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          ForEach(Array((inboxCreatedOrdersWithoutEvidence + inboxCreatedOrdersMissingSourceTrail).uniquedByID().prefix(4))) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "doc.text.magnifyingglass")
+                  .foregroundStyle(.orange)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("\(order.store) • \(order.orderNumber)")
+                    .font(.subheadline.weight(.semibold))
+                  Text(evidenceForOrder(order).isEmpty ? "No local evidence attachment is linked to this Inbox-created order. Check source trail before closing handoff work." : "Source trail is missing even though evidence exists. Open order detail to link or review the source context.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(evidenceForOrder(order).isEmpty ? "No evidence" : "Trace", color: .orange)
+              }
+              .padding(10)
+              .background(Color.orange.opacity(0.08))
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+    }
   }
 
   private var filterBar: some View {
@@ -151,6 +222,26 @@ struct EvidenceView: View {
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
+
+  private func evidenceForOrder(_ order: TrackedOrder) -> [EvidenceAttachment] {
+    evidenceAttachmentsForOrder(order, in: store.evidenceAttachments, intakeEmails: store.intakeEmails)
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
 }
 
 struct EvidenceAttachmentRow: View {
@@ -207,6 +298,13 @@ struct EvidenceAttachmentRow: View {
             ShipmentGroupContextStrip(groups: shipmentGroups)
           }
 
+          if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder {
+            EvidenceInboxSourceTrailCallout(
+              evidenceCount: evidenceForLinkedOrder.count,
+              sourceTrailCount: sourceTrailCount(for: linkedOrder)
+            )
+          }
+
           if !customerProfiles.isEmpty {
             CustomerProfileStrip(profiles: customerProfiles)
           }
@@ -246,5 +344,78 @@ struct EvidenceAttachmentRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var evidenceForLinkedOrder: [EvidenceAttachment] {
+    guard let store, let linkedOrder else { return [] }
+    return evidenceAttachmentsForOrder(linkedOrder, in: store.evidenceAttachments, intakeEmails: store.intakeEmails)
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    guard let store else { return 0 }
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    let linkedIntakeCount = store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }.count
+    return linkedIntakeCount
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+}
+
+private struct EvidenceInboxSourceTrailCallout: View {
+  var evidenceCount: Int
+  var sourceTrailCount: Int
+
+  private var tone: Color {
+    evidenceCount > 0 && sourceTrailCount > 0 ? .green : .orange
+  }
+
+  private var title: String {
+    if evidenceCount > 0 && sourceTrailCount > 0 { return "Inbox source and evidence are linked" }
+    if evidenceCount == 0 && sourceTrailCount == 0 { return "Inbox source and evidence need review" }
+    if evidenceCount == 0 { return "Inbox order has source trail but no evidence" }
+    return "Evidence exists but source trail is missing"
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: tone == .green ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+        .foregroundStyle(tone)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+        Text("Evidence records: \(evidenceCount). Source trail records: \(sourceTrailCount). Open order detail before closing related Inbox handoff work.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer()
+    }
+    .padding(10)
+    .background(tone.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private func evidenceAttachmentsForOrder(_ order: TrackedOrder, in attachments: [EvidenceAttachment], intakeEmails: [ForwardedEmailIntake]) -> [EvidenceAttachment] {
+  let linkedIntakeIDs = Set(intakeEmails.filter { $0.linkedOrderID == order.id }.map(\.id))
+  return attachments.filter { attachment in
+    (attachment.linkedEntityType == .order && attachment.linkedEntityID == order.id)
+      || (attachment.linkedEntityType == .intakeEmail && linkedIntakeIDs.contains(attachment.linkedEntityID))
+  }
+}
+
+private extension Array where Element == TrackedOrder {
+  func uniquedByID() -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    return filter { order in
+      seen.insert(order.id).inserted
+    }
   }
 }
