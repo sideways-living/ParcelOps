@@ -54,6 +54,7 @@ struct ContactsView: View {
         }
 
         filterBar
+        inboxContactCoverage
 
         SettingsPanel(title: "Contact directory", symbol: "person.crop.circle.badge.checkmark") {
           HStack {
@@ -72,7 +73,7 @@ struct ContactsView: View {
             MVPEmptyState(title: "No contacts match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local contacts." : "Add a local contact to keep supplier, carrier, store, and internal follow-up details close to operational records.", symbol: "person.crop.circle.badge.checkmark", actionTitle: hasActiveFilters ? "Clear filters" : "Add contact", action: hasActiveFilters ? clearFilters : store.addContactDirectoryEntryPlaceholder)
           } else {
             ForEach(filteredContacts) { contact in
-              ContactDirectoryRow(contact: contact, store: store, linkedOrder: linkedOrder(for: contact), suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
+              ContactDirectoryRow(contact: contact, store: store, linkedOrder: linkedOrder(for: contact), inboxOrders: inboxOrders(for: contact), suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {
                 store.toggleContactDirectoryEntry(contact)
@@ -160,9 +161,115 @@ struct ContactsView: View {
     contactSearchText = ""
   }
 
+  private var inboxContactCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedContacts = contactsLinkedToInboxOrders
+    let actionContacts = linkedContacts.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.email.isPlaceholderValidationValue }
+    let missingCount = inboxOrdersMissingContact.count
+
+    return SettingsPanel(title: "Inbox contact readiness", symbol: "person.crop.circle.badge.checkmark") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have usable local contact context for store, carrier, customer, or internal follow-up.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedContacts.count) matched contacts", color: .teal)
+          Badge("\(actionContacts.count) need action", color: actionContacts.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without contact", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking contact coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedContacts.isEmpty {
+          Text("No contacts currently match Inbox-created orders by store, carrier, customer/team, or recipient email.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionContacts.isEmpty {
+          Text("Matched contacts are enabled, reviewed, and have contact details for current Inbox-created orders.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionContacts.prefix(3))) { contact in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: contact.isEnabled ? "person.crop.circle.badge.exclamationmark" : "pause.circle.fill")
+                .foregroundStyle(contact.isEnabled ? .orange : .red)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(contact.name)
+                  .font(.caption.bold())
+                Text(contactActionSummary(for: contact))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(contact.reviewState.rawValue, color: contact.reviewState.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
   private func linkedOrder(for contact: ContactDirectoryEntry) -> TrackedOrder? {
     guard contact.linkedEntityType == .order, let orderID = UUID(uuidString: contact.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var contactsLinkedToInboxOrders: [ContactDirectoryEntry] {
+    store.contactDirectoryEntries.filter { contact in
+      inboxCreatedOrders.contains { order in
+        contactMatches(contact, order: order)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingContact: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.contactDirectoryEntries.contains { contact in
+        contactMatches(contact, order: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for contact: ContactDirectoryEntry) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { contactMatches(contact, order: $0) }
+  }
+
+  private func contactMatches(_ contact: ContactDirectoryEntry, order: TrackedOrder) -> Bool {
+    if contact.linkedEntityType == .order, let linkedID = UUID(uuidString: contact.linkedEntityID), linkedID == order.id {
+      return true
+    }
+    let organisation = contact.organisation.trimmingCharacters(in: .whitespacesAndNewlines)
+    let name = contact.name.trimmingCharacters(in: .whitespacesAndNewlines)
+    let email = contact.email.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (!organisation.isEmpty && !organisation.isPlaceholderValidationValue && (order.store.localizedCaseInsensitiveContains(organisation) || order.carrier.localizedCaseInsensitiveContains(organisation) || order.customer.localizedCaseInsensitiveContains(organisation)))
+      || (!name.isEmpty && !name.isPlaceholderValidationValue && order.customer.localizedCaseInsensitiveContains(name))
+      || (!email.isEmpty && !email.isPlaceholderValidationValue && order.recipientEmail.localizedCaseInsensitiveContains(email))
+  }
+
+  private func contactActionSummary(for contact: ContactDirectoryEntry) -> String {
+    var parts: [String] = []
+    if !contact.isEnabled { parts.append("enable or confirm disabled contact") }
+    if contact.reviewState != .accepted { parts.append("mark reviewed") }
+    if contact.email.isPlaceholderValidationValue && contact.phone.isPlaceholderValidationValue { parts.append("add contact method") }
+    return parts.isEmpty ? "Contact is enabled and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func contactSearchParts(_ contact: ContactDirectoryEntry) -> [String] {
@@ -197,6 +304,7 @@ struct ContactDirectoryRow: View {
   var contact: ContactDirectoryEntry
   var store: ParcelOpsStore? = nil
   var linkedOrder: TrackedOrder? = nil
+  var inboxOrders: [TrackedOrder] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
@@ -279,6 +387,49 @@ struct ContactDirectoryRow: View {
           .buttonStyle(.bordered)
       }
 
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox contact source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.store, color: .teal)
+              Text(order.customer)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !contactWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Contact follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(contactWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       if !suggestedAccounts.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           Label("Linked accounts", systemImage: "key.horizontal.fill")
@@ -326,6 +477,42 @@ struct ContactDirectoryRow: View {
       ContactDirectoryEditView(contact: contact) { updatedContact in
         onSave(updatedContact)
       }
+    }
+  }
+
+  private var contactWarnings: [String] {
+    var warnings: [String] = []
+    if !contact.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This contact matches an Inbox-created order but is disabled.")
+    }
+    if contact.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Contact needs review before relying on it for local follow-up.")
+    }
+    if contact.email.isPlaceholderValidationValue && contact.phone.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Contact method is missing or placeholder.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }

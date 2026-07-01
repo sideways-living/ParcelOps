@@ -57,6 +57,7 @@ struct AccountsView: View {
         }
 
         filterBar
+        inboxAccountCoverage
 
         SettingsPanel(title: "Account placeholders", symbol: "key.horizontal.fill") {
           HStack {
@@ -75,7 +76,7 @@ struct AccountsView: View {
             MVPEmptyState(title: "No account placeholders match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local account placeholders." : "Add a local account placeholder to track review status and setup notes without storing secrets.", symbol: "key.horizontal.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add account", action: hasActiveFilters ? clearFilters : store.addAccountCredentialRecordPlaceholder)
           } else {
             ForEach(filteredAccounts) { account in
-              AccountCredentialRow(account: account, store: store, linkedOrder: linkedOrder(for: account), contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
+              AccountCredentialRow(account: account, store: store, linkedOrder: linkedOrder(for: account), inboxOrders: inboxOrders(for: account), contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
                 store.updateAccountCredentialRecord(updatedAccount)
               } onToggle: {
                 store.toggleAccountCredentialRecord(account)
@@ -169,9 +170,125 @@ struct AccountsView: View {
     accountSearchText = ""
   }
 
+  private var inboxAccountCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedAccounts = accountsLinkedToInboxOrders
+    let actionAccounts = linkedAccounts.filter { account in
+      !account.isEnabled
+        || account.reviewState != .accepted
+        || account.credentialStorageStatus == .needsSetup
+        || account.credentialStorageStatus == .accessPending
+        || account.mfaStatus == .needsReview
+        || account.mfaStatus == .unknown
+    }
+    let missingCount = inboxOrdersMissingAccount.count
+
+    return SettingsPanel(title: "Inbox account readiness", symbol: "key.horizontal.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local account placeholders when manual supplier, store, carrier, or portal follow-up may be needed. No secrets are stored here.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedAccounts.count) matched accounts", color: .teal)
+          Badge("\(actionAccounts.count) need action", color: actionAccounts.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without account", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking account placeholder coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedAccounts.isEmpty {
+          Text("No account placeholders currently match Inbox-created orders by store, carrier, linked contact, or linked order.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionAccounts.isEmpty {
+          Text("Matched account placeholders are enabled, reviewed, checked, and ready as non-secret local references.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionAccounts.prefix(3))) { account in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: account.isEnabled ? "key.horizontal.fill" : "pause.circle.fill")
+                .foregroundStyle(account.isEnabled ? .orange : .red)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(account.accountName)
+                  .font(.caption.bold())
+                Text(accountActionSummary(for: account))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(account.credentialStorageStatus.rawValue, color: account.credentialStorageStatus.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
   private func linkedOrder(for account: AccountCredentialRecord) -> TrackedOrder? {
     guard account.linkedEntityType == .order, let orderID = UUID(uuidString: account.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var accountsLinkedToInboxOrders: [AccountCredentialRecord] {
+    store.accountCredentialRecords.filter { account in
+      inboxCreatedOrders.contains { order in
+        accountMatches(account, order: order)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingAccount: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.accountCredentialRecords.contains { account in
+        accountMatches(account, order: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for account: AccountCredentialRecord) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { accountMatches(account, order: $0) }
+  }
+
+  private func accountMatches(_ account: AccountCredentialRecord, order: TrackedOrder) -> Bool {
+    if account.linkedEntityType == .order, let linkedID = UUID(uuidString: account.linkedEntityID), linkedID == order.id {
+      return true
+    }
+    let organisation = account.organisation.trimmingCharacters(in: .whitespacesAndNewlines)
+    let contactMatch = account.linkedContactID.flatMap { contactID in
+      store.contactDirectoryEntries.first { $0.id == contactID }
+    }.map { contact in
+      !contact.email.isPlaceholderValidationValue && order.recipientEmail.localizedCaseInsensitiveContains(contact.email)
+    } ?? false
+    return contactMatch
+      || (!organisation.isEmpty && !organisation.isPlaceholderValidationValue && (order.store.localizedCaseInsensitiveContains(organisation) || order.carrier.localizedCaseInsensitiveContains(organisation) || order.customer.localizedCaseInsensitiveContains(organisation)))
+  }
+
+  private func accountActionSummary(for account: AccountCredentialRecord) -> String {
+    var parts: [String] = []
+    if !account.isEnabled { parts.append("enable or confirm disabled placeholder") }
+    if account.reviewState != .accepted { parts.append("mark reviewed") }
+    if account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending { parts.append("confirm credential readiness") }
+    if account.mfaStatus == .needsReview || account.mfaStatus == .unknown { parts.append("review MFA status") }
+    return parts.isEmpty ? "Account placeholder is enabled, reviewed, and checked." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func accountSearchParts(_ account: AccountCredentialRecord) -> [String] {
@@ -208,6 +325,7 @@ struct AccountCredentialRow: View {
   var account: AccountCredentialRecord
   var store: ParcelOpsStore? = nil
   var linkedOrder: TrackedOrder? = nil
+  var inboxOrders: [TrackedOrder] = []
   var contacts: [ContactDirectoryEntry] = []
   var suggestedProfiles: [VendorProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
@@ -300,6 +418,49 @@ struct AccountCredentialRow: View {
           .buttonStyle(.bordered)
       }
 
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox account source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.store, color: .teal)
+              Text(order.carrier)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !accountWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Account follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(accountWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       if !suggestedProfiles.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           Label("Linked profiles", systemImage: "building.2.crop.circle.fill")
@@ -332,6 +493,45 @@ struct AccountCredentialRow: View {
       AccountCredentialEditView(account: account, contacts: contacts) { updatedAccount in
         onSave(updatedAccount)
       }
+    }
+  }
+
+  private var accountWarnings: [String] {
+    var warnings: [String] = []
+    if !account.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This account placeholder matches an Inbox-created order but is disabled.")
+    }
+    if account.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Account placeholder needs review before relying on it for local follow-up.")
+    }
+    if (account.credentialStorageStatus == .needsSetup || account.credentialStorageStatus == .accessPending) && !inboxOrders.isEmpty {
+      warnings.append("Credential readiness is \(account.credentialStorageStatus.rawValue.lowercased()); no secret is stored here.")
+    }
+    if (account.mfaStatus == .needsReview || account.mfaStatus == .unknown) && !inboxOrders.isEmpty {
+      warnings.append("MFA status needs confirmation before using this account for manual follow-up.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
