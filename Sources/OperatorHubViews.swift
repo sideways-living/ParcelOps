@@ -108,6 +108,7 @@ struct InboxView: View {
         header
         inboxSummaryPanel
         SpaceMailPrimaryStatusStrip(store: store)
+        SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
         mailboxHealthPanel
         triagePanel
         detailRoutes
