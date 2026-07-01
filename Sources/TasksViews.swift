@@ -751,15 +751,30 @@ private struct TaskInboxSourceTrail: View {
         .prefix(3)
     )
   }
+  private var importItems: [ImportQueueItem] {
+    Array(store.importQueueItems(for: order).prefix(3))
+  }
+  private var acceptanceRecords: [AcceptanceRecord] {
+    Array(store.acceptanceRecords(for: order).prefix(3))
+  }
+  private var sourceTrailCount: Int {
+    linkedEmails.count + importItems.count + acceptanceRecords.count
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Label("Inbox source for this task", systemImage: "tray.and.arrow.down.fill")
         .font(.caption.weight(.semibold))
-        .foregroundStyle(.teal)
+        .foregroundStyle(sourceTrailCount == 0 ? .orange : .teal)
 
-      if linkedEmails.isEmpty {
-        Text("This order was created from Inbox workflow, but no linked intake email matched the current order number. Open the order source trail before closing this task.")
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(linkedEmails.count) intake", color: linkedEmails.isEmpty ? .secondary : .teal)
+        Badge("\(importItems.count) import", color: importItems.isEmpty ? .secondary : .blue)
+        Badge("\(acceptanceRecords.count) acceptance", color: acceptanceRecords.isEmpty ? .secondary : .purple)
+      }
+
+      if sourceTrailCount == 0 {
+        Text("This order was created from Inbox workflow, but no intake, import, or acceptance source matched the current order number. Open the order source trail before closing this task.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -773,10 +788,26 @@ private struct TaskInboxSourceTrail: View {
             compact: true
           )
         }
+        if !importItems.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Import queue context")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ImportQueueContextStrip(items: importItems)
+          }
+        }
+        if !acceptanceRecords.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Acceptance context")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            AcceptanceHistoryStrip(records: acceptanceRecords)
+          }
+        }
       }
     }
     .padding(10)
-    .background(Color.teal.opacity(0.08))
+    .background((sourceTrailCount == 0 ? Color.orange : Color.teal).opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
