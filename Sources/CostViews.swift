@@ -52,6 +52,7 @@ struct CostsBudgetsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxCostCoverage
 
         SettingsPanel(title: "Cost records", symbol: "creditcard.and.123") {
           HStack {
@@ -185,6 +186,100 @@ struct CostsBudgetsView: View {
     costSearchText = ""
   }
 
+  private var inboxCostCoverage: some View {
+    SettingsPanel(title: "Inbox cost readiness", symbol: "creditcard.and.123") {
+      Text("Checks whether orders created from Inbox intake have local cost, approval, reimbursement, and budget-code context.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(costsLinkedToInboxOrders.count) linked costs", color: .teal)
+        Badge("\(costsNeedingAction.count) need action", color: costsNeedingAction.isEmpty ? .green : .orange)
+        Badge("\(inboxOrdersMissingCost.count) missing costs", color: inboxOrdersMissingCost.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need cost checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if inboxOrdersMissingCost.isEmpty && costsNeedingAction.isEmpty {
+        Label("Inbox-created orders have cost and budget coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          if !inboxOrdersMissingCost.isEmpty {
+            Text("Inbox orders missing cost records")
+              .font(.caption.weight(.semibold))
+            CompactActionRow {
+              ForEach(inboxOrdersMissingCost.prefix(4)) { order in
+                NavigationLink {
+                  OrderDetailView(order: order, store: store)
+                } label: {
+                  Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+          }
+
+          if !costsNeedingAction.isEmpty {
+            Text("Linked costs needing local action")
+              .font(.caption.weight(.semibold))
+            CompactMetadataGrid(minimumWidth: 170) {
+              ForEach(costsNeedingAction.prefix(4)) { cost in
+                Badge(cost.title, color: cost.riskLevel.color)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var costsLinkedToInboxOrders: [CostRecord] {
+    store.costRecords.filter { cost in
+      guard let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil) else {
+        return false
+      }
+      return inboxCreatedOrders.contains { $0.id == orderID }
+    }
+  }
+
+  private var costsNeedingAction: [CostRecord] {
+    costsLinkedToInboxOrders.filter { cost in
+      cost.approvalStatus != .approved
+        || cost.reimbursementStatus != .reimbursed
+        || cost.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || cost.reviewState != .accepted
+    }
+  }
+
+  private var inboxOrdersMissingCost: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.costRecords.contains { cost in
+        cost.orderID == order.id || (cost.linkedEntityType == .order && cost.linkedEntityID == order.id.uuidString)
+      }
+    }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func linkedOrder(for cost: CostRecord) -> TrackedOrder? {
     let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil)
     guard let orderID else { return nil }
@@ -253,6 +348,34 @@ struct CostRecordRow: View {
   var onRemove: () -> Void
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store, let linkedOrder else { return [] }
+    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == linkedOrder.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private var costReadinessWarnings: [String] {
+    var warnings: [String] = []
+    if cost.approvalStatus != .approved {
+      warnings.append("Approval pending")
+    }
+    if cost.reimbursementStatus != .reimbursed {
+      warnings.append("Reimbursement open")
+    }
+    if cost.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Budget code missing")
+    }
+    if cost.reviewState != .accepted {
+      warnings.append("Review pending")
+    }
+    return warnings
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -289,6 +412,10 @@ struct CostRecordRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if !linkedIntakeEmails.isEmpty || !costReadinessWarnings.isEmpty {
+        costInboxSourceTrail
       }
 
       ReturnClaimStrip(claims: returnClaims)
@@ -328,6 +455,60 @@ struct CostRecordRow: View {
       CostRecordEditView(cost: cost) { updatedCost in
         onSave(updatedCost)
       }
+    }
+  }
+
+  private var costInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox cost readiness", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(sourceTrailDescription)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(costReadinessWarnings.prefix(4), id: \.self) { warning in
+          Badge(warning, color: .orange)
+        }
+        if let linkedOrder {
+          Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedIntakeEmails.prefix(3)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+          }
+          Badge(email.detectedOrderNumber, color: email.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .teal)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if !costReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
+      return "This cost is tied to an Inbox-created order and still needs local cost readiness checks."
+    }
+    if !costReadinessWarnings.isEmpty {
+      return "This cost still needs local budget, approval, reimbursement, or review action."
+    }
+    return "Inbox intake context is linked to this cost record. Provider IDs stay in Audit/details."
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
