@@ -48,6 +48,7 @@ struct TrackingView: View {
         }
 
         filterBar
+        inboxTrackingCoverage
 
         SettingsPanel(title: "Carrier events", symbol: "location.fill.viewfinder") {
           HStack {
@@ -131,6 +132,104 @@ struct TrackingView: View {
     selectedSeverity = nil
     selectedOrderStatus = nil
     trackingSearchText = ""
+  }
+
+  private var inboxTrackingCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedEvents = trackingEventsLinkedToInboxOrders
+    let actionEvents = trackingEventsNeedingAction
+    let missingTrackingCount = inboxOrdersMissingTracking.count
+
+    return SettingsPanel(title: "Inbox tracking readiness", symbol: "location.fill.viewfinder") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local carrier updates, warning state, and review follow-up.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedEvents.count) linked events", color: .teal)
+          Badge("\(actionEvents.count) need action", color: actionEvents.isEmpty ? .green : .orange)
+          Badge("\(missingTrackingCount) missing tracking", color: missingTrackingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking tracking coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedEvents.isEmpty {
+          Text("Inbox-created orders do not have tracking events yet. Add a local tracking note from the order when carrier status needs monitoring.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionEvents.prefix(3))) { event in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: event.severity == .critical ? "exclamationmark.triangle.fill" : "location.fill.viewfinder")
+                .foregroundStyle(event.severity == .critical ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.status)
+                  .font(.caption.bold())
+                Text(trackingActionSummary(for: event))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(event.severity.rawValue, color: event.severity.color)
+            }
+          }
+
+          if actionEvents.isEmpty {
+            Text("Linked tracking events are informational and reviewed for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionEvents.count > 3 {
+            Text("\(actionEvents.count - 3) more linked tracking events need review or operational follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var trackingEventsLinkedToInboxOrders: [CarrierTrackingEvent] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    return store.carrierTrackingEvents.filter { orderIDs.contains($0.orderID) }
+  }
+
+  private var inboxOrdersMissingTracking: [TrackedOrder] {
+    let trackingOrderIDs = Set(trackingEventsLinkedToInboxOrders.map(\.orderID))
+    return inboxCreatedOrders.filter { !trackingOrderIDs.contains($0.id) }
+  }
+
+  private var trackingEventsNeedingAction: [CarrierTrackingEvent] {
+    trackingEventsLinkedToInboxOrders.filter { event in
+      event.severity == .watch || event.severity == .critical || event.reviewState != .accepted
+    }
+  }
+
+  private func trackingActionSummary(for event: CarrierTrackingEvent) -> String {
+    var parts: [String] = []
+    if event.severity == .critical { parts.append("critical carrier update") }
+    if event.severity == .watch { parts.append("watch carrier status") }
+    if event.reviewState != .accepted { parts.append("mark reviewed") }
+    if event.status.localizedCaseInsensitiveContains("delay") || event.detail.localizedCaseInsensitiveContains("delay") { parts.append("check delay") }
+    if event.status.localizedCaseInsensitiveContains("exception") || event.detail.localizedCaseInsensitiveContains("exception") { parts.append("resolve exception") }
+    return parts.isEmpty ? "Tracking event is informational and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func trackingEvent(_ event: CarrierTrackingEvent, matches query: String) -> Bool {
@@ -222,6 +321,46 @@ struct TrackingEventRow: View {
               .foregroundStyle(.secondary)
           }
 
+          if !trackingWarnings.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Label("Tracking follow-up", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.orange)
+              ForEach(trackingWarnings, id: \.self) { warning in
+                Text(warning)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+
+          if let store, let order {
+            let linkedEmails = linkedIntakeEmails(for: order, store: store)
+            if !linkedEmails.isEmpty {
+              VStack(alignment: .leading, spacing: 6) {
+                Label("Inbox tracking source", systemImage: "tray.and.arrow.down.fill")
+                  .font(.caption.bold())
+                  .foregroundStyle(.teal)
+                ForEach(linkedEmails.prefix(2)) { email in
+                  HStack(spacing: 6) {
+                    let sourceSummary = store.intakeSourceSummary(for: email)
+                    Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                    if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                      Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                    }
+                    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                      Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                    }
+                    Text(email.subject)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
+              }
+            }
+          }
+
           if !shipmentGroups.isEmpty {
             ShipmentGroupContextStrip(groups: shipmentGroups)
           }
@@ -289,5 +428,44 @@ struct TrackingEventRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var trackingWarnings: [String] {
+    var warnings: [String] = []
+    if event.severity == .critical {
+      warnings.append("Critical tracking event needs immediate review.")
+    }
+    if event.severity == .watch {
+      warnings.append("Tracking event is on watch; confirm whether the order needs follow-up.")
+    }
+    if event.status.localizedCaseInsensitiveContains("delay") || event.detail.localizedCaseInsensitiveContains("delay") {
+      warnings.append("Carrier detail mentions a delay.")
+    }
+    if event.status.localizedCaseInsensitiveContains("exception") || event.detail.localizedCaseInsensitiveContains("exception") {
+      warnings.append("Carrier detail mentions an exception.")
+    }
+    if event.reviewState != .accepted {
+      warnings.append("Review state is \(event.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
   }
 }
