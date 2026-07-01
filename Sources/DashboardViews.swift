@@ -29,6 +29,12 @@ struct DashboardView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
+  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter(hasInboxSourceTrail)
+  }
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { !hasInboxSourceTrail($0) }
+  }
   private var partialInboxOrderBlockers: [TrackedOrder] {
     inboxCreatedOrders.filter { order in
       hasPartialInboxOrderTask(order) || order.missingInboxOrderFieldCount > 0
@@ -104,7 +110,7 @@ struct DashboardView: View {
       dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
       dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance"),
-      dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "customer", "destination"),
+      dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination"),
       dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened"),
       dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high"),
       dashboardMatches("recent local activity", "audit", "activity", "recent", "history")
@@ -765,16 +771,23 @@ struct DashboardView: View {
           }
         }
 
-        if dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "customer", "destination") {
+        if dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination") {
           AnalyticsSection(title: "Active/problem orders", symbol: "shippingbox.fill") {
             MetricStrip(items: [
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
               ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
+            CompactInboxSourceTrailCoverage(
+              total: inboxCreatedOrders.count,
+              withSourceTrail: inboxCreatedOrdersWithSourceTrail.count,
+              missingSourceTrailOrders: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
+              store: store
+            )
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
             CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)), store: store)
             CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)), store: store)
@@ -841,6 +854,22 @@ struct DashboardView: View {
     }
   }
 
+  private func hasInboxSourceTrail(_ order: TrackedOrder) -> Bool {
+    !linkedIntakeEmails(for: order).isEmpty
+      || !store.importQueueItems(for: order).isEmpty
+      || !store.acceptanceRecords(for: order).isEmpty
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
     if order.latestStatus.localizedCaseInsensitiveContains("Inbox dispatch handoff completed") {
       return true
@@ -851,6 +880,43 @@ struct DashboardView: View {
     guard !manifests.isEmpty || !checklists.isEmpty else { return false }
     return manifests.allSatisfy { $0.dispatchStatus == .handedOff }
       && checklists.allSatisfy { $0.checklistStatus == .completed }
+  }
+}
+
+private struct CompactInboxSourceTrailCoverage: View {
+  var total: Int
+  var withSourceTrail: Int
+  var missingSourceTrailOrders: [TrackedOrder]
+  var store: ParcelOpsStore
+
+  private var missingCount: Int { max(total - withSourceTrail, 0) }
+  private var coverageLabel: String {
+    guard total > 0 else { return "No Inbox-created orders yet" }
+    return "\(withSourceTrail) of \(total) Inbox-created orders have a local source trail"
+  }
+
+  var body: some View {
+    CompactList(title: "Inbox source trail coverage", symbol: "link.badge.plus") {
+      CompactRow(
+        title: coverageLabel,
+        detail: missingCount == 0
+          ? "Inbox-created orders are traceable back to intake, import, or acceptance context."
+          : "\(missingCount) Inbox-created order needs source context linked or reviewed before relying on the handoff.",
+        badge: missingCount == 0 ? "Covered" : "\(missingCount) gap",
+        color: missingCount == 0 ? .green : .orange
+      )
+
+      ForEach(missingSourceTrailOrders) { order in
+        DashboardOrderCompactLink(order: order, store: store) {
+          CompactRow(
+            title: "\(order.store) • \(order.orderNumber)",
+            detail: "No linked intake, import, or acceptance source found yet. Open the order to confirm the handoff trail.",
+            badge: "Trace",
+            color: .orange
+          )
+        }
+      }
+    }
   }
 }
 
