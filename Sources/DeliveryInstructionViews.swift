@@ -50,6 +50,7 @@ struct DeliveryInstructionsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxInstructionCoverage
 
         SettingsPanel(title: "Reusable instructions", symbol: "signpost.right.and.left.fill") {
           HStack {
@@ -72,6 +73,7 @@ struct DeliveryInstructionsView: View {
                 instruction: instruction,
                 store: store,
                 linkedOrder: linkedOrder(for: instruction),
+                inboxOrders: inboxOrders(for: instruction),
                 destinationAddress: store.destinationAddresses.first { $0.id == instruction.destinationAddressID },
                 customerProfile: store.customerRecipientProfiles.first { $0.id == instruction.customerProfileID },
                 packageContents: store.suggestedPackageContents(for: instruction)
@@ -182,6 +184,133 @@ struct DeliveryInstructionsView: View {
     return store.orders.first { $0.id == orderID }
   }
 
+  private var inboxInstructionCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedInstructions = deliveryInstructionsLinkedToInboxOrders
+    let actionInstructions = linkedInstructions.filter { instruction in
+      !instruction.isEnabled
+        || instruction.reviewState != .accepted
+        || instruction.riskLevel == .high
+        || instruction.riskLevel == .critical
+        || !instruction.accessConstraintSummary.isPlaceholderValidationValue
+    }
+    let missingCount = inboxOrdersMissingInstruction.count
+
+    return SettingsPanel(title: "Inbox delivery instruction readiness", symbol: "signpost.right.and.left.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have reusable delivery windows, access constraints, and carrier notes before dispatch handoff.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedInstructions.count) matched instructions", color: .teal)
+          Badge("\(actionInstructions.count) need action", color: actionInstructions.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without instruction", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking instruction coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedInstructions.isEmpty {
+          Text("No delivery instructions currently match Inbox-created orders by order link, destination, customer profile, or carrier context.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionInstructions.isEmpty {
+          Text("Matched delivery instructions are enabled, reviewed, and low-risk for current Inbox-created orders.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionInstructions.prefix(3))) { instruction in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: instruction.accessConstraintSummary.isPlaceholderValidationValue ? instruction.instructionType.symbol : "lock.trianglebadge.exclamationmark.fill")
+                .foregroundStyle(instruction.riskLevel == .high || instruction.riskLevel == .critical ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(instruction.title)
+                  .font(.caption.bold())
+                Text(instructionActionSummary(for: instruction))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(instruction.riskLevel.rawValue, color: instruction.riskLevel.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var deliveryInstructionsLinkedToInboxOrders: [DeliveryInstructionRecord] {
+    store.deliveryInstructions.filter { instruction in
+      inboxCreatedOrders.contains { order in
+        deliveryInstruction(instruction, matches: order)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingInstruction: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.deliveryInstructions.contains { instruction in
+        deliveryInstruction(instruction, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for instruction: DeliveryInstructionRecord) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { deliveryInstruction(instruction, matches: $0) }
+  }
+
+  private func deliveryInstruction(_ instruction: DeliveryInstructionRecord, matches order: TrackedOrder) -> Bool {
+    if instruction.linkedEntityType == .order, let linkedID = UUID(uuidString: instruction.linkedEntityID), linkedID == order.id {
+      return true
+    }
+
+    let addressMatch = instruction.destinationAddressID.flatMap { addressID in
+      store.destinationAddresses.first { $0.id == addressID }
+    }.map { address in
+      let line = address.addressLineSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+      let city = address.cityRegion.trimmingCharacters(in: .whitespacesAndNewlines)
+      return (!line.isEmpty && !line.isPlaceholderValidationValue && (order.destination.localizedCaseInsensitiveContains(line) || line.localizedCaseInsensitiveContains(order.destination)))
+        || (!city.isEmpty && !city.isPlaceholderValidationValue && order.destination.localizedCaseInsensitiveContains(city))
+    } ?? false
+
+    let profileMatch = instruction.customerProfileID.flatMap { profileID in
+      store.customerRecipientProfiles.first { $0.id == profileID }
+    }.map { profile in
+      (!profile.primaryEmail.isPlaceholderValidationValue && order.recipientEmail.localizedCaseInsensitiveContains(profile.primaryEmail))
+        || (!profile.displayName.isPlaceholderValidationValue && order.customer.localizedCaseInsensitiveContains(profile.displayName))
+    } ?? false
+
+    let carrier = instruction.carrierNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let carrierMatch = !carrier.isEmpty && !carrier.isPlaceholderValidationValue && order.carrier.localizedCaseInsensitiveContains(carrier)
+    return addressMatch || profileMatch || carrierMatch
+  }
+
+  private func instructionActionSummary(for instruction: DeliveryInstructionRecord) -> String {
+    var parts: [String] = []
+    if !instruction.isEnabled { parts.append("enable or confirm disabled instruction") }
+    if instruction.reviewState != .accepted { parts.append("mark reviewed") }
+    if instruction.riskLevel == .high || instruction.riskLevel == .critical { parts.append("review risk") }
+    if !instruction.accessConstraintSummary.isPlaceholderValidationValue { parts.append("confirm access constraint") }
+    return parts.isEmpty ? "Instruction is enabled, reviewed, and low-risk." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func deliveryInstructionSearchParts(_ instruction: DeliveryInstructionRecord) -> [String] {
     let order = linkedOrder(for: instruction)
     let address = store.destinationAddresses.first { $0.id == instruction.destinationAddressID }
@@ -227,6 +356,7 @@ struct DeliveryInstructionRow: View {
   var instruction: DeliveryInstructionRecord
   var store: ParcelOpsStore? = nil
   var linkedOrder: TrackedOrder? = nil
+  var inboxOrders: [TrackedOrder] = []
   var destinationAddress: DestinationAddressRecord?
   var customerProfile: CustomerRecipientProfile?
   var packageContents: [PackageContentRecord] = []
@@ -315,6 +445,49 @@ struct DeliveryInstructionRow: View {
       if !packageContents.isEmpty {
         PackageContentStrip(contents: packageContents)
       }
+
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox instruction source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.destination.isPlaceholderValidationValue ? "Destination needs review" : "Destination present", color: order.destination.isPlaceholderValidationValue ? .orange : .green)
+              Text(order.destination)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !instructionWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Instruction follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(instructionWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
     }
     .padding(12)
     .background(.quinary)
@@ -327,6 +500,45 @@ struct DeliveryInstructionRow: View {
       ) { updatedInstruction in
         onSave(updatedInstruction)
       }
+    }
+  }
+
+  private var instructionWarnings: [String] {
+    var warnings: [String] = []
+    if !instruction.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This instruction matches an Inbox-created order but is disabled.")
+    }
+    if instruction.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Instruction needs review before relying on it for delivery or dispatch handoff.")
+    }
+    if (instruction.riskLevel == .high || instruction.riskLevel == .critical) && !inboxOrders.isEmpty {
+      warnings.append("Instruction risk is \(instruction.riskLevel.rawValue.lowercased()); confirm delivery handling.")
+    }
+    if !instruction.accessConstraintSummary.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Access constraint is present; confirm it before dispatch.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }

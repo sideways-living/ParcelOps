@@ -46,6 +46,7 @@ struct CustomerProfilesView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxProfileCoverage
 
         SettingsPanel(title: "Profiles", symbol: "person.text.rectangle.fill") {
           HStack {
@@ -64,7 +65,7 @@ struct CustomerProfilesView: View {
             MVPEmptyState(title: "No customer profiles match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local customer and recipient profiles." : "Add a local customer or recipient profile to reuse email, destination, team, and delivery preference details.", symbol: "person.text.rectangle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add profile", action: hasActiveFilters ? clearFilters : store.addCustomerRecipientProfilePlaceholder)
           } else {
             ForEach(filteredProfiles) { profile in
-              CustomerProfileRow(profile: profile, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
+              CustomerProfileRow(profile: profile, store: store, inboxOrders: inboxOrders(for: profile), destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
                 store.updateCustomerRecipientProfile(updatedProfile)
               } onToggle: {
                 store.toggleCustomerRecipientProfile(profile)
@@ -156,6 +157,110 @@ struct CustomerProfilesView: View {
     profileSearchText = ""
   }
 
+  private var inboxProfileCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedProfiles = customerProfilesLinkedToInboxOrders
+    let actionProfiles = linkedProfiles.filter { !$0.isEnabled || $0.reviewState != .accepted }
+    let missingCount = inboxOrdersMissingProfile.count
+
+    return SettingsPanel(title: "Inbox customer profile readiness", symbol: "person.text.rectangle.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have reusable customer, recipient, or team context before downstream handoff.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedProfiles.count) matched profiles", color: .teal)
+          Badge("\(actionProfiles.count) need action", color: actionProfiles.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without profile", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before using profile coverage checks.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedProfiles.isEmpty {
+          Text("No customer profiles currently match Inbox-created orders by email, customer/team, or destination text.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionProfiles.isEmpty {
+          Text("Matched customer profiles are enabled and reviewed for current Inbox-created orders.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionProfiles.prefix(3))) { profile in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: profile.isEnabled ? "checkmark.shield.fill" : "pause.circle.fill")
+                .foregroundStyle(profile.isEnabled ? .orange : .red)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(profile.displayName)
+                  .font(.caption.bold())
+                Text(profileActionSummary(for: profile))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(profile.reviewState.rawValue, color: profile.reviewState.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var customerProfilesLinkedToInboxOrders: [CustomerRecipientProfile] {
+    store.customerRecipientProfiles.filter { profile in
+      inboxCreatedOrders.contains { order in
+        customerProfile(profile, matches: order)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingProfile: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.customerRecipientProfiles.contains { profile in
+        customerProfile(profile, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for profile: CustomerRecipientProfile) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { customerProfile(profile, matches: $0) }
+  }
+
+  private func customerProfile(_ profile: CustomerRecipientProfile, matches order: TrackedOrder) -> Bool {
+    let email = profile.primaryEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+    let profileName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let team = profile.organisationTeam.trimmingCharacters(in: .whitespacesAndNewlines)
+    let address = profile.defaultDestinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (!email.isEmpty && !email.isPlaceholderValidationValue && order.recipientEmail.localizedCaseInsensitiveContains(email))
+      || (!profileName.isEmpty && !profileName.isPlaceholderValidationValue && order.customer.localizedCaseInsensitiveContains(profileName))
+      || (!team.isEmpty && !team.isPlaceholderValidationValue && order.customer.localizedCaseInsensitiveContains(team))
+      || (!address.isEmpty && !address.isPlaceholderValidationValue && (order.destination.localizedCaseInsensitiveContains(address) || address.localizedCaseInsensitiveContains(order.destination)))
+  }
+
+  private func profileActionSummary(for profile: CustomerRecipientProfile) -> String {
+    var parts: [String] = []
+    if !profile.isEnabled { parts.append("enable or confirm disabled profile") }
+    if profile.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Profile is enabled and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func customerProfileSearchParts(_ profile: CustomerRecipientProfile) -> [String] {
     let addresses = store.suggestedDestinationAddresses(for: profile)
     let instructions = store.suggestedDeliveryInstructions(for: profile)
@@ -184,6 +289,8 @@ struct CustomerProfilesView: View {
 
 struct CustomerProfileRow: View {
   var profile: CustomerRecipientProfile
+  var store: ParcelOpsStore? = nil
+  var inboxOrders: [TrackedOrder] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
   var packageContents: [PackageContentRecord] = []
@@ -233,6 +340,49 @@ struct CustomerProfileRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox profile source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: order.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+              Text(order.customer)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !profileWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Profile follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(profileWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
@@ -257,6 +407,45 @@ struct CustomerProfileRow: View {
         onSave(updatedProfile)
         isEditing = false
       }
+    }
+  }
+
+  private var profileWarnings: [String] {
+    var warnings: [String] = []
+    if !profile.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This profile matches an Inbox-created order but is disabled.")
+    }
+    if profile.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Profile needs review before relying on it for Inbox-created order handoff.")
+    }
+    if profile.primaryEmail.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Primary email is missing or placeholder.")
+    }
+    if profile.defaultDestinationAddress.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Default destination address needs confirmation.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }

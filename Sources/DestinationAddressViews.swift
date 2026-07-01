@@ -50,6 +50,7 @@ struct DestinationAddressesView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxAddressCoverage
 
         SettingsPanel(title: "Addresses", symbol: "mappin.and.ellipse") {
           HStack {
@@ -68,7 +69,7 @@ struct DestinationAddressesView: View {
             MVPEmptyState(title: "No destination addresses match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local destination addresses." : "Add a local destination address to reuse delivery instructions, access notes, preferred carrier, and risk context.", symbol: "mappin.and.ellipse", actionTitle: hasActiveFilters ? "Clear filters" : "Add address", action: hasActiveFilters ? clearFilters : store.addDestinationAddressPlaceholder)
           } else {
             ForEach(filteredAddresses) { address in
-              DestinationAddressRow(address: address, customerProfiles: store.customerRecipientProfiles, deliveryInstructions: store.suggestedDeliveryInstructions(for: address), packageContents: store.suggestedPackageContents(for: address)) { updatedAddress in
+              DestinationAddressRow(address: address, store: store, inboxOrders: inboxOrders(for: address), customerProfiles: store.customerRecipientProfiles, deliveryInstructions: store.suggestedDeliveryInstructions(for: address), packageContents: store.suggestedPackageContents(for: address)) { updatedAddress in
                 store.updateDestinationAddress(updatedAddress)
               } onToggle: {
                 store.toggleDestinationAddress(address)
@@ -154,6 +155,115 @@ struct DestinationAddressesView: View {
     addressSearchText = ""
   }
 
+  private var inboxAddressCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedAddresses = destinationAddressesLinkedToInboxOrders
+    let actionAddresses = linkedAddresses.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.riskLevel == .high || $0.riskLevel == .critical }
+    let missingCount = inboxOrdersMissingAddress.count
+
+    return SettingsPanel(title: "Inbox destination readiness", symbol: "mappin.and.ellipse") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have reusable destination records before delivery, storage, or dispatch handoff.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedAddresses.count) matched addresses", color: .teal)
+          Badge("\(actionAddresses.count) need action", color: actionAddresses.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without address", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking destination coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedAddresses.isEmpty {
+          Text("No destination addresses currently match Inbox-created orders by destination, city, carrier, or customer profile.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionAddresses.isEmpty {
+          Text("Matched destination addresses are enabled, reviewed, and not high-risk for current Inbox-created orders.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionAddresses.prefix(3))) { address in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: address.riskLevel == .high || address.riskLevel == .critical ? "exclamationmark.triangle.fill" : "mappin.and.ellipse")
+                .foregroundStyle(address.riskLevel == .high || address.riskLevel == .critical ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(address.label)
+                  .font(.caption.bold())
+                Text(addressActionSummary(for: address))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(address.riskLevel.rawValue, color: address.riskLevel.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var destinationAddressesLinkedToInboxOrders: [DestinationAddressRecord] {
+    store.destinationAddresses.filter { address in
+      inboxCreatedOrders.contains { order in
+        destinationAddress(address, matches: order)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingAddress: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.destinationAddresses.contains { address in
+        destinationAddress(address, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for address: DestinationAddressRecord) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { destinationAddress(address, matches: $0) }
+  }
+
+  private func destinationAddress(_ address: DestinationAddressRecord, matches order: TrackedOrder) -> Bool {
+    let line = address.addressLineSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    let city = address.cityRegion.trimmingCharacters(in: .whitespacesAndNewlines)
+    let carrier = address.preferredCarrier.trimmingCharacters(in: .whitespacesAndNewlines)
+    let linkedProfile = address.customerProfileID.flatMap { id in
+      store.customerRecipientProfiles.first { $0.id == id }
+    }
+    return (!line.isEmpty && !line.isPlaceholderValidationValue && (order.destination.localizedCaseInsensitiveContains(line) || line.localizedCaseInsensitiveContains(order.destination)))
+      || (!city.isEmpty && !city.isPlaceholderValidationValue && order.destination.localizedCaseInsensitiveContains(city))
+      || (!carrier.isEmpty && !carrier.isPlaceholderValidationValue && order.carrier.localizedCaseInsensitiveContains(carrier))
+      || (linkedProfile.map { profile in
+        !profile.primaryEmail.isPlaceholderValidationValue && order.recipientEmail.localizedCaseInsensitiveContains(profile.primaryEmail)
+      } ?? false)
+  }
+
+  private func addressActionSummary(for address: DestinationAddressRecord) -> String {
+    var parts: [String] = []
+    if !address.isEnabled { parts.append("enable or confirm disabled address") }
+    if address.reviewState != .accepted { parts.append("mark reviewed") }
+    if address.riskLevel == .high || address.riskLevel == .critical { parts.append("review destination risk") }
+    return parts.isEmpty ? "Address is enabled, reviewed, and normal-risk." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func destinationAddressSearchParts(_ address: DestinationAddressRecord) -> [String] {
     let profile = address.customerProfileID.flatMap { profileID in
       store.customerRecipientProfiles.first { $0.id == profileID }
@@ -187,6 +297,8 @@ struct DestinationAddressesView: View {
 
 struct DestinationAddressRow: View {
   var address: DestinationAddressRecord
+  var store: ParcelOpsStore? = nil
+  var inboxOrders: [TrackedOrder] = []
   var customerProfiles: [CustomerRecipientProfile] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
   var packageContents: [PackageContentRecord] = []
@@ -236,6 +348,49 @@ struct DestinationAddressRow: View {
       .font(.caption)
       .foregroundStyle(.secondary)
 
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox destination source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.destination.isPlaceholderValidationValue ? "Destination needs review" : "Destination present", color: order.destination.isPlaceholderValidationValue ? .orange : .green)
+              Text(order.destination)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !addressWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Destination follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(addressWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
@@ -267,6 +422,45 @@ struct DestinationAddressRow: View {
         onSave(updatedAddress)
         isEditing = false
       }
+    }
+  }
+
+  private var addressWarnings: [String] {
+    var warnings: [String] = []
+    if !address.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This address matches an Inbox-created order but is disabled.")
+    }
+    if address.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Address needs review before relying on it for dispatch or delivery handoff.")
+    }
+    if (address.riskLevel == .high || address.riskLevel == .critical) && !inboxOrders.isEmpty {
+      warnings.append("Destination risk is \(address.riskLevel.rawValue.lowercased()); confirm access notes and delivery constraints.")
+    }
+    if address.addressLineSummary.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Address line summary needs confirmation.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
