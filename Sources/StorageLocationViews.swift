@@ -49,6 +49,7 @@ struct StorageLocationsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxStorageCoverage
 
         SettingsPanel(title: "Storage location records", symbol: "cabinet.fill") {
           HStack {
@@ -158,6 +159,64 @@ struct StorageLocationsView: View {
     }
   }
 
+  private var inboxStorageCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedLocations = locationsLinkedToInboxOrders
+    let actionLocations = locationsNeedingStorageAction
+    let missingStorageCount = inboxOrdersMissingStorage.count
+
+    return SettingsPanel(title: "Inbox storage readiness", symbol: "cabinet.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have usable local storage, bin codes, capacity, and access context.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedLocations.count) linked locations", color: .teal)
+          Badge("\(actionLocations.count) need action", color: actionLocations.isEmpty ? .green : .orange)
+          Badge("\(missingStorageCount) missing storage", color: missingStorageCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before assigning storage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedLocations.isEmpty {
+          Text("Inbox-created orders do not have storage locations yet. Add or link a location after receiving stock.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionLocations.prefix(3))) { location in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: location.isEnabled ? "cabinet.fill" : "pause.circle.fill")
+                .foregroundStyle(location.isEnabled ? .orange : .gray)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(location.title)
+                  .font(.caption.bold())
+                Text(storageActionSummary(for: location))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(location.isEnabled ? "Enabled" : "Disabled", color: location.isEnabled ? .green : .gray)
+            }
+          }
+
+          if actionLocations.isEmpty {
+            Text("Linked storage locations look enabled, coded, reviewed, and ready for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionLocations.count > 3 {
+            Text("\(actionLocations.count - 3) more linked storage locations need code, capacity, access, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedLocationType = nil
     areaZone = ""
@@ -173,6 +232,76 @@ struct StorageLocationsView: View {
     let orderID = location.orderIDs.first ?? (location.linkedEntityType == .order ? UUID(uuidString: location.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var locationsLinkedToInboxOrders: [StorageLocationRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+
+    return store.storageLocations.filter { location in
+      !Set(location.orderIDs).isDisjoint(with: orderIDs)
+        || !Set(location.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+        || (location.linkedEntityType == .order && UUID(uuidString: location.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingStorage: [TrackedOrder] {
+    let locationOrderIDs = Set(locationsLinkedToInboxOrders.flatMap(\.orderIDs))
+    return inboxCreatedOrders.filter { order in
+      locationOrderIDs.contains(order.id) == false
+        && locationsLinkedToInboxOrders.contains { location in
+          location.linkedEntityType == .order && UUID(uuidString: location.linkedEntityID) == order.id
+        } == false
+    }
+  }
+
+  private var locationsNeedingStorageAction: [StorageLocationRecord] {
+    locationsLinkedToInboxOrders.filter { location in
+      !location.isEnabled
+        || location.reviewState != .accepted
+        || location.riskLevel == .high
+        || location.riskLevel == .critical
+        || location.locationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || location.locationCode.localizedCaseInsensitiveContains("missing")
+        || location.locationCode.localizedCaseInsensitiveContains("confirm")
+        || location.currentUsageSummary.localizedCaseInsensitiveContains("warning")
+        || location.currentUsageSummary.localizedCaseInsensitiveContains("full")
+        || location.capacitySummary.localizedCaseInsensitiveContains("warning")
+        || !location.accessNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+  }
+
+  private func storageActionSummary(for location: StorageLocationRecord) -> String {
+    var parts: [String] = []
+    if !location.isEnabled { parts.append("enable or choose another location") }
+    if location.locationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || location.locationCode.localizedCaseInsensitiveContains("missing") || location.locationCode.localizedCaseInsensitiveContains("confirm") { parts.append("confirm code") }
+    if location.currentUsageSummary.localizedCaseInsensitiveContains("warning") || location.currentUsageSummary.localizedCaseInsensitiveContains("full") || location.capacitySummary.localizedCaseInsensitiveContains("warning") { parts.append("check capacity") }
+    if !location.accessNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("review access notes") }
+    if location.riskLevel == .high || location.riskLevel == .critical { parts.append("review risk") }
+    if location.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Storage location is enabled, coded, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func storageLocation(_ location: StorageLocationRecord, matches query: String) -> Bool {
@@ -283,6 +412,46 @@ struct StorageLocationRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if !storageLocationWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Storage follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(storageLocationWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox storage source", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -313,6 +482,48 @@ struct StorageLocationRow: View {
       StorageLocationEditView(location: location) { updatedLocation in
         onSave(updatedLocation)
       }
+    }
+  }
+
+  private var storageLocationWarnings: [String] {
+    var warnings: [String] = []
+    if !location.isEnabled {
+      warnings.append("Location is disabled; choose another storage point or enable it before assigning stock.")
+    }
+    if location.locationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || location.locationCode.localizedCaseInsensitiveContains("missing") || location.locationCode.localizedCaseInsensitiveContains("confirm") {
+      warnings.append("Location code needs confirmation.")
+    }
+    if location.currentUsageSummary.localizedCaseInsensitiveContains("warning") || location.currentUsageSummary.localizedCaseInsensitiveContains("full") || location.capacitySummary.localizedCaseInsensitiveContains("warning") {
+      warnings.append("Capacity or usage indicates a warning.")
+    }
+    if !location.accessNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Access notes are present; review before handoff or collection.")
+    }
+    if location.riskLevel == .high || location.riskLevel == .critical {
+      warnings.append("Risk is \(location.riskLevel.rawValue.lowercased()); confirm storage handling.")
+    }
+    if location.reviewState != .accepted {
+      warnings.append("Review state is \(location.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
