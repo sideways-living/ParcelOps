@@ -10314,6 +10314,23 @@ final class ParcelOpsStore {
     )
   }
 
+  func markTrackedMailboxPlaceholderReviewed(_ mailbox: TrackedMailbox) {
+    guard let index = mailboxes.firstIndex(where: { $0.id == mailbox.id }) else { return }
+    let beforeDetail = mailboxes[index].auditDetail
+    mailboxes[index].status = "Reviewed locally"
+    mailboxes[index].lastChecked = Self.auditTimestamp()
+    persistIntegrations()
+    logAudit(
+      action: .reviewed,
+      entityType: .trackedMailbox,
+      entityID: mailboxes[index].id.uuidString,
+      entityLabel: mailboxes[index].address,
+      summary: "Tracked mailbox placeholder reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(mailboxes[index].auditDetail)\nReview only. No mailbox was contacted and no OAuth, IMAP login, token, password, or network action occurred."
+    )
+  }
+
   func addMicrosoft365MailboxConnectionPlaceholder() {
     let connection = Microsoft365MailboxConnection(
       displayName: "New Microsoft 365 mailbox",
@@ -11603,6 +11620,23 @@ final class ParcelOpsStore {
     )
   }
 
+  func markShopifyPlaceholderReviewed(_ connection: ShopifyConnection) {
+    guard let index = shopifyConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = shopifyConnections[index].auditDetail
+    shopifyConnections[index].status = "Reviewed locally"
+    shopifyConnections[index].lastSync = Self.auditTimestamp()
+    persistIntegrations()
+    logAudit(
+      action: .reviewed,
+      entityType: .shopifyConnection,
+      entityID: shopifyConnections[index].id.uuidString,
+      entityLabel: shopifyConnections[index].storeName,
+      summary: "Shopify planning placeholder reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(shopifyConnections[index].auditDetail)\nReview only. No Shopify OAuth, API call, token, credential, product, order, or store data access occurred."
+    )
+  }
+
   func addStoreLoginPlaceholder() {
     let connection = SourceConnection(name: "New supplier login", kind: .vaultLogin, account: "Password vault", status: "Needs setup", lastSync: "Never")
     connections.append(connection)
@@ -11632,6 +11666,23 @@ final class ParcelOpsStore {
     )
   }
 
+  func markStoreLoginPlaceholderReviewed(_ connection: SourceConnection) {
+    guard let index = connections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = connections[index].auditDetail
+    connections[index].status = "Reviewed locally"
+    connections[index].lastSync = Self.auditTimestamp()
+    persistIntegrations()
+    logAudit(
+      action: .reviewed,
+      entityType: .sourceConnection,
+      entityID: connections[index].id.uuidString,
+      entityLabel: connections[index].name,
+      summary: "Store login planning placeholder reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(connections[index].auditDetail)\nReview only. No password vault, credential, Keychain item, login, browser, or supplier portal action occurred."
+    )
+  }
+
   func addWatchedFolderPlaceholder() {
     let folder = WatchedFolder(name: "Custom order folder", location: "Choose folder", platform: "iOS and macOS", fileTypes: "PDF, images", cadence: settings.folderScanCadence, status: "Needs permission", lastScan: "Never")
     watchedFolders.append(folder)
@@ -11658,6 +11709,23 @@ final class ParcelOpsStore {
       entityLabel: folder.name,
       summary: "Watched folder planning placeholder removed.",
       beforeDetail: "\(beforeDetail)\nRemoved locally only. No file picker, folder permission request, background scan, OCR, import, or file access occurred."
+    )
+  }
+
+  func markWatchedFolderPlaceholderReviewed(_ folder: WatchedFolder) {
+    guard let index = watchedFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+    let beforeDetail = watchedFolders[index].auditDetail
+    watchedFolders[index].status = "Reviewed locally"
+    watchedFolders[index].lastScan = Self.auditTimestamp()
+    persistIntegrations()
+    logAudit(
+      action: .reviewed,
+      entityType: .watchedFolder,
+      entityID: watchedFolders[index].id.uuidString,
+      entityLabel: watchedFolders[index].name,
+      summary: "Watched folder planning placeholder reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(watchedFolders[index].auditDetail)\nReview only. No file picker, folder permission request, background scan, OCR, import, or file access occurred."
     )
   }
 
