@@ -11598,31 +11598,87 @@ final class ParcelOpsStore {
     )
     orders.insert(order, at: 0)
     persistOrders()
+    logAudit(
+      action: .created,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Order draft created from wishlist item.",
+      afterDetail: "\(order.auditDetail)\nWishlist source: \(item.auditDetail)\nNo purchase API, payment, supplier, carrier, Shopify, or mailbox action occurred."
+    )
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist item converted into local order draft \(order.orderNumber).",
+      afterDetail: "\(item.auditDetail)\nCreated order: \(order.orderNumber) \(order.id.uuidString)"
+    )
   }
 
   func linkWishlistItemToOrder(_ item: WishlistItem) {
-    markWishlist(item, status: "Linked to existing order")
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    wishlistItems[index].status = "Linked to existing order"
+    persistWishlist()
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist item marked linked to an existing order.",
+      beforeDetail: beforeDetail,
+      afterDetail: wishlistItems[index].auditDetail
+    )
   }
 
   func deleteWishlistItem(_ item: WishlistItem) {
+    let beforeDetail = item.auditDetail
     wishlistItems.removeAll { $0.id == item.id }
     var deleted = item
     deleted.status = "Deleted now"
     deletedWishlistItems.insert(deleted, at: 0)
     persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: deleted.id.uuidString,
+      entityLabel: deleted.itemName,
+      summary: "Wishlist item moved to deleted items.",
+      beforeDetail: beforeDetail,
+      afterDetail: deleted.auditDetail
+    )
   }
 
   func restoreWishlistItem(_ item: WishlistItem) {
+    let beforeDetail = item.auditDetail
     deletedWishlistItems.removeAll { $0.id == item.id }
     var restored = item
     restored.status = "Ready"
     wishlistItems.insert(restored, at: 0)
     persistWishlist()
+    logAudit(
+      action: .reopened,
+      entityType: .wishlistItem,
+      entityID: restored.id.uuidString,
+      entityLabel: restored.itemName,
+      summary: "Wishlist item restored from deleted items.",
+      beforeDetail: beforeDetail,
+      afterDetail: restored.auditDetail
+    )
   }
 
   func permanentlyDeleteWishlistItem(_ item: WishlistItem) {
     deletedWishlistItems.removeAll { $0.id == item.id }
     persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist item permanently removed from deleted items.",
+      beforeDetail: item.auditDetail
+    )
   }
 
   func saveSettings() {
@@ -11630,14 +11686,17 @@ final class ParcelOpsStore {
   }
 
   private func addWishlistItem(source: WishlistSource, name: String, detail: String) {
-    wishlistItems.insert(WishlistItem(itemName: name, storefront: "Pending storefront", storefrontURL: "https://example.com", estimatedCost: "Pending", owner: "Current user", pool: "Personal wishlist", source: source, status: "Needs review", capturedDetail: detail), at: 0)
+    let item = WishlistItem(itemName: name, storefront: "Pending storefront", storefrontURL: "https://example.com", estimatedCost: "Pending", owner: "Current user", pool: "Personal wishlist", source: source, status: "Needs review", capturedDetail: detail)
+    wishlistItems.insert(item, at: 0)
     persistWishlist()
-  }
-
-  private func markWishlist(_ item: WishlistItem, status: String) {
-    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
-    wishlistItems[index].status = status
-    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist item placeholder added.",
+      afterDetail: "\(item.auditDetail)\nSource action is local-only. No file picker, OCR, share extension, browser extension, purchase API, or external service was used."
+    )
   }
 
   private func updateMicrosoft365MailboxConnection(_ connection: Microsoft365MailboxConnection, mutate: (inout Microsoft365MailboxConnection) -> Void) {
@@ -13058,6 +13117,12 @@ private extension ImportQueueItem {
 private extension AcceptanceRecord {
   var auditDetail: String {
     "Source: \(sourceType.rawValue) \(sourceLabel) \(sourceID.uuidString); decided: \(decidedDate); confidence: \(confidenceScore); linked order: \(linkedOrderID?.uuidString ?? "none"); shipment group: \(linkedShipmentGroupID?.uuidString ?? "none"); decision: \(decision.rawValue); review: \(reviewState.rawValue); notes: \(notes); summary: \(summary)."
+  }
+}
+
+private extension WishlistItem {
+  var auditDetail: String {
+    "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); captured detail: \(capturedDetail)."
   }
 }
 

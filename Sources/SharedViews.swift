@@ -142,6 +142,7 @@ extension AuditEntityType {
     case .shipmentGroup: "shippingbox.and.arrow.backward.fill"
     case .importQueueItem: "tray.and.arrow.down.fill"
     case .acceptanceRecord: "checkmark.rectangle.stack.fill"
+    case .wishlistItem: "star.square.fill"
     case .reconciliationIssue: "arrow.triangle.2.circlepath.circle.fill"
     case .microsoft365MailboxConnection: "mail.stack.fill"
     case .spaceMailIMAPConnection: "server.rack"

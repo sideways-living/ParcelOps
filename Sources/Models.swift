@@ -2032,6 +2032,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
+  case wishlistItem = "Wishlist item"
   case reconciliationIssue = "Reconciliation issue"
   case microsoft365MailboxConnection = "Microsoft 365 mailbox"
   case spaceMailIMAPConnection = "SpaceMail IMAP mailbox"
