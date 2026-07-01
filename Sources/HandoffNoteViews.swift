@@ -77,6 +77,7 @@ struct HandoffNotesView: View {
         }
 
         filters
+        inboxHandoffCoverage
 
         SettingsPanel(title: "Notes", symbol: "arrow.left.arrow.right.square.fill") {
           HStack {
@@ -173,9 +174,135 @@ struct HandoffNotesView: View {
     handoffSearchText = ""
   }
 
+  private var inboxHandoffCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedNotes = handoffNotesLinkedToInboxOrders
+    let actionNotes = handoffNotesNeedingSourceAction
+    let missingCount = inboxOrdersMissingHandoff.count
+
+    return SettingsPanel(title: "Inbox handoff readiness", symbol: "arrow.left.arrow.right.square.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have a local shift/team note when continuity is needed.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedNotes.count) linked notes", color: .teal)
+          Badge("\(actionNotes.count) need action", color: actionNotes.isEmpty ? .green : .orange)
+          Badge("\(missingCount) without handoff", color: missingCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before tracking handoff coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedNotes.isEmpty {
+          Text("Inbox-created orders do not have handoff notes yet. Add a note when another team or shift needs context.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionNotes.prefix(3))) { note in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: note.isLocallyOverdue ? "clock.badge.exclamationmark.fill" : "arrow.left.arrow.right.square.fill")
+                .foregroundStyle(note.isLocallyOverdue ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(note.title)
+                  .font(.caption.bold())
+                Text(handoffActionSummary(for: note))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(note.status.rawValue, color: note.status.color)
+            }
+          }
+
+          if actionNotes.isEmpty {
+            Text("Linked handoff notes look assigned, current, reviewed, and closed or actively monitored for Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionNotes.count > 3 {
+            Text("\(actionNotes.count - 3) more linked handoff notes need assignment, review, completion, or due-date follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func linkedOrder(for note: HandoffNote) -> TrackedOrder? {
     guard note.linkedEntityType == .order, let orderID = UUID(uuidString: note.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var handoffNotesLinkedToInboxOrders: [HandoffNote] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderNumbers = Set(inboxCreatedOrders.map(\.orderNumber).filter { !$0.isPlaceholderValidationValue })
+    return store.handoffNotes.filter { note in
+      if note.linkedEntityType == .order, let linkedID = UUID(uuidString: note.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      let searchable = [note.title, note.summary, note.linkedEntityID, note.notes].joined(separator: " ")
+      return orderNumbers.contains { orderNumber in
+        searchable.localizedCaseInsensitiveContains(orderNumber)
+      }
+    }
+  }
+
+  private var inboxOrdersMissingHandoff: [TrackedOrder] {
+    let linkedOrderIDs = Set(handoffNotesLinkedToInboxOrders.compactMap { note -> UUID? in
+      guard note.linkedEntityType == .order else { return nil }
+      return UUID(uuidString: note.linkedEntityID)
+    })
+    let linkedText = handoffNotesLinkedToInboxOrders.map { [$0.title, $0.summary, $0.linkedEntityID, $0.notes].joined(separator: " ") }
+    return inboxCreatedOrders.filter { order in
+      if linkedOrderIDs.contains(order.id) { return false }
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !orderNumber.isEmpty, !orderNumber.isPlaceholderValidationValue else { return true }
+      return !linkedText.contains { $0.localizedCaseInsensitiveContains(orderNumber) }
+    }
+  }
+
+  private var handoffNotesNeedingSourceAction: [HandoffNote] {
+    handoffNotesLinkedToInboxOrders.filter { note in
+      note.status == .open
+        || note.status == .inProgress
+        || note.reviewState != .accepted
+        || note.priority == .high
+        || note.priority == .urgent
+        || note.isLocallyOverdue
+        || note.assignee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || note.assignee.localizedCaseInsensitiveContains("unassigned")
+        || note.assignee.localizedCaseInsensitiveContains("unknown")
+    }
+  }
+
+  private func handoffActionSummary(for note: HandoffNote) -> String {
+    var parts: [String] = []
+    if note.status == .open || note.status == .inProgress { parts.append("close or acknowledge handoff") }
+    if note.reviewState != .accepted { parts.append("mark reviewed") }
+    if note.isLocallyOverdue { parts.append("check due date") }
+    if note.priority == .high || note.priority == .urgent { parts.append("priority follow-up") }
+    if note.assignee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || note.assignee.localizedCaseInsensitiveContains("unassigned") || note.assignee.localizedCaseInsensitiveContains("unknown") {
+      parts.append("assign owner")
+    }
+    return parts.isEmpty ? "Handoff is assigned, current, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func handoffNote(_ note: HandoffNote, matches query: String) -> Bool {
@@ -288,6 +415,46 @@ struct HandoffNoteRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
+      if !handoffWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Handoff follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(handoffWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox handoff source", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
@@ -325,6 +492,48 @@ struct HandoffNoteRow: View {
       HandoffNoteEditView(note: note) { updatedNote in
         onSave(updatedNote)
       }
+    }
+  }
+
+  private var handoffWarnings: [String] {
+    var warnings: [String] = []
+    if note.status == .open {
+      warnings.append("Handoff is open; acknowledge or complete it once the next team has the context.")
+    }
+    if note.status == .inProgress {
+      warnings.append("Handoff is acknowledged but still in progress.")
+    }
+    if note.isLocallyOverdue {
+      warnings.append("Due date needs immediate follow-up.")
+    }
+    if note.priority == .high || note.priority == .urgent {
+      warnings.append("Priority is \(note.priority.rawValue.lowercased()); keep this visible in shift handoff.")
+    }
+    if note.assignee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || note.assignee.localizedCaseInsensitiveContains("unassigned") || note.assignee.localizedCaseInsensitiveContains("unknown") {
+      warnings.append("Assigned team/person needs confirmation.")
+    }
+    if note.reviewState != .accepted {
+      warnings.append("Review state is \(note.reviewState.rawValue.lowercased()); mark reviewed after local checks.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
