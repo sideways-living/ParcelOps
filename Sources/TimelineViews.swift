@@ -43,11 +43,41 @@ struct TimelineView: View {
     Array(inboxDispatchTimelineActivities.prefix(4))
   }
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  }
+
+  private var inboxSourceTimelineActivities: [TimelineActivity] {
+    store.timelineActivities.filter { activity in
+      let text = [
+        activity.title,
+        activity.subtitle,
+        activity.detail,
+        activity.suggestedActionText,
+        activity.source.rawValue
+      ].joined(separator: " ")
+      return text.localizedCaseInsensitiveContains("Inbox source")
+        || text.localizedCaseInsensitiveContains("Inbox-created")
+        || text.localizedCaseInsensitiveContains("forwarded email")
+        || text.localizedCaseInsensitiveContains("Import Queue")
+        || text.localizedCaseInsensitiveContains("Acceptance Review")
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxSourceTrailTimelinePanel
         inboxDispatchTimelinePanel
 
         SettingsPanel(title: "Timeline results", symbol: "calendar.badge.clock") {
@@ -131,6 +161,59 @@ struct TimelineView: View {
           clearFilters()
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var inboxSourceTrailTimelinePanel: some View {
+    if !inboxCreatedOrders.isEmpty || !inboxSourceTimelineActivities.isEmpty {
+      SettingsPanel(title: "Inbox source trail timeline", symbol: "link.badge.plus") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this before closing handoff work: Inbox-created orders should remain traceable to forwarded intake, Import Queue, or Acceptance Review context.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+            ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+            ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+            ("Timeline events", "\(inboxSourceTimelineActivities.count)", inboxSourceTimelineActivities.isEmpty ? .secondary : .blue)
+          ])
+
+          if inboxCreatedOrdersMissingSourceTrail.isEmpty {
+            Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else {
+            ForEach(inboxCreatedOrdersMissingSourceTrail.prefix(4)) { order in
+              NavigationLink {
+                OrderDetailView(order: order, store: store)
+              } label: {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text("\(order.store) • \(order.orderNumber)")
+                      .font(.subheadline.weight(.semibold))
+                    Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before relying on timeline history.")
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 8)
+                  Badge("Trace", color: .orange)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
       }
     }
   }
@@ -255,6 +338,22 @@ struct TimelineView: View {
     searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 }
 
