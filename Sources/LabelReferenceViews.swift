@@ -41,6 +41,7 @@ struct LabelReferencesView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxLabelCoverage
 
         SettingsPanel(title: "Label reference records", symbol: "barcode.viewfinder") {
           HStack {
@@ -149,6 +150,64 @@ struct LabelReferencesView: View {
     }
   }
 
+  private var inboxLabelCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedLabels = labelsLinkedToInboxOrders
+    let actionLabels = labelsNeedingAction
+    let missingLabelCount = inboxOrdersMissingLabel.count
+
+    return SettingsPanel(title: "Inbox label readiness", symbol: "barcode.viewfinder") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local tracking, storage, custody, or inventory label references ready for verification.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedLabels.count) linked labels", color: .teal)
+          Badge("\(actionLabels.count) need action", color: actionLabels.isEmpty ? .green : .orange)
+          Badge("\(missingLabelCount) missing labels", color: missingLabelCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking label readiness.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedLabels.isEmpty {
+          Text("Inbox-created orders do not have label references yet. Add or link labels before scan or dispatch checks.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionLabels.prefix(3))) { record in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: record.labelStatus == .invalidNeedsReview ? "exclamationmark.triangle.fill" : "barcode.viewfinder")
+                .foregroundStyle(record.labelStatus == .invalidNeedsReview ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(record.title)
+                  .font(.caption.bold())
+                Text(labelActionSummary(for: record))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(record.labelStatus.rawValue, color: record.labelStatus.color)
+            }
+          }
+
+          if actionLabels.isEmpty {
+            Text("Linked labels look valued, verified, linked, and reviewed for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionLabels.count > 3 {
+            Text("\(actionLabels.count - 3) more linked labels need value, verification, linked record, owner, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedType = nil
     selectedStatus = nil
@@ -165,6 +224,85 @@ struct LabelReferencesView: View {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var labelsLinkedToInboxOrders: [LabelReferenceRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+    let locationIDs = Set(store.storageLocations.filter { location in
+      !Set(location.orderIDs).isDisjoint(with: orderIDs) || !Set(location.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+    }.map(\.id))
+    let custodyIDs = Set(store.custodyRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.storageLocationID.map { locationIDs.contains($0) } ?? false)
+    }.map(\.id))
+
+    return store.labelReferenceRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.storageLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+        || (record.linkedEntityType == .order && UUID(uuidString: record.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingLabel: [TrackedOrder] {
+    let labelOrderIDs = Set(labelsLinkedToInboxOrders.compactMap { record -> UUID? in
+      record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
+    })
+    return inboxCreatedOrders.filter { !labelOrderIDs.contains($0.id) }
+  }
+
+  private var labelsNeedingAction: [LabelReferenceRecord] {
+    labelsLinkedToInboxOrders.filter { record in
+      record.labelStatus == .draft
+        || record.labelStatus == .printedLocally
+        || record.labelStatus == .invalidNeedsReview
+        || record.labelStatus == .missingValue
+        || record.reviewState != .accepted
+        || record.riskLevel == .high
+        || record.riskLevel == .critical
+        || record.labelValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || record.labelValuePlaceholder.localizedCaseInsensitiveContains("to assign")
+        || record.labelValuePlaceholder.localizedCaseInsensitiveContains("missing")
+        || record.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || (record.storageLocationID == nil && record.inventoryReceiptID == nil && record.custodyRecordID == nil && record.orderID == nil && record.shipmentGroupID == nil && record.packageContentID == nil && record.evidenceAttachmentIDs.isEmpty)
+    }
+  }
+
+  private func labelActionSummary(for record: LabelReferenceRecord) -> String {
+    var parts: [String] = []
+    if record.labelStatus == .draft || record.labelStatus == .printedLocally { parts.append("verify scan") }
+    if record.labelStatus == .invalidNeedsReview { parts.append("resolve invalid label") }
+    if record.labelStatus == .missingValue || record.labelValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.labelValuePlaceholder.localizedCaseInsensitiveContains("to assign") || record.labelValuePlaceholder.localizedCaseInsensitiveContains("missing") { parts.append("confirm value") }
+    if record.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("assign owner") }
+    if record.storageLocationID == nil && record.inventoryReceiptID == nil && record.custodyRecordID == nil && record.orderID == nil && record.shipmentGroupID == nil && record.packageContentID == nil && record.evidenceAttachmentIDs.isEmpty { parts.append("link operational record") }
+    if record.riskLevel == .high || record.riskLevel == .critical { parts.append("review risk") }
+    if record.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Label reference is valued, verified, linked, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func labelReference(_ record: LabelReferenceRecord, matches query: String) -> Bool {
@@ -269,6 +407,46 @@ struct LabelReferenceRow: View {
 
       ScanSessionStrip(records: scanSessions)
 
+      if !labelWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Label follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(labelWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox label source", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -303,6 +481,51 @@ struct LabelReferenceRow: View {
       LabelReferenceEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
+    }
+  }
+
+  private var labelWarnings: [String] {
+    var warnings: [String] = []
+    if record.labelStatus == .draft || record.labelStatus == .printedLocally {
+      warnings.append("Label is not scanned/verified yet.")
+    }
+    if record.labelStatus == .invalidNeedsReview {
+      warnings.append("Label is invalid or needs review.")
+    }
+    if record.labelStatus == .missingValue || record.labelValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.labelValuePlaceholder.localizedCaseInsensitiveContains("to assign") || record.labelValuePlaceholder.localizedCaseInsensitiveContains("missing") {
+      warnings.append("Label value needs confirmation.")
+    }
+    if record.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Owner/team is missing.")
+    }
+    if record.storageLocationID == nil && record.inventoryReceiptID == nil && record.custodyRecordID == nil && record.orderID == nil && record.shipmentGroupID == nil && record.packageContentID == nil && record.evidenceAttachmentIDs.isEmpty {
+      warnings.append("No linked operational record is attached.")
+    }
+    if record.riskLevel == .high || record.riskLevel == .critical {
+      warnings.append("Risk is \(record.riskLevel.rawValue.lowercased()); confirm label handling.")
+    }
+    if record.reviewState != .accepted {
+      warnings.append("Review state is \(record.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
