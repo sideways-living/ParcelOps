@@ -581,8 +581,9 @@ struct DashboardView: View {
       CompactActionRow {
         Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
           .buttonStyle(.borderedProminent)
-        Button("Import sample mail", systemImage: "arrow.clockwise", action: store.syncSources)
+        Button("Import local sample mail", systemImage: "tray.and.arrow.down.fill", action: store.syncSources)
           .buttonStyle(.bordered)
+          .help("Imports simulated mailbox messages through local intake only.")
       }
     }
   }
