@@ -61,6 +61,18 @@ struct AuditView: View {
     Array(inboxDispatchHandoffEvents.prefix(8))
   }
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  }
+
   private var spaceMailEvidenceEvents: [AuditEvent] {
     searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
@@ -163,6 +175,8 @@ struct AuditView: View {
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
 
+        inboxSourceTrailAuditPanel
+
         inboxDispatchHandoffTrailPanel
 
         activityFeed
@@ -255,10 +269,60 @@ struct AuditView: View {
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .green : .purple),
+        ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
       ])
+    }
+  }
+
+  private var inboxSourceTrailAuditPanel: some View {
+    SettingsPanel(title: "Inbox source trail audit", symbol: "link.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Current Inbox-created orders should remain traceable back to forwarded intake, Import Queue, or Acceptance Review. Use this check before relying on handoff history alone.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersWithSourceTrail.isEmpty ? .secondary : .green),
+          ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
+        ])
+
+        if inboxCreatedOrdersMissingSourceTrail.isEmpty {
+          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          ForEach(inboxCreatedOrdersMissingSourceTrail.prefix(4)) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                  .foregroundStyle(.orange)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("\(order.store) • \(order.orderNumber)")
+                    .font(.subheadline.weight(.semibold))
+                  Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before closing related audit follow-up.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge("Trace", color: .orange)
+              }
+              .padding(10)
+              .background(Color.orange.opacity(0.08))
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
     }
   }
 
@@ -394,6 +458,22 @@ struct AuditView: View {
       }
       .buttonStyle(.bordered)
       .disabled(normalizedAuditSearch.isEmpty && selectedAction == nil && selectedEntityType == nil)
+    }
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
     }
   }
 }
