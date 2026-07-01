@@ -31,6 +31,15 @@ struct OrdersView: View {
   private var inboxCreatedOrderCount: Int {
     store.orders.filter(\.isInboxCreatedLocalOrder).count
   }
+  private var inboxCreatedOrdersWithSourceTrailCount: Int {
+    store.orders
+      .filter(\.isInboxCreatedLocalOrder)
+      .filter { sourceTrailCount(for: $0) > 0 }
+      .count
+  }
+  private var inboxCreatedOrdersMissingSourceTrailCount: Int {
+    max(inboxCreatedOrderCount - inboxCreatedOrdersWithSourceTrailCount, 0)
+  }
   private var inboxCreatedOrdersActionableCount: Int {
     store.orders
       .filter(\.isInboxCreatedLocalOrder)
@@ -84,6 +93,7 @@ struct OrdersView: View {
 
               MetricStrip(items: [
                 ("Inbox orders", "\(inboxCreatedOrderCount)", .teal),
+                ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
                 ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
                 ("Partial tasks", "\(partialInboxOrderTaskCount)", partialInboxOrderTaskCount == 0 ? .green : .orange),
                 ("Need review", "\(inboxCreatedOrdersNeedingReviewCount)", inboxCreatedOrdersNeedingReviewCount == 0 ? .green : .orange),
@@ -235,6 +245,7 @@ struct OrdersView: View {
           ("Exceptions", "\(exceptionOrderCount)", exceptionOrderCount == 0 ? .green : .red),
           ("Blocked dispatch", "\(blockedDispatchOrderCount)", blockedDispatchOrderCount == 0 ? .green : .red),
           ("From Inbox", "\(inboxCreatedOrderItems.count)", inboxCreatedOrderItems.isEmpty ? .green : .teal),
+          ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
           ("Partial", "\(partialInboxOrderTaskCount)", partialInboxOrderTaskCount == 0 ? .green : .orange),
           ("Linked tasks", "\(urgentTaskOrderCount)", urgentTaskOrderCount == 0 ? .green : .orange),
           ("Needs review", "\(reviewOrderCount)", reviewOrderCount == 0 ? .green : .purple)
@@ -305,8 +316,25 @@ struct OrdersView: View {
       trackingEvents: store.trackingEvents(for: order.id),
       tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
       manifests: store.suggestedShipmentManifestRecords(for: order),
-      checklists: store.suggestedDispatchReadinessChecklists(for: order)
+      checklists: store.suggestedDispatchReadinessChecklists(for: order),
+      sourceTrailCount: sourceTrailCount(for: order)
     )
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
 }
@@ -317,6 +345,7 @@ private struct OrderQueueItem: Identifiable {
   var tasks: [ReviewTask]
   var manifests: [ShipmentManifestRecord]
   var checklists: [DispatchReadinessChecklist]
+  var sourceTrailCount: Int
 
   var id: UUID { order.id }
   var warningTrackingCount: Int {
@@ -353,6 +382,7 @@ private struct OrderQueueItem: Identifiable {
   var operationalTimelineSignalCount: Int {
     1
       + (isInboxCreated ? 1 : 0)
+      + sourceTrailCount
       + tasks.count
       + manifests.count
       + checklists.count
@@ -393,6 +423,9 @@ private struct OrderQueueItem: Identifiable {
     }
     if missingDetectedFieldCount > 0 {
       return "Detected order details are incomplete. Open the order and confirm missing values."
+    }
+    if sourceTrailCount == 0 {
+      return "No intake, import, or acceptance source trail is linked yet. Confirm where this order came from before closing the handoff."
     }
     if order.reviewState != .accepted {
       return "Confirm customer, destination, tracking, and dispatch setup before marking reviewed."
@@ -556,6 +589,7 @@ private struct OrderQueueRow: View {
             Badge(order.fulfillment.rawValue, color: .blue)
             if item.isInboxCreated {
               Badge(item.inboxHandoffLabel, color: .teal)
+              Badge(item.sourceTrailCount > 0 ? "\(item.sourceTrailCount) source" : "Source trail missing", color: item.sourceTrailCount > 0 ? .green : .orange)
             }
             if item.partialInboxTaskCount > 0 {
               Badge("\(item.partialInboxTaskCount) verify", color: .orange)
@@ -589,6 +623,13 @@ private struct OrderQueueRow: View {
               .font(.caption)
               .foregroundStyle(.teal)
               .fixedSize(horizontal: false, vertical: true)
+
+            if item.sourceTrailCount == 0 {
+              Label("Open order source trail before completing this Inbox handoff.", systemImage: "link.badge.plus")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
 
           if item.operationalTimelineSignalCount > 1 {
