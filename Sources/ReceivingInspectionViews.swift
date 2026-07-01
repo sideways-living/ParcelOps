@@ -49,6 +49,7 @@ struct ReceivingInspectionsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxInspectionCoverage
 
         SettingsPanel(title: "Receiving inspection records", symbol: "checklist.checked") {
           HStack {
@@ -180,6 +181,102 @@ struct ReceivingInspectionsView: View {
     inspectionSearchText = ""
   }
 
+  private var inboxInspectionCoverage: some View {
+    SettingsPanel(title: "Inbox receiving inspection coverage", symbol: "checklist.checked") {
+      Text("Checks whether orders created from Inbox intake have local inspection coverage for condition, quantity, and discrepancy follow-up.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(inspectionsLinkedToInboxOrders.count) linked inspections", color: .teal)
+        Badge("\(inspectionsNeedingAction.count) need action", color: inspectionsNeedingAction.isEmpty ? .green : .orange)
+        Badge("\(inboxOrdersMissingInspection.count) missing inspections", color: inboxOrdersMissingInspection.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need receiving inspection checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if inboxOrdersMissingInspection.isEmpty && inspectionsNeedingAction.isEmpty {
+        Label("Inbox-created orders have receiving inspection coverage with no open local inspection warnings.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          if !inboxOrdersMissingInspection.isEmpty {
+            Text("Inbox orders missing receiving inspection records")
+              .font(.caption.weight(.semibold))
+            CompactActionRow {
+              ForEach(inboxOrdersMissingInspection.prefix(4)) { order in
+                NavigationLink {
+                  OrderDetailView(order: order, store: store)
+                } label: {
+                  Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+          }
+
+          if !inspectionsNeedingAction.isEmpty {
+            Text("Linked inspections needing follow-up")
+              .font(.caption.weight(.semibold))
+            CompactMetadataGrid(minimumWidth: 170) {
+              ForEach(inspectionsNeedingAction.prefix(4)) { inspection in
+                Badge(inspection.title, color: inspection.riskLevel.color)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var inspectionsLinkedToInboxOrders: [ReceivingInspectionRecord] {
+    store.receivingInspections.filter { inspection in
+      guard let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil) else {
+        return false
+      }
+      return inboxCreatedOrders.contains { $0.id == orderID }
+    }
+  }
+
+  private var inspectionsNeedingAction: [ReceivingInspectionRecord] {
+    inspectionsLinkedToInboxOrders.filter { inspection in
+      inspection.inspectionStatus == .blocked
+        || inspection.inspectionStatus == .pending
+        || inspection.inspectionStatus == .discrepancy
+        || inspection.discrepancyType != .none
+        || inspection.quantityExpected != inspection.quantityReceived
+        || inspection.reviewState != .accepted
+    }
+  }
+
+  private var inboxOrdersMissingInspection: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.receivingInspections.contains { inspection in
+        inspection.orderID == order.id || (inspection.linkedEntityType == .order && inspection.linkedEntityID == order.id.uuidString)
+      }
+    }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func linkedOrder(for inspection: ReceivingInspectionRecord) -> TrackedOrder? {
     let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil)
     guard let orderID else { return nil }
@@ -267,6 +364,38 @@ struct ReceivingInspectionRow: View {
   var onRemove: () -> Void
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store, let linkedOrder else { return [] }
+    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == linkedOrder.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private var inspectionReadinessWarnings: [String] {
+    var warnings: [String] = []
+    if inspection.inspectionStatus == .blocked {
+      warnings.append("Blocked")
+    } else if inspection.inspectionStatus == .pending {
+      warnings.append("Inspection pending")
+    } else if inspection.inspectionStatus == .discrepancy {
+      warnings.append("Discrepancy open")
+    }
+    if inspection.discrepancyType != .none {
+      warnings.append(inspection.discrepancyType.rawValue)
+    }
+    if inspection.quantityExpected != inspection.quantityReceived {
+      warnings.append("Quantity mismatch")
+    }
+    if inspection.reviewState != .accepted {
+      warnings.append("Review pending")
+    }
+    return warnings
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -306,6 +435,10 @@ struct ReceivingInspectionRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if !linkedIntakeEmails.isEmpty || !inspectionReadinessWarnings.isEmpty {
+        receivingInspectionInboxSourceTrail
       }
 
       InventoryReceiptStrip(receipts: inventoryReceipts)
@@ -350,6 +483,60 @@ struct ReceivingInspectionRow: View {
       ReceivingInspectionEditView(inspection: inspection) { updatedInspection in
         onSave(updatedInspection)
       }
+    }
+  }
+
+  private var receivingInspectionInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox inspection follow-up", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(sourceTrailDescription)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(Array(inspectionReadinessWarnings.prefix(4)), id: \.self) { warning in
+          Badge(warning, color: .orange)
+        }
+        if let linkedOrder {
+          Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedIntakeEmails.prefix(3)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+          }
+          Badge(email.detectedTrackingNumber, color: email.detectedTrackingNumber.isPlaceholderValidationValue ? .orange : .teal)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if !inspectionReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
+      return "This inspection is tied to an Inbox-created order and still needs local condition, quantity, discrepancy, or review follow-up."
+    }
+    if !inspectionReadinessWarnings.isEmpty {
+      return "This inspection still needs local condition, quantity, discrepancy, or review follow-up."
+    }
+    return "Inbox intake context is linked to this receiving inspection. Provider IDs stay in Audit/details."
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
