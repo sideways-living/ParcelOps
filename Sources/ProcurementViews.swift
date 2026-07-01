@@ -52,6 +52,7 @@ struct ProcurementView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxProcurementCoverage
 
         SettingsPanel(title: "Procurement requests", symbol: "cart.badge.plus") {
           HStack {
@@ -183,6 +184,83 @@ struct ProcurementView: View {
     procurementSearchText = ""
   }
 
+  private var inboxProcurementCoverage: some View {
+    SettingsPanel(title: "Inbox procurement readiness", symbol: "cart.badge.plus") {
+      Text("Checks whether orders created from Inbox intake have local procurement requests that still need approval, ordering, receiving, or budget follow-up.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(requestsLinkedToInboxOrders.count) linked requests", color: .teal)
+        Badge("\(requestsNeedingAction.count) need action", color: requestsNeedingAction.isEmpty ? .green : .orange)
+        Badge("\(requestsMissingBudget.count) missing budget", color: requestsMissingBudget.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need procurement checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if requestsLinkedToInboxOrders.isEmpty {
+        Text("No procurement requests are linked to Inbox-created orders. Create one only when buying, replacement, or supplier follow-up is needed.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if requestsNeedingAction.isEmpty && requestsMissingBudget.isEmpty {
+        Label("Linked procurement requests are approved, ordered or received, reviewed, and have budget context.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Linked procurement needing follow-up")
+            .font(.caption.weight(.semibold))
+          CompactMetadataGrid(minimumWidth: 170) {
+            ForEach(requestsNeedingAction.prefix(4)) { request in
+              Badge(request.title, color: request.riskLevel.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var requestsLinkedToInboxOrders: [ProcurementRequest] {
+    store.procurementRequests.filter { request in
+      guard request.linkedEntityType == .order,
+            let orderID = UUID(uuidString: request.linkedEntityID) else { return false }
+      return inboxCreatedOrders.contains { $0.id == orderID }
+    }
+  }
+
+  private var requestsNeedingAction: [ProcurementRequest] {
+    requestsLinkedToInboxOrders.filter { request in
+      request.approvalStatus != .approved
+        || (request.procurementStatus != .ordered && request.procurementStatus != .received)
+        || request.reviewState != .accepted
+        || request.procurementStatus == .blocked
+        || request.approvalStatus == .rejected
+    }
+  }
+
+  private var requestsMissingBudget: [ProcurementRequest] {
+    requestsLinkedToInboxOrders.filter { $0.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func linkedOrder(for request: ProcurementRequest) -> TrackedOrder? {
     guard request.linkedEntityType == .order,
           let orderID = UUID(uuidString: request.linkedEntityID) else { return nil }
@@ -271,6 +349,38 @@ struct ProcurementRequestRow: View {
   var onRemove: () -> Void
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store, let linkedOrder else { return [] }
+    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == linkedOrder.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private var procurementReadinessWarnings: [String] {
+    var warnings: [String] = []
+    if request.approvalStatus == .rejected {
+      warnings.append("Rejected")
+    } else if request.approvalStatus != .approved {
+      warnings.append("Approval pending")
+    }
+    if request.procurementStatus == .blocked {
+      warnings.append("Blocked")
+    } else if request.procurementStatus != .ordered && request.procurementStatus != .received {
+      warnings.append("Not ordered")
+    }
+    if request.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Budget missing")
+    }
+    if request.reviewState != .accepted {
+      warnings.append("Review pending")
+    }
+    return warnings
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -307,6 +417,10 @@ struct ProcurementRequestRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if !linkedIntakeEmails.isEmpty || !procurementReadinessWarnings.isEmpty {
+        procurementInboxSourceTrail
       }
 
       ReceivingInspectionStrip(inspections: receivingInspections)
@@ -352,6 +466,60 @@ struct ProcurementRequestRow: View {
       ProcurementRequestEditView(request: request) { updatedRequest in
         onSave(updatedRequest)
       }
+    }
+  }
+
+  private var procurementInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox procurement follow-up", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(sourceTrailDescription)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(procurementReadinessWarnings.prefix(4), id: \.self) { warning in
+          Badge(warning, color: .orange)
+        }
+        if let linkedOrder {
+          Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedIntakeEmails.prefix(3)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+          }
+          Badge(email.detectedOrderNumber, color: email.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .teal)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if !procurementReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
+      return "This procurement request is tied to an Inbox-created order and still needs local approval, ordering, receiving, budget, or review follow-up."
+    }
+    if !procurementReadinessWarnings.isEmpty {
+      return "This procurement request still needs local approval, ordering, receiving, budget, or review follow-up."
+    }
+    return "Inbox intake context is linked to this procurement request. Provider IDs stay in Audit/details."
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
