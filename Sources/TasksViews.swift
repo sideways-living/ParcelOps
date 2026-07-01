@@ -598,6 +598,10 @@ private struct TaskQueueRow: View {
             )
           }
 
+          if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder {
+            TaskInboxSourceTrail(order: linkedOrder, store: store)
+          }
+
           if case .task(let task) = item.source, task.isPartialInboxOrderFollowUp {
             PartialInboxOrderTaskCallout(task: task, linkedOrder: linkedOrder)
           }
@@ -727,6 +731,53 @@ private struct TaskQueueRow: View {
       }
       .buttonStyle(.bordered)
     }
+  }
+}
+
+private struct TaskInboxSourceTrail: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+
+  private var linkedEmails: [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return Array(
+      store.intakeEmails
+        .filter { email in
+          email.linkedOrderID == order.id
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+        }
+        .prefix(3)
+    )
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Inbox source for this task", systemImage: "tray.and.arrow.down.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.teal)
+
+      if linkedEmails.isEmpty {
+        Text("This order was created from Inbox workflow, but no linked intake email matched the current order number. Open the order source trail before closing this task.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        ForEach(linkedEmails) { email in
+          IntakeSourceContextPanel(
+            email: email,
+            store: store,
+            manualDetail: "No mailbox ingest record is linked to this intake row. Treat it as local/manual evidence for this task.",
+            linkedDetailSuffix: "Duplicate-safe source metadata is linked to this task handoff.",
+            compact: true
+          )
+        }
+      }
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -1054,6 +1105,10 @@ struct ReviewTaskRow: View {
               linkedDetail: "This task has linked order context. Open the order before completing it if tracking, destination, or dispatch setup still needs confirmation.",
               store: store
             )
+          }
+
+          if let store, let linkedOrder, linkedOrder.isInboxCreatedLocalOrder {
+            TaskInboxSourceTrail(order: linkedOrder, store: store)
           }
 
           if task.isPartialInboxOrderFollowUp {
