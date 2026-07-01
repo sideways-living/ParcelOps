@@ -2418,6 +2418,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case dispatchChecklist = "Dispatch checklist"
   case account = "Account"
   case vendorProfile = "Vendor profile"
+  case setupPlaceholder = "Setup placeholder"
 
   var id: String { rawValue }
 }

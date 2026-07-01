@@ -80,6 +80,12 @@ struct DashboardView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
   }
+  private var setupPlaceholderReviewItems: [WorkbenchItem] {
+    store.openWorkbenchItems.filter { $0.source == .setupPlaceholder }
+  }
+  private var setupAttentionCount: Int {
+    setupPlaceholderReviewItems.count
+  }
   private var operatorWorkbenchItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { $0.source != .intakeParser }
   }
@@ -96,7 +102,7 @@ struct DashboardView: View {
     operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -108,6 +114,7 @@ struct DashboardView: View {
       dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
       dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened"),
       dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
+      dashboardMatches("settings", "setup", "placeholder", "shopify", "folder", "login", "local-only"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
       dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance"),
       dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination"),
@@ -125,6 +132,7 @@ struct DashboardView: View {
     if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
     if taskAttentionCount > 0 { return .orange }
+    if setupAttentionCount > 0 { return .teal }
     return .green
   }
 
@@ -136,6 +144,7 @@ struct DashboardView: View {
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
     if taskAttentionCount > 0 { return "Start with Tasks" }
+    if setupAttentionCount > 0 { return "Review local setup placeholders" }
     return "Daily queue is clear"
   }
 
@@ -160,6 +169,9 @@ struct DashboardView: View {
     }
     if taskAttentionCount > 0 {
       return "\(taskAttentionCount) task, handoff, or draft message needs ownership, completion, local send status, or review."
+    }
+    if setupAttentionCount > 0 {
+      return "\(setupAttentionCount) setup placeholder needs local review or cleanup. These are planning records only; no live integration is implied."
     }
     return "No primary daily operator queue has promoted work right now. Use Audit or advanced routes only when checking detailed history."
   }
@@ -736,6 +748,19 @@ struct DashboardView: View {
               tint: taskAttentionCount == 0 ? .green : .orange
             ) {
               TasksView(store: store)
+            }
+          }
+
+          if dashboardMatches("settings", "setup", "placeholder", "shopify", "folder", "login", "local-only") {
+            OperatorDashboardCard(
+              title: "Settings",
+              count: setupAttentionCount,
+              detail: "Local setup placeholders that need review or cleanup before operators treat them as ready planning context.",
+              nextAction: setupAttentionCount == 0 ? "Setup placeholders reviewed" : "Review local setup placeholders",
+              symbol: "gearshape.2.fill",
+              tint: setupAttentionCount == 0 ? .green : .teal
+            ) {
+              SettingsView(store: store)
             }
           }
 

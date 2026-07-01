@@ -104,6 +104,10 @@ struct OperationsWorkbenchView: View {
     Array(store.draftMessagesNeedingReview.prefix(5))
   }
 
+  private var setupPlaceholderReviewItems: [WorkbenchItem] {
+    defaultQueueItems.filter { $0.source == .setupPlaceholder }
+  }
+
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
@@ -117,6 +121,7 @@ struct OperationsWorkbenchView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
       + store.highPriorityWorkbenchItems.count
+      + setupPlaceholderReviewItems.count
       + reopenedInboxDispatchHandoffCount
   }
 
@@ -136,6 +141,7 @@ struct OperationsWorkbenchView: View {
     if !inboxDispatchReadinessOrders.isEmpty { return .teal }
     if !inboxCreatedOrders.isEmpty { return .teal }
     if !draftFollowUpItems.isEmpty { return .orange }
+    if !setupPlaceholderReviewItems.isEmpty { return .teal }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return .purple }
     if defaultQueueItems.isEmpty { return .green }
     return .blue
@@ -149,6 +155,7 @@ struct OperationsWorkbenchView: View {
     if !inboxDispatchReadinessOrders.isEmpty { return "Finish Inbox dispatch readiness" }
     if !inboxCreatedOrders.isEmpty { return "Confirm Inbox-created orders" }
     if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
+    if !setupPlaceholderReviewItems.isEmpty { return "Review setup placeholders" }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return "Review open exceptions" }
     if defaultQueueItems.isEmpty { return "Workbench is clear" }
     return "Work the open exception queue"
@@ -177,6 +184,9 @@ struct OperationsWorkbenchView: View {
     }
     if !draftFollowUpItems.isEmpty {
       return "\(draftFollowUpItems.count) draft needs review, sending, or reopening before the related work can be closed."
+    }
+    if !setupPlaceholderReviewItems.isEmpty {
+      return "\(setupPlaceholderReviewItems.count) setup placeholder needs local review or removal. Open Settings to confirm it remains planning-only."
     }
     if needsReviewCount > 0 {
       return "\(needsReviewCount) item still needs local review after context is checked."
@@ -294,6 +304,7 @@ struct OperationsWorkbenchView: View {
           ("Readiness", "\(inboxDispatchReadinessOrders.count)", inboxDispatchReadinessOrders.isEmpty ? .green : .teal),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .teal),
           ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .orange),
+          ("Setup", "\(setupPlaceholderReviewItems.count)", setupPlaceholderReviewItems.isEmpty ? .green : .teal),
           ("Open", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .blue)
         ])
 
@@ -317,6 +328,11 @@ struct OperationsWorkbenchView: View {
             AuditView(store: store)
           } label: {
             Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Open Settings", systemImage: "gearshape.2.fill")
           }
         }
         .buttonStyle(.bordered)
@@ -703,6 +719,8 @@ struct OperationsWorkbenchView: View {
       AccountsView(store: store)
     case .vendorProfile:
       VendorProfilesView(store: store)
+    case .setupPlaceholder:
+      SettingsView(store: store)
     }
   }
 }

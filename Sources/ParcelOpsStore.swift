@@ -1656,7 +1656,8 @@ final class ParcelOpsStore {
       + shipmentManifestWorkbenchItems()
       + dispatchChecklistWorkbenchItems()
       + accountWorkbenchItems()
-      + vendorProfileWorkbenchItems())
+      + vendorProfileWorkbenchItems()
+      + setupPlaceholderWorkbenchItems())
       .sorted { lhs, rhs in
         if lhs.rank == rhs.rank {
           return lhs.reviewState == .needsReview && rhs.reviewState != .needsReview
@@ -3688,6 +3689,86 @@ final class ParcelOpsStore {
         suggestedNextAction: "Review vendor risk and contacts"
       )
     }
+  }
+
+  private func setupPlaceholderWorkbenchItems() -> [WorkbenchItem] {
+    let mailboxItems = mailboxes
+      .filter { !$0.status.localizedCaseInsensitiveContains("reviewed") }
+      .map { mailbox in
+        WorkbenchItem(
+          id: "setup-mailbox-\(mailbox.id.uuidString)",
+          title: "Review mailbox setup: \(mailbox.address)",
+          summary: "\(mailbox.provider.rawValue) placeholder monitors \(mailbox.monitoredFolders). Local setup only; no mailbox connection is implied.",
+          linkedEntityType: .integration,
+          linkedEntityID: mailbox.id.uuidString,
+          prioritySeverity: mailbox.status.localizedCaseInsensitiveContains("needs") ? "Medium" : "Normal",
+          status: mailbox.status,
+          assignee: "Setup",
+          dueDateText: mailbox.lastChecked,
+          reviewState: .needsReview,
+          source: .setupPlaceholder,
+          suggestedNextAction: "Open Settings and mark reviewed or remove placeholder"
+        )
+      }
+
+    let shopifyItems = shopifyConnections
+      .filter { !$0.status.localizedCaseInsensitiveContains("reviewed") }
+      .map { connection in
+        WorkbenchItem(
+          id: "setup-shopify-\(connection.id.uuidString)",
+          title: "Review Shopify planning: \(connection.storeName)",
+          summary: "\(connection.storeDomain) is a planning placeholder. No Shopify OAuth, API, token, order, or product access is active.",
+          linkedEntityType: .integration,
+          linkedEntityID: connection.id.uuidString,
+          prioritySeverity: connection.status.localizedCaseInsensitiveContains("needs") ? "Medium" : "Normal",
+          status: connection.isEnabled ? connection.status : "Disabled planning",
+          assignee: connection.mappedTeam,
+          dueDateText: connection.lastSync,
+          reviewState: .needsReview,
+          source: .setupPlaceholder,
+          suggestedNextAction: "Open Settings and mark reviewed or remove placeholder"
+        )
+      }
+
+    let folderItems = watchedFolders
+      .filter { !$0.status.localizedCaseInsensitiveContains("reviewed") }
+      .map { folder in
+        WorkbenchItem(
+          id: "setup-folder-\(folder.id.uuidString)",
+          title: "Review folder planning: \(folder.name)",
+          summary: "\(folder.location) is a folder setup placeholder for \(folder.fileTypes). No file picker, OCR, or background scan is active.",
+          linkedEntityType: .integration,
+          linkedEntityID: folder.id.uuidString,
+          prioritySeverity: folder.status.localizedCaseInsensitiveContains("needs") ? "Medium" : "Normal",
+          status: folder.status,
+          assignee: "Setup",
+          dueDateText: folder.lastScan,
+          reviewState: .needsReview,
+          source: .setupPlaceholder,
+          suggestedNextAction: "Open Settings and mark reviewed or remove placeholder"
+        )
+      }
+
+    let sourceItems = connections
+      .filter { !$0.status.localizedCaseInsensitiveContains("reviewed") }
+      .map { connection in
+        WorkbenchItem(
+          id: "setup-source-\(connection.id.uuidString)",
+          title: "Review login planning: \(connection.name)",
+          summary: "\(connection.kind.rawValue) placeholder for \(connection.account). No credential, Keychain item, vault login, or supplier portal access is active.",
+          linkedEntityType: .integration,
+          linkedEntityID: connection.id.uuidString,
+          prioritySeverity: connection.status.localizedCaseInsensitiveContains("needs") ? "Medium" : "Normal",
+          status: connection.status,
+          assignee: "Setup",
+          dueDateText: connection.lastSync,
+          reviewState: .needsReview,
+          source: .setupPlaceholder,
+          suggestedNextAction: "Open Settings and mark reviewed or remove placeholder"
+        )
+      }
+
+    return mailboxItems + shopifyItems + folderItems + sourceItems
   }
 
   private func intakeValidationIssues() -> [ValidationIssue] {
@@ -10209,6 +10290,25 @@ final class ParcelOpsStore {
     case .vendorProfile:
       if let profile = vendorProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markVendorProfileReviewed(profile)
+      }
+    case .setupPlaceholder:
+      if let mailbox = mailboxes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markTrackedMailboxPlaceholderReviewed(mailbox)
+      } else if let connection = shopifyConnections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markShopifyPlaceholderReviewed(connection)
+      } else if let folder = watchedFolders.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markWatchedFolderPlaceholderReviewed(folder)
+      } else if let connection = connections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markStoreLoginPlaceholderReviewed(connection)
+      } else {
+        logAudit(
+          action: .reviewed,
+          entityType: .settings,
+          entityID: item.linkedEntityID,
+          entityLabel: item.title,
+          summary: "Setup placeholder workbench item reviewed locally.",
+          afterDetail: "\(item.source.rawValue): \(item.summary)\nNo matching local setup placeholder was found. No live integration action occurred."
+        )
       }
     case .importQueue, .acceptanceReview, .validation:
       logAudit(
