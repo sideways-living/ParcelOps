@@ -262,6 +262,20 @@ struct TasksView: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .green : .orange)
           .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
