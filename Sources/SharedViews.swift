@@ -3466,6 +3466,31 @@ struct LinkedOrdersContextPanel: View {
         }
 
         if let store {
+          let sourceSummaries = linkedOrders.prefix(3).compactMap { order in
+            inboxSourceSummary(for: order, store: store)
+          }
+
+          if !sourceSummaries.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Label("Inbox source trail", systemImage: "tray.and.arrow.down.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tone)
+              ForEach(sourceSummaries, id: \.id) { summary in
+                CompactMetadataGrid(minimumWidth: 140) {
+                  Badge(summary.orderNumber, color: summary.color)
+                  Badge(summary.sourceLabel, color: summary.color)
+                  Badge(summary.status, color: summary.status == MailboxIngestStatus.imported.rawValue ? .green : summary.color)
+                }
+                Text(summary.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(8)
+            .background(tone.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+          }
+
           CompactActionRow {
             ForEach(linkedOrders.prefix(3)) { order in
               NavigationLink {
@@ -3484,4 +3509,58 @@ struct LinkedOrdersContextPanel: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background((linkedOrders.isEmpty ? Color.orange : tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
+
+  private func inboxSourceSummary(for order: TrackedOrder, store: ParcelOpsStore) -> DispatchLinkedOrderSourceSummary? {
+    guard order.isInboxCreatedLocalOrder else { return nil }
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    let linkedEmail = store.intakeEmails.first { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+
+    guard let linkedEmail else {
+      return DispatchLinkedOrderSourceSummary(
+        id: "missing-\(order.id.uuidString)",
+        orderNumber: order.orderNumber,
+        sourceLabel: "No intake match",
+        status: "Check order",
+        detail: "This dispatch row is linked to an Inbox-created order, but no intake email matched the current order number.",
+        color: .orange
+      )
+    }
+
+    let source = store.intakeSourceSummary(for: linkedEmail)
+    return DispatchLinkedOrderSourceSummary(
+      id: linkedEmail.id.uuidString,
+      orderNumber: order.orderNumber,
+      sourceLabel: source.label,
+      status: source.status,
+      detail: "\(source.detail) Captured \(source.captured).",
+      color: color(for: source.tone)
+    )
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
+  }
+}
+
+private struct DispatchLinkedOrderSourceSummary {
+  var id: String
+  var orderNumber: String
+  var sourceLabel: String
+  var status: String
+  var detail: String
+  var color: Color
 }
