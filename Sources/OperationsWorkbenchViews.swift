@@ -1056,6 +1056,10 @@ struct WorkbenchItemRow: View {
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
 
+  private var isSetupPlaceholder: Bool {
+    item.source == .setupPlaceholder
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -1097,21 +1101,38 @@ struct WorkbenchItemRow: View {
         WorkbenchInboxSourcePanel(summary: intakeSourceSummary)
       }
 
+      if isSetupPlaceholder {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "lock.shield.fill")
+            .foregroundStyle(.teal)
+            .frame(width: 18)
+          Text("Local planning item only. Reviewing or removing this placeholder changes JSON state and Audit history; it does not connect Shopify, read folders, open logins, store credentials, or contact external services.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
       CompactActionRow {
         if let contextDestination {
           NavigationLink {
             contextDestination
           } label: {
-            Label("Open work item", systemImage: "arrow.up.right.square.fill")
+            Label(isSetupPlaceholder ? "Open Settings" : "Open work item", systemImage: isSetupPlaceholder ? "gearshape.2.fill" : "arrow.up.right.square.fill")
           }
           .buttonStyle(.bordered)
         }
         Button("Create task", systemImage: "checklist", action: onCreateTask)
           .buttonStyle(.bordered)
-        Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
-          .buttonStyle(.bordered)
+        if !isSetupPlaceholder {
+          Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+            .buttonStyle(.bordered)
+        }
         if item.supportsReviewAction {
-          Button("Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+          Button(isSetupPlaceholder ? "Review setup" : "Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
             .buttonStyle(.bordered)
         }
         Text(item.source.rawValue)
