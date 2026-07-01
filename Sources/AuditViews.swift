@@ -418,6 +418,26 @@ private struct AuditDispatchHandoffTrailCallout: View {
   }
 }
 
+private struct AuditInboxOrderHandoffCallout: View {
+  var event: AuditEvent
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label(event.inboxOrderHandoffLabel, systemImage: event.inboxOrderHandoffSymbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(event.inboxOrderHandoffColor)
+      Text(event.inboxOrderHandoffGuidance)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(event.inboxOrderHandoffColor.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct AuditFeedSection: View {
   var title: String
   var detail: String
@@ -493,6 +513,8 @@ private struct AuditActivityRow: View {
 
           if event.isInboxDispatchHandoffTrail {
             AuditDispatchHandoffTrailCallout(event: event)
+          } else if event.isInboxOrderHandoff {
+            AuditInboxOrderHandoffCallout(event: event)
           }
 
           CompactMetadataGrid {
@@ -565,6 +587,8 @@ struct AuditEventRow: View {
 
           if event.isInboxDispatchHandoffTrail {
             AuditDispatchHandoffTrailCallout(event: event)
+          } else if event.isInboxOrderHandoff {
+            AuditInboxOrderHandoffCallout(event: event)
           }
 
           CompactMetadataGrid {
@@ -703,6 +727,46 @@ private extension AuditEvent {
         || entityType == .acceptanceRecord
 
     return relevantEntity && mentionsOrderCreation
+  }
+
+  var inboxOrderHandoffLabel: String {
+    if entityType == .order && action == .created { return "Order created from Inbox" }
+    if entityType == .intakeEmail && action == .linked { return "Intake linked to order" }
+    if entityType == .importQueueItem { return "Import handoff" }
+    if entityType == .acceptanceRecord { return "Acceptance handoff" }
+    return "Inbox-to-order handoff"
+  }
+
+  var inboxOrderHandoffGuidance: String {
+    if entityType == .order && action == .created {
+      return "Open the order and confirm the Inbox source trail, tracking, destination, customer, and dispatch setup before treating it as operationally ready."
+    }
+    if entityType == .intakeEmail && action == .linked {
+      return "The intake email is now tied to local order context. Check the order source trail before marking related follow-up reviewed."
+    }
+    if entityType == .importQueueItem {
+      return "This import queue event contributed to order handoff. Confirm the linked order or create a follow-up task if fields still need review."
+    }
+    if entityType == .acceptanceRecord {
+      return "Acceptance review moved intake/import context toward an order. Verify the linked order and dispatch setup before closing the handoff."
+    }
+    return "Use this event to trace how Inbox, Import Queue, or Acceptance Review context became order work."
+  }
+
+  var inboxOrderHandoffSymbol: String {
+    if entityType == .order && action == .created { return "shippingbox.fill" }
+    if entityType == .intakeEmail { return "envelope.open.fill" }
+    if entityType == .importQueueItem { return "tray.and.arrow.down.fill" }
+    if entityType == .acceptanceRecord { return "checkmark.seal.fill" }
+    return "arrow.triangle.branch"
+  }
+
+  var inboxOrderHandoffColor: Color {
+    if entityType == .order && action == .created { return .teal }
+    if entityType == .intakeEmail { return .blue }
+    if entityType == .importQueueItem { return .orange }
+    if entityType == .acceptanceRecord { return .purple }
+    return .teal
   }
 
   var isInboxDispatchHandoffTrail: Bool {
