@@ -7,6 +7,30 @@ struct SearchView: View {
   @State private var selectedEntityType: SearchEntityType?
   @State private var selectedReviewState: ReviewState?
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  }
+
+  private var uncertainSpaceMailCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  private var parserIssueCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
   private var resultGroups: [SearchResultGroup] {
     store.groupedSearchResults(
       query: queryText,
@@ -49,6 +73,16 @@ struct SearchView: View {
           selectedEntityType = nil
           selectedReviewState = nil
         }
+
+        SearchReadinessPanel(
+          store: store,
+          inboxCreatedOrderCount: inboxCreatedOrders.count,
+          inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
+          inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
+          uncertainSpaceMailCount: uncertainSpaceMailCount,
+          parserIssueCount: parserIssueCount,
+          latestSpaceMailSummary: latestSpaceMailSummary
+        )
 
         SearchOperatorHintsPanel { query, entity, reviewState in
           queryText = query
@@ -113,6 +147,149 @@ struct SearchView: View {
     selectedEntityType = filter.entityTypeFilter
     selectedReviewState = filter.reviewStateFilter
   }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+}
+
+private struct SearchReadinessPanel: View {
+  var store: ParcelOpsStore
+  var inboxCreatedOrderCount: Int
+  var inboxCreatedOrdersWithSourceTrailCount: Int
+  var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder]
+  var uncertainSpaceMailCount: Int
+  var parserIssueCount: Int
+  var latestSpaceMailSummary: SpaceMailIntakeHealthSummary?
+
+  private var filteredCount: Int {
+    latestSpaceMailSummary?.filteredCount ?? 0
+  }
+
+  private var importedCount: Int {
+    latestSpaceMailSummary?.importedCount ?? 0
+  }
+
+  private var tone: Color {
+    if !inboxCreatedOrdersMissingSourceTrail.isEmpty || uncertainSpaceMailCount > 0 || parserIssueCount > 0 { return .orange }
+    if inboxCreatedOrderCount > 0 || importedCount > 0 { return .green }
+    return .teal
+  }
+
+  private var title: String {
+    if !inboxCreatedOrdersMissingSourceTrail.isEmpty { return "Trace Inbox-created orders" }
+    if uncertainSpaceMailCount > 0 { return "Review uncertain SpaceMail mail" }
+    if parserIssueCount > 0 { return "Parser diagnostics are available" }
+    if inboxCreatedOrderCount > 0 { return "Search is ready for handoff checks" }
+    return "Use Search to recover local context"
+  }
+
+  private var detail: String {
+    if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
+      return "Some Inbox-created orders do not currently match intake, import, or acceptance source context. Open them here before closing related handoff work."
+    }
+    if uncertainSpaceMailCount > 0 {
+      return "Uncertain mixed-mailbox messages stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
+    }
+    if parserIssueCount > 0 {
+      return "Parser diagnostics are hidden from the primary Inbox queue by default. Use Search or Mailbox Monitor when investigating a specific intake row."
+    }
+    if inboxCreatedOrderCount > 0 {
+      return "Inbox-created orders can be searched alongside intake emails, audit events, and dispatch handoff context."
+    }
+    return "Search local JSON records when a user asks where an order, intake email, mailbox result, or audit event came from."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Search readiness", symbol: "scope") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: tone == .green ? "checkmark.seal.fill" : "magnifyingglass.circle.fill")
+            .foregroundStyle(tone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+              .font(.headline)
+            Text(detail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(inboxCreatedOrdersMissingSourceTrail.isEmpty ? "Ready" : "Trace", color: tone)
+        }
+
+        MetricStrip(items: [
+          ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("With source", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrderCount == 0 ? .secondary : (inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)),
+          ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
+          ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
+          ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
+          ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green)
+        ])
+
+        if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Orders missing source context")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(inboxCreatedOrdersMissingSourceTrail) { order in
+              NavigationLink {
+                OrderDetailView(order: order, store: store)
+              } label: {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: "link.badge.plus")
+                    .foregroundStyle(.orange)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text("\(order.store) • \(order.orderNumber)")
+                      .font(.caption.weight(.semibold))
+                    Text("Open source trail and confirm the intake/import/acceptance handoff.")
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                  }
+                  Spacer()
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
 }
 
 private struct SearchOperatorHintsPanel: View {
@@ -120,6 +297,9 @@ private struct SearchOperatorHintsPanel: View {
 
   private let hints: [SearchOperatorHint] = [
     SearchOperatorHint(title: "Inbox-created orders", query: "Inbox-created order", entityType: .order, reviewState: nil, symbol: "tray.and.arrow.down.fill", detail: "Find orders created from intake, import, or acceptance handoff."),
+    SearchOperatorHint(title: "Missing source trail", query: "No linked intake import acceptance source", entityType: .order, reviewState: nil, symbol: "link.badge.plus", detail: "Find Inbox-created orders that need source context checked before handoff closure."),
+    SearchOperatorHint(title: "Linked Inbox orders", query: "Linked Inbox intake", entityType: .intakeEmail, reviewState: nil, symbol: "link.circle.fill", detail: "Find intake rows that already carry linked order context."),
+    SearchOperatorHint(title: "Uncertain SpaceMail", query: "uncertain mixed mailbox", entityType: .auditEvent, reviewState: nil, symbol: "questionmark.folder.fill", detail: "Find local evidence for mixed-mailbox messages that require operator review."),
     SearchOperatorHint(title: "Reopened dispatch handoffs", query: "reopened dispatch handoff", entityType: .order, reviewState: nil, symbol: "arrow.counterclockwise.circle.fill", detail: "Find Inbox-created orders whose local dispatch handoff was reopened."),
     SearchOperatorHint(title: "Missing tracking", query: "tracking number needs review", entityType: .intakeEmail, reviewState: .needsReview, symbol: "number.circle.fill", detail: "Find intake rows where the parser did not extract a usable tracking value."),
     SearchOperatorHint(title: "SpaceMail parser checks", query: "parser diagnostics", entityType: .intakeEmail, reviewState: nil, symbol: "server.rack", detail: "Find intake and audit clues from mixed-mailbox parsing and classifier work.")
