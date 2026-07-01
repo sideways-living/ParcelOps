@@ -128,7 +128,7 @@ struct SearchView: View {
 
                   VStack(spacing: 8) {
                     ForEach(group.results) { result in
-                      SearchResultRow(result: result)
+                      SearchResultRow(result: result, store: store)
                     }
                   }
                 }
@@ -443,6 +443,7 @@ struct SavedFilterRow: View {
 
 struct SearchResultRow: View {
   var result: SearchResult
+  var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -453,6 +454,51 @@ struct SearchResultRow: View {
 
   private var badgeColor: Color {
     result.severity?.color ?? result.reviewState?.color ?? result.entityType.color
+  }
+
+  private var openActionLabel: String {
+    switch result.entityType {
+    case .order: return "Open order"
+    case .intakeEmail: return "Open Mailbox"
+    case .trackingEvent: return "Open Tracking"
+    case .evidence: return "Open Evidence"
+    case .auditEvent: return "Open Audit"
+    case .automationRule: return "Open Automation"
+    }
+  }
+
+  private var openActionSymbol: String {
+    switch result.entityType {
+    case .order: return "shippingbox.fill"
+    case .intakeEmail: return "envelope.open.fill"
+    case .trackingEvent: return "location.fill.viewfinder"
+    case .evidence: return "paperclip"
+    case .auditEvent: return "list.clipboard.fill"
+    case .automationRule: return "flowchart.fill"
+    }
+  }
+
+  @ViewBuilder
+  private var openDestination: some View {
+    switch result.entityType {
+    case .order:
+      if let id = UUID(uuidString: result.linkedEntityID),
+         let order = store.orders.first(where: { $0.id == id }) {
+        OrderDetailView(order: order, store: store)
+      } else {
+        OrdersView(store: store)
+      }
+    case .intakeEmail:
+      MailboxView(store: store)
+    case .trackingEvent:
+      TrackingView(store: store)
+    case .evidence:
+      EvidenceView(store: store)
+    case .auditEvent:
+      AuditView(store: store)
+    case .automationRule:
+      AutomationView(store: store)
+    }
   }
 
   private var intakeSourceChips: [(String, Color)] {
@@ -541,6 +587,15 @@ struct SearchResultRow: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background((result.entityType == .order ? Color.teal : result.entityType.color).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          openDestination
+        } label: {
+          Label(openActionLabel, systemImage: openActionSymbol)
+        }
+        .buttonStyle(.bordered)
       }
 
       Text(result.linkedEntityID)
