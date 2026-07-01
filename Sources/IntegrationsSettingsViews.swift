@@ -170,6 +170,10 @@ struct IntegrationsView: View {
               ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
             ])
 
+            SpaceMailPrimaryStatusStrip(store: store, title: "Current SpaceMail intake", showTitle: true)
+
+            SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
+
             Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail.")
               .font(.caption)
               .foregroundStyle(.secondary)
