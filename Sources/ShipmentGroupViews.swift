@@ -40,6 +40,7 @@ struct ShipmentGroupsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxShipmentGroupCoverage
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           HStack {
@@ -120,6 +121,97 @@ struct ShipmentGroupsView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var inboxShipmentGroupCoverage: some View {
+    SettingsPanel(title: "Inbox shipment group coverage", symbol: "shippingbox.and.arrow.backward.fill") {
+      Text("Checks whether orders created from Inbox intake have local shipment group context before dispatch work begins.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(groupsLinkedToInboxOrders.count) linked groups", color: .teal)
+        Badge("\(inboxOrdersMissingGroup.count) orders without groups", color: inboxOrdersMissingGroup.isEmpty ? .green : .orange)
+        Badge("\(groupsMissingPrimaryOrder.count) groups missing primary", color: groupsMissingPrimaryOrder.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need shipment group checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if inboxOrdersMissingGroup.isEmpty && groupsMissingPrimaryOrder.isEmpty {
+        Label("Inbox-created orders have shipment group coverage for the current local workflow.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          if !inboxOrdersMissingGroup.isEmpty {
+            Text("Orders needing shipment group setup")
+              .font(.caption.weight(.semibold))
+            CompactActionRow {
+              ForEach(inboxOrdersMissingGroup.prefix(4)) { order in
+                NavigationLink {
+                  OrderDetailView(order: order, store: store)
+                } label: {
+                  Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+          }
+
+          if !groupsMissingPrimaryOrder.isEmpty {
+            Text("Shipment groups missing a valid primary order")
+              .font(.caption.weight(.semibold))
+            CompactMetadataGrid(minimumWidth: 160) {
+              ForEach(groupsMissingPrimaryOrder.prefix(4)) { group in
+                Badge(group.groupName, color: .orange)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var groupsLinkedToInboxOrders: [ShipmentGroup] {
+    store.shipmentGroups.filter { group in
+      let groupOrderIDs = Set(([group.primaryOrderID].compactMap { $0 } + group.relatedOrderIDs))
+      return !group.relatedIntakeEmailIDs.isEmpty
+        || inboxCreatedOrders.contains { groupOrderIDs.contains($0.id) }
+    }
+  }
+
+  private var inboxOrdersMissingGroup: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.shipmentGroups.contains { group in
+        group.primaryOrderID == order.id || group.relatedOrderIDs.contains(order.id)
+      }
+    }
+  }
+
+  private var groupsMissingPrimaryOrder: [ShipmentGroup] {
+    store.shipmentGroups.filter { group in
+      guard let primaryOrderID = group.primaryOrderID else { return true }
+      return !store.orders.contains { $0.id == primaryOrderID }
+    }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
     }
   }
 
@@ -229,6 +321,23 @@ struct ShipmentGroupRow: View {
     return store.intakeEmails.filter { group.relatedIntakeEmailIDs.contains($0.id) }
   }
 
+  private var linkedOrderIntakeEmails: [ForwardedEmailIntake] {
+    guard let store else { return [] }
+    let linkedOrderIDs = Set(linkedOrders.map(\.id))
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID.map { linkedOrderIDs.contains($0) } == true
+    }
+  }
+
+  private var sourceTrailEmails: [ForwardedEmailIntake] {
+    (linkedIntakeEmails + linkedOrderIntakeEmails).uniquedByID()
+  }
+
+  private var missingPrimaryOrder: Bool {
+    guard let primaryOrderID = group.primaryOrderID else { return true }
+    return !linkedOrders.contains { $0.id == primaryOrderID }
+  }
+
   init(
     group: ShipmentGroup,
     store: ParcelOpsStore? = nil,
@@ -296,7 +405,7 @@ struct ShipmentGroupRow: View {
         Badge("\(group.relatedEvidenceIDs.count) evidence", color: .purple)
       }
 
-      if !linkedIntakeEmails.isEmpty {
+      if !sourceTrailEmails.isEmpty || missingPrimaryOrder {
         shipmentGroupInboxSourceTrail
       }
 
@@ -375,12 +484,15 @@ struct ShipmentGroupRow: View {
       Label("Inbox source trail", systemImage: "envelope.open.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
-      Text("Linked intake rows explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details.")
+      Text(sourceTrailDescription)
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
       CompactMetadataGrid(minimumWidth: 140) {
-        ForEach(linkedIntakeEmails.prefix(4)) { email in
+        if missingPrimaryOrder {
+          Badge("Primary order missing", color: .orange)
+        }
+        ForEach(sourceTrailEmails.prefix(4)) { email in
           if let store {
             let source = store.intakeSourceSummary(for: email)
             Badge(source.label, color: sourceColor(for: source.tone))
@@ -393,6 +505,16 @@ struct ShipmentGroupRow: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if sourceTrailEmails.isEmpty && missingPrimaryOrder {
+      return "This group needs a valid primary order before dispatch context is reliable."
+    }
+    if missingPrimaryOrder {
+      return "Inbox source rows are linked, but this group still needs a valid primary order."
+    }
+    return "Inbox intake rows explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details."
   }
 
   private func sourceColor(for tone: String) -> Color {
@@ -452,5 +574,12 @@ private struct ShipmentGroupEditForm: View {
     .padding(10)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension Array where Element == ForwardedEmailIntake {
+  func uniquedByID() -> [ForwardedEmailIntake] {
+    var seen: Set<UUID> = []
+    return filter { seen.insert($0.id).inserted }
   }
 }
