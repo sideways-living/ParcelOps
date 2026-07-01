@@ -305,6 +305,46 @@ struct EvidenceAttachmentRow: View {
             )
           }
 
+          if !evidenceWarnings.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Label("Evidence follow-up", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.orange)
+              ForEach(evidenceWarnings, id: \.self) { warning in
+                Text(warning)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+
+          if let store, let linkedOrder {
+            let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+            if !linkedEmails.isEmpty {
+              VStack(alignment: .leading, spacing: 6) {
+                Label("Inbox evidence source", systemImage: "tray.and.arrow.down.fill")
+                  .font(.caption.bold())
+                  .foregroundStyle(.teal)
+                ForEach(linkedEmails.prefix(2)) { email in
+                  HStack(spacing: 6) {
+                    let sourceSummary = store.intakeSourceSummary(for: email)
+                    Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                    if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                      Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                    }
+                    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                      Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                    }
+                    Text(email.subject)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
+              }
+            }
+          }
+
           if !customerProfiles.isEmpty {
             CustomerProfileStrip(profiles: customerProfiles)
           }
@@ -351,6 +391,23 @@ struct EvidenceAttachmentRow: View {
     return evidenceAttachmentsForOrder(linkedOrder, in: store.evidenceAttachments, intakeEmails: store.intakeEmails)
   }
 
+  private var evidenceWarnings: [String] {
+    var warnings: [String] = []
+    if attachment.reviewState != .accepted {
+      warnings.append("Review state is \(attachment.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    if attachment.localFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachment.localFilePath.localizedCaseInsensitiveContains("placeholder") {
+      warnings.append("Local file reference is a placeholder or missing.")
+    }
+    if attachment.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachment.summary.localizedCaseInsensitiveContains("placeholder") {
+      warnings.append("Evidence summary needs confirmation.")
+    }
+    if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder, sourceTrailCount(for: linkedOrder) == 0 {
+      warnings.append("Inbox-created order source trail is missing.")
+    }
+    return warnings
+  }
+
   private func sourceTrailCount(for order: TrackedOrder) -> Int {
     guard let store else { return 0 }
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -363,6 +420,25 @@ struct EvidenceAttachmentRow: View {
     return linkedIntakeCount
       + store.importQueueItems(for: order).count
       + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
   }
 }
 
