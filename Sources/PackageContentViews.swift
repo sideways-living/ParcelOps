@@ -46,6 +46,7 @@ struct PackageContentsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxPackageContentCoverage
 
         SettingsPanel(title: "Content records", symbol: "shippingbox.circle.fill") {
           HStack {
@@ -169,6 +170,95 @@ struct PackageContentsView: View {
     packageSearchText = ""
   }
 
+  private var inboxPackageContentCoverage: some View {
+    SettingsPanel(title: "Inbox package content coverage", symbol: "shippingbox.circle.fill") {
+      Text("Checks whether orders created from Inbox intake have local item verification records before cost, return, receiving, and dispatch work.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(contentsLinkedToInboxOrders.count) linked contents", color: .teal)
+        Badge("\(unverifiedInboxContents.count) unverified", color: unverifiedInboxContents.isEmpty ? .green : .orange)
+        Badge("\(inboxOrdersMissingContent.count) missing content", color: inboxOrdersMissingContent.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need package content checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if inboxOrdersMissingContent.isEmpty && unverifiedInboxContents.isEmpty {
+        Label("Inbox-created orders have verified package content coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          if !inboxOrdersMissingContent.isEmpty {
+            Text("Inbox orders needing item verification records")
+              .font(.caption.weight(.semibold))
+            CompactActionRow {
+              ForEach(inboxOrdersMissingContent.prefix(4)) { order in
+                NavigationLink {
+                  OrderDetailView(order: order, store: store)
+                } label: {
+                  Label(order.orderNumber, systemImage: "arrow.up.right.square.fill")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+          }
+
+          if !unverifiedInboxContents.isEmpty {
+            Text("Linked content still needing verification")
+              .font(.caption.weight(.semibold))
+            CompactMetadataGrid(minimumWidth: 170) {
+              ForEach(unverifiedInboxContents.prefix(4)) { content in
+                Badge(content.title, color: content.riskLevel.color)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var contentsLinkedToInboxOrders: [PackageContentRecord] {
+    store.packageContents.filter { content in
+      guard let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil) else {
+        return false
+      }
+      return inboxCreatedOrders.contains { $0.id == orderID }
+    }
+  }
+
+  private var unverifiedInboxContents: [PackageContentRecord] {
+    contentsLinkedToInboxOrders.filter { $0.verificationStatus != .verified }
+  }
+
+  private var inboxOrdersMissingContent: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      !store.packageContents.contains { content in
+        content.orderID == order.id || (content.linkedEntityType == .order && content.linkedEntityID == order.id.uuidString)
+      }
+    }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func linkedOrder(for content: PackageContentRecord) -> TrackedOrder? {
     let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil)
     guard let orderID else { return nil }
@@ -260,6 +350,21 @@ struct PackageContentRow: View {
   var onRemove: () -> Void
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store, let linkedOrder else { return [] }
+    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == linkedOrder.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private var needsInboxVerificationAttention: Bool {
+    !linkedIntakeEmails.isEmpty && content.verificationStatus != .verified
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -298,6 +403,10 @@ struct PackageContentRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if !linkedIntakeEmails.isEmpty || needsInboxVerificationAttention {
+        packageContentInboxSourceTrail
       }
 
       CostRecordStrip(costs: costRecords)
@@ -342,6 +451,57 @@ struct PackageContentRow: View {
       PackageContentEditView(content: content) { updatedContent in
         onSave(updatedContent)
       }
+    }
+  }
+
+  private var packageContentInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox item verification context", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(sourceTrailDescription)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        if needsInboxVerificationAttention {
+          Badge("Verify before handoff", color: .orange)
+        }
+        if let linkedOrder {
+          Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedIntakeEmails.prefix(3)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+          }
+          Badge(email.detectedTrackingNumber, color: email.detectedTrackingNumber.isPlaceholderValidationValue ? .orange : .teal)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if needsInboxVerificationAttention {
+      return "This item record came from an Inbox-created order and still needs local quantity/item verification before downstream work."
+    }
+    return "Inbox intake context is linked to this package content record. Provider IDs stay in Audit/details."
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
