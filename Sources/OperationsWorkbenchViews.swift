@@ -367,6 +367,7 @@ struct OperationsWorkbenchView: View {
             hasReopenedInboxDispatchHandoff: hasReopenedInboxDispatchHandoff(order),
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
+            sourceTrailCount: sourceTrailCount(for: order),
             store: store
           )
         }
@@ -538,6 +539,7 @@ struct OperationsWorkbenchView: View {
   private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
     if order.status == .exception { return 120 }
     if needsPreDispatchVerification(order) { return 115 }
+    if sourceTrailCount(for: order) == 0 { return 112 }
     if order.reviewState != .accepted { return 110 }
     if needsDispatchSetup(order) { return 100 }
     if order.status == .inTransit { return 80 }
@@ -574,6 +576,22 @@ struct OperationsWorkbenchView: View {
 
   private func needsPreDispatchVerification(_ order: TrackedOrder) -> Bool {
     partialInboxTaskCount(for: order) > 0 || order.missingInboxOrderFieldCount > 0
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
@@ -696,6 +714,7 @@ private struct WorkbenchInboxOrderRow: View {
   var hasReopenedInboxDispatchHandoff: Bool
   var needsPreDispatchVerification: Bool
   var partialTaskCount: Int
+  var sourceTrailCount: Int
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
@@ -714,6 +733,9 @@ private struct WorkbenchInboxOrderRow: View {
     if needsPreDispatchVerification {
       return "Next: verify missing Inbox details from the order before dispatch setup."
     }
+    if sourceTrailCount == 0 {
+      return "Next: confirm the local Inbox, Import Queue, or Acceptance source trail before closing this handoff."
+    }
     if needsDispatchSetup {
       return "Next: add or link dispatch manifest/readiness context."
     }
@@ -726,6 +748,7 @@ private struct WorkbenchInboxOrderRow: View {
   private var operationalTimelineSignalCount: Int {
     1
       + 1
+      + sourceTrailCount
       + store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
       + store.suggestedShipmentManifestRecords(for: order).count
       + store.suggestedDispatchReadinessChecklists(for: order).count
@@ -738,6 +761,9 @@ private struct WorkbenchInboxOrderRow: View {
     }
     if needsPreDispatchVerification {
       return "Order timeline includes Inbox handoff and verification work."
+    }
+    if sourceTrailCount == 0 {
+      return "Order timeline is missing linked intake, import, or acceptance source context."
     }
     if needsInboxDispatchReadiness || needsDispatchSetup {
       return "Order timeline links Inbox handoff and dispatch setup."
@@ -793,6 +819,7 @@ private struct WorkbenchInboxOrderRow: View {
         if partialTaskCount > 0 {
           Badge("\(partialTaskCount) verify task", color: .orange)
         }
+        Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
         if order.missingInboxOrderFieldCount > 0 {
           Badge("\(order.missingInboxOrderFieldCount) missing", color: .orange)
         }
@@ -804,6 +831,13 @@ private struct WorkbenchInboxOrderRow: View {
         Label(operationalTimelineDetail, systemImage: "calendar.badge.clock")
           .font(.caption)
           .foregroundStyle(hasReopenedInboxDispatchHandoff ? .purple : rowColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if sourceTrailCount == 0 {
+        Label("Source trail missing: open the order before marking this handoff complete.", systemImage: "link.badge.plus")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
 
