@@ -39,6 +39,7 @@ struct ScanSessionsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxScanCoverage
 
         SettingsPanel(title: "Scan session records", symbol: "qrcode.viewfinder") {
           HStack {
@@ -147,6 +148,64 @@ struct ScanSessionsView: View {
     }
   }
 
+  private var inboxScanCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedScans = scansLinkedToInboxOrders
+    let actionScans = scansNeedingAction
+    let missingScanCount = inboxOrdersMissingScan.count
+
+    return SettingsPanel(title: "Inbox scan readiness", symbol: "qrcode.viewfinder") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local manual label or order verification sessions before dispatch.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedScans.count) linked scans", color: .teal)
+          Badge("\(actionScans.count) need action", color: actionScans.isEmpty ? .green : .orange)
+          Badge("\(missingScanCount) missing scans", color: missingScanCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking scan readiness.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedScans.isEmpty {
+          Text("Inbox-created orders do not have scan sessions yet. Add a session when label, order, custody, or inventory verification is needed.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionScans.prefix(3))) { record in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: record.scanStatus == .mismatchNeedsReview ? "exclamationmark.triangle.fill" : "qrcode.viewfinder")
+                .foregroundStyle(record.scanStatus == .mismatchNeedsReview ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(record.title)
+                  .font(.caption.bold())
+                Text(scanActionSummary(for: record))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(record.scanStatus.rawValue, color: record.scanStatus.color)
+            }
+          }
+
+          if actionScans.isEmpty {
+            Text("Linked scan sessions look matched, completed, assigned, and reviewed for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionScans.count > 3 {
+            Text("\(actionScans.count - 3) more linked scan sessions need captured values, label links, completion, or review.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedPurpose = nil
     selectedMethod = nil
@@ -162,6 +221,90 @@ struct ScanSessionsView: View {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var scansLinkedToInboxOrders: [ScanSessionRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+    let locationIDs = Set(store.storageLocations.filter { location in
+      !Set(location.orderIDs).isDisjoint(with: orderIDs) || !Set(location.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+    }.map(\.id))
+    let custodyIDs = Set(store.custodyRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.storageLocationID.map { locationIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let labelIDs = Set(store.labelReferenceRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.storageLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+    }.map(\.id))
+
+    return store.scanSessionRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.scanLocationStorageLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+        || (record.linkedLabelReferenceID.map { labelIDs.contains($0) } ?? false)
+        || (record.linkedEntityType == .order && UUID(uuidString: record.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingScan: [TrackedOrder] {
+    let scanOrderIDs = Set(scansLinkedToInboxOrders.compactMap { record -> UUID? in
+      record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
+    })
+    return inboxCreatedOrders.filter { !scanOrderIDs.contains($0.id) }
+  }
+
+  private var scansNeedingAction: [ScanSessionRecord] {
+    scansLinkedToInboxOrders.filter { record in
+      record.scanStatus == .planned
+        || record.scanStatus == .mismatchNeedsReview
+        || record.scanStatus == .reopened
+        || record.scanStatus == .blocked
+        || record.reviewState != .accepted
+        || record.riskLevel == .high
+        || record.riskLevel == .critical
+        || record.capturedValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || record.linkedLabelReferenceID == nil
+        || record.assignedOperatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+  }
+
+  private func scanActionSummary(for record: ScanSessionRecord) -> String {
+    var parts: [String] = []
+    if record.scanStatus == .planned || record.scanStatus == .reopened || record.scanStatus == .blocked { parts.append("complete scan") }
+    if record.scanStatus == .mismatchNeedsReview { parts.append("resolve mismatch") }
+    if record.capturedValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("capture value") }
+    if record.linkedLabelReferenceID == nil { parts.append("link label") }
+    if record.assignedOperatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("assign operator") }
+    if record.riskLevel == .high || record.riskLevel == .critical { parts.append("review risk") }
+    if record.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Scan session is matched, completed, assigned, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func scanSession(_ record: ScanSessionRecord, matches query: String) -> Bool {
@@ -263,6 +406,46 @@ struct ScanSessionRow: View {
         }
       }
 
+      if !scanWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Scan follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(scanWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox scan source", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -306,6 +489,51 @@ struct ScanSessionRow: View {
       ScanSessionEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
+    }
+  }
+
+  private var scanWarnings: [String] {
+    var warnings: [String] = []
+    if record.scanStatus == .planned || record.scanStatus == .reopened || record.scanStatus == .blocked {
+      warnings.append("Scan is not complete yet.")
+    }
+    if record.scanStatus == .mismatchNeedsReview {
+      warnings.append("Scan mismatch needs review before dispatch or handoff.")
+    }
+    if record.capturedValuePlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Captured value is missing.")
+    }
+    if record.linkedLabelReferenceID == nil {
+      warnings.append("No label reference is linked.")
+    }
+    if record.assignedOperatorTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Operator/team is missing.")
+    }
+    if record.riskLevel == .high || record.riskLevel == .critical {
+      warnings.append("Risk is \(record.riskLevel.rawValue.lowercased()); confirm scan handling.")
+    }
+    if record.reviewState != .accepted {
+      warnings.append("Review state is \(record.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
