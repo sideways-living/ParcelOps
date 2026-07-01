@@ -146,6 +146,7 @@ extension AuditEntityType {
     case .reconciliationIssue: "arrow.triangle.2.circlepath.circle.fill"
     case .microsoft365MailboxConnection: "mail.stack.fill"
     case .spaceMailIMAPConnection: "server.rack"
+    case .settings: "gearshape.2.fill"
     }
   }
 }

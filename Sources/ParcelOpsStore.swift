@@ -11683,6 +11683,14 @@ final class ParcelOpsStore {
 
   func saveSettings() {
     settingsRepository.saveSettings(settings)
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "local-settings",
+      entityLabel: "Settings",
+      summary: "Settings saved locally.",
+      afterDetail: "\(settings.auditDetail)\nSettings remain local JSON-backed planning controls. This save does not enable Shopify, carrier APIs, background sync, notifications, scanners, OCR, calendars, file pickers, or outbound email."
+    )
   }
 
   private func addWishlistItem(source: WishlistSource, name: String, detail: String) {
@@ -13123,6 +13131,12 @@ private extension AcceptanceRecord {
 private extension WishlistItem {
   var auditDetail: String {
     "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); captured detail: \(capturedDetail)."
+  }
+}
+
+private extension ParcelOpsSettings {
+  var auditDetail: String {
+    "Mailbox monitoring plan: \(mailboxMonitoringEnabled ? "on" : "off"); auto-create orders plan: \(autoCreateOrdersFromEmail ? "on" : "off"); match confidence: \(matchConfidencePolicy); folder watching plan: \(folderWatchingEnabled ? "on" : "off"); folder cadence: \(folderScanCadence); risky match review: \(requireReviewForRiskyMatches ? "required" : "not required"); delivery exception alert plan: \(notifyOnDeliveryExceptions ? "on" : "off"); exception threshold: \(exceptionThreshold); Shopify sync plan: \(shopifySyncEnabled ? "on" : "off"); store login sync plan: \(storeLoginSyncEnabled ? "on" : "off"); carrier tracking plan: \(carrierTrackingEnabled ? "on" : "off"); carrier tracking mode: \(carrierTrackingMode)."
   }
 }
 

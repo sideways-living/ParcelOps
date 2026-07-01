@@ -2036,6 +2036,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case reconciliationIssue = "Reconciliation issue"
   case microsoft365MailboxConnection = "Microsoft 365 mailbox"
   case spaceMailIMAPConnection = "SpaceMail IMAP mailbox"
+  case settings = "Settings"
 
   var id: String { rawValue }
 }
