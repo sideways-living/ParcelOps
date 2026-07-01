@@ -36,6 +36,19 @@ struct AcceptanceReviewView: View {
       || !acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var candidatesNeedingDecision: [AcceptanceCandidate] {
+    store.acceptanceCandidates.filter { candidate in
+      candidate.reviewState == .needsReview
+        || candidate.decision == .blocked
+        || candidate.decision == .reopened
+        || candidate.suggestedLinkedOrderID == nil
+        || candidate.detectedMerchant.isPlaceholderValidationValue
+        || candidate.detectedOrderNumber.isPlaceholderValidationValue
+        || candidate.detectedTrackingNumber.isPlaceholderValidationValue
+        || candidate.detectedDestinationAddress.isPlaceholderValidationValue
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
@@ -51,6 +64,7 @@ struct AcceptanceReviewView: View {
           ],
           symbol: "checkmark.rectangle.stack.fill"
         )
+        acceptanceReadinessPanel
         filters
 
         if filteredCandidates.isEmpty {
@@ -99,6 +113,57 @@ struct AcceptanceReviewView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var acceptanceReadinessPanel: some View {
+    let inboxCandidates = store.acceptanceCandidates.filter { $0.sourceType == .intakeEmail }.count
+    let importCandidates = store.acceptanceCandidates.filter { $0.sourceType == .importQueueItem }.count
+    let linkedCount = store.acceptanceCandidates.filter { $0.suggestedLinkedOrderID != nil }.count
+    let acceptedCount = store.acceptanceCandidates.filter { $0.decision == .accepted }.count
+    let blockedCount = store.acceptanceCandidates.filter { $0.decision == .blocked }.count
+
+    return SettingsPanel(title: "Inbox acceptance readiness", symbol: "checkmark.rectangle.stack.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this checkpoint before accepting local intake into operational records. A candidate is ready when source context, order/tracking fields, and linked order decisions are clear.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("\(store.acceptanceCandidates.count) candidates", color: store.acceptanceCandidates.isEmpty ? .secondary : .blue)
+          Badge("\(inboxCandidates) from Inbox", color: inboxCandidates == 0 ? .secondary : .teal)
+          Badge("\(importCandidates) from Import", color: importCandidates == 0 ? .secondary : .purple)
+          Badge("\(linkedCount) linked orders", color: linkedCount == 0 ? .orange : .green)
+          Badge("\(acceptedCount) accepted", color: acceptedCount == 0 ? .secondary : .green)
+          Badge("\(blockedCount) blocked", color: blockedCount == 0 ? .green : .orange)
+        }
+
+        if store.acceptanceCandidates.isEmpty {
+          MVPEmptyState(
+            title: "No acceptance candidates yet",
+            detail: "Review Inbox and Import Queue first. Accepted candidates should stay traceable back to local intake or staged import records.",
+            symbol: "checkmark.rectangle.stack.fill"
+          )
+        } else if candidatesNeedingDecision.isEmpty {
+          Label("Acceptance candidates have usable source, link, and decision context.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Next acceptance checks")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(candidatesNeedingDecision.prefix(4)) { candidate in
+              AcceptanceReadinessRow(candidate: candidate, detail: acceptanceReadinessDetail(for: candidate))
+            }
+            if candidatesNeedingDecision.count > 4 {
+              Text("\(candidatesNeedingDecision.count - 4) more candidates need field, link, decision, or review checks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
     }
   }
 
@@ -228,6 +293,41 @@ struct AcceptanceReviewView: View {
       history.map { "\($0.decision.rawValue) \($0.reviewState.rawValue) \($0.summary) \($0.notes)" }.joined(separator: " ")
     ].joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func acceptanceReadinessDetail(for candidate: AcceptanceCandidate) -> String {
+    if candidate.decision == .blocked { return "Blocked. Resolve the reason before accepting this candidate." }
+    if candidate.decision == .reopened { return "Reopened. Confirm the source trail and local decision before closing it again." }
+    if candidate.suggestedLinkedOrderID == nil && candidate.decision != .accepted { return "No linked order yet. Link an existing order or create one before accepting." }
+    if candidate.detectedOrderNumber.isPlaceholderValidationValue { return "Order number needs review before the candidate becomes an order handoff." }
+    if candidate.detectedTrackingNumber.isPlaceholderValidationValue { return "Tracking number needs review before dispatch setup depends on it." }
+    if candidate.detectedDestinationAddress.isPlaceholderValidationValue { return "Destination needs review before accepting the candidate." }
+    if candidate.reviewState == .needsReview { return "Review state is still open. Mark reviewed after decision and linked context are confirmed." }
+    return "Confirm source, linked order, and decision state before closing acceptance review."
+  }
+}
+
+private struct AcceptanceReadinessRow: View {
+  var candidate: AcceptanceCandidate
+  var detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: candidate.sourceType.symbol)
+        .foregroundStyle(candidate.decision.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(candidate.sourceLabel)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 8)
+      Badge(candidate.decision.rawValue, color: candidate.decision.color)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

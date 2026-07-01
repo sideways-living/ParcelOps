@@ -35,6 +35,23 @@ struct ImportQueueView: View {
       || !importSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var importItemsNeedingReview: [ImportQueueItem] {
+    store.importQueueItems.filter { item in
+      item.reviewState == .needsReview
+        || item.importStatus == .blocked
+        || item.detectedMerchant.isPlaceholderValidationValue
+        || item.detectedOrderNumber.isPlaceholderValidationValue
+        || item.detectedTrackingNumber.isPlaceholderValidationValue
+        || item.detectedDestinationAddress.isPlaceholderValidationValue
+    }
+  }
+
+  private var importItemsWithSourceTrail: [ImportQueueItem] {
+    store.importQueueItems.filter { item in
+      item.sourceType == .forwardedEmail || item.suggestedLinkedOrderID != nil || item.suggestedShipmentGroupID != nil
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -50,6 +67,7 @@ struct ImportQueueView: View {
           ],
           symbol: "tray.and.arrow.down.fill"
         )
+        importSourceReadinessPanel
         filters
 
         SettingsPanel(title: "Staged imports", symbol: "tray.and.arrow.down.fill") {
@@ -134,6 +152,57 @@ struct ImportQueueView: View {
     }
   }
 
+  private var importSourceReadinessPanel: some View {
+    let linkedCount = store.importQueueItems.filter { $0.suggestedLinkedOrderID != nil }.count
+    let acceptedCount = store.importQueueItems.filter { $0.importStatus == .accepted }.count
+    let blockedCount = store.importQueueItems.filter { $0.importStatus == .blocked }.count
+    let forwardedCount = store.importQueueItems.filter { $0.sourceType == .forwardedEmail }.count
+
+    return SettingsPanel(title: "Inbox import readiness", symbol: "link.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this checkpoint before accepting staged records. Import Queue should preserve where the record came from, what still needs review, and whether an order handoff already exists.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("\(store.importQueueItems.count) staged", color: store.importQueueItems.isEmpty ? .secondary : .blue)
+          Badge("\(forwardedCount) from Inbox", color: forwardedCount == 0 ? .secondary : .teal)
+          Badge("\(importItemsWithSourceTrail.count) source trail", color: importItemsWithSourceTrail.isEmpty ? .orange : .green)
+          Badge("\(linkedCount) linked orders", color: linkedCount == 0 ? .orange : .green)
+          Badge("\(acceptedCount) accepted", color: acceptedCount == 0 ? .secondary : .green)
+          Badge("\(blockedCount) blocked", color: blockedCount == 0 ? .green : .orange)
+          Badge("\(importItemsNeedingReview.count) needs check", color: importItemsNeedingReview.isEmpty ? .green : .orange)
+        }
+
+        if store.importQueueItems.isEmpty {
+          MVPEmptyState(
+            title: "No staged imports yet",
+            detail: "Use Inbox or Mailbox Monitor to capture intake, or add a local import item for manual testing.",
+            symbol: "tray.and.arrow.down.fill"
+          )
+        } else if importItemsNeedingReview.isEmpty {
+          Label("Current staged imports have usable source, link, and review context.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Next import checks")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(importItemsNeedingReview.prefix(4)) { item in
+              ImportReadinessRow(item: item, detail: importReadinessDetail(for: item))
+            }
+            if importItemsNeedingReview.count > 4 {
+              Text("\(importItemsNeedingReview.count - 4) more staged imports need field, link, status, or review checks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var filters: some View {
     FilterControlGrid {
       TextField("Search source, summary, order, tracking, destination, notes, or linked order", text: $importSearchText)
@@ -213,6 +282,40 @@ struct ImportQueueView: View {
       linkedShipmentGroup?.statusSummary ?? ""
     ].joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func importReadinessDetail(for item: ImportQueueItem) -> String {
+    if item.importStatus == .blocked { return "Blocked. Resolve the staged record before accepting it into Orders or Dispatch." }
+    if item.suggestedLinkedOrderID == nil && item.importStatus != .accepted { return "No linked order yet. Link an existing order or create one after checking the detected fields." }
+    if item.detectedOrderNumber.isPlaceholderValidationValue { return "Order number needs review before creating or linking an order." }
+    if item.detectedTrackingNumber.isPlaceholderValidationValue { return "Tracking number needs review before downstream dispatch setup." }
+    if item.detectedDestinationAddress.isPlaceholderValidationValue { return "Destination needs review before accepting the import." }
+    if item.reviewState == .needsReview { return "Review state is still open. Mark reviewed after source and linked order context are confirmed." }
+    return "Confirm the source trail and linked context before closing this staged import."
+  }
+}
+
+private struct ImportReadinessRow: View {
+  var item: ImportQueueItem
+  var detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.sourceType.symbol)
+        .foregroundStyle(item.importStatus.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(item.sourceLabel)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 8)
+      Badge(item.importStatus.rawValue, color: item.importStatus.color)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
