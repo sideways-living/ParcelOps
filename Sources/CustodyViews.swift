@@ -47,6 +47,7 @@ struct CustodyChainView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxCustodyCoverage
 
         SettingsPanel(title: "Custody chain records", symbol: "person.badge.shield.checkmark.fill") {
           HStack {
@@ -163,6 +164,64 @@ struct CustodyChainView: View {
     }
   }
 
+  private var inboxCustodyCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedRecords = custodyLinkedToInboxOrders
+    let actionRecords = custodyNeedingAction
+    let missingCustodyCount = inboxOrdersMissingCustody.count
+
+    return SettingsPanel(title: "Inbox custody readiness", symbol: "person.badge.shield.checkmark.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have clear local possession, custodian, transfer, and return/close status.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedRecords.count) linked custody", color: .teal)
+          Badge("\(actionRecords.count) need action", color: actionRecords.isEmpty ? .green : .orange)
+          Badge("\(missingCustodyCount) missing custody", color: missingCustodyCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before tracking custody.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedRecords.isEmpty {
+          Text("Inbox-created orders do not have custody records yet. Add custody when responsibility or possession changes.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionRecords.prefix(3))) { record in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: record.custodyStatus == .disputed ? "exclamationmark.triangle.fill" : "person.badge.shield.checkmark.fill")
+                .foregroundStyle(record.custodyStatus == .disputed ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(record.title)
+                  .font(.caption.bold())
+                Text(custodyActionSummary(for: record))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(record.custodyStatus.rawValue, color: record.custodyStatus.color)
+            }
+          }
+
+          if actionRecords.isEmpty {
+            Text("Linked custody records look received/closed, assigned, located, and reviewed for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionRecords.count > 3 {
+            Text("\(actionRecords.count - 3) more linked custody records need transfer, custodian, location, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedStatus = nil
     custodianTeam = ""
@@ -178,6 +237,83 @@ struct CustodyChainView: View {
     let orderID = record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var custodyLinkedToInboxOrders: [CustodyRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+    let locationIDs = Set(store.storageLocations.filter { location in
+      !Set(location.orderIDs).isDisjoint(with: orderIDs) || !Set(location.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+    }.map(\.id))
+
+    return store.custodyRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.storageLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.sourceLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.destinationLocationID.map { locationIDs.contains($0) } ?? false)
+        || (record.linkedEntityType == .order && UUID(uuidString: record.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingCustody: [TrackedOrder] {
+    let custodyOrderIDs = Set(custodyLinkedToInboxOrders.compactMap { record -> UUID? in
+      record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
+    })
+    return inboxCreatedOrders.filter { !custodyOrderIDs.contains($0.id) }
+  }
+
+  private var custodyNeedingAction: [CustodyRecord] {
+    custodyLinkedToInboxOrders.filter { record in
+      record.custodyStatus == .pendingTransfer
+        || record.custodyStatus == .transferred
+        || record.custodyStatus == .disputed
+        || record.custodyStatus == .needsReview
+        || record.reviewState != .accepted
+        || record.riskLevel == .high
+        || record.riskLevel == .critical
+        || record.expectedReturnCloseDate.localizedCaseInsensitiveContains("overdue")
+        || record.expectedReturnCloseDate.localizedCaseInsensitiveContains("today")
+        || record.currentCustodianTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || record.currentCustodianTeam.localizedCaseInsensitiveContains("unassigned")
+        || record.currentCustodianTeam.localizedCaseInsensitiveContains("unknown")
+        || record.sourceLocationID == nil
+        || record.destinationLocationID == nil
+    }
+  }
+
+  private func custodyActionSummary(for record: CustodyRecord) -> String {
+    var parts: [String] = []
+    if record.custodyStatus == .pendingTransfer || record.custodyStatus == .transferred { parts.append("close transfer") }
+    if record.custodyStatus == .disputed || record.custodyStatus == .needsReview { parts.append("resolve custody exception") }
+    if record.currentCustodianTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.currentCustodianTeam.localizedCaseInsensitiveContains("unassigned") || record.currentCustodianTeam.localizedCaseInsensitiveContains("unknown") { parts.append("confirm custodian") }
+    if record.sourceLocationID == nil || record.destinationLocationID == nil { parts.append("confirm source/destination") }
+    if record.expectedReturnCloseDate.localizedCaseInsensitiveContains("overdue") || record.expectedReturnCloseDate.localizedCaseInsensitiveContains("today") { parts.append("check due date") }
+    if record.riskLevel == .high || record.riskLevel == .critical { parts.append("review risk") }
+    if record.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Custody is received/closed, assigned, located, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func custodyRecord(_ record: CustodyRecord, matches query: String) -> Bool {
@@ -293,6 +429,46 @@ struct CustodyRecordRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if !custodyWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Custody follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(custodyWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox custody source", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -329,6 +505,51 @@ struct CustodyRecordRow: View {
       CustodyRecordEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
       }
+    }
+  }
+
+  private var custodyWarnings: [String] {
+    var warnings: [String] = []
+    if record.custodyStatus == .pendingTransfer || record.custodyStatus == .transferred {
+      warnings.append("Custody transfer is open; mark received or closed when possession is confirmed.")
+    }
+    if record.custodyStatus == .disputed || record.custodyStatus == .needsReview {
+      warnings.append("Custody is disputed or needs review; resolve before relying on this handoff.")
+    }
+    if record.currentCustodianTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.currentCustodianTeam.localizedCaseInsensitiveContains("unassigned") || record.currentCustodianTeam.localizedCaseInsensitiveContains("unknown") {
+      warnings.append("Current custodian/team needs confirmation.")
+    }
+    if record.sourceLocationID == nil || record.destinationLocationID == nil {
+      warnings.append("Source or destination location is missing.")
+    }
+    if record.expectedReturnCloseDate.localizedCaseInsensitiveContains("overdue") || record.expectedReturnCloseDate.localizedCaseInsensitiveContains("today") {
+      warnings.append("Expected return/close date needs immediate follow-up.")
+    }
+    if record.riskLevel == .high || record.riskLevel == .critical {
+      warnings.append("Risk is \(record.riskLevel.rawValue.lowercased()); confirm custody handling.")
+    }
+    if record.reviewState != .accepted {
+      warnings.append("Review state is \(record.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
