@@ -46,6 +46,7 @@ struct InventoryReceiptsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxInventoryReceiptCoverage
 
         SettingsPanel(title: "Inventory receipt records", symbol: "archivebox.fill") {
           HStack {
@@ -159,6 +160,64 @@ struct InventoryReceiptsView: View {
     }
   }
 
+  private var inboxInventoryReceiptCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedReceipts = receiptsLinkedToInboxOrders
+    let actionReceipts = receiptsNeedingInventoryAction
+    let missingReceiptCount = inboxOrdersMissingReceipt.count
+
+    return SettingsPanel(title: "Inbox inventory handoff", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Shows whether orders created from Inbox intake have a local receipt, storage, acceptance, and handoff path.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedReceipts.count) linked receipts", color: .teal)
+          Badge("\(actionReceipts.count) need action", color: actionReceipts.isEmpty ? .green : .orange)
+          Badge("\(missingReceiptCount) missing receipt", color: missingReceiptCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox to track receiving and stock handoff here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedReceipts.isEmpty {
+          Text("Inbox-created orders do not have inventory receipts yet. Add a receipt when stock is received or handed to a team.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionReceipts.prefix(3))) { receipt in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: receipt.stockHandoffStatus == .rejected ? "xmark.circle.fill" : "archivebox.fill")
+                .foregroundStyle(receipt.stockHandoffStatus == .rejected ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(receipt.title)
+                  .font(.caption.bold())
+                Text(inventoryActionSummary(for: receipt))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(receipt.stockHandoffStatus.rawValue, color: receipt.stockHandoffStatus.color)
+            }
+          }
+
+          if actionReceipts.isEmpty {
+            Text("Linked inventory receipts look stocked, assigned, and reviewed for the current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionReceipts.count > 3 {
+            Text("\(actionReceipts.count - 3) more linked inventory receipts need stock, storage, owner, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedReceiptType = nil
     selectedStatus = nil
@@ -173,6 +232,66 @@ struct InventoryReceiptsView: View {
     let orderID = receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var receiptsLinkedToInboxOrders: [InventoryReceiptRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    return store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }
+  }
+
+  private var inboxOrdersMissingReceipt: [TrackedOrder] {
+    let receiptOrderIDs = Set(receiptsLinkedToInboxOrders.compactMap { receipt -> UUID? in
+      receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
+    })
+    return inboxCreatedOrders.filter { !receiptOrderIDs.contains($0.id) }
+  }
+
+  private var receiptsNeedingInventoryAction: [InventoryReceiptRecord] {
+    receiptsLinkedToInboxOrders.filter { receipt in
+      receipt.stockHandoffStatus == .pending
+        || receipt.stockHandoffStatus == .partiallyAccepted
+        || receipt.stockHandoffStatus == .rejected
+        || receipt.stockHandoffStatus == .needsReview
+        || receipt.reviewState != .accepted
+        || receipt.quantityRejected > 0
+        || receipt.storageLocationSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || receipt.storageLocationSummary.localizedCaseInsensitiveContains("confirm")
+        || receipt.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || receipt.assignedOwnerTeam.localizedCaseInsensitiveContains("unassigned")
+    }
+  }
+
+  private func inventoryActionSummary(for receipt: InventoryReceiptRecord) -> String {
+    var parts: [String] = []
+    if receipt.stockHandoffStatus == .pending { parts.append("stock or hand off") }
+    if receipt.stockHandoffStatus == .partiallyAccepted || receipt.quantityRejected > 0 { parts.append("resolve partial/rejected quantity") }
+    if receipt.stockHandoffStatus == .rejected || receipt.stockHandoffStatus == .needsReview { parts.append("review exception") }
+    if receipt.storageLocationSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.storageLocationSummary.localizedCaseInsensitiveContains("confirm") { parts.append("confirm storage") }
+    if receipt.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.assignedOwnerTeam.localizedCaseInsensitiveContains("unassigned") { parts.append("assign owner") }
+    if receipt.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Inventory receipt is stocked, assigned, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func inventoryReceipt(_ receipt: InventoryReceiptRecord, matches query: String) -> Bool {
@@ -298,6 +417,46 @@ struct InventoryReceiptRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if !inventoryReceiptWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Inventory follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(inventoryReceiptWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      if let store, let linkedOrder {
+        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        if !linkedEmails.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Inbox inventory handoff", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            ForEach(linkedEmails.prefix(2)) { email in
+              HStack(spacing: 6) {
+                let sourceSummary = store.intakeSourceSummary(for: email)
+                Badge(sourceSummary.label, color: sourceColor(for: sourceSummary.tone))
+                if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+                  Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
+                }
+                if !email.detectedOrderNumber.isPlaceholderValidationValue {
+                  Badge("Order \(email.detectedOrderNumber)", color: .blue)
+                }
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -334,6 +493,48 @@ struct InventoryReceiptRow: View {
       InventoryReceiptEditView(receipt: receipt) { updatedReceipt in
         onSave(updatedReceipt)
       }
+    }
+  }
+
+  private var inventoryReceiptWarnings: [String] {
+    var warnings: [String] = []
+    if receipt.stockHandoffStatus == .pending {
+      warnings.append("Receipt is pending; stock it or hand it off when the item is physically accounted for.")
+    }
+    if receipt.stockHandoffStatus == .partiallyAccepted || receipt.quantityRejected > 0 {
+      warnings.append("Quantity is partially accepted or rejected; confirm discrepancy follow-up before closing.")
+    }
+    if receipt.stockHandoffStatus == .rejected || receipt.stockHandoffStatus == .needsReview {
+      warnings.append("Receipt is rejected or needs review; route the exception before dispatch or handoff.")
+    }
+    if receipt.storageLocationSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.storageLocationSummary.localizedCaseInsensitiveContains("confirm") {
+      warnings.append("Storage/location still needs confirmation.")
+    }
+    if receipt.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || receipt.assignedOwnerTeam.localizedCaseInsensitiveContains("unassigned") {
+      warnings.append("Owner or team is missing.")
+    }
+    if receipt.reviewState != .accepted {
+      warnings.append("Review state is \(receipt.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
