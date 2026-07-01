@@ -110,6 +110,7 @@ struct CommunicationView: View {
         .buttonStyle(.bordered)
 
         draftSummaryPanel
+        inboxDraftCoverage
         filterBar
 
         Picker("Drafts and templates mode", selection: $selectedMode) {
@@ -177,7 +178,7 @@ struct CommunicationView: View {
             }
 
             ForEach(filteredDrafts) { draft in
-              DraftMessageRow(draft: draft, store: store, linkedOrder: linkedOrder(for: draft), destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
+              DraftMessageRow(draft: draft, store: store, linkedOrder: linkedOrder(for: draft), inboxOrders: inboxOrders(for: draft), destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
                 store.updateDraftMessage(updatedDraft)
               } onReady: {
                 store.markDraftMessageReady(draft)
@@ -238,6 +239,57 @@ struct CommunicationView: View {
     }
   }
 
+  private var inboxDraftCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedDrafts = draftsLinkedToInboxOrders
+    let actionDrafts = linkedDrafts.filter { $0.status != .sentLocally || $0.reviewState != .accepted }
+
+    return SettingsPanel(title: "Inbox draft readiness", symbol: "envelope.open.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether Inbox-created orders have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedDrafts.count) linked drafts", color: .teal)
+          Badge("\(actionDrafts.count) need action", color: actionDrafts.isEmpty ? .green : .orange)
+          Badge("\(readyDrafts.count) ready", color: readyDrafts.isEmpty ? .green : .blue)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking draft coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedDrafts.isEmpty {
+          Text("No drafts currently link to Inbox-created orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if actionDrafts.isEmpty {
+          Text("Linked drafts for Inbox-created orders are reviewed and marked sent locally.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionDrafts.prefix(3))) { draft in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: draft.status == .ready ? "paperplane.fill" : "envelope.open.fill")
+                .foregroundStyle(draft.status == .ready ? .blue : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(draft.subject)
+                  .font(.caption.bold())
+                Text(draftActionSummary(for: draft))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(draft.status.rawValue, color: draft.status.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var filterBar: some View {
     FilterControlGrid {
       TextField("Search drafts and templates", text: $searchText)
@@ -285,6 +337,51 @@ struct CommunicationView: View {
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
     guard draft.linkedEntityType == .order, let orderID = UUID(uuidString: draft.linkedEntityID) else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var draftsLinkedToInboxOrders: [DraftMessage] {
+    store.draftMessages.filter { draft in
+      inboxCreatedOrders.contains { order in
+        draftMessage(draft, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for draft: DraftMessage) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { draftMessage(draft, matches: $0) }
+  }
+
+  private func draftMessage(_ draft: DraftMessage, matches order: TrackedOrder) -> Bool {
+    if draft.linkedEntityType == .order, let linkedID = UUID(uuidString: draft.linkedEntityID), linkedID == order.id {
+      return true
+    }
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    let searchable = [draft.subject, draft.body, draft.recipient, draft.linkedEntityID].joined(separator: " ")
+    return (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && searchable.localizedCaseInsensitiveContains(orderNumber))
+      || searchable.localizedCaseInsensitiveContains(order.trackingNumber)
+      || searchable.localizedCaseInsensitiveContains(order.recipientEmail)
+  }
+
+  private func draftActionSummary(for draft: DraftMessage) -> String {
+    var parts: [String] = []
+    if draft.status == .ready { parts.append("send outside ParcelOps then mark sent locally") }
+    if draft.status != .sentLocally && draft.status != .ready { parts.append("finish draft") }
+    if draft.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Draft is reviewed and sent locally." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func communicationTemplateSearchParts(_ template: CommunicationTemplate) -> [String] {
@@ -415,6 +512,7 @@ struct DraftMessageRow: View {
   var draft: DraftMessage
   var store: ParcelOpsStore? = nil
   var linkedOrder: TrackedOrder? = nil
+  var inboxOrders: [TrackedOrder] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
   var packageContents: [PackageContentRecord] = []
@@ -472,6 +570,49 @@ struct DraftMessageRow: View {
           if !packageContents.isEmpty {
             PackageContentStrip(contents: packageContents)
           }
+
+          if !inboxOrders.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Label("Inbox draft source", systemImage: "tray.and.arrow.down.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.teal)
+              ForEach(inboxOrders.prefix(2)) { order in
+                HStack(spacing: 6) {
+                  Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+                  Badge(order.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: order.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+                  Text(order.customer)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+              }
+              if let store {
+                ForEach(sourceEmails(using: store).prefix(2)) { email in
+                  HStack(spacing: 6) {
+                    let source = store.intakeSourceSummary(for: email)
+                    Badge(source.label, color: sourceColor(for: source.tone))
+                    Text(email.subject)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
+              }
+            }
+          }
+
+          if !draftWarnings.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Label("Draft follow-up", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.orange)
+              ForEach(draftWarnings, id: \.self) { warning in
+                Text(warning)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
         }
       }
 
@@ -505,6 +646,45 @@ struct DraftMessageRow: View {
       DraftMessageEditView(draft: draft) { updatedDraft in
         onSave(updatedDraft)
       }
+    }
+  }
+
+  private var draftWarnings: [String] {
+    var warnings: [String] = []
+    if draft.status == .ready && !inboxOrders.isEmpty {
+      warnings.append("Draft is ready. Send it outside ParcelOps, then mark sent locally.")
+    }
+    if draft.status != .sentLocally && draft.status != .ready && !inboxOrders.isEmpty {
+      warnings.append("Draft is still open for an Inbox-created order.")
+    }
+    if draft.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Draft needs review before related handoff work is closed.")
+    }
+    if draft.recipient.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Recipient needs confirmation.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }

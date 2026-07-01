@@ -47,6 +47,7 @@ struct SLAPoliciesView: View {
         }
 
         filterBar
+        inboxPolicyCoverage
 
         SettingsPanel(title: "Policies", symbol: "timer") {
           HStack {
@@ -65,7 +66,7 @@ struct SLAPoliciesView: View {
             MVPEmptyState(title: "No SLA policies match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local SLA policies." : "Add a local SLA policy to define manual timing, review, and escalation expectations.", symbol: "timer", actionTitle: hasActiveFilters ? "Clear filters" : "Add policy", action: hasActiveFilters ? clearFilters : store.addSLAPolicyPlaceholder)
           } else {
             ForEach(filteredPolicies) { policy in
-              SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
+              SLAPolicyRow(policy: policy, store: store, inboxOrders: inboxOrders(for: policy), destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
                 store.updateSLAPolicy(updatedPolicy)
               } onToggle: {
                 store.toggleSLAPolicy(policy)
@@ -137,6 +138,102 @@ struct SLAPoliciesView: View {
     policySearchText = ""
   }
 
+  private var inboxPolicyCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedPolicies = policiesLinkedToInboxOrders
+    let actionPolicies = linkedPolicies.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
+
+    return SettingsPanel(title: "Inbox SLA readiness", symbol: "timer") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local response, resolution, or escalation policy context. Policies remain manual guidance only.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedPolicies.count) matched policies", color: .teal)
+          Badge("\(actionPolicies.count) need action", color: actionPolicies.isEmpty ? .green : .orange)
+          Badge("\(store.policiesNeedingReview.count) review", color: store.policiesNeedingReview.isEmpty ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking SLA coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedPolicies.isEmpty {
+          Text("No SLA policies currently match Inbox-created orders by linked record type or condition wording.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionPolicies.isEmpty {
+          Text("Matched SLA policies are enabled, reviewed, and ready as local operator guidance.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionPolicies.prefix(3))) { policy in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: policy.isEnabled ? "timer" : "pause.circle.fill")
+                .foregroundStyle(policy.isEnabled ? .orange : .red)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(policy.name)
+                  .font(.caption.bold())
+                Text(policyActionSummary(for: policy))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(policy.priority.rawValue, color: policy.priority.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var policiesLinkedToInboxOrders: [SLAPolicy] {
+    store.slaPolicies.filter { policy in
+      inboxCreatedOrders.contains { order in
+        slaPolicy(policy, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for policy: SLAPolicy) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { slaPolicy(policy, matches: $0) }
+  }
+
+  private func slaPolicy(_ policy: SLAPolicy, matches order: TrackedOrder) -> Bool {
+    if policy.linkedEntityType == .order { return true }
+    let searchable = [policy.conditionSummary, policy.responseTarget, policy.resolutionTarget, policy.name].joined(separator: " ")
+    return searchable.localizedCaseInsensitiveContains(order.store)
+      || searchable.localizedCaseInsensitiveContains(order.carrier)
+      || searchable.localizedCaseInsensitiveContains(order.status.rawValue)
+      || searchable.localizedCaseInsensitiveContains("inbox")
+      || searchable.localizedCaseInsensitiveContains("tracking")
+      || searchable.localizedCaseInsensitiveContains("dispatch")
+  }
+
+  private func policyActionSummary(for policy: SLAPolicy) -> String {
+    var parts: [String] = []
+    if !policy.isEnabled { parts.append("enable or confirm disabled policy") }
+    if policy.reviewState != .accepted { parts.append("mark reviewed") }
+    if policy.priority == .high || policy.priority == .urgent { parts.append("confirm escalation priority") }
+    return parts.isEmpty ? "Policy is enabled and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func slaPolicySearchParts(_ policy: SLAPolicy) -> [String] {
     var parts = [
       policy.id.uuidString,
@@ -161,6 +258,8 @@ struct SLAPoliciesView: View {
 
 struct SLAPolicyRow: View {
   var policy: SLAPolicy
+  var store: ParcelOpsStore? = nil
+  var inboxOrders: [TrackedOrder] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
   var packageContents: [PackageContentRecord] = []
@@ -220,6 +319,49 @@ struct SLAPolicyRow: View {
           if !packageContents.isEmpty {
             PackageContentStrip(contents: packageContents)
           }
+
+          if !inboxOrders.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Label("Inbox SLA source", systemImage: "tray.and.arrow.down.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.teal)
+              ForEach(inboxOrders.prefix(2)) { order in
+                HStack(spacing: 6) {
+                  Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+                  Badge(order.status.rawValue, color: order.status.color)
+                  Text(order.trackingNumber)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+              }
+              if let store {
+                ForEach(sourceEmails(using: store).prefix(2)) { email in
+                  HStack(spacing: 6) {
+                    let source = store.intakeSourceSummary(for: email)
+                    Badge(source.label, color: sourceColor(for: source.tone))
+                    Text(email.subject)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
+              }
+            }
+          }
+
+          if !policyWarnings.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Label("SLA follow-up", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.orange)
+              ForEach(policyWarnings, id: \.self) { warning in
+                Text(warning)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
         }
       }
 
@@ -247,6 +389,42 @@ struct SLAPolicyRow: View {
       SLAPolicyEditView(policy: policy) { updatedPolicy in
         onSave(updatedPolicy)
       }
+    }
+  }
+
+  private var policyWarnings: [String] {
+    var warnings: [String] = []
+    if !policy.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This SLA policy matches Inbox-created order context but is disabled.")
+    }
+    if policy.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Policy needs review before relying on it for local response or escalation guidance.")
+    }
+    if (policy.priority == .high || policy.priority == .urgent) && !inboxOrders.isEmpty {
+      warnings.append("Policy priority is \(policy.priority.rawValue.lowercased()); confirm manual escalation path.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }

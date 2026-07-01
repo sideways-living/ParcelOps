@@ -53,6 +53,7 @@ struct ExceptionPlaybooksView: View {
         }
 
         filters
+        inboxPlaybookCoverage
 
         SettingsPanel(title: "Playbooks", symbol: "book.closed.fill") {
           HStack {
@@ -71,7 +72,7 @@ struct ExceptionPlaybooksView: View {
             MVPEmptyState(title: "No playbooks match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local exception playbooks." : "Add a local playbook to guide staff through common intake, tracking, dispatch, and reconciliation exceptions.", symbol: "book.closed.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add playbook", action: hasActiveFilters ? clearFilters : store.addExceptionPlaybookPlaceholder)
           } else {
             ForEach(filteredPlaybooks) { playbook in
-              ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
+              ExceptionPlaybookRow(playbook: playbook, store: store, inboxOrders: inboxOrders(for: playbook), handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
                 store.updateExceptionPlaybook(updatedPlaybook)
               } onToggle: {
                 store.toggleExceptionPlaybook(playbook)
@@ -145,6 +146,106 @@ struct ExceptionPlaybooksView: View {
     playbookSearchText = ""
   }
 
+  private var inboxPlaybookCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedPlaybooks = playbooksLinkedToInboxOrders
+    let actionPlaybooks = linkedPlaybooks.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
+
+    return SettingsPanel(title: "Inbox exception readiness", symbol: "book.closed.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have local exception guidance for missing details, tracking, validation, reconciliation, or dispatch problems.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedPlaybooks.count) matched playbooks", color: .teal)
+          Badge("\(actionPlaybooks.count) need action", color: actionPlaybooks.isEmpty ? .green : .orange)
+          Badge("\(store.playbooksNeedingReview.count) review", color: store.playbooksNeedingReview.isEmpty ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking exception playbook coverage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedPlaybooks.isEmpty {
+          Text("No exception playbooks currently match Inbox-created order gaps, tracking issues, or dispatch context.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else if actionPlaybooks.isEmpty {
+          Text("Matched playbooks are enabled, reviewed, and ready as local operator guidance.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ForEach(Array(actionPlaybooks.prefix(3))) { playbook in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: playbook.isEnabled ? playbook.issueType.symbol : "pause.circle.fill")
+                .foregroundStyle(playbook.isEnabled ? .orange : .red)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(playbook.name)
+                  .font(.caption.bold())
+                Text(playbookActionSummary(for: playbook))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(playbook.priority.rawValue, color: playbook.priority.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var playbooksLinkedToInboxOrders: [ExceptionPlaybook] {
+    store.exceptionPlaybooks.filter { playbook in
+      inboxCreatedOrders.contains { order in
+        exceptionPlaybook(playbook, matches: order)
+      }
+    }
+  }
+
+  private func inboxOrders(for playbook: ExceptionPlaybook) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { exceptionPlaybook(playbook, matches: $0) }
+  }
+
+  private func exceptionPlaybook(_ playbook: ExceptionPlaybook, matches order: TrackedOrder) -> Bool {
+    if playbook.linkedEntityType == .order { return true }
+    let missingTracking = order.trackingNumber.isPlaceholderValidationValue
+    let missingDestination = order.destination.isPlaceholderValidationValue
+    let searchable = [playbook.name, playbook.triggerSummary, playbook.recommendedSteps, playbook.issueType.rawValue].joined(separator: " ")
+    return (missingTracking && searchable.localizedCaseInsensitiveContains("tracking"))
+      || (missingDestination && searchable.localizedCaseInsensitiveContains("address"))
+      || searchable.localizedCaseInsensitiveContains(order.status.rawValue)
+      || searchable.localizedCaseInsensitiveContains(order.carrier)
+      || searchable.localizedCaseInsensitiveContains("inbox")
+      || searchable.localizedCaseInsensitiveContains("dispatch")
+      || searchable.localizedCaseInsensitiveContains("validation")
+      || searchable.localizedCaseInsensitiveContains("reconciliation")
+  }
+
+  private func playbookActionSummary(for playbook: ExceptionPlaybook) -> String {
+    var parts: [String] = []
+    if !playbook.isEnabled { parts.append("enable or confirm disabled playbook") }
+    if playbook.reviewState != .accepted { parts.append("mark reviewed") }
+    if playbook.priority == .high || playbook.priority == .urgent { parts.append("confirm escalation path") }
+    return parts.isEmpty ? "Playbook is enabled and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func playbookSearchParts(_ playbook: ExceptionPlaybook) -> [String] {
     var parts = [
       playbook.id.uuidString,
@@ -171,6 +272,8 @@ struct ExceptionPlaybooksView: View {
 
 struct ExceptionPlaybookRow: View {
   var playbook: ExceptionPlaybook
+  var store: ParcelOpsStore? = nil
+  var inboxOrders: [TrackedOrder] = []
   var handoffNotes: [HandoffNote] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
@@ -235,6 +338,49 @@ struct ExceptionPlaybookRow: View {
         PackageContentStrip(contents: packageContents)
       }
 
+      if !inboxOrders.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inbox exception source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(inboxOrders.prefix(2)) { order in
+            HStack(spacing: 6) {
+              Badge(order.orderNumber, color: order.orderNumber.isPlaceholderValidationValue ? .orange : .blue)
+              Badge(order.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : "Tracking present", color: order.trackingNumber.isPlaceholderValidationValue ? .orange : .green)
+              Text(order.status.rawValue)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          if let store {
+            ForEach(sourceEmails(using: store).prefix(2)) { email in
+              HStack(spacing: 6) {
+                let source = store.intakeSourceSummary(for: email)
+                Badge(source.label, color: sourceColor(for: source.tone))
+                Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+      }
+
+      if !playbookWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Playbook follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(playbookWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -257,6 +403,45 @@ struct ExceptionPlaybookRow: View {
       ExceptionPlaybookEditView(playbook: playbook) { updatedPlaybook in
         onSave(updatedPlaybook)
       }
+    }
+  }
+
+  private var playbookWarnings: [String] {
+    var warnings: [String] = []
+    if !playbook.isEnabled && !inboxOrders.isEmpty {
+      warnings.append("This playbook matches Inbox-created order context but is disabled.")
+    }
+    if playbook.reviewState != .accepted && !inboxOrders.isEmpty {
+      warnings.append("Playbook needs review before relying on it for operator guidance.")
+    }
+    if (playbook.priority == .high || playbook.priority == .urgent) && !inboxOrders.isEmpty {
+      warnings.append("Playbook priority is \(playbook.priority.rawValue.lowercased()); confirm escalation contact.")
+    }
+    if playbook.escalationContact.isPlaceholderValidationValue && !inboxOrders.isEmpty {
+      warnings.append("Escalation team/person needs confirmation.")
+    }
+    return warnings
+  }
+
+  private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
+    var seen = Set<UUID>()
+    return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
+      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      return store.intakeEmails.filter { email in
+        email.linkedOrderID == order.id
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+      }
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
     }
   }
 }
