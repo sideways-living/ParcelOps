@@ -38,11 +38,31 @@ struct ReconciliationView: View {
       || !reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  }
+
+  private var inboxLinkedReconciliationIssues: [ReconciliationIssue] {
+    store.reconciliationIssues.filter { issue in
+      guard let order = linkedOrder(for: issue) else { return false }
+      return order.isInboxCreatedLocalOrder
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
+        inboxSourceReconciliationPanel
 
         SettingsPanel(title: "Reconciliation results", symbol: "arrow.triangle.2.circlepath") {
           HStack {
@@ -158,6 +178,56 @@ struct ReconciliationView: View {
     }
   }
 
+  private var inboxSourceReconciliationPanel: some View {
+    SettingsPanel(title: "Inbox source reconciliation", symbol: "link.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this before resolving mismatches for Inbox-created orders. Missing source context can make order/import/acceptance conflicts look resolved when the handoff trail is incomplete.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+          ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+          ("Related issues", "\(inboxLinkedReconciliationIssues.count)", inboxLinkedReconciliationIssues.isEmpty ? .secondary : .orange)
+        ])
+
+        if inboxCreatedOrdersMissingSourceTrail.isEmpty {
+          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          ForEach(inboxCreatedOrdersMissingSourceTrail.prefix(4)) { order in
+            NavigationLink {
+              OrderDetailView(order: order, store: store)
+            } label: {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                  .foregroundStyle(.orange)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("\(order.store) • \(order.orderNumber)")
+                    .font(.subheadline.weight(.semibold))
+                  Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before marking reconciliation follow-up reviewed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge("Trace", color: .orange)
+              }
+              .padding(10)
+              .background(Color.orange.opacity(0.08))
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedIssueType = nil
     selectedSeverity = nil
@@ -219,6 +289,22 @@ struct ReconciliationView: View {
     searchParts.append(contentsOf: handoffNotes.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func sourceTrailCount(for order: TrackedOrder) -> Int {
+    linkedIntakeEmails(for: order).count
+      + store.importQueueItems(for: order).count
+      + store.acceptanceRecords(for: order).count
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 }
 
