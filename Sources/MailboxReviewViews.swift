@@ -1287,189 +1287,228 @@ struct NeedsReviewView: View {
 
         if showsOperationsWorkbench {
           SettingsPanel(title: "Operations Workbench", symbol: "rectangle.stack.badge.person.crop.fill") {
-          ForEach(Array(highPriorityOperatorWorkbenchItems.prefix(8))) { item in
-            WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
-              store.createReviewTask(from: item)
-            } onCreateDraft: {
-              store.createDraftMessage(from: item)
-            } onReviewed: {
-              store.markWorkbenchItemReviewed(item)
+            if highPriorityOperatorWorkbenchItems.isEmpty {
+              MVPEmptyState(title: "No urgent workbench review", detail: "Blocked intake, exception, validation, reconciliation, and high-risk operational items will appear here.", symbol: "rectangle.stack.badge.person.crop.fill")
+            } else {
+              ForEach(Array(highPriorityOperatorWorkbenchItems.prefix(8))) { item in
+                WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
+                  store.createReviewTask(from: item)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: item)
+                } onReviewed: {
+                  store.markWorkbenchItemReviewed(item)
+                }
+              }
             }
           }
-        }
         }
 
         if showsTimelineWatchlist {
           SettingsPanel(title: "Timeline watchlist", symbol: "clock.badge.exclamationmark.fill") {
-          ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
-            TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
-              store.createReviewTask(from: activity)
-            } onCreateDraft: {
-              store.createDraftMessage(from: activity)
+            if store.timelineWatchlist.isEmpty {
+              MVPEmptyState(title: "No timeline watchlist items", detail: "Critical local activity and watchlist events will appear here when they need operator review.", symbol: "clock.badge.exclamationmark.fill")
+            } else {
+              ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
+                TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
+                  store.createReviewTask(from: activity)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: activity)
+                }
+              }
             }
           }
-        }
         }
 
         if showsValidationIssues {
           SettingsPanel(title: "Validation issues", symbol: "checkmark.seal.fill") {
-          ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
-            ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
-              store.createReviewTask(from: issue)
-            } onCreateDraft: {
-              store.createDraftMessage(from: issue)
+            if store.highSeverityValidationIssues.isEmpty {
+              MVPEmptyState(title: "No high-severity validation issues", detail: "Missing links, invalid fields, and blocked validation records will appear here when they affect daily work.", symbol: "checkmark.seal.fill")
+            } else {
+              ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
+                ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
+                  store.createReviewTask(from: issue)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: issue)
+                }
+              }
             }
           }
-        }
         }
 
         if showsReconciliation {
           SettingsPanel(title: "Reconciliation", symbol: "arrow.triangle.2.circlepath.circle.fill") {
-          ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
-            ReconciliationIssueRow(
-              issue: issue,
-              store: store,
-              linkedOrder: linkedOrder(for: issue),
-              shipmentGroups: store.suggestedShipmentGroups(for: issue),
-              importQueueItems: store.importQueueItems(for: issue),
-              acceptanceRecords: store.acceptanceRecords(for: issue),
-              validationIssues: store.relatedValidationIssues(for: issue),
-              playbooks: store.suggestedPlaybooks(for: issue),
-              handoffNotes: store.handoffNotes(for: issue),
-              customerProfiles: store.suggestedCustomerProfiles(for: issue),
-              destinationAddresses: store.suggestedDestinationAddresses(for: issue),
-              deliveryInstructions: store.suggestedDeliveryInstructions(for: issue),
-              packageContents: store.suggestedPackageContents(for: issue)
-            ) {
-              store.markReconciliationIssueReviewed(issue)
-            } onCreateTask: {
-              store.createReviewTask(from: issue)
-            } onCreateDraft: {
-              store.createDraftMessage(from: issue)
+            if store.highSeverityReconciliationIssues.isEmpty {
+              MVPEmptyState(title: "No high-severity reconciliation issues", detail: "Duplicate, mismatch, and blocked reconciliation problems will appear here when they need operator action.", symbol: "arrow.triangle.2.circlepath.circle.fill")
+            } else {
+              ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
+                ReconciliationIssueRow(
+                  issue: issue,
+                  store: store,
+                  linkedOrder: linkedOrder(for: issue),
+                  shipmentGroups: store.suggestedShipmentGroups(for: issue),
+                  importQueueItems: store.importQueueItems(for: issue),
+                  acceptanceRecords: store.acceptanceRecords(for: issue),
+                  validationIssues: store.relatedValidationIssues(for: issue),
+                  playbooks: store.suggestedPlaybooks(for: issue),
+                  handoffNotes: store.handoffNotes(for: issue),
+                  customerProfiles: store.suggestedCustomerProfiles(for: issue),
+                  destinationAddresses: store.suggestedDestinationAddresses(for: issue),
+                  deliveryInstructions: store.suggestedDeliveryInstructions(for: issue),
+                  packageContents: store.suggestedPackageContents(for: issue)
+                ) {
+                  store.markReconciliationIssueReviewed(issue)
+                } onCreateTask: {
+                  store.createReviewTask(from: issue)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: issue)
+                }
+              }
             }
           }
-        }
         }
 
         if showsShipmentGroups {
           SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
-          ForEach(Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
-            lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
-          }) { group in
-            ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
-              store.updateShipmentGroup(updatedGroup)
-            } onReviewed: {
-              store.markShipmentGroupReviewed(group)
-            } onCreateTask: {
-              store.createReviewTask(from: group)
-            } onCreateDraft: {
-              store.createDraftMessage(from: group)
-            } onRemove: {
-              store.removeShipmentGroup(group)
+            let groups = Array(Set(store.shipmentGroupsNeedingReview + store.highRiskShipmentGroups)).sorted { lhs, rhs in
+              lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
+            }
+            if groups.isEmpty {
+              MVPEmptyState(title: "No shipment groups need review", detail: "High-risk or review-needed shipment groups will appear here when they affect the daily queue.", symbol: "shippingbox.and.arrow.backward.fill")
+            } else {
+              ForEach(groups) { group in
+                ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
+                  store.updateShipmentGroup(updatedGroup)
+                } onReviewed: {
+                  store.markShipmentGroupReviewed(group)
+                } onCreateTask: {
+                  store.createReviewTask(from: group)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: group)
+                } onRemove: {
+                  store.removeShipmentGroup(group)
+                }
+              }
             }
           }
-        }
         }
 
         if showsAcceptanceReview {
           SettingsPanel(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
-          ForEach(Array(store.acceptanceCandidates.filter { candidate in
-            candidate.reviewState == .needsReview || candidate.decision == .blocked || candidate.decision == .reopened
-          }.prefix(8))) { candidate in
-            AcceptanceCandidateRow(
-              candidate: candidate,
-              store: store,
-              orders: store.orders,
-              shipmentGroups: store.shipmentGroups,
-              linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
-              linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
-              history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
-              playbooks: store.suggestedPlaybooks(for: candidate),
-              handoffNotes: store.handoffNotes(for: candidate),
-              customerProfiles: store.suggestedCustomerProfiles(for: candidate),
-              destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
-              deliveryInstructions: store.suggestedDeliveryInstructions(for: candidate),
-              packageContents: store.suggestedPackageContents(for: candidate),
-              onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
-              onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
-              onCreateOrder: { store.createOrder(from: candidate) },
-              onCreateShipmentGroup: { store.createShipmentGroup(from: candidate) },
-              onAccept: { store.acceptCandidate(candidate) },
-              onIgnore: { store.ignoreCandidate(candidate) },
-              onReopen: { store.reopenCandidate(candidate) },
-              onTask: { store.createReviewTask(from: candidate) },
-              onDraft: { store.createDraftMessage(from: candidate) }
-            )
+            let candidates = Array(store.acceptanceCandidates.filter { candidate in
+              candidate.reviewState == .needsReview || candidate.decision == .blocked || candidate.decision == .reopened
+            }.prefix(8))
+            if candidates.isEmpty {
+              MVPEmptyState(title: "No acceptance records need review", detail: "Blocked, reopened, or review-needed acceptance candidates will appear here.", symbol: "checkmark.rectangle.stack.fill")
+            } else {
+              ForEach(candidates) { candidate in
+                AcceptanceCandidateRow(
+                  candidate: candidate,
+                  store: store,
+                  orders: store.orders,
+                  shipmentGroups: store.shipmentGroups,
+                  linkedOrderLabel: candidate.suggestedLinkedOrderID.flatMap { store.orderLabel(for: $0) },
+                  linkedShipmentGroupLabel: candidate.suggestedShipmentGroupID.flatMap { store.shipmentGroupLabel(for: $0) },
+                  history: store.acceptanceHistory(sourceType: candidate.sourceType, sourceID: candidate.sourceID),
+                  playbooks: store.suggestedPlaybooks(for: candidate),
+                  handoffNotes: store.handoffNotes(for: candidate),
+                  customerProfiles: store.suggestedCustomerProfiles(for: candidate),
+                  destinationAddresses: store.suggestedDestinationAddresses(for: candidate),
+                  deliveryInstructions: store.suggestedDeliveryInstructions(for: candidate),
+                  packageContents: store.suggestedPackageContents(for: candidate),
+                  onLinkOrder: { order in store.linkAcceptanceCandidate(candidate, to: order) },
+                  onLinkShipmentGroup: { group in store.linkAcceptanceCandidate(candidate, to: group) },
+                  onCreateOrder: { store.createOrder(from: candidate) },
+                  onCreateShipmentGroup: { store.createShipmentGroup(from: candidate) },
+                  onAccept: { store.acceptCandidate(candidate) },
+                  onIgnore: { store.ignoreCandidate(candidate) },
+                  onReopen: { store.reopenCandidate(candidate) },
+                  onTask: { store.createReviewTask(from: candidate) },
+                  onDraft: { store.createDraftMessage(from: candidate) }
+                )
+              }
+            }
           }
-        }
         }
 
         if showsImportQueue {
           SettingsPanel(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
-          ForEach(Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)) { item in
-            ImportQueueItemRow(
-              item: item,
-              store: store,
-              orders: store.orders,
-              shipmentGroups: store.shipmentGroups,
-              playbooks: store.suggestedPlaybooks(for: item),
-              handoffNotes: store.handoffNotes(for: item),
-              customerProfiles: store.suggestedCustomerProfiles(for: item),
-              destinationAddresses: store.suggestedDestinationAddresses(for: item),
-              deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
-              packageContents: store.suggestedPackageContents(for: item),
-              onSave: store.updateImportQueueItem,
-              onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
-              onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
-              onCreateOrder: { store.createOrder(from: item) },
-              onCreateShipmentGroup: { store.createShipmentGroup(from: item) },
-              onAccepted: { store.markImportQueueItemAccepted(item) },
-              onIgnored: { store.ignoreImportQueueItem(item) },
-              onReopen: { store.reopenImportQueueItem(item) },
-              onRemove: { store.removeImportQueueItem(item) },
-              onCreateTask: { store.createReviewTask(from: item) },
-              onCreateDraft: { store.createDraftMessage(from: item) }
-            )
+            let importItems = Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)
+            if importItems.isEmpty {
+              MVPEmptyState(title: "No import queue items need review", detail: "Blocked, low-confidence, or review-needed staged imports will appear here.", symbol: "tray.and.arrow.down.fill")
+            } else {
+              ForEach(Array(importItems)) { item in
+                ImportQueueItemRow(
+                  item: item,
+                  store: store,
+                  orders: store.orders,
+                  shipmentGroups: store.shipmentGroups,
+                  playbooks: store.suggestedPlaybooks(for: item),
+                  handoffNotes: store.handoffNotes(for: item),
+                  customerProfiles: store.suggestedCustomerProfiles(for: item),
+                  destinationAddresses: store.suggestedDestinationAddresses(for: item),
+                  deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
+                  packageContents: store.suggestedPackageContents(for: item),
+                  onSave: store.updateImportQueueItem,
+                  onLinkOrder: { order in store.linkImportQueueItem(item, to: order) },
+                  onLinkShipmentGroup: { group in store.linkImportQueueItem(item, to: group) },
+                  onCreateOrder: { store.createOrder(from: item) },
+                  onCreateShipmentGroup: { store.createShipmentGroup(from: item) },
+                  onAccepted: { store.markImportQueueItemAccepted(item) },
+                  onIgnored: { store.ignoreImportQueueItem(item) },
+                  onReopen: { store.reopenImportQueueItem(item) },
+                  onRemove: { store.removeImportQueueItem(item) },
+                  onCreateTask: { store.createReviewTask(from: item) },
+                  onCreateDraft: { store.createDraftMessage(from: item) }
+                )
+              }
+            }
           }
-        }
         }
 
         if showsOrderMatches {
           SettingsPanel(title: "Order matches", symbol: "shippingbox.fill") {
-          ForEach(store.reviewOrders) { order in
-            ReviewOrderRow(order: order) { updatedOrder in
-              store.updateOrder(updatedOrder)
-            } onClear: {
-              store.clearIssue(for: order.orderNumber)
-            } onDiscard: {
-              store.discardSpam(for: order.orderNumber)
-            } onCreateTask: {
-              store.createReviewTask(from: order)
-            } onCreateDraft: {
-              store.createDraftMessage(from: order)
+            if store.reviewOrders.isEmpty {
+              MVPEmptyState(title: "No orders need review", detail: "Review-needed orders, exceptions, and tracking issue matches will appear here.", symbol: "shippingbox.fill")
+            } else {
+              ForEach(store.reviewOrders) { order in
+                ReviewOrderRow(order: order) { updatedOrder in
+                  store.updateOrder(updatedOrder)
+                } onClear: {
+                  store.clearIssue(for: order.orderNumber)
+                } onDiscard: {
+                  store.discardSpam(for: order.orderNumber)
+                } onCreateTask: {
+                  store.createReviewTask(from: order)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: order)
+                }
+              }
             }
           }
-        }
         }
 
         if showsMailboxEvents {
           SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
-          ForEach(store.reviewMailEvents) { event in
-            ReviewMailEventRow(event: event) {
-              store.clearIssue(for: event.matchedOrder)
-            } onDiscard: {
-              store.discardSpam(for: event.matchedOrder)
-            } onCreateTask: {
-              store.createReviewTask(
-                linkedEntityType: .auditEvent,
-                linkedEntityID: event.id.uuidString,
-                label: event.matchedOrder,
-                summary: "Follow up mailbox event from \(event.sender): \(event.summary)",
-                priority: event.severity == .critical ? .urgent : .high
-              )
+            if store.reviewMailEvents.isEmpty {
+              MVPEmptyState(title: "No mailbox events need review", detail: "Mailbox events that match orders or require local follow-up will appear here.", symbol: "envelope.badge.fill")
+            } else {
+              ForEach(store.reviewMailEvents) { event in
+                ReviewMailEventRow(event: event) {
+                  store.clearIssue(for: event.matchedOrder)
+                } onDiscard: {
+                  store.discardSpam(for: event.matchedOrder)
+                } onCreateTask: {
+                  store.createReviewTask(
+                    linkedEntityType: .auditEvent,
+                    linkedEntityID: event.id.uuidString,
+                    label: event.matchedOrder,
+                    summary: "Follow up mailbox event from \(event.sender): \(event.summary)",
+                    priority: event.severity == .critical ? .urgent : .high
+                  )
+                }
+              }
             }
           }
-        }
         }
 
         if showsParserChecksInPrimary && !store.intakeParserDiagnostics.isEmpty {
@@ -1553,136 +1592,156 @@ struct NeedsReviewView: View {
 
         if showsForwardedEmails {
           SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
-          ForEach(store.reviewIntakeEmails) { email in
-            IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
-              store.updateIntakeEmail(updatedEmail)
-            } onLinkOrder: { order in
-              store.linkIntakeEmail(email, to: order)
-            } onCreateOrder: {
-              store.createOrder(from: email)
-            } onReviewed: {
-              store.markIntakeEmailReviewed(email)
-            } onIgnore: {
-              store.ignoreIntakeEmail(email)
-            } onReprocess: {
-              store.reprocessIntakeEmail(email)
-            } onAddEvidence: {
-              store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
-            } onReviewEvidence: { attachment in
-              store.markEvidenceReviewed(attachment)
-            } onRemoveEvidence: { attachment in
-              store.removeEvidence(attachment)
-            } onCreateTask: {
-              store.createReviewTask(from: email)
-            } onCreateDraft: {
-              store.createDraftMessage(from: email)
-            } onDraftFromContact: { contact in
-              store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
-            } onCreateAccount: {
-              store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
-            } onTaskFromAccount: { account in
-              store.createReviewTask(from: account)
-            } onDraftFromAccount: { account in
-              store.createDraftMessage(from: account)
-            } onCreateProfile: {
-              store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
-            } onTaskFromProfile: { profile in
-              store.createReviewTask(from: profile)
-            } onDraftFromProfile: { profile in
-              store.createDraftMessage(from: profile)
+            if store.reviewIntakeEmails.isEmpty {
+              MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
+            } else {
+              ForEach(store.reviewIntakeEmails) { email in
+                IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
+                  store.updateIntakeEmail(updatedEmail)
+                } onLinkOrder: { order in
+                  store.linkIntakeEmail(email, to: order)
+                } onCreateOrder: {
+                  store.createOrder(from: email)
+                } onReviewed: {
+                  store.markIntakeEmailReviewed(email)
+                } onIgnore: {
+                  store.ignoreIntakeEmail(email)
+                } onReprocess: {
+                  store.reprocessIntakeEmail(email)
+                } onAddEvidence: {
+                  store.addPlaceholderEvidence(to: .intakeEmail, linkedEntityID: email.id, label: email.detectedOrderNumber)
+                } onReviewEvidence: { attachment in
+                  store.markEvidenceReviewed(attachment)
+                } onRemoveEvidence: { attachment in
+                  store.removeEvidence(attachment)
+                } onCreateTask: {
+                  store.createReviewTask(from: email)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: email)
+                } onDraftFromContact: { contact in
+                  store.createDraftMessage(from: contact, linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, label: email.detectedOrderNumber)
+                } onCreateAccount: {
+                  store.addAccountCredentialRecord(linkedEntityType: .intakeEmail, linkedEntityID: email.id.uuidString, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+                } onTaskFromAccount: { account in
+                  store.createReviewTask(from: account)
+                } onDraftFromAccount: { account in
+                  store.createDraftMessage(from: account)
+                } onCreateProfile: {
+                  store.addVendorProfile(profileType: .supplier, organisation: email.detectedMerchant, label: email.detectedOrderNumber)
+                } onTaskFromProfile: { profile in
+                  store.createReviewTask(from: profile)
+                } onDraftFromProfile: { profile in
+                  store.createDraftMessage(from: profile)
+                }
+              }
             }
           }
-        }
         }
 
         if showsEvidence {
           SettingsPanel(title: "Evidence", symbol: "paperclip") {
-          ForEach(store.reviewEvidenceAttachments) { attachment in
-            EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
-              store.markEvidenceReviewed(attachment)
-            } onRemove: {
-              store.removeEvidence(attachment)
-            } onCreateTask: {
-              store.createReviewTask(from: attachment)
-            } onCreateDraft: {
-              store.createDraftMessage(from: attachment)
-            } onCreateContact: {
-              store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
+            if store.reviewEvidenceAttachments.isEmpty {
+              MVPEmptyState(title: "No evidence needs review", detail: "Local evidence placeholders linked to intake, orders, tracking, or claims will appear here when review is required.", symbol: "paperclip")
+            } else {
+              ForEach(store.reviewEvidenceAttachments) { attachment in
+                EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
+                  store.markEvidenceReviewed(attachment)
+                } onRemove: {
+                  store.removeEvidence(attachment)
+                } onCreateTask: {
+                  store.createReviewTask(from: attachment)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: attachment)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
+                }
+              }
             }
           }
-        }
         }
 
         if showsTrackingEvents {
           SettingsPanel(title: "Tracking events", symbol: "location.fill.viewfinder") {
-          ForEach(store.reviewCarrierTrackingEvents) { event in
-            TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
-              store.markTrackingEventReviewed(event)
-            } onRemove: {
-              store.removeTrackingEvent(event)
-            } onCreateTask: {
-              store.createReviewTask(from: event)
-            } onCreateDraft: {
-              store.createDraftMessage(from: event)
-            } onDraftFromContact: { contact in
-              store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
-            } onCreateProfile: {
-              store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
-            } onTaskFromProfile: { profile in
-              store.createReviewTask(from: profile)
-            } onDraftFromProfile: { profile in
-              store.createDraftMessage(from: profile)
-            } relatedTasks: {
-              store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
+            if store.reviewCarrierTrackingEvents.isEmpty {
+              MVPEmptyState(title: "No tracking events need review", detail: "Critical or watch-level local tracking events will appear here when they require follow-up.", symbol: "location.fill.viewfinder")
+            } else {
+              ForEach(store.reviewCarrierTrackingEvents) { event in
+                TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
+                  store.markTrackingEventReviewed(event)
+                } onRemove: {
+                  store.removeTrackingEvent(event)
+                } onCreateTask: {
+                  store.createReviewTask(from: event)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: event)
+                } onDraftFromContact: { contact in
+                  store.createDraftMessage(from: contact, linkedEntityType: .trackingEvent, linkedEntityID: event.id.uuidString, label: event.trackingNumber)
+                } onCreateProfile: {
+                  store.addVendorProfile(profileType: .carrier, organisation: event.carrier, label: event.trackingNumber)
+                } onTaskFromProfile: { profile in
+                  store.createReviewTask(from: profile)
+                } onDraftFromProfile: { profile in
+                  store.createDraftMessage(from: profile)
+                } relatedTasks: {
+                  store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
+                }
+              }
             }
           }
-        }
         }
 
         if showsTaskEscalations {
           SettingsPanel(title: "Task escalations", symbol: "checklist") {
-          ForEach(store.reviewTasksNeedingAttention) { task in
-            ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
-              store.updateReviewTask(updatedTask)
-            } onComplete: {
-              store.completeReviewTask(task)
-            } onReopen: {
-              store.reopenReviewTask(task)
-            } onReviewed: {
-              store.markReviewTaskReviewed(task)
-            } onCreateDraft: {
-              store.createDraftMessage(from: task)
-            } onCreateContact: {
-              store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
-            } onRemove: {
-              store.removeReviewTask(task)
+            if store.reviewTasksNeedingAttention.isEmpty {
+              MVPEmptyState(title: "No task escalations need review", detail: "Open, overdue, blocked, or review-needed follow-up tasks will appear here.", symbol: "checklist")
+            } else {
+              ForEach(store.reviewTasksNeedingAttention) { task in
+                ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
+                  store.updateReviewTask(updatedTask)
+                } onComplete: {
+                  store.completeReviewTask(task)
+                } onReopen: {
+                  store.reopenReviewTask(task)
+                } onReviewed: {
+                  store.markReviewTaskReviewed(task)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: task)
+                } onCreateContact: {
+                  store.addContactDirectoryEntry(linkedEntityType: .reviewTask, linkedEntityID: task.id.uuidString, label: task.title)
+                } onRemove: {
+                  store.removeReviewTask(task)
+                }
+              }
             }
           }
-        }
         }
 
         if showsHandoffNotes {
           SettingsPanel(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
-          ForEach(store.handoffNotesNeedingAttention) { note in
-            HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
-              store.updateHandoffNote(updatedNote)
-            } onAcknowledge: {
-              store.acknowledgeHandoffNote(note)
-            } onComplete: {
-              store.completeHandoffNote(note)
-            } onReopen: {
-              store.reopenHandoffNote(note)
-            } onReviewed: {
-              store.markHandoffNoteReviewed(note)
-            } onCreateTask: {
-              store.createReviewTask(from: note)
-            } onCreateDraft: {
-              store.createDraftMessage(from: note)
-            } onRemove: {
-              store.removeHandoffNote(note)
+            if store.handoffNotesNeedingAttention.isEmpty {
+              MVPEmptyState(title: "No handoff notes need attention", detail: "Open, overdue, blocked, or review-needed shift handoff notes will appear here.", symbol: "arrow.left.arrow.right.square.fill")
+            } else {
+              ForEach(store.handoffNotesNeedingAttention) { note in
+                HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
+                  store.updateHandoffNote(updatedNote)
+                } onAcknowledge: {
+                  store.acknowledgeHandoffNote(note)
+                } onComplete: {
+                  store.completeHandoffNote(note)
+                } onReopen: {
+                  store.reopenHandoffNote(note)
+                } onReviewed: {
+                  store.markHandoffNoteReviewed(note)
+                } onCreateTask: {
+                  store.createReviewTask(from: note)
+                } onCreateDraft: {
+                  store.createDraftMessage(from: note)
+                } onRemove: {
+                  store.removeHandoffNote(note)
+                }
+              }
             }
           }
-        }
         }
 
         DisclosureGroup(isExpanded: $showAdvancedBacklog) {
