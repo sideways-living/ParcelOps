@@ -53,24 +53,25 @@ struct WishlistView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Wishlist")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Per-user purchase ideas can be captured from files, screenshots, browser sharing, or extensions before converting to orders.")
+          Text("Per-user purchase ideas can be staged locally before becoming orders. File, screenshot, share, and extension capture are placeholder paths unless explicitly implemented.")
             .foregroundStyle(.secondary)
         }
 
         HStack {
-          Button("Upload PDF", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
-          Button("Add screenshot", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
+          Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
+          Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
           Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
         }
         .buttonStyle(.bordered)
 
+        wishlistReadinessPanel
         filterBar
 
         SettingsPanel(title: "Capture channels", symbol: "square.and.arrow.down.fill") {
-          CaptureChannelRow(symbol: "doc.richtext.fill", title: "PDF upload", detail: "Parse supplier PDFs and invoices for storefront, item name, price, and order clues.")
-          CaptureChannelRow(symbol: "photo.fill", title: "Screenshot upload", detail: "Extract storefront URL, item title, visible price, and availability from saved screenshots.")
-          CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "iOS and macOS Share", detail: "Accept shared web pages from Safari or another browser into the signed-in user's wishlist.")
-          CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Chrome and Firefox extension", detail: "Browser extension capture path for desktop browsers and Android phones.")
+          CaptureChannelRow(symbol: "doc.richtext.fill", title: "PDF placeholder", detail: "Creates a local test item only. No file picker, OCR, or PDF parser runs from this screen.")
+          CaptureChannelRow(symbol: "photo.fill", title: "Screenshot placeholder", detail: "Creates a local test item only. No screenshot picker, OCR, or image parser runs from this screen.")
+          CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "Share path placeholder", detail: "Documents a future share-sheet flow. ParcelOps does not receive shared browser pages yet.")
+          CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Browser extension placeholder", detail: "Documents a future extension capture path. No browser extension or external sync is active here.")
         }
 
         SettingsPanel(title: "Wishlist items", symbol: "star.square.fill") {
@@ -169,6 +170,111 @@ struct WishlistView: View {
     wishlistSearchText = ""
     selectedSource = nil
     selectedStatus = nil
+  }
+
+  private var wishlistReadinessPanel: some View {
+    let activeItems = store.wishlistItems
+    let readyItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("ready") }
+    let reviewItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("review") }
+    let linkedItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("linked") }
+    let placeholderItems = activeItems.filter { item in
+      item.storefront.isPlaceholderValidationValue
+        || item.estimatedCost.isPlaceholderValidationValue
+        || item.capturedDetail.localizedCaseInsensitiveContains("placeholder")
+    }
+    let itemsNeedingReadiness = uniqueWishlistItems(reviewItems + placeholderItems)
+
+    return SettingsPanel(title: "Wishlist-to-order readiness", symbol: "star.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use Wishlist as a local staging area only. Convert to an order when item, storefront, owner, cost, and purchase intent are clear enough to hand off into Orders.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("\(activeItems.count) active", color: activeItems.isEmpty ? .secondary : .blue)
+          Badge("\(readyItems.count) ready", color: readyItems.isEmpty ? .secondary : .green)
+          Badge("\(reviewItems.count) needs review", color: reviewItems.isEmpty ? .green : .orange)
+          Badge("\(linkedItems.count) linked", color: linkedItems.isEmpty ? .secondary : .teal)
+          Badge("\(placeholderItems.count) placeholders", color: placeholderItems.isEmpty ? .green : .orange)
+          Badge("\(store.deletedWishlistItems.count) deleted", color: store.deletedWishlistItems.isEmpty ? .secondary : .gray)
+        }
+
+        if activeItems.isEmpty {
+          MVPEmptyState(
+            title: "No active wishlist items",
+            detail: "Add a manual item or placeholder capture item to test wishlist-to-order handoff locally.",
+            symbol: "star.square.fill"
+          )
+        } else if reviewItems.isEmpty && placeholderItems.isEmpty {
+          Label("Active wishlist items look ready for local linking or order conversion.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Review before converting")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(Array(itemsNeedingReadiness.prefix(4))) { item in
+              WishlistReadinessRow(item: item)
+            }
+            let remaining = max(itemsNeedingReadiness.count - 4, 0)
+            if remaining > 0 {
+              Text("\(remaining) more wishlist items need review before conversion.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func uniqueWishlistItems(_ items: [WishlistItem]) -> [WishlistItem] {
+    var seen = Set<UUID>()
+    return items.filter { item in
+      if seen.contains(item.id) { return false }
+      seen.insert(item.id)
+      return true
+    }
+  }
+}
+
+private struct WishlistReadinessRow: View {
+  var item: WishlistItem
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.source.symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(item.itemName)
+          .font(.caption.weight(.semibold))
+        Text(readinessDetail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 8)
+      Badge(item.status, color: item.status.localizedCaseInsensitiveContains("review") ? .orange : .blue)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var readinessDetail: String {
+    if item.capturedDetail.localizedCaseInsensitiveContains("placeholder") {
+      return "Placeholder capture. Confirm item, storefront, owner, and purchase intent before creating an order."
+    }
+    if item.storefront.isPlaceholderValidationValue {
+      return "Storefront needs review before this becomes an order."
+    }
+    if item.estimatedCost.isPlaceholderValidationValue {
+      return "Estimated cost needs review before handoff."
+    }
+    if item.status.localizedCaseInsensitiveContains("review") {
+      return "Review status is still open. Confirm details before linking or converting."
+    }
+    return "Ready for local link or conversion when purchase intent is confirmed."
   }
 }
 

@@ -41,10 +41,10 @@ struct AutomationView: View {
 
   private var steps: [(String, String, String)] {
     [
-      ("Mailbox parsing", "Extract order numbers, sender domains, totals, delivery warnings, and recipient aliases.", "envelope.open.fill"),
-      ("Account sync", "Refresh supplier portals and Shopify OAuth stores without overwriting reviewed data.", "arrow.triangle.2.circlepath"),
+      ("Mailbox parsing intent", "Document how local intake should be parsed before future automation runs anything.", "envelope.open.fill"),
+      ("Account sync placeholder", "Keep supplier, Shopify, and carrier sync ideas as disabled/local intent until real integrations exist.", "arrow.triangle.2.circlepath"),
       ("Order matching", "Compare supplier order number, checked mailbox, original recipient email, store, and customer team.", "link"),
-      ("Review gate", "Risky matches enter Needs Review before changing order records.", "checkmark.shield.fill"),
+      ("Review gate", "Risky matches should enter Needs Review before changing order records.", "checkmark.shield.fill"),
       ("Delivery handoff", "Use local carrier tracking events and evidence before any live carrier integration.", "square.and.arrow.up")
     ]
   }
@@ -55,10 +55,11 @@ struct AutomationView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Automation rules")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local rules define automation intent without running live integrations.")
+          Text("Local rules document future automation intent. ParcelOps does not execute background jobs, sync accounts, or call external services from this screen.")
             .foregroundStyle(.secondary)
         }
 
+        automationReadinessPanel
         filterBar
 
         SettingsPanel(title: "Rules", symbol: "arrow.triangle.branch") {
@@ -116,6 +117,55 @@ struct AutomationView: View {
     }
   }
 
+  private var automationReadinessPanel: some View {
+    let enabledRules = store.automationRules.filter(\.isEnabled)
+    let disabledRules = store.automationRules.filter { !$0.isEnabled }
+    let reviewRules = store.automationRules.filter { $0.reviewState != .accepted }
+    let rulesWithRunHistory = store.automationRules.filter { $0.runCount > 0 }
+
+    return SettingsPanel(title: "Automation readiness", symbol: "pause.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Treat these as reviewed plans, not executable automations. Enabled means approved local intent only; no background job, mailbox mutation, Shopify sync, carrier sync, notification, or credential action runs here.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("\(store.automationRules.count) rules", color: store.automationRules.isEmpty ? .secondary : .blue)
+          Badge("\(enabledRules.count) enabled intent", color: enabledRules.isEmpty ? .secondary : .teal)
+          Badge("\(disabledRules.count) disabled", color: disabledRules.isEmpty ? .secondary : .gray)
+          Badge("\(reviewRules.count) needs review", color: reviewRules.isEmpty ? .green : .orange)
+          Badge("\(rulesWithRunHistory.count) local run notes", color: rulesWithRunHistory.isEmpty ? .secondary : .purple)
+        }
+
+        if store.automationRules.isEmpty {
+          MVPEmptyState(
+            title: "No automation intent records yet",
+            detail: "Add a rule only to document a future workflow. It will not execute or contact any external service.",
+            symbol: "arrow.triangle.branch"
+          )
+        } else if reviewRules.isEmpty {
+          Label("Automation intent records are reviewed. Execution still remains disabled/local-only.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Review before relying on these plans")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(reviewRules.prefix(4)) { rule in
+              AutomationReadinessRow(rule: rule)
+            }
+            if reviewRules.count > 4 {
+              Text("\(reviewRules.count - 4) more automation intent records need review.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var filterBar: some View {
     FilterControlGrid {
       TextField("Search rule, trigger, condition, action, review state, or run count", text: $ruleSearchText)
@@ -147,6 +197,29 @@ struct AutomationView: View {
     selectedEnabledState = nil
     selectedReviewState = nil
     ruleSearchText = ""
+  }
+}
+
+private struct AutomationReadinessRow: View {
+  var rule: AutomationRule
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: rule.triggerType.symbol)
+        .foregroundStyle(rule.isEnabled ? .teal : .secondary)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(rule.name)
+          .font(.caption.weight(.semibold))
+        Text(rule.isEnabled ? "Enabled local intent. Confirm review state before future implementation." : "Disabled local intent. Keep disabled until this workflow is intentionally implemented.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 8)
+      Badge(rule.reviewState.rawValue, color: rule.reviewState.color)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
