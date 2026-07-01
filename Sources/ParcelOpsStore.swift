@@ -10299,6 +10299,21 @@ final class ParcelOpsStore {
     )
   }
 
+  func removeTrackedMailboxPlaceholder(_ mailbox: TrackedMailbox) {
+    guard let index = mailboxes.firstIndex(where: { $0.id == mailbox.id }) else { return }
+    let beforeDetail = mailboxes[index].auditDetail
+    mailboxes.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .trackedMailbox,
+      entityID: mailbox.id.uuidString,
+      entityLabel: mailbox.address,
+      summary: "Tracked mailbox placeholder removed.",
+      beforeDetail: "\(beforeDetail)\nRemoved locally only. No mailbox, OAuth, IMAP, token, password, or network action occurred."
+    )
+  }
+
   func addMicrosoft365MailboxConnectionPlaceholder() {
     let connection = Microsoft365MailboxConnection(
       displayName: "New Microsoft 365 mailbox",
@@ -11573,6 +11588,21 @@ final class ParcelOpsStore {
     )
   }
 
+  func removeShopifyPlaceholder(_ connection: ShopifyConnection) {
+    guard let index = shopifyConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = shopifyConnections[index].auditDetail
+    shopifyConnections.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .shopifyConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.storeName,
+      summary: "Shopify planning placeholder removed.",
+      beforeDetail: "\(beforeDetail)\nRemoved locally only. No Shopify OAuth, API call, token, credential, product, order, or store data access occurred."
+    )
+  }
+
   func addStoreLoginPlaceholder() {
     let connection = SourceConnection(name: "New supplier login", kind: .vaultLogin, account: "Password vault", status: "Needs setup", lastSync: "Never")
     connections.append(connection)
@@ -11587,6 +11617,21 @@ final class ParcelOpsStore {
     )
   }
 
+  func removeStoreLoginPlaceholder(_ connection: SourceConnection) {
+    guard let index = connections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = connections[index].auditDetail
+    connections.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .sourceConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.name,
+      summary: "Store login planning placeholder removed.",
+      beforeDetail: "\(beforeDetail)\nRemoved locally only. No password vault, credential, Keychain item, login, browser, or supplier portal action occurred."
+    )
+  }
+
   func addWatchedFolderPlaceholder() {
     let folder = WatchedFolder(name: "Custom order folder", location: "Choose folder", platform: "iOS and macOS", fileTypes: "PDF, images", cadence: settings.folderScanCadence, status: "Needs permission", lastScan: "Never")
     watchedFolders.append(folder)
@@ -11598,6 +11643,21 @@ final class ParcelOpsStore {
       entityLabel: folder.name,
       summary: "Watched folder planning placeholder added.",
       afterDetail: "\(folder.auditDetail)\nPlaceholder only. No file picker, folder permission request, background scan, OCR, import, or file access occurred."
+    )
+  }
+
+  func removeWatchedFolderPlaceholder(_ folder: WatchedFolder) {
+    guard let index = watchedFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+    let beforeDetail = watchedFolders[index].auditDetail
+    watchedFolders.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .watchedFolder,
+      entityID: folder.id.uuidString,
+      entityLabel: folder.name,
+      summary: "Watched folder planning placeholder removed.",
+      beforeDetail: "\(beforeDetail)\nRemoved locally only. No file picker, folder permission request, background scan, OCR, import, or file access occurred."
     )
   }
 

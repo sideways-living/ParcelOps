@@ -342,7 +342,9 @@ struct IntegrationsView: View {
         if showsTrackedMailboxes {
           SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
           ForEach(store.mailboxes) { mailbox in
-            MailboxConnectionRow(mailbox: mailbox)
+            MailboxConnectionRow(mailbox: mailbox) {
+              store.removeTrackedMailboxPlaceholder(mailbox)
+            }
           }
         }
         }
@@ -361,6 +363,8 @@ struct IntegrationsView: View {
               store.createReviewTask(from: profile)
             } onDraftFromProfile: { profile in
               store.createDraftMessage(from: profile)
+            } onRemove: {
+              store.removeShopifyPlaceholder(connection)
             }
           }
         }
@@ -368,7 +372,9 @@ struct IntegrationsView: View {
         if showsFolderSetup {
           SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
           ForEach(store.watchedFolders) { folder in
-            WatchedFolderRow(folder: folder)
+            WatchedFolderRow(folder: folder) {
+              store.removeWatchedFolderPlaceholder(folder)
+            }
           }
         }
         }
@@ -386,6 +392,8 @@ struct IntegrationsView: View {
               store.createReviewTask(from: profile)
             } onDraftFromProfile: { profile in
               store.createDraftMessage(from: profile)
+            } onRemove: {
+              store.removeStoreLoginPlaceholder(connection)
             }
           }
         }
@@ -2092,6 +2100,7 @@ struct Microsoft365MailboxConnectionEditor: View {
 
 struct MailboxConnectionRow: View {
   var mailbox: TrackedMailbox
+  var onRemove: () -> Void = {}
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -2115,6 +2124,8 @@ struct MailboxConnectionRow: View {
         Text(mailbox.lastChecked)
           .font(.caption)
           .foregroundStyle(.secondary)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
       }
     }
     .padding(10)
@@ -2133,6 +2144,7 @@ struct ShopifyConnectionRow: View {
   var onCreateProfile: () -> Void = {}
   var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
+  var onRemove: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -2165,6 +2177,8 @@ struct ShopifyConnectionRow: View {
           .buttonStyle(.bordered)
         Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
           .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
       }
 
       ForEach(suggestedAccounts) { account in
@@ -2191,6 +2205,7 @@ struct ShopifyConnectionRow: View {
 
 struct WatchedFolderRow: View {
   var folder: WatchedFolder
+  var onRemove: () -> Void = {}
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -2214,6 +2229,8 @@ struct WatchedFolderRow: View {
         Text(folder.lastScan)
           .font(.caption)
           .foregroundStyle(.secondary)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
       }
     }
     .padding(10)
@@ -2232,6 +2249,7 @@ struct SourceConnectionRow: View {
   var onCreateProfile: () -> Void = {}
   var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
+  var onRemove: () -> Void = {}
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -2259,6 +2277,8 @@ struct SourceConnectionRow: View {
         Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
           .buttonStyle(.bordered)
         Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
 
@@ -2629,7 +2649,9 @@ struct SettingsView: View {
         if showsTrackedMailboxes {
           SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
           ForEach(store.mailboxes) { mailbox in
-            MailboxConnectionRow(mailbox: mailbox)
+            MailboxConnectionRow(mailbox: mailbox) {
+              store.removeTrackedMailboxPlaceholder(mailbox)
+            }
           }
           Button("Add mailbox placeholder", systemImage: "plus", action: store.addTrackedMailboxPlaceholder)
             .buttonStyle(.bordered)
@@ -2639,7 +2661,9 @@ struct SettingsView: View {
         if showsShopifyAccounts {
           SettingsPanel(title: "Shopify accounts", symbol: "cart.badge.plus") {
           ForEach(store.shopifyConnections) { connection in
-            ShopifyConnectionRow(connection: connection)
+            ShopifyConnectionRow(connection: connection, onRemove: {
+              store.removeShopifyPlaceholder(connection)
+            })
           }
           Button("Add Shopify placeholder", systemImage: "plus", action: store.connectShopifyPlaceholder)
             .buttonStyle(.bordered)
@@ -2657,7 +2681,9 @@ struct SettingsView: View {
           }
           .pickerStyle(.menu)
           ForEach(store.watchedFolders) { folder in
-            WatchedFolderRow(folder: folder)
+            WatchedFolderRow(folder: folder) {
+              store.removeWatchedFolderPlaceholder(folder)
+            }
           }
           Button("Add folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
             .buttonStyle(.bordered)
