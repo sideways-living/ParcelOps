@@ -52,6 +52,7 @@ struct ShipmentManifestsView: View {
           symbol: "list.bullet.clipboard.fill"
         )
         filterBar
+        inboxManifestCoverage
 
         SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {
           HStack {
@@ -196,6 +197,157 @@ struct ShipmentManifestsView: View {
     selectedLinkedEntityType = nil
     selectedReviewState = nil
     manifestSearchText = ""
+  }
+
+  private var inboxManifestCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedManifests = manifestsLinkedToInboxOrders
+    let actionManifests = manifestsNeedingAction
+    let missingManifestCount = inboxOrdersMissingManifest.count
+
+    return SettingsPanel(title: "Inbox manifest readiness", symbol: "list.bullet.clipboard.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have outbound manifest setup, included orders, handoff location, labels, scans, and dispatch status.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedManifests.count) linked manifests", color: .teal)
+          Badge("\(actionManifests.count) need action", color: actionManifests.isEmpty ? .green : .orange)
+          Badge("\(missingManifestCount) missing manifests", color: missingManifestCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking manifest readiness.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedManifests.isEmpty {
+          Text("Inbox-created orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionManifests.prefix(3))) { manifest in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: manifest.dispatchStatus == .blockedNeedsReview ? "exclamationmark.triangle.fill" : "list.bullet.clipboard.fill")
+                .foregroundStyle(manifest.dispatchStatus == .blockedNeedsReview ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(manifest.title)
+                  .font(.caption.bold())
+                Text(manifestActionSummary(for: manifest))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(manifest.dispatchStatus.rawValue, color: manifest.dispatchStatus.color)
+            }
+          }
+
+          if actionManifests.isEmpty {
+            Text("Linked manifests look prepared or handed off with orders, scans, labels, and handoff locations in place.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionManifests.count > 3 {
+            Text("\(actionManifests.count - 3) more linked manifests need order, label, scan, handoff location, status, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var manifestsLinkedToInboxOrders: [ShipmentManifestRecord] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+    let custodyIDs = Set(store.custodyRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let labelIDs = Set(store.labelReferenceRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let scanIDs = Set(store.scanSessionRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+        || (record.linkedLabelReferenceID.map { labelIDs.contains($0) } ?? false)
+    }.map(\.id))
+
+    return store.shipmentManifestRecords.filter { manifest in
+      !Set(manifest.includedOrderIDs).isDisjoint(with: orderIDs)
+        || !Set(manifest.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+        || !Set(manifest.custodyRecordIDs).isDisjoint(with: custodyIDs)
+        || !Set(manifest.labelReferenceIDs).isDisjoint(with: labelIDs)
+        || !Set(manifest.scanSessionIDs).isDisjoint(with: scanIDs)
+        || (manifest.linkedEntityType == .order && UUID(uuidString: manifest.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingManifest: [TrackedOrder] {
+    let manifestOrderIDs = Set(manifestsLinkedToInboxOrders.flatMap(\.includedOrderIDs))
+    return inboxCreatedOrders.filter { order in
+      !manifestOrderIDs.contains(order.id)
+        && !manifestsLinkedToInboxOrders.contains { manifest in
+          manifest.linkedEntityType == .order && UUID(uuidString: manifest.linkedEntityID) == order.id
+        }
+    }
+  }
+
+  private var manifestsNeedingAction: [ShipmentManifestRecord] {
+    manifestsLinkedToInboxOrders.filter { manifest in
+      manifest.dispatchStatus == .draft
+        || manifest.dispatchStatus == .prepared
+        || manifest.dispatchStatus == .blockedNeedsReview
+        || manifest.dispatchStatus == .reopened
+        || manifest.reviewState != .accepted
+        || manifest.riskLevel == .high
+        || manifest.riskLevel == .critical
+        || manifest.includedOrderIDs.isEmpty
+        || manifest.handoffLocationStorageLocationID == nil
+        || manifest.labelReferenceIDs.isEmpty
+        || manifest.scanSessionIDs.isEmpty
+        || manifest.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+  }
+
+  private func manifestActionSummary(for manifest: ShipmentManifestRecord) -> String {
+    var parts: [String] = []
+    if manifest.dispatchStatus == .draft || manifest.dispatchStatus == .reopened { parts.append("prepare manifest") }
+    if manifest.dispatchStatus == .prepared { parts.append("dispatch or hand off") }
+    if manifest.dispatchStatus == .blockedNeedsReview { parts.append("resolve block") }
+    if manifest.includedOrderIDs.isEmpty { parts.append("add included orders") }
+    if manifest.handoffLocationStorageLocationID == nil { parts.append("confirm handoff location") }
+    if manifest.labelReferenceIDs.isEmpty { parts.append("link labels") }
+    if manifest.scanSessionIDs.isEmpty { parts.append("link scans") }
+    if manifest.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("assign owner") }
+    if manifest.riskLevel == .high || manifest.riskLevel == .critical { parts.append("review risk") }
+    if manifest.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Manifest is ready for the current dispatch path." : parts.joined(separator: ", ")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func shipmentManifest(_ record: ShipmentManifestRecord, matches query: String) -> Bool {
@@ -346,6 +498,19 @@ struct ShipmentManifestRow: View {
         )
       }
 
+      if !manifestWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Manifest follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(manifestWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -396,6 +561,41 @@ struct ShipmentManifestRow: View {
     case .blockedNeedsReview:
       return "Resolve the blocked handoff before progressing the linked order."
     }
+  }
+
+  private var manifestWarnings: [String] {
+    var warnings: [String] = []
+    if record.dispatchStatus == .draft || record.dispatchStatus == .reopened {
+      warnings.append("Manifest is not prepared yet.")
+    }
+    if record.dispatchStatus == .prepared {
+      warnings.append("Manifest is prepared but not dispatched or handed off.")
+    }
+    if record.dispatchStatus == .blockedNeedsReview {
+      warnings.append("Manifest is blocked and needs review before dispatch.")
+    }
+    if record.includedOrderIDs.isEmpty {
+      warnings.append("No included orders are attached.")
+    }
+    if record.handoffLocationStorageLocationID == nil {
+      warnings.append("Handoff/storage location is missing.")
+    }
+    if record.labelReferenceIDs.isEmpty {
+      warnings.append("No label references are linked.")
+    }
+    if record.scanSessionIDs.isEmpty {
+      warnings.append("No scan sessions are linked.")
+    }
+    if record.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Owner/team is missing.")
+    }
+    if record.riskLevel == .high || record.riskLevel == .critical {
+      warnings.append("Risk is \(record.riskLevel.rawValue.lowercased()); confirm manifest handling.")
+    }
+    if record.reviewState != .accepted {
+      warnings.append("Review state is \(record.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
   }
 }
 
