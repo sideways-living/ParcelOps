@@ -49,6 +49,7 @@ struct ReturnsClaimsView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         filterBar
+        inboxReturnClaimCoverage
 
         SettingsPanel(title: "Return and claim records", symbol: "arrow.uturn.backward.square.fill") {
           HStack {
@@ -180,6 +181,83 @@ struct ReturnsClaimsView: View {
     claimSearchText = ""
   }
 
+  private var inboxReturnClaimCoverage: some View {
+    SettingsPanel(title: "Inbox return and claim coverage", symbol: "arrow.uturn.backward.square.fill") {
+      Text("Checks whether orders created from Inbox intake have local return, refund, damage, or missing-item claim follow-up where needed.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(claimsLinkedToInboxOrders.count) linked claims", color: .teal)
+        Badge("\(claimsNeedingAction.count) need action", color: claimsNeedingAction.isEmpty ? .green : .orange)
+        Badge("\(claimsMissingEvidence.count) missing evidence", color: claimsMissingEvidence.isEmpty ? .green : .orange)
+      }
+
+      if inboxCreatedOrders.isEmpty {
+        Text("No Inbox-created orders need return or claim checks yet.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if claimsLinkedToInboxOrders.isEmpty {
+        Text("No return or claim records are linked to Inbox-created orders. Create one only when a refund, replacement, damage, missing-item, or carrier claim is actually needed.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else if claimsNeedingAction.isEmpty && claimsMissingEvidence.isEmpty {
+        Label("Linked return and claim records are resolved, reviewed, and have evidence context.", systemImage: "checkmark.seal.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Linked claims needing follow-up")
+            .font(.caption.weight(.semibold))
+          CompactMetadataGrid(minimumWidth: 170) {
+            ForEach(claimsNeedingAction.prefix(4)) { claim in
+              Badge(claim.title, color: claim.riskLevel.color)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !linkedIntakeEmails(for: order).isEmpty
+    }
+  }
+
+  private var claimsLinkedToInboxOrders: [ReturnClaimRecord] {
+    store.returnClaims.filter { claim in
+      guard let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil) else {
+        return false
+      }
+      return inboxCreatedOrders.contains { $0.id == orderID }
+    }
+  }
+
+  private var claimsNeedingAction: [ReturnClaimRecord] {
+    claimsLinkedToInboxOrders.filter { claim in
+      claim.claimStatus != .resolved
+        || claim.reviewState != .accepted
+        || claim.claimStatus == .disputed
+        || claim.claimStatus == .blocked
+    }
+  }
+
+  private var claimsMissingEvidence: [ReturnClaimRecord] {
+    claimsLinkedToInboxOrders.filter { $0.evidenceAttachmentIDs.isEmpty }
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
   private func linkedOrder(for claim: ReturnClaimRecord) -> TrackedOrder? {
     let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil)
     guard let orderID else { return nil }
@@ -270,6 +348,35 @@ struct ReturnClaimRow: View {
   var onRemove: () -> Void
   @State private var isEditing = false
 
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    guard let store, let linkedOrder else { return [] }
+    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == linkedOrder.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private var claimFollowUpWarnings: [String] {
+    var warnings: [String] = []
+    if claim.claimStatus == .disputed {
+      warnings.append("Disputed")
+    } else if claim.claimStatus == .blocked {
+      warnings.append("Blocked")
+    } else if claim.claimStatus != .resolved {
+      warnings.append("Not resolved")
+    }
+    if claim.evidenceAttachmentIDs.isEmpty {
+      warnings.append("Evidence missing")
+    }
+    if claim.reviewState != .accepted {
+      warnings.append("Review pending")
+    }
+    return warnings
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -308,6 +415,10 @@ struct ReturnClaimRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if !linkedIntakeEmails.isEmpty || !claimFollowUpWarnings.isEmpty {
+        returnClaimInboxSourceTrail
       }
 
       ProcurementRequestStrip(requests: procurementRequests)
@@ -354,6 +465,60 @@ struct ReturnClaimRow: View {
       ReturnClaimEditView(claim: claim) { updatedClaim in
         onSave(updatedClaim)
       }
+    }
+  }
+
+  private var returnClaimInboxSourceTrail: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Inbox claim follow-up", systemImage: "envelope.open.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(sourceTrailDescription)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(claimFollowUpWarnings.prefix(4), id: \.self) { warning in
+          Badge(warning, color: .orange)
+        }
+        if let linkedOrder {
+          Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedIntakeEmails.prefix(3)) { email in
+          if let store {
+            let source = store.intakeSourceSummary(for: email)
+            Badge(source.label, color: sourceColor(for: source.tone))
+          }
+          Badge(email.detectedTrackingNumber, color: email.detectedTrackingNumber.isPlaceholderValidationValue ? .orange : .teal)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var sourceTrailDescription: String {
+    if !claimFollowUpWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
+      return "This claim is tied to an Inbox-created order and still needs local evidence, status, or review follow-up."
+    }
+    if !claimFollowUpWarnings.isEmpty {
+      return "This claim still needs local evidence, status, or review follow-up."
+    }
+    return "Inbox intake context is linked to this return or claim record. Provider IDs stay in Audit/details."
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
