@@ -50,6 +50,7 @@ struct DispatchReadinessView: View {
           symbol: "checkmark.rectangle.stack.fill"
         )
         filterBar
+        inboxReadinessCoverage
 
         SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
           HStack {
@@ -188,6 +189,171 @@ struct DispatchReadinessView: View {
     selectedLinkedEntityType = nil
     selectedReviewState = nil
     readinessSearchText = ""
+  }
+
+  private var inboxReadinessCoverage: some View {
+    let inboxOrders = inboxCreatedOrders
+    let linkedChecklists = checklistsLinkedToInboxOrders
+    let actionChecklists = checklistsNeedingAction
+    let missingChecklistCount = inboxOrdersMissingChecklist.count
+
+    return SettingsPanel(title: "Inbox readiness coverage", symbol: "checkmark.rectangle.stack.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Checks whether orders created from Inbox intake have a local go/no-go checklist for labels, scans, custody, manifests, and handoff requirements.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        CompactMetadataGrid(minimumWidth: 150) {
+          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(linkedChecklists.count) linked checks", color: .teal)
+          Badge("\(actionChecklists.count) need action", color: actionChecklists.isEmpty ? .green : .orange)
+          Badge("\(missingChecklistCount) missing checks", color: missingChecklistCount == 0 ? .green : .orange)
+        }
+
+        if inboxOrders.isEmpty {
+          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking dispatch readiness.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if linkedChecklists.isEmpty {
+          Text("Inbox-created orders do not have readiness checklists yet. Add or create a checklist before outbound handoff.")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        } else {
+          ForEach(Array(actionChecklists.prefix(3))) { checklist in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: checklist.checklistStatus == .blockedNeedsReview ? "exclamationmark.triangle.fill" : "checkmark.rectangle.stack.fill")
+                .foregroundStyle(checklist.checklistStatus == .blockedNeedsReview ? .red : .orange)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(checklist.title)
+                  .font(.caption.bold())
+                Text(readinessActionSummary(for: checklist))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
+            }
+          }
+
+          if actionChecklists.isEmpty {
+            Text("Linked readiness checklists look complete, reviewed, and clear for current Inbox-created orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if actionChecklists.count > 3 {
+            Text("\(actionChecklists.count - 3) more linked readiness checklists need missing requirements, status, owner, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private var inboxCreatedOrders: [TrackedOrder] {
+    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
+  private var checklistsLinkedToInboxOrders: [DispatchReadinessChecklist] {
+    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
+      if let orderID = receipt.orderID, orderIDs.contains(orderID) {
+        return true
+      }
+      if receipt.linkedEntityType == .order, let linkedID = UUID(uuidString: receipt.linkedEntityID), orderIDs.contains(linkedID) {
+        return true
+      }
+      return false
+    }.map(\.id))
+    let custodyIDs = Set(store.custodyRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let labelIDs = Set(store.labelReferenceRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let scanIDs = Set(store.scanSessionRecords.filter { record in
+      (record.orderID.map { orderIDs.contains($0) } ?? false)
+        || (record.inventoryReceiptID.map { receiptIDs.contains($0) } ?? false)
+        || (record.custodyRecordID.map { custodyIDs.contains($0) } ?? false)
+        || (record.linkedLabelReferenceID.map { labelIDs.contains($0) } ?? false)
+    }.map(\.id))
+    let manifestIDs = Set(store.shipmentManifestRecords.filter { manifest in
+      !Set(manifest.includedOrderIDs).isDisjoint(with: orderIDs)
+        || !Set(manifest.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+        || !Set(manifest.custodyRecordIDs).isDisjoint(with: custodyIDs)
+        || !Set(manifest.labelReferenceIDs).isDisjoint(with: labelIDs)
+        || !Set(manifest.scanSessionIDs).isDisjoint(with: scanIDs)
+        || (manifest.linkedEntityType == .order && UUID(uuidString: manifest.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }.map(\.id))
+
+    return store.dispatchReadinessChecklists.filter { checklist in
+      !Set(checklist.orderIDs).isDisjoint(with: orderIDs)
+        || !Set(checklist.inventoryReceiptIDs).isDisjoint(with: receiptIDs)
+        || !Set(checklist.custodyRecordIDs).isDisjoint(with: custodyIDs)
+        || !Set(checklist.labelReferenceIDs).isDisjoint(with: labelIDs)
+        || !Set(checklist.scanSessionIDs).isDisjoint(with: scanIDs)
+        || (checklist.shipmentManifestID.map { manifestIDs.contains($0) } ?? false)
+        || (checklist.linkedEntityType == .order && UUID(uuidString: checklist.linkedEntityID).map { orderIDs.contains($0) } == true)
+    }
+  }
+
+  private var inboxOrdersMissingChecklist: [TrackedOrder] {
+    let checklistOrderIDs = Set(checklistsLinkedToInboxOrders.flatMap(\.orderIDs))
+    return inboxCreatedOrders.filter { order in
+      !checklistOrderIDs.contains(order.id)
+        && !checklistsLinkedToInboxOrders.contains { checklist in
+          checklist.linkedEntityType == .order && UUID(uuidString: checklist.linkedEntityID) == order.id
+        }
+    }
+  }
+
+  private var checklistsNeedingAction: [DispatchReadinessChecklist] {
+    checklistsLinkedToInboxOrders.filter { checklist in
+      checklist.checklistStatus == .draft
+        || checklist.checklistStatus == .ready
+        || checklist.checklistStatus == .blockedNeedsReview
+        || checklist.checklistStatus == .reopened
+        || checklist.reviewState != .accepted
+        || checklist.riskLevel == .high
+        || checklist.riskLevel == .critical
+        || checklist.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || hasMissingRequirements(checklist)
+        || checklist.orderIDs.isEmpty
+        || checklist.labelReferenceIDs.isEmpty
+        || checklist.scanSessionIDs.isEmpty
+    }
+  }
+
+  private func readinessActionSummary(for checklist: DispatchReadinessChecklist) -> String {
+    var parts: [String] = []
+    if checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened { parts.append("mark ready") }
+    if checklist.checklistStatus == .ready { parts.append("complete after handoff") }
+    if checklist.checklistStatus == .blockedNeedsReview { parts.append("resolve block") }
+    if hasMissingRequirements(checklist) { parts.append("clear missing requirements") }
+    if checklist.orderIDs.isEmpty { parts.append("link orders") }
+    if checklist.labelReferenceIDs.isEmpty { parts.append("link labels") }
+    if checklist.scanSessionIDs.isEmpty { parts.append("link scans") }
+    if checklist.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("assign owner") }
+    if checklist.riskLevel == .high || checklist.riskLevel == .critical { parts.append("review risk") }
+    if checklist.reviewState != .accepted { parts.append("mark reviewed") }
+    return parts.isEmpty ? "Readiness checklist is complete and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func hasMissingRequirements(_ checklist: DispatchReadinessChecklist) -> Bool {
+    let missing = checklist.missingRequirementsSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !missing.isEmpty && !missing.localizedCaseInsensitiveContains("no missing")
+  }
+
+  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
   }
 
   private func dispatchChecklist(_ checklist: DispatchReadinessChecklist, matches query: String) -> Bool {
@@ -337,6 +503,19 @@ struct DispatchReadinessRow: View {
         )
       }
 
+      if !readinessWarnings.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Readiness follow-up", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+          ForEach(readinessWarnings, id: \.self) { warning in
+            Text(warning)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
@@ -379,6 +558,42 @@ struct DispatchReadinessRow: View {
     case .blockedNeedsReview:
       return "Resolve the blocked readiness item before progressing dispatch."
     }
+  }
+
+  private var readinessWarnings: [String] {
+    var warnings: [String] = []
+    if checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened {
+      warnings.append("Checklist is not ready yet.")
+    }
+    if checklist.checklistStatus == .ready {
+      warnings.append("Checklist is ready but not completed.")
+    }
+    if checklist.checklistStatus == .blockedNeedsReview {
+      warnings.append("Checklist is blocked and needs review before dispatch.")
+    }
+    let missing = checklist.missingRequirementsSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !missing.isEmpty && !missing.localizedCaseInsensitiveContains("no missing") {
+      warnings.append("Missing requirements: \(missing)")
+    }
+    if checklist.orderIDs.isEmpty {
+      warnings.append("No orders are linked.")
+    }
+    if checklist.labelReferenceIDs.isEmpty {
+      warnings.append("No label references are linked.")
+    }
+    if checklist.scanSessionIDs.isEmpty {
+      warnings.append("No scan sessions are linked.")
+    }
+    if checklist.assignedOwnerTeam.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      warnings.append("Owner/team is missing.")
+    }
+    if checklist.riskLevel == .high || checklist.riskLevel == .critical {
+      warnings.append("Risk is \(checklist.riskLevel.rawValue.lowercased()); confirm dispatch readiness handling.")
+    }
+    if checklist.reviewState != .accepted {
+      warnings.append("Review state is \(checklist.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
+    }
+    return warnings
   }
 }
 
