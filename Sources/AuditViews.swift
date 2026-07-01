@@ -245,6 +245,11 @@ struct AuditView: View {
           } label: {
             Label("Open Tasks", systemImage: "checklist")
           }
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Open Settings", systemImage: "gearshape.2.fill")
+          }
         }
         .buttonStyle(.bordered)
 
