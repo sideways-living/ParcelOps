@@ -1281,6 +1281,18 @@ private struct DispatchInboxOrderRow: View {
   private var needsPreDispatchVerification: Bool {
     !partialFollowUpTasks.isEmpty || order.missingInboxOrderFieldCount > 0
   }
+  private var sourceTrailCount: Int {
+    linkedIntakeEmails.count + store.importQueueItems(for: order).count + store.acceptanceRecords(for: order).count
+  }
+  private var linkedIntakeEmails: [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return store.intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1305,13 +1317,16 @@ private struct DispatchInboxOrderRow: View {
 
           Text(needsPreDispatchVerification
             ? "Next: open the order and confirm missing intake details before manifest or readiness setup."
-            : "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
+            : sourceTrailCount == 0
+              ? "Next: confirm the Inbox, Import Queue, or Acceptance source trail before creating dispatch setup."
+              : "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(needsPreDispatchVerification ? .orange : .teal)
+            .foregroundStyle(needsPreDispatchVerification || sourceTrailCount == 0 ? .orange : .teal)
 
           CompactMetadataGrid {
             Badge(order.status.rawValue, color: rowColor)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
+            Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
             if !partialFollowUpTasks.isEmpty {
               Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
             }
@@ -1329,6 +1344,13 @@ private struct DispatchInboxOrderRow: View {
               .foregroundStyle(.secondary)
           }
         }
+      }
+
+      if sourceTrailCount == 0 {
+        Label("Source trail missing: open the order before preparing manifest or readiness records.", systemImage: "link.badge.plus")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       CompactActionRow {
