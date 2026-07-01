@@ -183,13 +183,13 @@ struct DashboardView: View {
         dailyStartDecisionPanel
         MVPWorkflowGuide(
           title: "Daily operator path",
-          detail: "Use these screens in order for the local-only workflow.",
+          detail: "Use these screens in order for the current SpaceMail-first local workflow.",
           steps: [
-            "Review forwarded email and import intake.",
-            "Accept or link records into orders and shipment groups.",
-            "Work exceptions in the workbench and tasks.",
-            "Prepare manifests and dispatch readiness.",
-            "Check audit history and local-only settings."
+            "Run or review the latest manual SpaceMail refresh.",
+            "Triage imported intake and decide on uncertain mixed-mailbox messages.",
+            "Create or link an order from confirmed intake.",
+            "Clear Workbench, Tasks, and Dispatch follow-up for that order.",
+            "Check Audit and Settings when you need traceability or setup context."
           ],
           symbol: "map.fill"
         )
@@ -690,8 +690,8 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Inbox",
               count: incomingAttentionCount,
-              detail: "Forwarded emails, parser diagnostics, import items, and acceptance records waiting for triage.",
-              nextAction: incomingAttentionCount == 0 ? "Inbox is clear" : "Triage incoming work",
+              detail: "SpaceMail refresh results, imported order emails, uncertain mixed-mailbox messages, parser checks, and staged intake waiting for triage.",
+              nextAction: incomingAttentionCount == 0 ? "Review SpaceMail status" : "Triage SpaceMail intake",
               symbol: "tray.full.fill",
               tint: incomingAttentionCount == 0 ? .green : .orange
             ) {
