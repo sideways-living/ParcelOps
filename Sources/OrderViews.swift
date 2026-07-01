@@ -258,6 +258,11 @@ struct OrdersView: View {
             Label("Open Inbox", systemImage: "tray.full.fill")
           }
           NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
             DispatchView(store: store)
           } label: {
             Label("Open Dispatch", systemImage: "paperplane.fill")
