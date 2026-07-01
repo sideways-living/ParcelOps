@@ -275,6 +275,37 @@ struct SearchResultRow: View {
     result.severity?.color ?? result.reviewState?.color ?? result.entityType.color
   }
 
+  private var intakeSourceChips: [(String, Color)] {
+    guard result.entityType == .intakeEmail,
+          let sourceLine = result.detail.lineOrSentence(after: "Inbox source:")
+    else { return [] }
+
+    let sourceParts = sourceLine
+      .components(separatedBy: "•")
+      .first?
+      .components(separatedBy: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty } ?? []
+
+    return sourceParts.prefix(3).map { part in
+      (part, part.localizedCaseInsensitiveContains("imported") ? .green : sourceColor(for: part))
+    }
+  }
+
+  private var sourceTrailDetail: String? {
+    if result.entityType == .intakeEmail {
+      return result.detail.lineOrSentence(after: "Inbox source:")
+    }
+
+    guard result.entityType == .order,
+          result.subtitle.localizedCaseInsensitiveContains("Inbox-created")
+            || result.detail.localizedCaseInsensitiveContains("Inbox handoff")
+    else { return nil }
+
+    return result.detail.lineOrSentence(after: "Inbox handoff:")
+      ?? "Inbox-created order. Open the order to inspect intake, import, acceptance, and dispatch handoff context."
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .top, spacing: 10) {
@@ -308,6 +339,30 @@ struct SearchResultRow: View {
         .foregroundStyle(.secondary)
         .lineLimit(isCompact ? 4 : 3)
 
+      if let sourceTrailDetail {
+        VStack(alignment: .leading, spacing: 6) {
+          Label(result.entityType == .order ? "Inbox order trail" : "Inbox source", systemImage: "tray.and.arrow.down.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(result.entityType == .order ? .teal : result.entityType.color)
+
+          if !intakeSourceChips.isEmpty {
+            CompactMetadataGrid(minimumWidth: 110) {
+              ForEach(Array(intakeSourceChips.enumerated()), id: \.offset) { _, chip in
+                Badge(chip.0, color: chip.1)
+              }
+            }
+          }
+
+          Text(sourceTrailDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(isCompact ? 4 : 3)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background((result.entityType == .order ? Color.teal : result.entityType.color).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
       Text(result.linkedEntityID)
         .font(.caption2.monospaced())
         .foregroundStyle(.tertiary)
@@ -317,5 +372,27 @@ struct SearchResultRow: View {
     .padding(12)
     .background(.quaternary.opacity(0.24))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func sourceColor(for text: String) -> Color {
+    if text.localizedCaseInsensitiveContains("SpaceMail") { return .teal }
+    if text.localizedCaseInsensitiveContains("Graph") { return .blue }
+    if text.localizedCaseInsensitiveContains("Mock") || text.localizedCaseInsensitiveContains("test") { return .purple }
+    if text.localizedCaseInsensitiveContains("manual") { return .secondary }
+    return result.entityType.color
+  }
+}
+
+private extension String {
+  func lineOrSentence(after marker: String) -> String? {
+    guard let markerRange = range(of: marker, options: [.caseInsensitive]) else { return nil }
+    let remainder = self[markerRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !remainder.isEmpty else { return nil }
+
+    let newlineBound = remainder.firstIndex(of: "\n")
+    let periodBound = remainder.firstIndex(of: ".")
+    let end = [newlineBound, periodBound].compactMap { $0 }.min() ?? remainder.endIndex
+    let value = remainder[..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? nil : String(value)
   }
 }
