@@ -2036,6 +2036,10 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case reconciliationIssue = "Reconciliation issue"
   case microsoft365MailboxConnection = "Microsoft 365 mailbox"
   case spaceMailIMAPConnection = "SpaceMail IMAP mailbox"
+  case trackedMailbox = "Tracked mailbox"
+  case shopifyConnection = "Shopify connection"
+  case sourceConnection = "Source connection"
+  case watchedFolder = "Watched folder"
   case settings = "Settings"
 
   var id: String { rawValue }

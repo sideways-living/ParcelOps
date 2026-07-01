@@ -10286,8 +10286,17 @@ final class ParcelOpsStore {
   }
 
   func addTrackedMailboxPlaceholder() {
-    mailboxes.append(TrackedMailbox(address: "new-mailbox@company.example", provider: .microsoft365, monitoredFolders: "Inbox", status: "Needs auth", lastChecked: "Never", routingRule: "New mailbox intake"))
+    let mailbox = TrackedMailbox(address: "new-mailbox@company.example", provider: .microsoft365, monitoredFolders: "Inbox", status: "Needs auth", lastChecked: "Never", routingRule: "New mailbox intake")
+    mailboxes.append(mailbox)
     persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .trackedMailbox,
+      entityID: mailbox.id.uuidString,
+      entityLabel: mailbox.address,
+      summary: "Tracked mailbox placeholder added.",
+      afterDetail: "\(mailbox.auditDetail)\nPlaceholder only. No mailbox was contacted and no OAuth, IMAP login, token, password, or network action occurred."
+    )
   }
 
   func addMicrosoft365MailboxConnectionPlaceholder() {
@@ -11551,18 +11560,45 @@ final class ParcelOpsStore {
   }
 
   func connectShopifyPlaceholder() {
-    shopifyConnections.append(ShopifyConnection(storeName: "New Shopify Store", storeDomain: "new-store.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Unassigned", status: "Needs OAuth", lastSync: "Never", isEnabled: false))
+    let connection = ShopifyConnection(storeName: "New Shopify Store", storeDomain: "new-store.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Unassigned", status: "Needs OAuth", lastSync: "Never", isEnabled: false)
+    shopifyConnections.append(connection)
     persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .shopifyConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.storeName,
+      summary: "Shopify planning placeholder added.",
+      afterDetail: "\(connection.auditDetail)\nPlaceholder only. No Shopify OAuth, API call, token, credential, product, order, or store data access occurred."
+    )
   }
 
   func addStoreLoginPlaceholder() {
-    connections.append(SourceConnection(name: "New supplier login", kind: .vaultLogin, account: "Password vault", status: "Needs setup", lastSync: "Never"))
+    let connection = SourceConnection(name: "New supplier login", kind: .vaultLogin, account: "Password vault", status: "Needs setup", lastSync: "Never")
+    connections.append(connection)
     persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .sourceConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.name,
+      summary: "Store login planning placeholder added.",
+      afterDetail: "\(connection.auditDetail)\nPlaceholder only. No password vault, credential, Keychain item, login, browser, or supplier portal action occurred."
+    )
   }
 
   func addWatchedFolderPlaceholder() {
-    watchedFolders.append(WatchedFolder(name: "Custom order folder", location: "Choose folder", platform: "iOS and macOS", fileTypes: "PDF, images", cadence: settings.folderScanCadence, status: "Needs permission", lastScan: "Never"))
+    let folder = WatchedFolder(name: "Custom order folder", location: "Choose folder", platform: "iOS and macOS", fileTypes: "PDF, images", cadence: settings.folderScanCadence, status: "Needs permission", lastScan: "Never")
+    watchedFolders.append(folder)
     persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .watchedFolder,
+      entityID: folder.id.uuidString,
+      entityLabel: folder.name,
+      summary: "Watched folder planning placeholder added.",
+      afterDetail: "\(folder.auditDetail)\nPlaceholder only. No file picker, folder permission request, background scan, OCR, import, or file access occurred."
+    )
   }
 
   func uploadWishlistPDFPlaceholder() {
@@ -13131,6 +13167,30 @@ private extension AcceptanceRecord {
 private extension WishlistItem {
   var auditDetail: String {
     "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); captured detail: \(capturedDetail)."
+  }
+}
+
+private extension TrackedMailbox {
+  var auditDetail: String {
+    "Address: \(address); provider: \(provider.rawValue); folders: \(monitoredFolders); status: \(status); last checked: \(lastChecked); routing rule: \(routingRule)."
+  }
+}
+
+private extension ShopifyConnection {
+  var auditDetail: String {
+    "Store: \(storeName); domain: \(storeDomain); mapped mailbox: \(mappedMailbox); mapped team: \(mappedTeam); status: \(status); last sync: \(lastSync); enabled: \(isEnabled ? "yes" : "no")."
+  }
+}
+
+private extension SourceConnection {
+  var auditDetail: String {
+    "Name: \(name); kind: \(kind.rawValue); account: \(account); status: \(status); last sync: \(lastSync)."
+  }
+}
+
+private extension WatchedFolder {
+  var auditDetail: String {
+    "Name: \(name); location: \(location); platform: \(platform); file types: \(fileTypes); cadence: \(cadence); status: \(status); last scan: \(lastScan)."
   }
 }
 
