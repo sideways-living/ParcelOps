@@ -1170,6 +1170,29 @@ struct FirstLiveMailboxTestCard: View {
       }
   }
 
+  private var pendingUncertainCount: Int {
+    latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
+  }
+
+  private var hasRefreshOutcome: Bool {
+    hasRealRefresh
+      && (
+        (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+          || (latestSpaceMailSummary?.importedCount ?? 0) > 0
+          || (latestSpaceMailSummary?.filteredCount ?? 0) > 0
+          || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
+          || pendingUncertainCount > 0
+      )
+  }
+
+  private var hasActionableIntake: Bool {
+    hasImportEvidence || pendingUncertainCount > 0
+  }
+
+  private var hasOnlyNonOrderOutcome: Bool {
+    hasRefreshOutcome && !hasActionableIntake
+  }
+
   private var hasInboxOrder: Bool {
     store.orders.contains { order in
       order.isInboxCreatedLocalOrder || order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
@@ -1192,7 +1215,9 @@ struct FirstLiveMailboxTestCard: View {
     if !hasSpaceMailSetup { return "First live mailbox test: setup needed" }
     if !hasSpaceMailCredential { return "First live mailbox test: credential needed" }
     if !hasRealRefresh { return "First live mailbox test: run refresh" }
-    if !hasImportEvidence { return "First live mailbox test: review results" }
+    if hasOnlyNonOrderOutcome { return "First live mailbox test: no order mail found" }
+    if pendingUncertainCount > 0 && !hasImportEvidence { return "First live mailbox test: review uncertain mail" }
+    if !hasRefreshOutcome { return "First live mailbox test: review results" }
     if !hasInboxOrder { return "First live mailbox test: create or link order" }
     if !hasSpaceMailAudit { return "First live mailbox test: confirm Audit" }
     return "First live mailbox test: ready to repeat"
@@ -1208,7 +1233,13 @@ struct FirstLiveMailboxTestCard: View {
     if !hasRealRefresh {
       return "Run the explicit real SpaceMail refresh. It is manual and read-only."
     }
-    if !hasImportEvidence {
+    if hasOnlyNonOrderOutcome {
+      return "The mixed-mailbox filter ran and kept non-order mail out of Inbox. Send or forward one clear order/tracking test email when you want to verify order creation."
+    }
+    if pendingUncertainCount > 0 && !hasImportEvidence {
+      return "Open Mailbox Monitor and import only the uncertain messages that clearly relate to an order."
+    }
+    if !hasRefreshOutcome {
       return "Review the latest fetched, duplicate, filtered, and uncertain counts before changing Inbox records."
     }
     if !hasInboxOrder {
@@ -1246,13 +1277,13 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: "Review intake",
-        detail: "Imported or filtered SpaceMail results are available for operator judgement.",
+        detail: "Imported, uncertain, filtered, or duplicate SpaceMail results are visible enough to explain the refresh outcome.",
         symbol: "tray.full.fill",
-        isComplete: hasImportEvidence || (latestSpaceMailSummary?.filteredCount ?? 0) > 0 || (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) > 0
+        isComplete: hasRefreshOutcome
       ),
       FirstLiveMailboxTestItem(
-        title: "Create order",
-        detail: "At least one confirmed intake row has become a local order or linked order.",
+        title: hasOnlyNonOrderOutcome ? "Wait for order mail" : "Create order",
+        detail: hasOnlyNonOrderOutcome ? "No likely order email was imported. Use a clear order/tracking test email before expecting an Inbox-created order." : "At least one confirmed intake row has become a local order or linked order.",
         symbol: "shippingbox.fill",
         isComplete: hasInboxOrder
       ),
@@ -1290,7 +1321,7 @@ struct FirstLiveMailboxTestCard: View {
           ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
           ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
           ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-          ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)", (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) > 0 ? .orange : .secondary)
+          ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount > 0 ? .orange : .secondary)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
