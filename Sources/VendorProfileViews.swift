@@ -316,6 +316,7 @@ struct VendorProfileRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var defaultContact: ContactDirectoryEntry? {
     guard let contactID = profile.defaultContactID else { return nil }
@@ -373,18 +374,39 @@ struct VendorProfileRow: View {
         }
       }
 
+      if let feedbackMessage {
+        VendorProfileActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(profile.isEnabled ? "Disable" : "Enable", systemImage: profile.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(profile.isEnabled ? "Disable" : "Enable", systemImage: profile.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = profile.isEnabled
+            ? "Vendor profile disabled locally. Existing linked records remain unchanged."
+            : "Vendor profile enabled locally. Confirm contact, account, and service notes before relying on it."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Vendor profile marked reviewed locally. No supplier, account, or mailbox system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this vendor profile for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this vendor profile. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Vendor profile removed locally. No supplier, account, credential, or mailbox system was changed."
+        }
           .buttonStyle(.bordered)
       }
 
@@ -447,6 +469,7 @@ struct VendorProfileRow: View {
     .sheet(isPresented: $isEditing) {
       VendorProfileEditView(profile: profile, contacts: contacts, accounts: accounts) { updatedProfile in
         onSave(updatedProfile)
+        feedbackMessage = "Vendor profile details saved locally. Recheck linked contacts, accounts, and service notes if values changed."
       }
     }
   }
@@ -491,6 +514,25 @@ struct VendorProfileRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct VendorProfileActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

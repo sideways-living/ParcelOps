@@ -271,6 +271,7 @@ struct SLAPolicyRow: View {
   var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -365,20 +366,44 @@ struct SLAPolicyRow: View {
         }
       }
 
+      if let feedbackMessage {
+        SLAPolicyActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(policy.isEnabled ? "Disable" : "Enable", systemImage: policy.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(policy.isEnabled ? "Disable" : "Enable", systemImage: policy.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = policy.isEnabled
+            ? "SLA policy disabled locally. It remains available for review but should not guide operator follow-up."
+            : "SLA policy enabled locally. Review response and escalation targets before relying on it operationally."
+        }
           .buttonStyle(.bordered)
-        Button("Evaluate", systemImage: "timer", action: onEvaluate)
+        Button("Evaluate", systemImage: "timer") {
+          onEvaluate()
+          feedbackMessage = "SLA policy evaluated locally against current ParcelOps records. No background job, notification, or external service ran."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "SLA policy marked reviewed locally. Confirm targets still match the manual operating process."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this SLA policy. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
-        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus") {
+          onCreateContact()
+          feedbackMessage = "Contact placeholder created from this SLA policy for local escalation reference."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "SLA policy removed locally. No notifications, calendars, or automation were changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -388,6 +413,7 @@ struct SLAPolicyRow: View {
     .sheet(isPresented: $isEditing) {
       SLAPolicyEditView(policy: policy) { updatedPolicy in
         onSave(updatedPolicy)
+        feedbackMessage = "SLA policy details saved locally. Recheck priority, targets, and review state before using it in daily flow."
       }
     }
   }
@@ -426,6 +452,25 @@ struct SLAPolicyRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct SLAPolicyActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

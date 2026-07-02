@@ -285,6 +285,7 @@ struct ExceptionPlaybookRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -381,18 +382,39 @@ struct ExceptionPlaybookRow: View {
         }
       }
 
+      if let feedbackMessage {
+        ExceptionPlaybookActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(playbook.isEnabled ? "Disable" : "Enable", systemImage: playbook.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(playbook.isEnabled ? "Disable" : "Enable", systemImage: playbook.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = playbook.isEnabled
+            ? "Exception playbook disabled locally. It remains in reference records but should not guide current operator action."
+            : "Exception playbook enabled locally. Confirm escalation and recommended steps before using it with live work."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Exception playbook marked reviewed locally. No automation, notification, or external escalation was triggered."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this exception playbook for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this playbook. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Exception playbook removed locally. No tasks, automations, or external systems were changed outside ParcelOps."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -402,6 +424,7 @@ struct ExceptionPlaybookRow: View {
     .sheet(isPresented: $isEditing) {
       ExceptionPlaybookEditView(playbook: playbook) { updatedPlaybook in
         onSave(updatedPlaybook)
+        feedbackMessage = "Exception playbook details saved locally. Recheck trigger summary, recommended steps, and escalation contact."
       }
     }
   }
@@ -443,6 +466,25 @@ struct ExceptionPlaybookRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct ExceptionPlaybookActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
