@@ -366,6 +366,7 @@ struct TimelineActivityRow: View {
   var acceptanceRecords: [AcceptanceRecord] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -404,10 +405,16 @@ struct TimelineActivityRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this timeline activity for local follow-up."
+        }
           .buttonStyle(.bordered)
           .disabled(!activity.supportsReviewTask)
-        Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
+        Button("Draft", systemImage: "square.and.pencil") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this timeline activity. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
           .disabled(!activity.supportsDraftMessage)
         if let store, let linkedOrder {
@@ -428,6 +435,10 @@ struct TimelineActivityRow: View {
         }
       }
 
+      if let feedbackMessage {
+        TimelineActivityActionFeedbackPanel(message: feedbackMessage)
+      }
+
       if activity.isInboxDispatchHandoffActivity {
         TimelineInboxDispatchCallout(activity: activity)
       }
@@ -446,6 +457,25 @@ struct TimelineActivityRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct TimelineActivityActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -315,6 +315,7 @@ struct ShipmentGroupRow: View {
   var onRemove: () -> Void
   @State private var draft: ShipmentGroup
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store else { return [] }
@@ -456,21 +457,39 @@ struct ShipmentGroupRow: View {
         Button(isEditing ? "Save" : "Edit", systemImage: isEditing ? "checkmark" : "pencil") {
           if isEditing {
             onSave(draft)
+            feedbackMessage = "Shipment group saved locally. Confirm primary order, destination, and dispatch context before handoff."
           } else {
             draft = group
+            feedbackMessage = nil
           }
           isEditing.toggle()
         }
         .buttonStyle(.bordered)
 
-        Button("Reviewed", systemImage: "checkmark.seal.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.seal.fill") {
+          onReviewed()
+          feedbackMessage = "Shipment group marked reviewed locally. No carrier, warehouse, or mailbox system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this shipment group for local dispatch follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
+        Button("Draft", systemImage: "square.and.pencil") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this shipment group. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Shipment group removed locally. No orders, carrier records, or mailbox messages were changed."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        ShipmentGroupActionFeedbackPanel(message: feedbackMessage)
       }
     }
     .padding(12)
@@ -543,6 +562,25 @@ struct ShipmentGroupContextStrip: View {
         Badge(group.groupName, color: group.riskLevel.color)
       }
     }
+  }
+}
+
+private struct ShipmentGroupActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
