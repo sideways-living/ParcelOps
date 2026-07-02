@@ -222,6 +222,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     createStoreDirectoryIfNeeded()
   }
 
+  static var defaultStoreDirectoryPath: String {
+    defaultStoreDirectory(fileManager: .default).path
+  }
+
+  static var persistedJSONFileNames: [String] {
+    StoreFile.allCases.map(\.rawValue).sorted()
+  }
+
   func loadOrders() -> [TrackedOrder] {
     load([TrackedOrder].self, from: .orders, defaultValue: SampleData.orders)
   }
@@ -637,7 +645,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     try? fileManager.moveItem(at: url, to: archiveURL)
   }
 
-  private enum StoreFile: String {
+  private enum StoreFile: String, CaseIterable {
     case orders = "orders.json"
     case mailEvents = "mail-events.json"
     case intakeEmails = "intake-emails.json"

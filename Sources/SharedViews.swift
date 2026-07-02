@@ -3042,6 +3042,14 @@ struct LocalDataSafetyCard: View {
       + store.auditEvents.count
   }
 
+  private var jsonStorePath: String {
+    JSONParcelOpsRepository.defaultStoreDirectoryPath
+  }
+
+  private var jsonFileCount: Int {
+    JSONParcelOpsRepository.persistedJSONFileNames.count
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -3062,12 +3070,19 @@ struct LocalDataSafetyCard: View {
 
       MetricStrip(items: [
         ("Tracked local records", "\(localRecordCount)", .blue),
+        ("JSON files", "\(jsonFileCount)", .teal),
         ("Audit events", "\(store.auditEvents.count)", .purple),
         ("Review queue", "\(store.reviewQueueCount)", store.reviewQueueCount == 0 ? .green : .orange),
         ("Open work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .teal)
       ])
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 180 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        safetyLine(
+          title: "Default JSON location",
+          detail: jsonStorePath,
+          symbol: "folder.fill",
+          color: .teal
+        )
         safetyLine(
           title: "Stored in local JSON",
           detail: "Orders, intake rows, import/acceptance records, tasks, handoffs, dispatch records, settings, and audit events.",
@@ -3085,6 +3100,12 @@ struct LocalDataSafetyCard: View {
           detail: "Real SpaceMail refresh remains manual and read-only. ParcelOps does not delete, move, flag, send, or mark mailbox messages read.",
           symbol: "envelope.badge.shield.half.filled",
           color: .teal
+        )
+        safetyLine(
+          title: "Corrupt JSON handling",
+          detail: "If a JSON file cannot be decoded, ParcelOps archives it with an invalid timestamp suffix and restores default sample data for that file.",
+          symbol: "archivebox.fill",
+          color: .purple
         )
         safetyLine(
           title: "Still disconnected",
