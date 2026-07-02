@@ -1199,6 +1199,7 @@ struct SpaceMailIMAPConnectionRow: View {
       }
 
       if connection.mailboxMode == .mixedFiltered {
+        spaceMailTestMessageTemplates
         spaceMailClassifierTest
       }
 
@@ -1249,6 +1250,91 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailTestMessageTemplates: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Classifier test message templates", systemImage: "doc.text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.indigo)
+        Spacer()
+        Badge("Local guide", color: .indigo)
+      }
+      Text("Use these as known-good manual samples when testing a mixed-use mailbox. They are examples only; this panel does not fetch mail, send mail, store secrets, or change mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], alignment: .leading, spacing: 8) {
+        spaceMailTestTemplateCard(
+          title: "Should import",
+          badge: "Imported",
+          color: .green,
+          subject: "Order TEST-123 shipped tracking ABC123",
+          body: "Order TEST-123 shipped tracking ABC123 to Melbourne.",
+          note: "Strong order/shipping signal plus order and tracking IDs."
+        )
+        spaceMailTestTemplateCard(
+          title: "Should be uncertain",
+          badge: "Uncertain",
+          color: .orange,
+          subject: "Delivery question",
+          body: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+          note: "Order-adjacent language without a reliable order or tracking ID."
+        )
+        spaceMailTestTemplateCard(
+          title: "Should filter",
+          badge: "Filtered",
+          color: .teal,
+          subject: "Final days for free delivery",
+          body: "Final days to get free delivery on your next purchase. View this email or unsubscribe.",
+          note: "Marketing/newsletter wording even though it contains weak delivery language."
+        )
+      }
+      Text("After sending a real sample to the mailbox, run manual refresh. Imported examples appear in Inbox, uncertain examples stay in this row for review, and filtered examples stay out of Inbox.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func spaceMailTestTemplateCard(title: String, badge: String, color: Color, subject: String, body: String, note: String) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Spacer()
+        Badge(badge, color: color)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Subject")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(subject)
+          .font(.caption2.monospaced())
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Body")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(body)
+          .font(.caption2.monospaced())
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Text(note)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var setupActions: some View {
