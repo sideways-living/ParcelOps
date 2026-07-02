@@ -937,6 +937,34 @@ final class ParcelOpsStore {
     )
   }
 
+  func spaceMailAssignedFollowUpSummaries(for connection: SpaceMailIMAPConnection) -> [String] {
+    let connectionID = connection.id.uuidString
+    let taskSummaries = reviewTasks
+      .filter { task in
+        (task.status != .completed || task.reviewState != .accepted)
+          && (task.linkedEntityID == connectionID
+            || task.title.localizedCaseInsensitiveContains("spacemail")
+            || task.summary.localizedCaseInsensitiveContains("spacemail"))
+      }
+      .map { task in
+        "Task: \(task.title) · \(task.status.rawValue) · \(task.assignee)"
+      }
+
+    let handoffSummaries = handoffNotes
+      .filter { note in
+        (note.status != .completed || note.reviewState != .accepted)
+          && (note.linkedEntityID == connectionID
+            || note.title.localizedCaseInsensitiveContains("spacemail")
+            || note.summary.localizedCaseInsensitiveContains("spacemail")
+            || note.notes.localizedCaseInsensitiveContains("spacemail"))
+      }
+      .map { note in
+        "Handoff: \(note.title) · \(note.status.rawValue) · \(note.assignee)"
+      }
+
+    return Array((handoffSummaries + taskSummaries).prefix(6))
+  }
+
   var microsoft365OAuthReadinessSummaries: [Microsoft365OAuthReadinessSummary] {
     microsoft365MailboxConnections.map { microsoft365OAuthReadinessSummary(for: $0) }
   }

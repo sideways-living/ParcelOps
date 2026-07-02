@@ -407,7 +407,11 @@ struct IntegrationsView: View {
             MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup to capture host, port, folder, mixed-mailbox mode, and Keychain credential status before manual refresh.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
-            SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in
+            SpaceMailIMAPConnectionRow(
+              connection: connection,
+              healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
+              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection)
+            ) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
               store.markSpaceMailIMAPConnectionReviewed(connection)
@@ -1106,6 +1110,7 @@ struct ActionGroupHeader: View {
 struct SpaceMailIMAPConnectionRow: View {
   var connection: SpaceMailIMAPConnection
   var healthSummary: SpaceMailIntakeHealthSummary
+  var assignedFollowUpSummaries: [String]
   var onSave: (SpaceMailIMAPConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
@@ -1190,6 +1195,7 @@ struct SpaceMailIMAPConnectionRow: View {
 
       spaceMailRefreshSummary
       spaceMailNextSteps
+      spaceMailCurrentHandoffTrail
       spaceMailShiftHandoffActions
       spaceMailReviewQueueSummary
 
@@ -1486,6 +1492,82 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailCurrentHandoffTrail: some View {
+    let recentHistory = Array(connection.refreshHistory.prefix(3))
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Current handoff trail", systemImage: "point.3.connected.trianglepath.dotted")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer()
+        Badge("\(assignedFollowUpSummaries.count) assigned", color: assignedFollowUpSummaries.isEmpty ? .secondary : .purple)
+      }
+
+      Text("This is the quick shift view: latest refresh outcomes plus open SpaceMail follow-up created from this mailbox. Use Audit only when you need the full event detail.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if recentHistory.isEmpty && assignedFollowUpSummaries.isEmpty {
+        Text("No refresh or SpaceMail follow-up has been recorded for this setup yet.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+      } else {
+        if !recentHistory.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(recentHistory) { entry in
+              VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                  Text(entry.eventType)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Spacer()
+                  Badge(entry.status, color: historyColor(for: entry.status))
+                }
+                Text("\(entry.importedCount) imported, \(entry.filteredNonOrderCount) filtered, \(entry.uncertainCount) uncertain")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                Text(entry.summary)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        if !assignedFollowUpSummaries.isEmpty {
+          VStack(alignment: .leading, spacing: 5) {
+            Text("Assigned follow-up")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.purple)
+            ForEach(Array(assignedFollowUpSummaries.prefix(4)), id: \.self) { summary in
+              Label(summary, systemImage: "checklist")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This panel reads local JSON state only. It does not fetch mail, read credentials, import messages, change classifier hints, or modify mailbox items.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var spaceMailShiftHandoffActions: some View {

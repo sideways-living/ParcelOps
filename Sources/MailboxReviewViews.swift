@@ -92,7 +92,11 @@ struct MailboxView: View {
             MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup, confirm host/folder details, set the Keychain password, then use either Mock SpaceMail refresh or the manual real read-only refresh.", symbol: "server.rack")
           }
           ForEach(store.spaceMailIMAPConnections) { connection in
-            SpaceMailIMAPConnectionRow(connection: connection, healthSummary: store.spaceMailIntakeHealthSummary(for: connection)) { updatedConnection in
+            SpaceMailIMAPConnectionRow(
+              connection: connection,
+              healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
+              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection)
+            ) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
               store.markSpaceMailIMAPConnectionReviewed(connection)
