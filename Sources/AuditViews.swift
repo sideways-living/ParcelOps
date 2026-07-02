@@ -562,6 +562,7 @@ private struct AuditActivityRow: View {
   var event: AuditEvent
   var onCreateTask: () -> Void
   @State private var showDetails = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -616,6 +617,10 @@ private struct AuditActivityRow: View {
         AuditDetailStack(event: event)
       }
 
+      if let feedbackMessage {
+        AuditTaskFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         if event.beforeDetail != nil || event.afterDetail != nil {
           Button(showDetails ? "Hide detail" : "Show detail", systemImage: "text.alignleft") {
@@ -623,7 +628,10 @@ private struct AuditActivityRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Create task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Audit follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -638,6 +646,7 @@ struct AuditEventRow: View {
   var event: AuditEvent
   var onCreateTask: () -> Void = {}
   @State private var showDetails = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -692,6 +701,10 @@ struct AuditEventRow: View {
         AuditDetailStack(event: event)
       }
 
+      if let feedbackMessage {
+        AuditTaskFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         if event.beforeDetail != nil || event.afterDetail != nil {
           Button(showDetails ? "Hide detail" : "Show detail", systemImage: "text.alignleft") {
@@ -699,12 +712,35 @@ struct AuditEventRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Create task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Audit follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
       }
     }
     .padding(12)
     .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct AuditTaskFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("The task is a local follow-up from this audit event. Open Tasks from the primary navigation to continue it.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
