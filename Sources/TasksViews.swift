@@ -26,6 +26,45 @@ struct TasksView: View {
     Array(store.draftMessagesNeedingReview.prefix(6))
   }
 
+  private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
+    store.spaceMailIntakeHealthSummaries
+  }
+
+  private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
+    store.spaceMailPostRefreshActionPlan
+  }
+
+  private var spaceMailFetchedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var spaceMailImportedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var spaceMailFilteredCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var spaceMailUncertainCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var pendingFilteredSpaceMailCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.pendingFilteredReviewCount }
+  }
+
+  private var spaceMailParserIssueCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
+  }
+
+  private var spaceMailFilteredOnlyOutcome: Bool {
+    spaceMailFetchedCount > 0
+      && spaceMailImportedCount == 0
+      && spaceMailUncertainCount == 0
+      && spaceMailFilteredCount > 0
+  }
+
   private var visibleDraftFollowUpItems: [DraftMessage] {
     let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     guard !query.isEmpty else { return draftFollowUpItems }
@@ -75,6 +114,7 @@ struct TasksView: View {
         header
         taskNextActionPanel
         taskScopePanel
+        spaceMailTaskEscalationPanel
         draftFollowUpPanel
         taskQueuePanel
         detailRoutes
@@ -277,6 +317,168 @@ struct TasksView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var spaceMailTaskEscalationPanel: some View {
+    SettingsPanel(title: "Mailbox-to-task boundary", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: spaceMailTaskEscalationSymbol)
+            .font(.title3)
+            .foregroundStyle(spaceMailTaskEscalationTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(spaceMailTaskEscalationTitle)
+              .font(.headline)
+            Text(spaceMailTaskEscalationDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(spaceMailUncertainCount)", spaceMailUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal),
+          ("Filtered review", "\(pendingFilteredSpaceMailCount)", pendingFilteredSpaceMailCount == 0 ? .secondary : .teal),
+          ("Parser issues", "\(spaceMailParserIssueCount)", spaceMailParserIssueCount == 0 ? .secondary : .orange),
+          ("Task links", "\(spaceMailLinkedTaskCount)", spaceMailLinkedTaskCount == 0 ? .secondary : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(spaceMailPostRefreshPlan.items) { item in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.symbol)
+                  .foregroundStyle(taskColor(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(item.title)
+                    .font(.caption.weight(.semibold))
+                  Text(item.actionLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(taskColor(for: item.tone))
+                  Text(item.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Badge("\(item.count)", color: taskColor(for: item.tone))
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(taskColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Create a task only when a person must own the follow-up. Imported order mail starts in Inbox, uncertain mail starts in Mailbox Monitor, and filtered mixed-mailbox examples stay out of Tasks unless manually promoted or converted into follow-up.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(spaceMailTaskEscalationTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Review imported mail", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label(spaceMailUncertainCount > 0 || pendingFilteredSpaceMailCount > 0 ? "Review SpaceMail examples" : "Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Check Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var spaceMailLinkedTaskCount: Int {
+    queueItems.filter { item in
+      item.linkedEntityType == .intakeEmail
+        || item.summary.localizedCaseInsensitiveContains("spacemail")
+        || item.title.localizedCaseInsensitiveContains("spacemail")
+        || item.summary.localizedCaseInsensitiveContains("intake")
+    }.count
+  }
+
+  private var spaceMailTaskEscalationTitle: String {
+    if spaceMailLinkedTaskCount > 0 { return "SpaceMail follow-up is assigned" }
+    if spaceMailImportedCount > 0 { return "Imported mail is waiting in Inbox" }
+    if spaceMailUncertainCount > 0 { return "Uncertain mail needs mailbox review" }
+    if spaceMailParserIssueCount > 0 { return "Parser diagnostics may need ownership" }
+    if spaceMailFilteredOnlyOutcome { return "Filtered mail did not create tasks" }
+    if spaceMailFetchedCount > 0 { return "Latest refresh did not create task work" }
+    return "Mailbox task escalation is clear"
+  }
+
+  private var spaceMailTaskEscalationDetail: String {
+    if spaceMailLinkedTaskCount > 0 {
+      return "\(spaceMailLinkedTaskCount) task or handoff references SpaceMail, intake, or forwarded-email context. Work those rows from the queue below."
+    }
+    if spaceMailImportedCount > 0 {
+      return "\(spaceMailImportedCount) likely order message reached Inbox. Create a task only if review needs a named owner or due date."
+    }
+    if spaceMailUncertainCount > 0 {
+      return "\(spaceMailUncertainCount) ambiguous SpaceMail preview is waiting outside Inbox. Import it, dismiss it, or create a task from Mailbox Monitor if someone must investigate."
+    }
+    if spaceMailParserIssueCount > 0 {
+      return "\(spaceMailParserIssueCount) parser diagnostic is present. Keep it as diagnostic context unless it needs assigned follow-up."
+    }
+    if spaceMailFilteredOnlyOutcome {
+      return "\(spaceMailFilteredCount) mixed-mailbox message was filtered out. That is a normal non-order outcome, not task backlog."
+    }
+    if spaceMailFetchedCount > 0 {
+      return "SpaceMail fetched mail but did not produce imported, uncertain, parser, or assigned follow-up work."
+    }
+    return "Run manual SpaceMail refresh from Mailbox Monitor when you need new intake; Tasks should remain focused on assigned work."
+  }
+
+  private var spaceMailTaskEscalationTone: Color {
+    if spaceMailLinkedTaskCount > 0 || spaceMailImportedCount > 0 || spaceMailUncertainCount > 0 { return .orange }
+    if spaceMailParserIssueCount > 0 { return .purple }
+    if spaceMailFilteredOnlyOutcome { return .green }
+    if spaceMailFetchedCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var spaceMailTaskEscalationSymbol: String {
+    if spaceMailLinkedTaskCount > 0 { return "checklist" }
+    if spaceMailImportedCount > 0 { return "tray.full.fill" }
+    if spaceMailUncertainCount > 0 { return "questionmark.folder.fill" }
+    if spaceMailParserIssueCount > 0 { return "text.magnifyingglass" }
+    if spaceMailFilteredOnlyOutcome { return "checkmark.seal.fill" }
+    return "tray.and.arrow.down.fill"
+  }
+
+  private func taskColor(for tone: String) -> Color {
+    switch tone.localizedLowercase {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    case "neutral":
+      return .teal
+    default:
+      return .blue
     }
   }
 
