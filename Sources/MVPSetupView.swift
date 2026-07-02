@@ -365,6 +365,16 @@ struct MVPHandsOnReleaseChecklist: View {
         }
 
         CompactActionRow {
+          Button("Seed local demo workflow", systemImage: "wand.and.stars") {
+            store.seedLocalInboxOrderDemoWorkflow()
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button("Import clear order test email", systemImage: "checklist.checked") {
+            store.importClearOrderIntakeTestMessage()
+          }
+          .buttonStyle(.bordered)
+
           NavigationLink {
             MailboxView(store: store)
           } label: {

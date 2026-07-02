@@ -4821,7 +4821,8 @@ final class ParcelOpsStore {
     importFetchedMailboxMessages(messages)
   }
 
-  func importClearOrderIntakeTestMessage() {
+  @discardableResult
+  func importClearOrderIntakeTestMessage() -> UUID? {
     let mailbox = localSampleTrackedMailbox()
     upsertTrackedMailbox(mailbox)
 
@@ -4839,6 +4840,9 @@ final class ParcelOpsStore {
     )
 
     let result = importFetchedMailboxMessages([message])
+    let intakeEmailID = mailboxIngestRecords.first {
+      $0.providerMessageID == message.providerMessageID && $0.sourceMailboxID == mailbox.id
+    }?.intakeEmailID
     logAudit(
       action: .evaluated,
       entityType: .trackedMailbox,
@@ -4846,6 +4850,50 @@ final class ParcelOpsStore {
       entityLabel: mailbox.address,
       summary: "Local clear order intake sample imported.",
       afterDetail: "Order: \(orderNumber)\nTracking: \(trackingNumber)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox was contacted. The sample used the provider-neutral fetched mailbox ingestion path so Inbox, parser diagnostics, duplicate metadata, JSON persistence, and Audit behave like a real captured message."
+    )
+    return intakeEmailID
+  }
+
+  func seedLocalInboxOrderDemoWorkflow() {
+    guard let intakeEmailID = importClearOrderIntakeTestMessage(),
+          let intakeEmail = intakeEmails.first(where: { $0.id == intakeEmailID }) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .intakeEmail,
+        entityID: "local-demo-workflow",
+        entityLabel: "Local demo workflow",
+        summary: "Local demo workflow could not start.",
+        afterDetail: "ParcelOps could not find the locally imported sample intake email. No external service, mailbox fetch, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    createOrder(from: intakeEmail)
+
+    guard let refreshedEmail = intakeEmails.first(where: { $0.id == intakeEmailID }),
+          let orderID = refreshedEmail.linkedOrderID,
+          let order = orders.first(where: { $0.id == orderID }) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .intakeEmail,
+        entityID: intakeEmailID.uuidString,
+        entityLabel: intakeEmail.auditLabel,
+        summary: "Local demo workflow stopped after intake import.",
+        afterDetail: "The sample intake email was imported, but no linked order was found after local order creation. Check Inbox and Orders. No external service, mailbox fetch, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    createDispatchSetup(for: order)
+    createReviewTask(from: order)
+
+    logAudit(
+      action: .evaluated,
+      entityType: .order,
+      entityID: order.id.uuidString,
+      entityLabel: order.orderNumber,
+      summary: "Local Inbox-to-Dispatch demo workflow seeded.",
+      afterDetail: "Created a clear local intake email, created a linked order, added dispatch setup where missing, and added an order follow-up task using existing local workflow methods.\nOrder: \(order.orderNumber)\nTracking: \(order.trackingNumber)\nNo mailbox was contacted or mutated. No external service, carrier API, Shopify API, scanner, notification, or outbound email action occurred."
     )
   }
 

@@ -605,6 +605,12 @@ struct DashboardView: View {
         }
           .buttonStyle(.bordered)
           .help("Imports one clear local order/tracking test email through the provider-neutral intake path.")
+        Button("Seed demo workflow", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+          feedbackMessage = "Local demo workflow seeded. Check Inbox, Orders, Dispatch, Tasks, and Audit for the linked handoff trail."
+        }
+          .buttonStyle(.bordered)
+          .help("Creates a local intake email, linked order, dispatch setup, and follow-up task without contacting external services.")
         Button("Import sample mail batch", systemImage: "tray.and.arrow.down.fill") {
           store.syncSources()
           feedbackMessage = "Local sample mailbox batch imported through the same intake path used for manual testing. No external mailbox was contacted."
@@ -1154,6 +1160,11 @@ struct MVPHandsOnDashboardStatus: View {
           store.importClearOrderIntakeTestMessage()
         }
         .buttonStyle(.borderedProminent)
+
+        Button("Seed demo workflow", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.bordered)
 
         NavigationLink {
           InboxView(store: store)
