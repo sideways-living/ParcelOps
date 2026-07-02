@@ -2278,6 +2278,177 @@ struct SpaceMailMVPReadinessCard: View {
   }
 }
 
+struct OperatorMVPReadinessCard: View {
+  var store: ParcelOpsStore
+
+  private var checks: [(title: String, detail: String, isComplete: Bool, tone: String, symbol: String)] {
+    let hasSpaceMailSetup = !store.spaceMailIMAPConnections.isEmpty
+    let hasSpaceMailCredential = store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+    let hasMailboxRefresh = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasInboxEvidence = !store.intakeEmails.isEmpty || !store.importQueueItems.isEmpty || !store.acceptanceRecords.isEmpty
+    let hasInboxOrder = store.orders.contains { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder }
+    let hasDispatchContext = !store.shipmentManifestRecords.isEmpty && !store.dispatchReadinessChecklists.isEmpty
+    let hasOpenWorkRouting = !store.openWorkbenchItems.isEmpty || !store.reviewTasks.isEmpty || !store.handoffNotes.isEmpty
+    let hasAuditTrail = store.auditEvents.contains { event in
+      [.spaceMailIMAPConnection, .intakeEmail, .order, .reviewTask, .handoffNote, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
+    }
+
+    return [
+      (
+        "Mailbox setup",
+        hasSpaceMailSetup ? "SpaceMail setup exists for manual read-only intake." : "Add or review SpaceMail setup before expecting real intake.",
+        hasSpaceMailSetup,
+        hasSpaceMailSetup ? "success" : "warning",
+        "server.rack"
+      ),
+      (
+        "Credential path",
+        hasSpaceMailCredential ? "A Keychain credential reference is available or marked ready." : "Set/check the SpaceMail Keychain password from Mailbox Monitor or Settings.",
+        hasSpaceMailCredential,
+        hasSpaceMailCredential ? "success" : "attention",
+        "key.horizontal.fill"
+      ),
+      (
+        "Manual refresh evidence",
+        hasMailboxRefresh ? "At least one manual refresh has produced local result evidence." : "Run a manual SpaceMail refresh when credentials are ready.",
+        hasMailboxRefresh,
+        hasMailboxRefresh ? "success" : "attention",
+        "arrow.down.to.line.compact"
+      ),
+      (
+        "Inbox evidence",
+        hasInboxEvidence ? "Inbox/import/acceptance data exists for local triage." : "Import or seed intake before testing the daily operator queue.",
+        hasInboxEvidence,
+        hasInboxEvidence ? "success" : "warning",
+        "tray.full.fill"
+      ),
+      (
+        "Inbox to Orders handoff",
+        hasInboxOrder ? "At least one order has Inbox/import source context." : "Create or link one order from confirmed intake to test the core handoff.",
+        hasInboxOrder,
+        hasInboxOrder ? "success" : "attention",
+        "link.badge.plus"
+      ),
+      (
+        "Dispatch context",
+        hasDispatchContext ? "Manifest and readiness records are available for outbound testing." : "Use Dispatch setup after an order is confirmed.",
+        hasDispatchContext,
+        hasDispatchContext ? "success" : "attention",
+        "paperplane.fill"
+      ),
+      (
+        "Work routing",
+        hasOpenWorkRouting ? "Workbench, Tasks, or Handoffs have local follow-up routes." : "Create a task or handoff from Inbox/Workbench/Audit when follow-up is needed.",
+        hasOpenWorkRouting,
+        hasOpenWorkRouting ? "success" : "attention",
+        "checklist"
+      ),
+      (
+        "Audit trail",
+        hasAuditTrail ? "Audit has workflow evidence for intake, order, task, or dispatch actions." : "Perform one local action and confirm it appears in Audit.",
+        hasAuditTrail,
+        hasAuditTrail ? "success" : "warning",
+        "list.clipboard.fill"
+      )
+    ]
+  }
+
+  private var completeCount: Int {
+    checks.filter(\.isComplete).count
+  }
+
+  private var tone: String {
+    if completeCount == checks.count { return "success" }
+    if completeCount >= max(checks.count - 2, 1) { return "attention" }
+    return "warning"
+  }
+
+  private var color: Color {
+    color(for: tone)
+  }
+
+  private var title: String {
+    if completeCount == checks.count {
+      return "Operator MVP is ready for hands-on use"
+    }
+    if completeCount >= max(checks.count - 2, 1) {
+      return "Operator MVP is close to usable"
+    }
+    return "Operator MVP still needs setup evidence"
+  }
+
+  private var nextAction: String {
+    checks.first { !$0.isComplete }?.detail ?? "Run a short supervised pass through Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Settings."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "gauge.with.dots.needle.67percent")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text("A local-only readiness check across the primary operator flow. It uses existing JSON-backed records and audit evidence only.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(completeCount)/\(checks.count)", color: color)
+      }
+
+      Text("Next: \(nextAction)")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(checks, id: \.title) { check in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(check.title, systemImage: check.isComplete ? "checkmark.circle.fill" : check.symbol)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: check.tone))
+              .lineLimit(2)
+            Text(check.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: check.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Boundaries: this card does not run IMAP, read Keychain credentials, mutate mailbox messages, call Shopify/carrier APIs, start background jobs, or send notifications.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailTestRunGuide: View {
   var summary: SpaceMailMVPReadinessSummary
 

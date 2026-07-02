@@ -195,6 +195,7 @@ struct DashboardView: View {
           symbol: "map.fill"
         )
         MVPReadinessCallout(store: store)
+        OperatorMVPReadinessCard(store: store)
         MVPHandsOnDashboardStatus(store: store)
         FirstLiveMailboxTestCard(store: store)
         dailyOperatorStart

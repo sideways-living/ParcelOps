@@ -14,6 +14,7 @@ struct MVPSetupView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         MVPUsableVersionPanel(store: store)
+        OperatorMVPReadinessCard(store: store)
 
         MVPWorkflowGuide(
           title: "First usable workflow",
