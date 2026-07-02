@@ -160,16 +160,16 @@ enum SampleData {
       tenantDomainHint: "parcelops.example",
       mailboxAddress: "tracking-intake@parcelops.example",
       monitoredFolderNames: "Inbox, Forwarded Orders",
-      connectionStatus: "Local setup only",
+      connectionStatus: "Advanced setup only",
       lastManualRefreshDate: "Never",
-      setupNotes: "OAuth and Microsoft Graph are not connected. Use simulated refresh to test intake parsing.",
+      setupNotes: "Microsoft 365 is an advanced/testing path. Use mock auth or explicit real sign-in plus manual Graph refresh only when needed.",
       reviewState: .needsReview,
       tenantIDPlaceholder: "tenant-id-to-confirm",
       clientIDPlaceholder: "client-id-to-confirm",
       redirectURIPlaceholder: MSALMicrosoft365AuthAdapter.redirectURI,
-      requestedScopesSummary: "User.Read now; Mail.Read planned later",
+      requestedScopesSummary: "User.Read for sign-in; Mail.Read for manual read-only Graph refresh",
       oauthReadinessStatus: "Needs admin consent notes",
-      consentAdminNotes: "Confirm Entra app registration owner and mailbox read consent before real OAuth is added.",
+      consentAdminNotes: "Confirm Entra app registration owner and delegated mailbox read consent before real sign-in or Graph refresh.",
       oauthImplementationPlanStatus: "Needs token storage decision"
     ),
     Microsoft365MailboxConnection(
@@ -184,7 +184,7 @@ enum SampleData {
       tenantIDPlaceholder: "",
       clientIDPlaceholder: "",
       redirectURIPlaceholder: MSALMicrosoft365AuthAdapter.redirectURI,
-      requestedScopesSummary: "User.Read now; Mail.Read planned later",
+      requestedScopesSummary: "User.Read for sign-in; Mail.Read for manual read-only Graph refresh",
       oauthReadinessStatus: "Missing tenant and client placeholders",
       consentAdminNotes: "Local planning only. No OAuth flow runs and no tokens are requested.",
       oauthImplementationPlanStatus: "Not reviewed"
@@ -201,8 +201,8 @@ enum SampleData {
       folderName: "INBOX",
       connectionStatus: "Mock configured",
       lastManualRefreshDate: "Never",
-      setupNotes: "SpaceMail IMAP planning placeholder. Confirm the real IMAP host in SpaceMail settings before enabling real refresh.",
-      credentialStorageStatus: "Password not stored; Keychain planned",
+      setupNotes: "SpaceMail IMAP setup placeholder. Confirm the real IMAP host, folder, mixed-mailbox mode, and Keychain credential before manual refresh.",
+      credentialStorageStatus: "Password not stored; Keychain ready",
       mailboxMode: .mixedFiltered,
       reviewState: .needsReview
     )
