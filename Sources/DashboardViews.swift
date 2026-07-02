@@ -197,6 +197,7 @@ struct DashboardView: View {
         MVPReadinessCallout(store: store)
         OperatorMVPReadinessCard(store: store)
         MVPHandsOnDashboardStatus(store: store)
+        LocalDemoWorkflowStatusCard(store: store)
         FirstLiveMailboxTestCard(store: store)
         dailyOperatorStart
 
@@ -1182,6 +1183,146 @@ struct MVPHandsOnDashboardStatus: View {
       }
 
       Text("This card is local-only. It does not trigger refresh, background sync, mailbox mutation, Shopify, carrier APIs, OCR, scanners, notifications, or outbound email.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+private struct LocalDemoWorkflowStatusCard: View {
+  var store: ParcelOpsStore
+
+  private var latestDemoOrder: TrackedOrder? {
+    store.orders.first { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+  }
+
+  private var linkedIntakeCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.intakeEmails.filter { $0.linkedOrderID == order.id }.count
+  }
+
+  private var manifestCount: Int {
+    latestDemoOrder.map { store.suggestedShipmentManifestRecords(for: $0).count } ?? 0
+  }
+
+  private var checklistCount: Int {
+    latestDemoOrder.map { store.suggestedDispatchReadinessChecklists(for: $0).count } ?? 0
+  }
+
+  private var openTaskCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.reviewTasks.filter {
+      $0.linkedEntityType == .order
+        && $0.linkedEntityID == order.id.uuidString
+        && $0.status != .completed
+    }.count
+  }
+
+  private var auditCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.auditEvents.filter {
+      $0.entityID == order.id.uuidString
+        || $0.entityLabel.localizedCaseInsensitiveContains(order.orderNumber)
+        || $0.afterDetail?.localizedCaseInsensitiveContains(order.orderNumber) == true
+    }.count
+  }
+
+  private var completedCount: Int {
+    [
+      latestDemoOrder != nil,
+      linkedIntakeCount > 0,
+      manifestCount > 0 && checklistCount > 0,
+      openTaskCount > 0,
+      auditCount > 0
+    ].filter { $0 }.count
+  }
+
+  private var tone: Color {
+    if latestDemoOrder == nil { return .orange }
+    if completedCount >= 5 { return .green }
+    return .teal
+  }
+
+  private var title: String {
+    guard let order = latestDemoOrder else { return "No local demo workflow seeded yet" }
+    return "Latest demo workflow: \(order.orderNumber)"
+  }
+
+  private var detail: String {
+    guard let order = latestDemoOrder else {
+      return "Seed a local demo workflow to create a clear intake email, linked order, dispatch setup, follow-up task, and audit trail without relying on SpaceMail."
+    }
+    return "\(order.store) • \(order.trackingNumber) • \(order.destination). Use this as the known-good path when testing Inbox, Orders, Dispatch, Tasks, and Audit."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Local demo workflow", symbol: "wand.and.stars") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: latestDemoOrder == nil ? "wand.and.stars" : "checkmark.seal.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge("\(completedCount)/5", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Order", latestDemoOrder == nil ? "Missing" : "Ready", latestDemoOrder == nil ? .orange : .green),
+        ("Inbox link", "\(linkedIntakeCount)", linkedIntakeCount == 0 ? .orange : .green),
+        ("Dispatch", "\(manifestCount + checklistCount)", manifestCount + checklistCount == 0 ? .orange : .purple),
+        ("Open tasks", "\(openTaskCount)", openTaskCount == 0 ? .secondary : .orange),
+        ("Audit", "\(auditCount)", auditCount == 0 ? .orange : .purple)
+      ])
+
+      CompactActionRow {
+        Button(latestDemoOrder == nil ? "Seed demo workflow" : "Seed another demo", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label("Inbox", systemImage: "tray.full.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          OrdersView(store: store)
+        } label: {
+          Label("Orders", systemImage: "shippingbox.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          DispatchView(store: store)
+        } label: {
+          Label("Dispatch", systemImage: "paperplane.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Audit", systemImage: "list.clipboard.fill")
+        }
+        .buttonStyle(.bordered)
+      }
+
+      Text("This demo status only reads local JSON-backed records. It does not contact mailboxes, mutate mailbox messages, call carrier or Shopify APIs, send messages, schedule jobs, or store credentials.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
