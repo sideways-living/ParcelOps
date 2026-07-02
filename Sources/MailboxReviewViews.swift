@@ -685,6 +685,7 @@ struct IntakeEmailRow: View {
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedOrder: TrackedOrder? {
     orders.first { $0.id == email.linkedOrderID }
@@ -806,6 +807,7 @@ struct IntakeEmailRow: View {
           ForEach(orders) { order in
             Button("\(order.orderNumber) • \(order.store)") {
               onLinkOrder(order)
+              feedbackMessage = "Intake linked to \(order.orderNumber). Check Orders."
             }
           }
         } label: {
@@ -814,22 +816,66 @@ struct IntakeEmailRow: View {
         .buttonStyle(.bordered)
 
         if hasCriticalMissingFields {
-          Button("Create partial order", systemImage: "plus.circle.fill", action: onCreateOrder)
+          Button("Create partial order", systemImage: "plus.circle.fill") {
+            onCreateOrder()
+            feedbackMessage = "Partial order created and linked locally. Check Orders."
+          }
             .buttonStyle(.bordered)
         } else {
-          Button("Create order", systemImage: "plus.circle.fill", action: onCreateOrder)
+          Button("Create order", systemImage: "plus.circle.fill") {
+            onCreateOrder()
+            feedbackMessage = "Order created and linked locally. Check Orders."
+          }
             .buttonStyle(.borderedProminent)
         }
-        Button("Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Mark reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Intake marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Ignore", systemImage: "trash", action: onIgnore)
+        Button("Ignore", systemImage: "trash") {
+          onIgnore()
+          feedbackMessage = "Intake ignored locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reprocess", systemImage: "arrow.triangle.2.circlepath", action: onReprocess)
+        Button("Reprocess", systemImage: "arrow.triangle.2.circlepath") {
+          onReprocess()
+          feedbackMessage = "Intake reprocessed from stored preview."
+        }
           .buttonStyle(.bordered)
-        Button("Create task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Create draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created locally."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        VStack(alignment: .leading, spacing: 8) {
+          Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+
+          if feedbackMessage.localizedCaseInsensitiveContains("order") {
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              Label("Open Orders", systemImage: "shippingbox.fill")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+          }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.green.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
       }
 
       VStack(alignment: .leading, spacing: 8) {

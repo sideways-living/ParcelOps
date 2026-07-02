@@ -846,14 +846,26 @@ private struct InboxTriageRow: View {
       }
 
       if let feedbackMessage {
-        Label(feedbackMessage, systemImage: "checkmark.circle.fill")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.green)
-          .padding(.horizontal, 10)
-          .padding(.vertical, 7)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(.green.opacity(0.12))
-          .clipShape(RoundedRectangle(cornerRadius: 8))
+        VStack(alignment: .leading, spacing: 8) {
+          Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+
+          if feedbackMessage.localizedCaseInsensitiveContains("order") {
+            NavigationLink {
+              OrdersView(store: store)
+            } label: {
+              Label("Open Orders", systemImage: "shippingbox.fill")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+          }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.green.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
       }
     }
     .padding(12)
