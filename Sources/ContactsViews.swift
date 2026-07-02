@@ -322,6 +322,7 @@ struct ContactDirectoryRow: View {
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -362,6 +363,10 @@ struct ContactDirectoryRow: View {
         }
       }
 
+      if let feedbackMessage {
+        ContactActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
@@ -373,17 +378,35 @@ struct ContactDirectoryRow: View {
         }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(contact.isEnabled ? "Disable" : "Enable", systemImage: contact.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(contact.isEnabled ? "Disable" : "Enable", systemImage: contact.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = contact.isEnabled ? "Contact disabled locally." : "Contact enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Contact marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from contact. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+        Button("Account", systemImage: "key.badge.plus") {
+          onCreateAccount()
+          feedbackMessage = "Account placeholder created from contact. Check Accounts."
+        }
           .buttonStyle(.bordered)
-        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+        Button("Profile", systemImage: "building.2.crop.circle") {
+          onCreateProfile()
+          feedbackMessage = "Vendor profile created from contact. Check Vendor Profiles."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Contact removed locally."
+        }
           .buttonStyle(.bordered)
       }
 
@@ -438,8 +461,10 @@ struct ContactDirectoryRow: View {
           ForEach(suggestedAccounts) { account in
             AccountSuggestionRow(account: account) {
               onTaskFromAccount(account)
+              feedbackMessage = "Follow-up task created from linked account. Check Tasks."
             } onCreateDraft: {
               onDraftFromAccount(account)
+              feedbackMessage = "Draft created from linked account. Check Drafts."
             }
           }
         }
@@ -453,8 +478,10 @@ struct ContactDirectoryRow: View {
           ForEach(suggestedProfiles) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
+              feedbackMessage = "Follow-up task created from linked profile. Check Tasks."
             } onCreateDraft: {
               onDraftFromProfile(profile)
+              feedbackMessage = "Draft created from linked profile. Check Drafts."
             }
           }
         }
@@ -476,6 +503,7 @@ struct ContactDirectoryRow: View {
     .sheet(isPresented: $isEditing) {
       ContactDirectoryEditView(contact: contact) { updatedContact in
         onSave(updatedContact)
+        feedbackMessage = "Contact saved locally."
       }
     }
   }
@@ -514,6 +542,67 @@ struct ContactDirectoryRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct ContactActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local reference follow-up. No contact sync, account login, outbound email, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("account") {
+            NavigationLink {
+              AccountsView(store: store)
+            } label: {
+              Label("Open Accounts", systemImage: "key.horizontal.fill")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("profile") {
+            NavigationLink {
+              VendorProfilesView(store: store)
+            } label: {
+              Label("Open Vendor Profiles", systemImage: "building.2.crop.circle.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

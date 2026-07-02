@@ -342,6 +342,7 @@ struct AccountCredentialRow: View {
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedContact: ContactDirectoryEntry? {
     guard let contactID = account.linkedContactID else { return nil }
@@ -391,6 +392,10 @@ struct AccountCredentialRow: View {
         }
       }
 
+      if let feedbackMessage {
+        AccountActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
@@ -402,19 +407,40 @@ struct AccountCredentialRow: View {
         }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(account.isEnabled ? "Disable" : "Enable", systemImage: account.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(account.isEnabled ? "Disable" : "Enable", systemImage: account.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = account.isEnabled ? "Account placeholder disabled locally." : "Account placeholder enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Checked", systemImage: "checkmark.seal.fill", action: onChecked)
+        Button("Checked", systemImage: "checkmark.seal.fill") {
+          onChecked()
+          feedbackMessage = "Account placeholder checked locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Account placeholder marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from account. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from account. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+        Button("Profile", systemImage: "building.2.crop.circle") {
+          onCreateProfile()
+          feedbackMessage = "Vendor profile created from account. Check Vendor Profiles."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Account placeholder removed locally."
+        }
           .buttonStyle(.bordered)
       }
 
@@ -469,8 +495,10 @@ struct AccountCredentialRow: View {
           ForEach(suggestedProfiles) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
+              feedbackMessage = "Follow-up task created from linked profile. Check Tasks."
             } onCreateDraft: {
               onDraftFromProfile(profile)
+              feedbackMessage = "Draft created from linked profile. Check Drafts."
             }
           }
         }
@@ -492,6 +520,7 @@ struct AccountCredentialRow: View {
     .sheet(isPresented: $isEditing) {
       AccountCredentialEditView(account: account, contacts: contacts) { updatedAccount in
         onSave(updatedAccount)
+        feedbackMessage = "Account placeholder saved locally."
       }
     }
   }
@@ -533,6 +562,60 @@ struct AccountCredentialRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct AccountActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local account/reference tracking only. No login, credential sync, Keychain change, outbound email, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("profile") {
+            NavigationLink {
+              VendorProfilesView(store: store)
+            } label: {
+              Label("Open Vendor Profiles", systemImage: "building.2.crop.circle.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
