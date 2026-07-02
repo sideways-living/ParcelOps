@@ -446,6 +446,7 @@ struct ShipmentManifestRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -514,24 +515,52 @@ struct ShipmentManifestRow: View {
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Prepared", systemImage: "checkmark.circle.fill", action: onPrepared)
+        Button("Prepared", systemImage: "checkmark.circle.fill") {
+          onPrepared()
+          feedbackMessage = "Manifest marked prepared locally."
+        }
           .buttonStyle(.bordered)
-        Button("Dispatched", systemImage: "paperplane.fill", action: onDispatched)
+        Button("Dispatched", systemImage: "paperplane.fill") {
+          onDispatched()
+          feedbackMessage = "Manifest marked dispatched locally."
+        }
           .buttonStyle(.bordered)
-        Button("Handed off", systemImage: "person.badge.shield.checkmark.fill", action: onHandedOff)
+        Button("Handed off", systemImage: "person.badge.shield.checkmark.fill") {
+          onHandedOff()
+          feedbackMessage = "Manifest handoff recorded locally."
+        }
           .buttonStyle(.bordered)
-        Button("Blocked", systemImage: "exclamationmark.triangle.fill", action: onBlocked)
+        Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+          onBlocked()
+          feedbackMessage = "Manifest blocked for dispatch review."
+        }
           .buttonStyle(.bordered)
-        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
+        Button("Reopen", systemImage: "arrow.counterclockwise") {
+          onReopen()
+          feedbackMessage = "Manifest reopened for dispatch review."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Manifest marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Manifest follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Manifest draft message created locally."
+        }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        ShipmentManifestFeedbackPanel(message: feedbackMessage, store: store)
       }
 
       if !dispatchChecklists.isEmpty {
@@ -607,6 +636,48 @@ private extension ShipmentManifestRecord {
           || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
           || notes.localizedCaseInsensitiveContains("Inbox handoff")
       )
+  }
+}
+
+private struct ShipmentManifestFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      if let store {
+        CompactActionRow {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

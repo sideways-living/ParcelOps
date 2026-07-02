@@ -449,6 +449,7 @@ struct DispatchReadinessRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -519,22 +520,47 @@ struct DispatchReadinessRow: View {
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Ready", systemImage: "checkmark.circle.fill", action: onReady)
+        Button("Ready", systemImage: "checkmark.circle.fill") {
+          onReady()
+          feedbackMessage = "Readiness checklist marked ready locally."
+        }
           .buttonStyle(.bordered)
-        Button("Blocked", systemImage: "exclamationmark.triangle.fill", action: onBlocked)
+        Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
+          onBlocked()
+          feedbackMessage = "Readiness checklist blocked for review."
+        }
           .buttonStyle(.bordered)
-        Button("Complete", systemImage: "checkmark.seal.fill", action: onCompleted)
+        Button("Complete", systemImage: "checkmark.seal.fill") {
+          onCompleted()
+          feedbackMessage = "Readiness checklist completed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
+        Button("Reopen", systemImage: "arrow.counterclockwise") {
+          onReopen()
+          feedbackMessage = "Readiness checklist reopened for review."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Readiness checklist marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Readiness follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Readiness draft message created locally."
+        }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        DispatchReadinessFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -605,6 +631,48 @@ private extension DispatchReadinessChecklist {
           || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
           || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
       )
+  }
+}
+
+private struct DispatchReadinessFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      if let store {
+        CompactActionRow {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

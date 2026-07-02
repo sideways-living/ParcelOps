@@ -1553,6 +1553,7 @@ private enum DispatchQueueSource {
 private struct DispatchQueueRow: View {
   var item: DispatchQueueItem
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var linkedOrder: TrackedOrder? {
     switch item.source {
@@ -1658,67 +1659,86 @@ private struct DispatchQueueRow: View {
         case .manifest(let record):
           Button("Prepared", systemImage: "checkmark.circle.fill") {
             store.markShipmentManifestPrepared(record)
+            feedbackMessage = "Manifest marked prepared locally."
           }
           .buttonStyle(.bordered)
           Button("Dispatched", systemImage: "paperplane.fill") {
             store.markShipmentManifestDispatched(record)
+            feedbackMessage = "Manifest marked dispatched locally."
           }
           .buttonStyle(.bordered)
           Button("Handed off", systemImage: "person.badge.shield.checkmark.fill") {
             store.markShipmentManifestHandedOff(record)
+            feedbackMessage = "Manifest handoff recorded locally."
           }
           .buttonStyle(.borderedProminent)
           Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
             store.markShipmentManifestBlocked(record)
+            feedbackMessage = "Manifest blocked for review."
           }
           .buttonStyle(.bordered)
           Button("Reopen", systemImage: "arrow.counterclockwise") {
             store.reopenShipmentManifest(record)
+            feedbackMessage = "Manifest reopened for review."
           }
           .buttonStyle(.bordered)
           Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
             store.markShipmentManifestReviewed(record)
+            feedbackMessage = "Manifest marked reviewed locally."
           }
           .buttonStyle(.bordered)
           Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: record)
+            feedbackMessage = "Manifest follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
           Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: record)
+            feedbackMessage = "Manifest draft message created locally."
           }
           .buttonStyle(.bordered)
 
         case .checklist(let checklist):
           Button("Ready", systemImage: "checkmark.circle.fill") {
             store.markDispatchChecklistReady(checklist)
+            feedbackMessage = "Readiness checklist marked ready locally."
           }
           .buttonStyle(.bordered)
           Button("Complete", systemImage: "checkmark.seal.fill") {
             store.markDispatchChecklistCompleted(checklist)
+            feedbackMessage = "Readiness checklist completed locally."
           }
           .buttonStyle(.borderedProminent)
           Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
             store.markDispatchChecklistBlocked(checklist)
+            feedbackMessage = "Readiness checklist blocked for review."
           }
           .buttonStyle(.bordered)
           Button("Reopen", systemImage: "arrow.counterclockwise") {
             store.reopenDispatchChecklist(checklist)
+            feedbackMessage = "Readiness checklist reopened for review."
           }
           .buttonStyle(.bordered)
           Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
             store.markDispatchChecklistReviewed(checklist)
+            feedbackMessage = "Readiness checklist marked reviewed locally."
           }
           .buttonStyle(.bordered)
           Button("Create task", systemImage: "checklist") {
             store.createReviewTask(from: checklist)
+            feedbackMessage = "Readiness follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
           Button("Create draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: checklist)
+            feedbackMessage = "Readiness draft message created locally."
           }
           .buttonStyle(.bordered)
         }
+      }
+
+      if let feedbackMessage {
+        DispatchQueueFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -1736,6 +1756,51 @@ private struct DispatchQueueRow: View {
     case .checklist:
       DispatchReadinessView(store: store)
     }
+  }
+}
+
+private struct DispatchQueueFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        NavigationLink {
+          ShipmentManifestsView(store: store)
+        } label: {
+          Label("Open Manifests", systemImage: "list.bullet.clipboard.fill")
+        }
+        NavigationLink {
+          DispatchReadinessView(store: store)
+        } label: {
+          Label("Open Readiness", systemImage: "checkmark.rectangle.stack.fill")
+        }
+        if message.localizedCaseInsensitiveContains("task") {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
