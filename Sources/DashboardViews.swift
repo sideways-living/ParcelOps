@@ -196,6 +196,7 @@ struct DashboardView: View {
         )
         MVPReadinessCallout(store: store)
         MVPHandsOnDashboardStatus(store: store)
+        FirstLiveMailboxTestCard(store: store)
         dailyOperatorStart
 
         VStack(alignment: .leading, spacing: 6) {
@@ -1135,6 +1136,215 @@ struct MVPHandsOnDashboardStatus: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+struct FirstLiveMailboxTestCard: View {
+  var store: ParcelOpsStore
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasRealRefresh: Bool {
+    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+  }
+
+  private var hasImportEvidence: Bool {
+    (latestSpaceMailSummary?.importedCount ?? 0) > 0
+      || store.intakeEmails.contains { email in
+        let source = store.intakeSourceSummary(for: email)
+        return source.label.localizedCaseInsensitiveContains("SpaceMail")
+      }
+  }
+
+  private var hasInboxOrder: Bool {
+    store.orders.contains { order in
+      order.isInboxCreatedLocalOrder || order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var hasSpaceMailAudit: Bool {
+    store.recentAuditEvents.contains { event in
+      event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.entityLabel.localizedCaseInsensitiveContains("SpaceMail")
+        || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
+    }
+  }
+
+  private var completedCount: Int {
+    checklistItems.filter(\.isComplete).count
+  }
+
+  private var statusTitle: String {
+    if !hasSpaceMailSetup { return "First live mailbox test: setup needed" }
+    if !hasSpaceMailCredential { return "First live mailbox test: credential needed" }
+    if !hasRealRefresh { return "First live mailbox test: run refresh" }
+    if !hasImportEvidence { return "First live mailbox test: review results" }
+    if !hasInboxOrder { return "First live mailbox test: create or link order" }
+    if !hasSpaceMailAudit { return "First live mailbox test: confirm Audit" }
+    return "First live mailbox test: ready to repeat"
+  }
+
+  private var statusDetail: String {
+    if !hasSpaceMailSetup {
+      return "Open Mailbox Monitor or Settings and confirm the non-secret SpaceMail IMAP setup."
+    }
+    if !hasSpaceMailCredential {
+      return "Set or check the SpaceMail Keychain credential. Do not place passwords in notes or JSON-backed fields."
+    }
+    if !hasRealRefresh {
+      return "Run the explicit real SpaceMail refresh. It is manual and read-only."
+    }
+    if !hasImportEvidence {
+      return "Review the latest fetched, duplicate, filtered, and uncertain counts before changing Inbox records."
+    }
+    if !hasInboxOrder {
+      return "Use Inbox to import, reprocess, create, or link one order from confirmed intake."
+    }
+    if !hasSpaceMailAudit {
+      return "Use Audit to confirm the refresh, Inbox, and order handoff events are traceable."
+    }
+    return "The core SpaceMail to Inbox to Orders loop has enough local evidence for hands-on testing."
+  }
+
+  private var statusColor: Color {
+    completedCount == checklistItems.count ? .green : completedCount >= 3 ? .teal : .orange
+  }
+
+  private var checklistItems: [FirstLiveMailboxTestItem] {
+    [
+      FirstLiveMailboxTestItem(
+        title: "Confirm setup",
+        detail: "SpaceMail IMAP record exists with host, port, folder, and mixed-mailbox mode.",
+        symbol: "server.rack",
+        isComplete: hasSpaceMailSetup
+      ),
+      FirstLiveMailboxTestItem(
+        title: "Check credential",
+        detail: "Keychain password/app-password reference is available; no secret is stored in JSON.",
+        symbol: "lock.shield.fill",
+        isComplete: hasSpaceMailCredential
+      ),
+      FirstLiveMailboxTestItem(
+        title: "Run refresh",
+        detail: "Manual read-only refresh has run; fetched count and filter outcome are visible.",
+        symbol: "arrow.clockwise",
+        isComplete: hasRealRefresh
+      ),
+      FirstLiveMailboxTestItem(
+        title: "Review intake",
+        detail: "Imported or filtered SpaceMail results are available for operator judgement.",
+        symbol: "tray.full.fill",
+        isComplete: hasImportEvidence || (latestSpaceMailSummary?.filteredCount ?? 0) > 0 || (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) > 0
+      ),
+      FirstLiveMailboxTestItem(
+        title: "Create order",
+        detail: "At least one confirmed intake row has become a local order or linked order.",
+        symbol: "shippingbox.fill",
+        isComplete: hasInboxOrder
+      ),
+      FirstLiveMailboxTestItem(
+        title: "Verify audit",
+        detail: "Recent Audit history includes SpaceMail or Inbox handoff evidence.",
+        symbol: "list.clipboard.fill",
+        isComplete: hasSpaceMailAudit
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "First live mailbox test", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: completedCount == checklistItems.count ? "checkmark.seal.fill" : "play.circle.fill")
+            .foregroundStyle(statusColor)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(statusTitle)
+              .font(.headline)
+            Text(statusDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge("\(completedCount)/\(checklistItems.count)", color: statusColor)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
+          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+          ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)", (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) > 0 ? .orange : .secondary)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(checklistItems) { item in
+            FirstLiveMailboxTestStep(item: item)
+          }
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
+          NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+          NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          NavigationLink { OrdersView(store: store) } label: { Label("Orders", systemImage: "shippingbox.fill") }
+          NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+        }
+        .buttonStyle(.bordered)
+
+        Text("This checklist is manual and read-only. It does not start background sync, mutate mailbox messages, call Shopify or carriers, send email, scan files, trigger notifications, or store mailbox passwords in JSON.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+}
+
+private struct FirstLiveMailboxTestItem: Identifiable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var symbol: String
+  var isComplete: Bool
+}
+
+private struct FirstLiveMailboxTestStep: View {
+  var item: FirstLiveMailboxTestItem
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 9) {
+      Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+        .foregroundStyle(item.isComplete ? .green : .secondary)
+        .frame(width: 20)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(item.title)
+          .font(.caption.weight(.semibold))
+        Text(item.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background((item.isComplete ? Color.green : Color.secondary).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
