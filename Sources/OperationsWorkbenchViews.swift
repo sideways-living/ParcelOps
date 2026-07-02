@@ -626,6 +626,7 @@ struct OperationsWorkbenchView: View {
   private func workbenchRow(for item: WorkbenchItem) -> some View {
     WorkbenchItemRow(
       item: item,
+      store: store,
       customerProfiles: store.suggestedCustomerProfiles(for: item),
       destinationAddresses: store.suggestedDestinationAddresses(for: item),
       deliveryInstructions: store.suggestedDeliveryInstructions(for: item),
@@ -907,9 +908,7 @@ private struct WorkbenchInboxOrderRow: View {
       }
 
       if let feedbackMessage {
-        Text(feedbackMessage)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
+        WorkbenchActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -1022,9 +1021,7 @@ private struct WorkbenchDraftFollowUpRow: View {
       }
 
       if let feedbackMessage {
-        Text(feedbackMessage)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
+        WorkbenchActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -1035,6 +1032,7 @@ private struct WorkbenchDraftFollowUpRow: View {
 
 struct WorkbenchItemRow: View {
   var item: WorkbenchItem
+  var store: ParcelOpsStore? = nil
   var customerProfiles: [CustomerRecipientProfile] = []
   var destinationAddresses: [DestinationAddressRecord] = []
   var deliveryInstructions: [DeliveryInstructionRecord] = []
@@ -1055,6 +1053,7 @@ struct WorkbenchItemRow: View {
   var onCreateTask: () -> Void
   var onCreateDraft: () -> Void
   var onReviewed: () -> Void
+  @State private var feedbackMessage: String?
 
   private var isSetupPlaceholder: Bool {
     item.source == .setupPlaceholder
@@ -1125,19 +1124,32 @@ struct WorkbenchItemRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Create task", systemImage: "checklist", action: onCreateTask)
+        Button("Create task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Workbench follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
         if !isSetupPlaceholder {
-          Button("Create draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+          Button("Create draft", systemImage: "envelope.open.fill") {
+            onCreateDraft()
+            feedbackMessage = "Draft message created from workbench item. Check Drafts."
+          }
             .buttonStyle(.bordered)
         }
         if item.supportsReviewAction {
-          Button(isSetupPlaceholder ? "Review setup" : "Mark reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+          Button(isSetupPlaceholder ? "Review setup" : "Mark reviewed", systemImage: "checkmark.circle.fill") {
+            onReviewed()
+            feedbackMessage = isSetupPlaceholder ? "Setup placeholder reviewed locally." : "Workbench item marked reviewed locally."
+          }
             .buttonStyle(.bordered)
         }
         Text(item.source.rawValue)
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
+      }
+
+      if let feedbackMessage {
+        WorkbenchActionFeedbackPanel(message: feedbackMessage, store: store)
       }
 
       if !customerProfiles.isEmpty {
@@ -1190,6 +1202,50 @@ struct WorkbenchItemRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct WorkbenchActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
