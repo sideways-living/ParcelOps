@@ -135,7 +135,7 @@ struct CommunicationView: View {
             }
 
             ForEach(filteredTemplates) { template in
-              CommunicationTemplateRow(template: template) { updatedTemplate in
+              CommunicationTemplateRow(template: template, store: store) { updatedTemplate in
                 store.updateCommunicationTemplate(updatedTemplate)
               } onToggle: {
                 store.toggleCommunicationTemplate(template)
@@ -438,12 +438,14 @@ enum CommunicationMode: String, CaseIterable, Identifiable {
 
 struct CommunicationTemplateRow: View {
   var template: CommunicationTemplate
+  var store: ParcelOpsStore? = nil
   var onSave: (CommunicationTemplate) -> Void
   var onToggle: () -> Void
   var onReviewed: () -> Void
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -484,16 +486,32 @@ struct CommunicationTemplateRow: View {
         }
       }
 
+      if let feedbackMessage {
+        CommunicationActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(template.isEnabled ? "Disable" : "Enable", systemImage: template.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(template.isEnabled ? "Disable" : "Enable", systemImage: template.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = template.isEnabled ? "Template disabled locally." : "Template enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Template marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from template. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Template removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -503,6 +521,7 @@ struct CommunicationTemplateRow: View {
     .sheet(isPresented: $isEditing) {
       CommunicationTemplateEditView(template: template) { updatedTemplate in
         onSave(updatedTemplate)
+        feedbackMessage = "Template saved locally."
       }
     }
   }
@@ -523,6 +542,7 @@ struct DraftMessageRow: View {
   var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -616,6 +636,10 @@ struct DraftMessageRow: View {
         }
       }
 
+      if let feedbackMessage {
+        CommunicationActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         if let store, let linkedOrder {
           NavigationLink {
@@ -627,15 +651,30 @@ struct DraftMessageRow: View {
         }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Ready", systemImage: "checkmark.circle.fill", action: onReady)
+        Button("Ready", systemImage: "checkmark.circle.fill") {
+          onReady()
+          feedbackMessage = "Draft marked ready locally. Send it outside ParcelOps, then mark sent locally."
+        }
           .buttonStyle(.bordered)
-        Button("Sent locally", systemImage: "paperplane.fill", action: onSent)
+        Button("Sent locally", systemImage: "paperplane.fill") {
+          onSent()
+          feedbackMessage = "Draft marked sent locally."
+        }
           .buttonStyle(.borderedProminent)
-        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill", action: onReopen)
+        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+          onReopen()
+          feedbackMessage = "Draft reopened for follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus") {
+          onCreateContact()
+          feedbackMessage = "Contact placeholder created from draft."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Draft removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -645,6 +684,7 @@ struct DraftMessageRow: View {
     .sheet(isPresented: $isEditing) {
       DraftMessageEditView(draft: draft) { updatedDraft in
         onSave(updatedDraft)
+        feedbackMessage = "Draft saved locally."
       }
     }
   }
@@ -686,6 +726,54 @@ struct DraftMessageRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct CommunicationActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      Text("This is a local communication workflow action. ParcelOps still does not send outbound email.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("contact") {
+            NavigationLink {
+              ContactsView(store: store)
+            } label: {
+              Label("Open Contacts", systemImage: "person.2.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
