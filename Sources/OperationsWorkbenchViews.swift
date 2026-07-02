@@ -104,6 +104,45 @@ struct OperationsWorkbenchView: View {
     Array(store.draftMessagesNeedingReview.prefix(5))
   }
 
+  private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
+    store.spaceMailIntakeHealthSummaries
+  }
+
+  private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
+    store.spaceMailPostRefreshActionPlan
+  }
+
+  private var spaceMailFetchedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var spaceMailImportedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var spaceMailDuplicateCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var spaceMailFilteredCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var spaceMailUncertainCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var pendingFilteredSpaceMailCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.pendingFilteredReviewCount }
+  }
+
+  private var spaceMailFilteredOnlyOutcome: Bool {
+    spaceMailFetchedCount > 0
+      && spaceMailImportedCount == 0
+      && spaceMailUncertainCount == 0
+      && spaceMailFilteredCount > 0
+  }
+
   private var setupPlaceholderReviewItems: [WorkbenchItem] {
     defaultQueueItems.filter { $0.source == .setupPlaceholder }
   }
@@ -249,6 +288,7 @@ struct OperationsWorkbenchView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        spaceMailWorkbenchBoundary
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
@@ -337,6 +377,149 @@ struct OperationsWorkbenchView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var spaceMailWorkbenchBoundary: some View {
+    SettingsPanel(title: "Mailbox-to-Workbench handoff", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: spaceMailFilteredOnlyOutcome ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .foregroundStyle(color(for: spaceMailWorkbenchBoundaryTone))
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(spaceMailWorkbenchBoundaryTitle)
+              .font(.headline)
+            Text(spaceMailWorkbenchBoundaryDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(spaceMailUncertainCount)", spaceMailUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal),
+          ("Duplicates", "\(spaceMailDuplicateCount)", spaceMailDuplicateCount == 0 ? .secondary : .teal),
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(spaceMailPostRefreshPlan.items) { item in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.symbol)
+                  .foregroundStyle(color(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(item.title)
+                    .font(.caption.weight(.semibold))
+                  Text(item.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Badge("\(item.count)", color: color(for: item.tone))
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Workbench should start after intake creates a real local follow-up: an imported order email, an uncertain message promoted from Mailbox Monitor, an Inbox-created order, a task, or dispatch setup. Filtered non-order mail stays out of this queue by design.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color(for: spaceMailWorkbenchBoundaryTone))
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Review Inbox intake", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label(pendingFilteredSpaceMailCount > 0 || spaceMailUncertainCount > 0 ? "Review Mailbox examples" : "Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Check Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var spaceMailWorkbenchBoundaryTone: String {
+    if spaceMailImportedCount > 0 || spaceMailUncertainCount > 0 || !inboxCreatedOrders.isEmpty { return "attention" }
+    if spaceMailFilteredOnlyOutcome { return "success" }
+    if spaceMailFetchedCount > 0 { return "neutral" }
+    return spaceMailPostRefreshPlan.tone
+  }
+
+  private var spaceMailWorkbenchBoundaryTitle: String {
+    if spaceMailImportedCount > 0 {
+      return "SpaceMail created Inbox work"
+    }
+    if spaceMailUncertainCount > 0 {
+      return "SpaceMail needs Mailbox Monitor review"
+    }
+    if !inboxCreatedOrders.isEmpty {
+      return "Inbox-created orders need follow-up"
+    }
+    if spaceMailFilteredOnlyOutcome {
+      return "Mixed mailbox filtering did its job"
+    }
+    if spaceMailFetchedCount > 0 {
+      return "Latest refresh created no Workbench work"
+    }
+    return spaceMailPostRefreshPlan.title
+  }
+
+  private var spaceMailWorkbenchBoundaryDetail: String {
+    if spaceMailImportedCount > 0 {
+      return "\(spaceMailImportedCount) likely order message reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
+    }
+    if spaceMailUncertainCount > 0 {
+      return "\(spaceMailUncertainCount) ambiguous SpaceMail preview is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
+    }
+    if !inboxCreatedOrders.isEmpty {
+      return "\(inboxCreatedOrders.count) Inbox-created order is already in the handoff path. Confirm the order detail, source trail, and dispatch setup below."
+    }
+    if spaceMailFilteredOnlyOutcome {
+      return "\(spaceMailFilteredCount) mixed-mailbox message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
+    }
+    if spaceMailFetchedCount > 0 {
+      return "The latest refresh fetched mail but did not produce imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
+    }
+    return spaceMailPostRefreshPlan.detail
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone.localizedLowercase {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    case "neutral":
+      return .teal
+    default:
+      return .blue
     }
   }
 
