@@ -3105,6 +3105,10 @@ struct LocalDataSafetyCard: View {
     JSONParcelOpsRepository.persistedJSONFileNames.count
   }
 
+  private var persistenceSnapshot: LocalPersistenceSnapshot {
+    LocalPersistenceSnapshot(storePath: jsonStorePath, expectedFileNames: JSONParcelOpsRepository.persistedJSONFileNames)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -3125,11 +3129,14 @@ struct LocalDataSafetyCard: View {
 
       MetricStrip(items: [
         ("Tracked local records", "\(localRecordCount)", .blue),
-        ("JSON files", "\(jsonFileCount)", .teal),
+        ("JSON files", "\(persistenceSnapshot.presentCount)/\(jsonFileCount)", persistenceSnapshot.missingCount == 0 ? .green : .orange),
+        ("Local size", persistenceSnapshot.totalSizeText, .teal),
         ("Audit events", "\(store.auditEvents.count)", .purple),
         ("Review queue", "\(store.reviewQueueCount)", store.reviewQueueCount == 0 ? .green : .orange),
         ("Open work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .teal)
       ])
+
+      localPersistenceSnapshot
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 180 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
         safetyLine(
@@ -3188,6 +3195,54 @@ struct LocalDataSafetyCard: View {
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 
+  private var localPersistenceSnapshot: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Local JSON snapshot", systemImage: "doc.text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(persistenceSnapshot.tone)
+        Spacer()
+        Badge(persistenceSnapshot.statusLabel, color: persistenceSnapshot.tone)
+      }
+
+      Text(persistenceSnapshot.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: compact ? 92 : 118) {
+        Badge("\(persistenceSnapshot.presentCount) present", color: persistenceSnapshot.presentCount == 0 ? .orange : .green)
+        Badge("\(persistenceSnapshot.missingCount) sample-backed", color: persistenceSnapshot.missingCount == 0 ? .green : .orange)
+        Badge("\(persistenceSnapshot.archivedInvalidCount) archived invalid", color: persistenceSnapshot.archivedInvalidCount == 0 ? .green : .purple)
+        Badge(persistenceSnapshot.totalSizeText, color: .teal)
+      }
+
+      if !persistenceSnapshot.missingExamples.isEmpty {
+        Text("Sample-backed files: \(persistenceSnapshot.missingExamples.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !persistenceSnapshot.archivedInvalidExamples.isEmpty {
+        Text("Archived invalid JSON: \(persistenceSnapshot.archivedInvalidExamples.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("This snapshot only reads local file metadata. It does not export files, open a file picker, sync to cloud, read passwords, or change JSON contents.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(persistenceSnapshot.tone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
   private func safetyLine(title: String, detail: String, symbol: String, color: Color) -> some View {
     HStack(alignment: .top, spacing: 8) {
       Image(systemName: symbol)
@@ -3205,6 +3260,84 @@ struct LocalDataSafetyCard: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct LocalPersistenceSnapshot {
+  var storePath: String
+  var expectedFileNames: [String]
+
+  private var fileManager: FileManager { .default }
+
+  private var storeURL: URL {
+    URL(fileURLWithPath: storePath, isDirectory: true)
+  }
+
+  private var directoryContents: [URL] {
+    (try? fileManager.contentsOfDirectory(
+      at: storeURL,
+      includingPropertiesForKeys: [.fileSizeKey],
+      options: [.skipsHiddenFiles]
+    )) ?? []
+  }
+
+  private var presentFileNames: Set<String> {
+    Set(directoryContents.map(\.lastPathComponent))
+  }
+
+  var presentCount: Int {
+    expectedFileNames.filter { presentFileNames.contains($0) }.count
+  }
+
+  var missingCount: Int {
+    max(expectedFileNames.count - presentCount, 0)
+  }
+
+  var archivedInvalidCount: Int {
+    directoryContents.filter { $0.lastPathComponent.contains(".invalid-") && $0.pathExtension == "json" }.count
+  }
+
+  var totalSizeText: String {
+    let totalBytes = directoryContents.reduce(0) { total, url in
+      let values = try? url.resourceValues(forKeys: [.fileSizeKey])
+      return total + (values?.fileSize ?? 0)
+    }
+    return ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file)
+  }
+
+  var missingExamples: [String] {
+    Array(expectedFileNames.filter { !presentFileNames.contains($0) }.prefix(4))
+  }
+
+  var archivedInvalidExamples: [String] {
+    Array(directoryContents.map(\.lastPathComponent).filter { $0.contains(".invalid-") && $0.hasSuffix(".json") }.sorted().prefix(3))
+  }
+
+  var statusLabel: String {
+    if !fileManager.fileExists(atPath: storePath) { return "Folder pending" }
+    if archivedInvalidCount > 0 { return "Archived invalid JSON" }
+    if missingCount > 0 { return "Sample-backed" }
+    return "Persisted locally"
+  }
+
+  var detail: String {
+    if !fileManager.fileExists(atPath: storePath) {
+      return "The local JSON folder has not been created yet. It will be created automatically when ParcelOps saves or loads JSON-backed data."
+    }
+    if archivedInvalidCount > 0 {
+      return "\(archivedInvalidCount) invalid JSON file\(archivedInvalidCount == 1 ? " was" : "s were") archived locally and defaults were restored for those records."
+    }
+    if missingCount > 0 {
+      return "\(missingCount) expected JSON file\(missingCount == 1 ? " is" : "s are") still sample-backed or not written yet. This is normal before those local record types are edited."
+    }
+    return "All expected JSON files are present in the local ParcelOps store."
+  }
+
+  var tone: Color {
+    if !fileManager.fileExists(atPath: storePath) { return .orange }
+    if archivedInvalidCount > 0 { return .purple }
+    if missingCount > 0 { return .orange }
+    return .green
   }
 }
 
