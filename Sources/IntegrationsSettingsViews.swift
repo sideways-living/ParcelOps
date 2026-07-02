@@ -4,6 +4,7 @@ struct IntegrationsView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var setupSearchText = ""
+  @State private var setupFeedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
@@ -109,12 +110,33 @@ struct IntegrationsView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("SpaceMail IMAP setup", systemImage: "server.rack", action: store.addSpaceMailIMAPConnectionPlaceholder)
-            Button("Microsoft 365 setup", systemImage: "mail.stack.fill", action: store.addMicrosoft365MailboxConnectionPlaceholder)
-            Button("Mailbox setup", systemImage: "envelope.badge.fill", action: store.addTrackedMailboxPlaceholder)
-            Button("Shopify planning", systemImage: "cart.badge.plus", action: store.connectShopifyPlaceholder)
-            Button("Folder setup", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
-            Button("Login planning", systemImage: "key.fill", action: store.addStoreLoginPlaceholder)
+            Button("SpaceMail IMAP setup", systemImage: "server.rack") {
+              store.addSpaceMailIMAPConnectionPlaceholder()
+              setupFeedbackMessage = "SpaceMail IMAP setup placeholder added locally. Add the Keychain credential before running real manual refresh."
+            }
+            Button("Microsoft 365 setup", systemImage: "mail.stack.fill") {
+              store.addMicrosoft365MailboxConnectionPlaceholder()
+              setupFeedbackMessage = "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here."
+            }
+            Button("Mailbox setup", systemImage: "envelope.badge.fill") {
+              store.addTrackedMailboxPlaceholder()
+              setupFeedbackMessage = "Mailbox setup placeholder added locally for planning and review."
+            }
+            Button("Shopify planning", systemImage: "cart.badge.plus") {
+              store.connectShopifyPlaceholder()
+              setupFeedbackMessage = "Shopify planning placeholder added locally. No Shopify API or store login was contacted."
+            }
+            Button("Folder setup", systemImage: "folder.badge.plus") {
+              store.addWatchedFolderPlaceholder()
+              setupFeedbackMessage = "Folder setup placeholder added locally. No file picker, folder scan, or background watcher was started."
+            }
+            Button("Login planning", systemImage: "key.fill") {
+              store.addStoreLoginPlaceholder()
+              setupFeedbackMessage = "Login planning placeholder added locally. No credential, password vault, or Keychain item was created."
+            }
+          }
+          if let setupFeedbackMessage {
+            SettingsActionFeedbackPanel(message: setupFeedbackMessage)
           }
         }
 
@@ -220,7 +242,10 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           SpaceMailOperatorGuidanceStack(store: store)
           CompactActionRow {
-            Button("Add SpaceMail setup", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+            Button("Add SpaceMail setup", systemImage: "plus") {
+              store.addSpaceMailIMAPConnectionPlaceholder()
+              setupFeedbackMessage = "SpaceMail IMAP setup placeholder added locally. Configure host, folder, mode, and Keychain credential before real refresh."
+            }
               .buttonStyle(.bordered)
             Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
           }
@@ -298,7 +323,10 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add mailbox setup", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+            Button("Add mailbox setup", systemImage: "plus") {
+              store.addMicrosoft365MailboxConnectionPlaceholder()
+              setupFeedbackMessage = "Microsoft 365 mailbox setup placeholder added locally. Real Graph refresh remains manual and explicit."
+            }
               .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
@@ -2423,6 +2451,7 @@ struct SettingsView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var settingsSearchText = ""
+  @State private var settingsFeedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
@@ -2675,12 +2704,20 @@ struct SettingsView: View {
           ForEach(store.mailboxes) { mailbox in
             MailboxConnectionRow(mailbox: mailbox) {
               store.markTrackedMailboxPlaceholderReviewed(mailbox)
+              settingsFeedbackMessage = "Tracked mailbox placeholder marked reviewed locally."
             } onRemove: {
               store.removeTrackedMailboxPlaceholder(mailbox)
+              settingsFeedbackMessage = "Tracked mailbox placeholder removed locally. No mailbox connection was changed."
             }
           }
-          Button("Add mailbox placeholder", systemImage: "plus", action: store.addTrackedMailboxPlaceholder)
+          Button("Add mailbox placeholder", systemImage: "plus") {
+            store.addTrackedMailboxPlaceholder()
+            settingsFeedbackMessage = "Mailbox placeholder added locally for setup planning."
+          }
             .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
         }
         }
 
@@ -2689,12 +2726,20 @@ struct SettingsView: View {
           ForEach(store.shopifyConnections) { connection in
             ShopifyConnectionRow(connection: connection, onReviewed: {
               store.markShopifyPlaceholderReviewed(connection)
+              settingsFeedbackMessage = "Shopify placeholder marked reviewed locally."
             }, onRemove: {
               store.removeShopifyPlaceholder(connection)
+              settingsFeedbackMessage = "Shopify placeholder removed locally. No Shopify API or store login was contacted."
             })
           }
-          Button("Add Shopify placeholder", systemImage: "plus", action: store.connectShopifyPlaceholder)
+          Button("Add Shopify placeholder", systemImage: "plus") {
+            store.connectShopifyPlaceholder()
+            settingsFeedbackMessage = "Shopify placeholder added locally. No Shopify API or store login was contacted."
+          }
             .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
         }
         }
 
@@ -2711,12 +2756,20 @@ struct SettingsView: View {
           ForEach(store.watchedFolders) { folder in
             WatchedFolderRow(folder: folder) {
               store.markWatchedFolderPlaceholderReviewed(folder)
+              settingsFeedbackMessage = "Watched folder placeholder marked reviewed locally."
             } onRemove: {
               store.removeWatchedFolderPlaceholder(folder)
+              settingsFeedbackMessage = "Watched folder placeholder removed locally. No file watcher or background job was changed."
             }
           }
-          Button("Add folder placeholder", systemImage: "folder.badge.plus", action: store.addWatchedFolderPlaceholder)
+          Button("Add folder placeholder", systemImage: "folder.badge.plus") {
+            store.addWatchedFolderPlaceholder()
+            settingsFeedbackMessage = "Folder placeholder added locally. No file picker, folder scan, or background watcher was started."
+          }
             .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
         }
         }
 
@@ -2739,13 +2792,38 @@ struct SettingsView: View {
             Text("Manual local updates").tag("Manual updates")
           }
           .pickerStyle(.menu)
-          Button("Save settings", systemImage: "checkmark", action: store.saveSettings)
+          Button("Save settings", systemImage: "checkmark") {
+            store.saveSettings()
+            settingsFeedbackMessage = "Settings saved locally. Planning toggles do not start integrations, notifications, or background sync."
+          }
             .buttonStyle(.borderedProminent)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
         }
         }
       }
       .padding(isCompact ? 14 : 24)
     }
+  }
+}
+
+private struct SettingsActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -4,6 +4,7 @@ struct DashboardView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var dashboardSearchText = ""
+  @State private var feedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var normalizedDashboardSearch: String {
@@ -591,11 +592,20 @@ struct DashboardView: View {
           .foregroundStyle(.secondary)
       }
       CompactActionRow {
-        Button("Create manual order", systemImage: "plus", action: store.createManualOrderPlaceholder)
+        Button("Create manual order", systemImage: "plus") {
+          store.createManualOrderPlaceholder()
+          feedbackMessage = "Manual order placeholder created locally. Open Orders to confirm customer, destination, tracking, and dispatch setup."
+        }
           .buttonStyle(.borderedProminent)
-        Button("Import local sample mail", systemImage: "tray.and.arrow.down.fill", action: store.syncSources)
+        Button("Import local sample mail", systemImage: "tray.and.arrow.down.fill") {
+          store.syncSources()
+          feedbackMessage = "Local sample mailbox messages imported through the same intake path used for manual testing. No external mailbox was contacted."
+        }
           .buttonStyle(.bordered)
           .help("Imports simulated mailbox messages through local intake only.")
+      }
+      if let feedbackMessage {
+        DashboardActionFeedbackPanel(message: feedbackMessage)
       }
     }
   }
@@ -906,6 +916,25 @@ struct DashboardView: View {
     guard !manifests.isEmpty || !checklists.isEmpty else { return false }
     return manifests.allSatisfy { $0.dispatchStatus == .handedOff }
       && checklists.allSatisfy { $0.checklistStatus == .completed }
+  }
+}
+
+private struct DashboardActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
