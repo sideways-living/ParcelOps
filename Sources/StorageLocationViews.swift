@@ -367,6 +367,7 @@ struct StorageLocationRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -452,16 +453,34 @@ struct StorageLocationRow: View {
         }
       }
 
+      if let feedbackMessage {
+        StorageLocationActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(location.isEnabled ? "Disable" : "Enable", systemImage: location.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(location.isEnabled ? "Disable" : "Enable", systemImage: location.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = location.isEnabled
+            ? "Location disabled locally. Review open receipts, custody, and dispatch handoffs before using it again."
+            : "Location enabled locally. Confirm code, access notes, and capacity before assigning physical items."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Storage location marked reviewed locally. No maps, access-control, or warehouse system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this storage location for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this storage location. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -471,7 +490,10 @@ struct StorageLocationRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Storage location removed locally. No warehouse, access-control, carrier, or mailbox system was changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -481,6 +503,7 @@ struct StorageLocationRow: View {
     .sheet(isPresented: $isEditing) {
       StorageLocationEditView(location: location) { updatedLocation in
         onSave(updatedLocation)
+        feedbackMessage = "Storage location details saved locally. Recheck linked receipts, custody, and dispatch context if values changed."
       }
     }
   }
@@ -525,6 +548,25 @@ struct StorageLocationRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct StorageLocationActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -385,6 +385,7 @@ struct CustodyRecordRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -469,22 +470,47 @@ struct CustodyRecordRow: View {
         }
       }
 
+      if let feedbackMessage {
+        CustodyActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Transferred", systemImage: "arrow.right.circle.fill", action: onTransferred)
+        Button("Transferred", systemImage: "arrow.right.circle.fill") {
+          onTransferred()
+          feedbackMessage = "Custody marked transferred locally. Confirm destination location and receiving owner before closing."
+        }
           .buttonStyle(.bordered)
-        Button("Received", systemImage: "checkmark.circle.fill", action: onReceived)
+        Button("Received", systemImage: "checkmark.circle.fill") {
+          onReceived()
+          feedbackMessage = "Custody marked received locally. Check linked receipt, label, scan, or order context if follow-up remains."
+        }
           .buttonStyle(.bordered)
-        Button("Closed", systemImage: "checkmark.seal.fill", action: onReturnedClosed)
+        Button("Closed", systemImage: "checkmark.seal.fill") {
+          onReturnedClosed()
+          feedbackMessage = "Custody returned or closed locally. No signature capture, scanner, or warehouse system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Dispute", systemImage: "exclamationmark.triangle.fill") {
+          onDisputed()
+          feedbackMessage = "Custody disputed locally. Create a task or draft if another person needs to resolve possession."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Custody record marked reviewed locally. No external custody, scanner, or access-control system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this custody record for local handoff follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this custody record. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -494,7 +520,10 @@ struct CustodyRecordRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Custody record removed locally. No mailbox, warehouse, scanner, or order system was changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -504,6 +533,7 @@ struct CustodyRecordRow: View {
     .sheet(isPresented: $isEditing) {
       CustodyRecordEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
+        feedbackMessage = "Custody details saved locally. Recheck source/destination location and owner context if values changed."
       }
     }
   }
@@ -551,6 +581,25 @@ struct CustodyRecordRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct CustodyActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

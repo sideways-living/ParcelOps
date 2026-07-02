@@ -371,6 +371,7 @@ struct InventoryReceiptRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -457,22 +458,47 @@ struct InventoryReceiptRow: View {
         }
       }
 
+      if let feedbackMessage {
+        InventoryReceiptActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Stocked", systemImage: "archivebox.fill", action: onStocked)
+        Button("Stocked", systemImage: "archivebox.fill") {
+          onStocked()
+          feedbackMessage = "Receipt marked stocked locally. Confirm storage location and custody before dispatch or handoff."
+        }
           .buttonStyle(.bordered)
-        Button("Handed off", systemImage: "arrow.left.arrow.right.square.fill", action: onHandedOff)
+        Button("Handed off", systemImage: "arrow.left.arrow.right.square.fill") {
+          onHandedOff()
+          feedbackMessage = "Receipt marked handed off locally. Confirm custody and destination context if the item leaves storage."
+        }
           .buttonStyle(.bordered)
-        Button("Partial", systemImage: "plusminus.circle.fill", action: onPartiallyAccepted)
+        Button("Partial", systemImage: "plusminus.circle.fill") {
+          onPartiallyAccepted()
+          feedbackMessage = "Receipt marked partially accepted locally. Review rejected quantity and discrepancy follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Reject", systemImage: "xmark.circle.fill", action: onRejected)
+        Button("Reject", systemImage: "xmark.circle.fill") {
+          onRejected()
+          feedbackMessage = "Receipt rejected locally. Create a task or draft if procurement, returns, or claims follow-up is needed."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Receipt marked reviewed locally. No inventory API, scanner, or warehouse system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this inventory receipt for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this receipt. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -482,7 +508,10 @@ struct InventoryReceiptRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Inventory receipt removed locally. No mailbox, warehouse, carrier, or order system was changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -492,6 +521,7 @@ struct InventoryReceiptRow: View {
     .sheet(isPresented: $isEditing) {
       InventoryReceiptEditView(receipt: receipt) { updatedReceipt in
         onSave(updatedReceipt)
+        feedbackMessage = "Receipt details saved locally. Recheck storage, custody, and linked order context if values changed."
       }
     }
   }
@@ -536,6 +566,25 @@ struct InventoryReceiptRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct InventoryReceiptActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

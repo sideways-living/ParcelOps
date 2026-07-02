@@ -363,6 +363,7 @@ struct ReceivingInspectionRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store, let linkedOrder else { return [] }
@@ -447,22 +448,47 @@ struct ReceivingInspectionRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if let feedbackMessage {
+        ReceivingInspectionActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Inspected", systemImage: "checkmark.seal.fill", action: onInspected)
+        Button("Inspected", systemImage: "checkmark.seal.fill") {
+          onInspected()
+          feedbackMessage = "Inspection marked inspected locally. Confirm quantities, condition, and evidence before closing related follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Discrepancy", systemImage: "exclamationmark.triangle.fill", action: onDiscrepancy)
+        Button("Discrepancy", systemImage: "exclamationmark.triangle.fill") {
+          onDiscrepancy()
+          feedbackMessage = "Inspection marked with a local discrepancy. Route task, draft, or custody follow-up if the issue blocks receiving."
+        }
           .buttonStyle(.bordered)
-        Button("Resolved", systemImage: "checkmark.circle.fill", action: onResolved)
+        Button("Resolved", systemImage: "checkmark.circle.fill") {
+          onResolved()
+          feedbackMessage = "Inspection discrepancy resolved locally. Check inventory receipt and custody context before dispatch handoff."
+        }
           .buttonStyle(.bordered)
-        Button("Blocked", systemImage: "hand.raised.fill", action: onBlocked)
+        Button("Blocked", systemImage: "hand.raised.fill") {
+          onBlocked()
+          feedbackMessage = "Inspection blocked locally. Use a task or draft if someone needs to act on the receiving exception."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Inspection marked reviewed locally. No scanner, inventory system, or external service was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this inspection for local receiving follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this inspection. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -472,7 +498,10 @@ struct ReceivingInspectionRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Inspection removed locally. Linked mailbox, warehouse, carrier, and order systems were not changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -482,6 +511,7 @@ struct ReceivingInspectionRow: View {
     .sheet(isPresented: $isEditing) {
       ReceivingInspectionEditView(inspection: inspection) { updatedInspection in
         onSave(updatedInspection)
+        feedbackMessage = "Inspection details saved locally. Recheck any linked order, receipt, or evidence context if values changed."
       }
     }
   }
@@ -538,6 +568,25 @@ struct ReceivingInspectionRow: View {
     default:
       return .secondary
     }
+  }
+}
+
+private struct ReceivingInspectionActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
