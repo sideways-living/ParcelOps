@@ -347,6 +347,7 @@ struct ReturnClaimRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store, let linkedOrder else { return [] }
@@ -429,22 +430,47 @@ struct ReturnClaimRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if let feedbackMessage {
+        ReturnClaimActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Submitted", systemImage: "paperplane.fill", action: onSubmitted)
+        Button("Submitted", systemImage: "paperplane.fill") {
+          onSubmitted()
+          feedbackMessage = "Return/claim marked submitted locally."
+        }
           .buttonStyle(.bordered)
-        Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
+        Button("Approved", systemImage: "checkmark.seal.fill") {
+          onApproved()
+          feedbackMessage = "Return/claim marked approved locally."
+        }
           .buttonStyle(.bordered)
-        Button("Resolved", systemImage: "checkmark.circle.fill", action: onResolved)
+        Button("Resolved", systemImage: "checkmark.circle.fill") {
+          onResolved()
+          feedbackMessage = "Return/claim marked resolved locally."
+        }
           .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Dispute", systemImage: "exclamationmark.triangle.fill") {
+          onDisputed()
+          feedbackMessage = "Return/claim marked disputed for local review."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Return/claim marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from return/claim. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from return/claim. Check Drafts."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -454,7 +480,10 @@ struct ReturnClaimRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Return/claim removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -464,6 +493,7 @@ struct ReturnClaimRow: View {
     .sheet(isPresented: $isEditing) {
       ReturnClaimEditView(claim: claim) { updatedClaim in
         onSave(updatedClaim)
+        feedbackMessage = "Return/claim saved locally."
       }
     }
   }
@@ -520,6 +550,40 @@ struct ReturnClaimRow: View {
     default:
       return .secondary
     }
+  }
+}
+
+private struct ReturnClaimActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local return/claim tracking only. No refund, carrier claim API, supplier API, payment, outbound email, or mailbox mutation was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink { TasksView(store: store) } label: { Label("Open Tasks", systemImage: "checklist") }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink { CommunicationView(store: store) } label: { Label("Open Drafts", systemImage: "envelope.open.fill") }
+          }
+          NavigationLink { AuditView(store: store) } label: { Label("Open Audit", systemImage: "list.clipboard.fill") }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

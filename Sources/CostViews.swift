@@ -347,6 +347,7 @@ struct CostRecordRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store, let linkedOrder else { return [] }
@@ -421,20 +422,42 @@ struct CostRecordRow: View {
       ReturnClaimStrip(claims: returnClaims)
       ProcurementRequestStrip(requests: procurementRequests)
 
+      if let feedbackMessage {
+        CostActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
+        Button("Approved", systemImage: "checkmark.seal.fill") {
+          onApproved()
+          feedbackMessage = "Cost marked approved locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reimbursed", systemImage: "arrow.uturn.backward.circle.fill", action: onReimbursed)
+        Button("Reimbursed", systemImage: "arrow.uturn.backward.circle.fill") {
+          onReimbursed()
+          feedbackMessage = "Cost marked reimbursed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Dispute", systemImage: "exclamationmark.triangle.fill", action: onDisputed)
+        Button("Dispute", systemImage: "exclamationmark.triangle.fill") {
+          onDisputed()
+          feedbackMessage = "Cost marked disputed for local review."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Cost marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from cost. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from cost. Check Drafts."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -444,7 +467,10 @@ struct CostRecordRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Cost removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -454,6 +480,7 @@ struct CostRecordRow: View {
     .sheet(isPresented: $isEditing) {
       CostRecordEditView(cost: cost) { updatedCost in
         onSave(updatedCost)
+        feedbackMessage = "Cost saved locally."
       }
     }
   }
@@ -510,6 +537,40 @@ struct CostRecordRow: View {
     default:
       return .secondary
     }
+  }
+}
+
+private struct CostActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local cost and reimbursement tracking only. No payment, bank feed, accounting platform, supplier API, refund, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink { TasksView(store: store) } label: { Label("Open Tasks", systemImage: "checklist") }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink { CommunicationView(store: store) } label: { Label("Open Drafts", systemImage: "envelope.open.fill") }
+          }
+          NavigationLink { AuditView(store: store) } label: { Label("Open Audit", systemImage: "list.clipboard.fill") }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -348,6 +348,7 @@ struct ProcurementRequestRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store, let linkedOrder else { return [] }
@@ -430,22 +431,47 @@ struct ProcurementRequestRow: View {
       LabelReferenceStrip(records: labelReferences)
       ScanSessionStrip(records: scanSessions)
 
+      if let feedbackMessage {
+        ProcurementActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Approved", systemImage: "checkmark.seal.fill", action: onApproved)
+        Button("Approved", systemImage: "checkmark.seal.fill") {
+          onApproved()
+          feedbackMessage = "Procurement request approved locally."
+        }
           .buttonStyle(.bordered)
-        Button("Ordered", systemImage: "cart.fill", action: onOrdered)
+        Button("Ordered", systemImage: "cart.fill") {
+          onOrdered()
+          feedbackMessage = "Procurement request marked ordered locally."
+        }
           .buttonStyle(.bordered)
-        Button("Received", systemImage: "shippingbox.fill", action: onReceived)
+        Button("Received", systemImage: "shippingbox.fill") {
+          onReceived()
+          feedbackMessage = "Procurement request marked received locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reject", systemImage: "xmark.circle.fill", action: onRejected)
+        Button("Reject", systemImage: "xmark.circle.fill") {
+          onRejected()
+          feedbackMessage = "Procurement request rejected for local review."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Procurement request marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from procurement request. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from procurement request. Check Drafts."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -455,7 +481,10 @@ struct ProcurementRequestRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Procurement request removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -465,6 +494,7 @@ struct ProcurementRequestRow: View {
     .sheet(isPresented: $isEditing) {
       ProcurementRequestEditView(request: request) { updatedRequest in
         onSave(updatedRequest)
+        feedbackMessage = "Procurement request saved locally."
       }
     }
   }
@@ -521,6 +551,40 @@ struct ProcurementRequestRow: View {
     default:
       return .secondary
     }
+  }
+}
+
+private struct ProcurementActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local procurement tracking only. No purchase order, supplier API, payment, inventory system, outbound email, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink { TasksView(store: store) } label: { Label("Open Tasks", systemImage: "checklist") }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink { CommunicationView(store: store) } label: { Label("Open Drafts", systemImage: "envelope.open.fill") }
+          }
+          NavigationLink { AuditView(store: store) } label: { Label("Open Audit", systemImage: "list.clipboard.fill") }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
