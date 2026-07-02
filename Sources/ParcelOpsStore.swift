@@ -11008,6 +11008,20 @@ final class ParcelOpsStore {
         )
       ),
       (
+        "Expected uncertain: order follow-up missing IDs",
+        "Uncertain",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-order-follow-up-\(connection.id.uuidString)",
+          sender: "operations@example.com",
+          subject: "Order follow-up",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Can someone check whether this customer delivery relates to an order? We do not have a tracking number yet.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
         "Expected filter: marketing final days",
         "Filtered",
         "No expected order",
@@ -11018,6 +11032,20 @@ final class ParcelOpsStore {
           subject: "Final Days",
           receivedDate: Self.auditTimestamp(),
           plainTextBodyPreview: "Final days for our promotion. View this email or unsubscribe.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Expected filter: free delivery marketing",
+        "Filtered",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-delivery-marketing-\(connection.id.uuidString)",
+          sender: "offers@example-shop.test",
+          subject: "Final days for free delivery",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Final days to get free delivery on your next purchase. View this email or unsubscribe.",
           sourceMailboxID: mailboxID
         )
       ),
@@ -11036,6 +11064,20 @@ final class ParcelOpsStore {
         )
       ),
       (
+        "Expected filter: generic receipt",
+        "Filtered",
+        "No expected order",
+        "No expected tracking",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-generic-receipt-\(connection.id.uuidString)",
+          sender: "payments@example-service.test",
+          subject: "Your receipt is ready",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Your monthly receipt is ready. No order or shipment details are included in this notification.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
         "Expected import: refund with order",
         "Imported",
         "REF-8821",
@@ -11046,6 +11088,20 @@ final class ParcelOpsStore {
           subject: "Refund request for order REF-8821",
           receivedDate: Self.auditTimestamp(),
           plainTextBodyPreview: "Customer requested refund for order REF-8821 after delivery issue.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Expected import: tracking update",
+        "Imported",
+        "No expected order",
+        "ZXCV123456789",
+        FetchedMailboxMessage(
+          providerMessageID: "suite-tracking-update-\(connection.id.uuidString)",
+          sender: "tracking@example-carrier.test",
+          subject: "Tracking update ZXCV123456789",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Your shipment tracking number ZXCV123456789 is in transit and expected for delivery tomorrow.",
           sourceMailboxID: mailboxID
         )
       )
