@@ -1209,8 +1209,20 @@ private struct LocalDemoWorkflowStatusCard: View {
     latestDemoOrder.map { store.suggestedShipmentManifestRecords(for: $0).count } ?? 0
   }
 
+  private var completedManifestCount: Int {
+    latestDemoOrder.map { order in
+      store.suggestedShipmentManifestRecords(for: order).filter { $0.dispatchStatus == .handedOff }.count
+    } ?? 0
+  }
+
   private var checklistCount: Int {
     latestDemoOrder.map { store.suggestedDispatchReadinessChecklists(for: $0).count } ?? 0
+  }
+
+  private var completedChecklistCount: Int {
+    latestDemoOrder.map { order in
+      store.suggestedDispatchReadinessChecklists(for: order).filter { $0.checklistStatus == .completed }.count
+    } ?? 0
   }
 
   private var openTaskCount: Int {
@@ -1236,7 +1248,7 @@ private struct LocalDemoWorkflowStatusCard: View {
       latestDemoOrder != nil,
       linkedIntakeCount > 0,
       manifestCount > 0 && checklistCount > 0,
-      openTaskCount > 0,
+      completedManifestCount > 0 && completedChecklistCount > 0,
       auditCount > 0
     ].filter { $0 }.count
   }
@@ -1257,6 +1269,19 @@ private struct LocalDemoWorkflowStatusCard: View {
       return "Seed a local demo workflow to create a clear intake email, linked order, dispatch setup, follow-up task, and audit trail without relying on SpaceMail."
     }
     return "\(order.store) • \(order.trackingNumber) • \(order.destination). Use this as the known-good path when testing Inbox, Orders, Dispatch, Tasks, and Audit."
+  }
+
+  private var canCompleteHandoff: Bool {
+    latestDemoOrder != nil
+      && manifestCount > 0
+      && checklistCount > 0
+      && (completedManifestCount < manifestCount || completedChecklistCount < checklistCount)
+  }
+
+  private var canReopenHandoff: Bool {
+    latestDemoOrder != nil
+      && completedManifestCount > 0
+      && completedChecklistCount > 0
   }
 
   var body: some View {
@@ -1283,7 +1308,8 @@ private struct LocalDemoWorkflowStatusCard: View {
         ("Order", latestDemoOrder == nil ? "Missing" : "Ready", latestDemoOrder == nil ? .orange : .green),
         ("Inbox link", "\(linkedIntakeCount)", linkedIntakeCount == 0 ? .orange : .green),
         ("Dispatch", "\(manifestCount + checklistCount)", manifestCount + checklistCount == 0 ? .orange : .purple),
-        ("Open tasks", "\(openTaskCount)", openTaskCount == 0 ? .secondary : .orange),
+        ("Completed", "\(completedManifestCount + completedChecklistCount)", completedManifestCount + completedChecklistCount == 0 ? .secondary : .green),
+        ("Open tasks", "\(openTaskCount)", openTaskCount == 0 ? .green : .orange),
         ("Audit", "\(auditCount)", auditCount == 0 ? .orange : .purple)
       ])
 
@@ -1292,6 +1318,20 @@ private struct LocalDemoWorkflowStatusCard: View {
           store.seedLocalInboxOrderDemoWorkflow()
         }
         .buttonStyle(.borderedProminent)
+
+        if let order = latestDemoOrder {
+          Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
+            store.completeInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!canCompleteHandoff)
+
+          Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
+            store.reopenInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!canReopenHandoff)
+        }
 
         NavigationLink {
           InboxView(store: store)
