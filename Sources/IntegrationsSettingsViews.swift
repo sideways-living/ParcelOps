@@ -1523,6 +1523,12 @@ struct SpaceMailIMAPConnectionRow: View {
     return .secondary
   }
 
+  private func classifierStatusColor(_ status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if status.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
   private var spaceMailFilterTuningSummary: some View {
     VStack(alignment: .leading, spacing: 8) {
       Label("6. Tune mixed-mailbox classifier", systemImage: "line.3.horizontal.decrease.circle")
@@ -1718,6 +1724,10 @@ struct SpaceMailIMAPConnectionRow: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(classifierReasonColor(result.decision))
                 .fixedSize(horizontal: false, vertical: true)
+              Text(result.decisionStatus)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(classifierStatusColor(result.decisionStatus))
+                .fixedSize(horizontal: false, vertical: true)
               Text(result.parserStatus)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(parserStatusColor(result.parserStatus))
@@ -1731,6 +1741,9 @@ struct SpaceMailIMAPConnectionRow: View {
                 }
                 if result.expectedTrackingNumber != "No expected tracking" {
                   Badge("Expected \(result.expectedTrackingNumber)", color: .purple)
+                }
+                if result.expectedDecision != "No expected decision" {
+                  Badge("Expected \(result.expectedDecision)", color: classifierReasonColor(result.expectedDecision))
                 }
               }
             }

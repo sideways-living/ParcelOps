@@ -5236,6 +5236,10 @@ final class ParcelOpsStore {
     if hasHardNonOrderSignal { score -= 45 }
     if hasFooterSignal { score -= 8 }
 
+    if hasOrderQuestionSignal && !hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber || hasClearShipmentPhrase) {
+      return (.uncertain, score, "order/delivery question without detected id")
+    }
+
     if let filterKeywordHint, !(hasClearShipmentPhrase || ((hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal || importKeywordHint != nil))) {
       return (.nonOrder, score, "local filter hint: \(filterKeywordHint)")
     }
@@ -10974,9 +10978,10 @@ final class ParcelOpsStore {
 
   func runSpaceMailClassifierTestSuite(for connection: SpaceMailIMAPConnection) {
     let mailboxID = trackedMailbox(for: connection).id
-    let samples: [(name: String, expectedOrder: String, expectedTracking: String, message: FetchedMailboxMessage)] = [
+    let samples: [(name: String, expectedDecision: String, expectedOrder: String, expectedTracking: String, message: FetchedMailboxMessage)] = [
       (
         "Expected import: clear order shipped",
+        "Imported",
         "TEST-123",
         "ABC123",
         FetchedMailboxMessage(
@@ -10990,6 +10995,7 @@ final class ParcelOpsStore {
       ),
       (
         "Expected uncertain: delivery question",
+        "Uncertain",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -11003,6 +11009,7 @@ final class ParcelOpsStore {
       ),
       (
         "Expected filter: marketing final days",
+        "Filtered",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -11016,6 +11023,7 @@ final class ParcelOpsStore {
       ),
       (
         "Expected filter: security alert",
+        "Filtered",
         "No expected order",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -11029,6 +11037,7 @@ final class ParcelOpsStore {
       ),
       (
         "Expected import: refund with order",
+        "Imported",
         "REF-8821",
         "No expected tracking",
         FetchedMailboxMessage(
@@ -11046,6 +11055,7 @@ final class ParcelOpsStore {
         name: sample.name,
         message: sample.message,
         connection: connection,
+        expectedDecision: sample.expectedDecision,
         expectedOrderNumber: sample.expectedOrder,
         expectedTrackingNumber: sample.expectedTracking
       )
@@ -11053,9 +11063,11 @@ final class ParcelOpsStore {
     let imported = results.filter { $0.decision == "Imported" }.count
     let uncertain = results.filter { $0.decision == "Uncertain" }.count
     let filtered = results.filter { $0.decision == "Filtered" }.count
+    let decisionPasses = results.filter { $0.decisionStatus.lowercased().hasPrefix("classifier passed") }.count
+    let decisionChecks = results.filter { !$0.decisionStatus.localizedCaseInsensitiveContains("No classifier expectation") }.count
     let parserPasses = results.filter { $0.parserStatus.lowercased().hasPrefix("parser passed") }.count
     let parserChecks = results.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }.count
-    let summary = "Classifier suite: \(imported) imported, \(uncertain) uncertain, \(filtered) filtered across \(results.count) local samples. Parser expectations: \(parserPasses)/\(parserChecks) passed. No mailbox fetch or import occurred."
+    let summary = "Classifier suite: \(imported) imported, \(uncertain) uncertain, \(filtered) filtered across \(results.count) local samples. Classifier expectations: \(decisionPasses)/\(decisionChecks) passed. Parser expectations: \(parserPasses)/\(parserChecks) passed. No mailbox fetch or import occurred."
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.classifierTestResults = results
       draft.classifierTestSummary = summary
@@ -11080,7 +11092,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "SpaceMail classifier test suite ran locally.",
-      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber), parser \($0.parserStatus)" }.joined(separator: "\n"))\nNo mailbox fetch, mailbox mutation, external service call, import, password, auth string, or full message body logging occurred."
+      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), decision \($0.decisionStatus), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber), parser \($0.parserStatus)" }.joined(separator: "\n"))\nNo mailbox fetch, mailbox mutation, external service call, import, password, auth string, or full message body logging occurred."
     )
   }
 
@@ -11152,6 +11164,7 @@ final class ParcelOpsStore {
     name: String,
     message: FetchedMailboxMessage,
     connection: SpaceMailIMAPConnection,
+    expectedDecision: String = "No expected decision",
     expectedOrderNumber: String = "No expected order",
     expectedTrackingNumber: String = "No expected tracking"
   ) -> SpaceMailClassifierTestResult {
@@ -11183,6 +11196,8 @@ final class ParcelOpsStore {
       detectedTrackingNumber: parsingPreview.detectedTrackingNumber,
       detectedMerchant: parsingPreview.detectedMerchant,
       detectedDestination: parsingPreview.detectedDestinationAddress,
+      expectedDecision: expectedDecision,
+      decisionStatus: spaceMailDecisionStatus(decision: decision, expectedDecision: expectedDecision),
       expectedOrderNumber: expectedOrderNumber,
       expectedTrackingNumber: expectedTrackingNumber,
       parserStatus: spaceMailParserStatus(
@@ -11195,6 +11210,16 @@ final class ParcelOpsStore {
       cautionLabels: evidence.cautionLabels,
       nextActionText: evidence.nextAction
     )
+  }
+
+  private func spaceMailDecisionStatus(decision: String, expectedDecision: String) -> String {
+    guard expectedDecision != "No expected decision" else {
+      return "No classifier expectation"
+    }
+    if decision.normalizedValidationKey == expectedDecision.normalizedValidationKey {
+      return "Classifier passed: expected \(expectedDecision)"
+    }
+    return "Classifier needs review: expected \(expectedDecision), got \(decision)"
   }
 
   private func spaceMailParserStatus(

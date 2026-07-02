@@ -333,6 +333,8 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
   var detectedMerchant: String
   var detectedDestination: String
 
+  var expectedDecision: String
+  var decisionStatus: String
   var expectedOrderNumber: String
   var expectedTrackingNumber: String
   var parserStatus: String
@@ -351,6 +353,8 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     detectedTrackingNumber: String,
     detectedMerchant: String,
     detectedDestination: String,
+    expectedDecision: String = "No expected decision",
+    decisionStatus: String = "No classifier expectation",
     expectedOrderNumber: String = "No expected order",
     expectedTrackingNumber: String = "No expected tracking",
     parserStatus: String = "No parser expectation",
@@ -368,6 +372,8 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     self.detectedTrackingNumber = detectedTrackingNumber
     self.detectedMerchant = detectedMerchant
     self.detectedDestination = detectedDestination
+    self.expectedDecision = expectedDecision
+    self.decisionStatus = decisionStatus
     self.expectedOrderNumber = expectedOrderNumber
     self.expectedTrackingNumber = expectedTrackingNumber
     self.parserStatus = parserStatus
@@ -387,6 +393,8 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     case detectedTrackingNumber
     case detectedMerchant
     case detectedDestination
+    case expectedDecision
+    case decisionStatus
     case expectedOrderNumber
     case expectedTrackingNumber
     case parserStatus
@@ -407,6 +415,8 @@ struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
     detectedTrackingNumber = try container.decode(String.self, forKey: .detectedTrackingNumber)
     detectedMerchant = try container.decode(String.self, forKey: .detectedMerchant)
     detectedDestination = try container.decode(String.self, forKey: .detectedDestination)
+    expectedDecision = try container.decodeIfPresent(String.self, forKey: .expectedDecision) ?? "No expected decision"
+    decisionStatus = try container.decodeIfPresent(String.self, forKey: .decisionStatus) ?? "No classifier expectation"
     expectedOrderNumber = try container.decodeIfPresent(String.self, forKey: .expectedOrderNumber) ?? "No expected order"
     expectedTrackingNumber = try container.decodeIfPresent(String.self, forKey: .expectedTrackingNumber) ?? "No expected tracking"
     parserStatus = try container.decodeIfPresent(String.self, forKey: .parserStatus) ?? "No parser expectation"
