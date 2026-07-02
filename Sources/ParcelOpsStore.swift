@@ -10749,6 +10749,94 @@ final class ParcelOpsStore {
     )
   }
 
+  func createSpaceMailShiftHandoffNote(for connection: SpaceMailIMAPConnection) {
+    let summary = spaceMailShiftHandoffSummary
+    let detail = spaceMailShiftHandoffDetail(for: connection, summary: summary)
+    let note = HandoffNote(
+      title: "SpaceMail shift handoff - \(connection.displayName)",
+      summary: summary.detail,
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      priority: spaceMailHandoffPriority(for: summary.tone),
+      assignee: "Mailbox team",
+      createdDate: Self.auditTimestamp(),
+      dueDate: "Next shift",
+      status: .open,
+      reviewState: .needsReview,
+      notes: detail
+    )
+
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(
+      action: .created,
+      entityType: .handoffNote,
+      entityID: note.id.uuidString,
+      entityLabel: note.title,
+      summary: "SpaceMail shift handoff note created locally.",
+      afterDetail: "\(detail)\nNo mailbox fetch, mailbox mutation, password read, external service call, or parser change occurred."
+    )
+    logAudit(
+      action: .linked,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail shift summary linked to a handoff note.",
+      afterDetail: "Handoff note: \(note.title)\n\(detail)"
+    )
+  }
+
+  func createSpaceMailShiftReviewTask(for connection: SpaceMailIMAPConnection) {
+    let summary = spaceMailShiftHandoffSummary
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: "SpaceMail shift summary",
+      summary: "\(summary.title): \(summary.detail) \(summary.lastRefreshText)",
+      priority: spaceMailHandoffPriority(for: summary.tone),
+      assignee: "Mailbox team"
+    )
+    logAudit(
+      action: .linked,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail shift summary review task created locally.",
+      afterDetail: "\(spaceMailShiftHandoffDetail(for: connection, summary: summary))\nNo mailbox fetch, mailbox mutation, password read, external service call, or parser change occurred."
+    )
+  }
+
+  private func spaceMailHandoffPriority(for tone: String) -> TaskPriority {
+    switch tone {
+    case "warning":
+      return .high
+    case "attention":
+      return .normal
+    case "success":
+      return .low
+    default:
+      return .normal
+    }
+  }
+
+  private func spaceMailShiftHandoffDetail(for connection: SpaceMailIMAPConnection, summary: SpaceMailShiftHandoffSummary) -> String {
+    let metrics = summary.keyCounts.map { "\($0.title): \($0.value)" }.joined(separator: ", ")
+    let lines = summary.handoffLines.map { "- \($0.title): \($0.detail)" }.joined(separator: "\n")
+    return """
+    Connection: \(connection.displayName)
+    Mailbox: \(connection.emailAddressUsername)
+    Mode: \(connection.mailboxMode.rawValue)
+    Last refresh: \(connection.lastManualRefreshDate)
+    Last refresh result: \(connection.lastRefreshSummary.isEmpty ? connection.connectionStatus : connection.lastRefreshSummary)
+    Handoff status: \(summary.title)
+    Handoff detail: \(summary.detail)
+    Latest refresh note: \(summary.lastRefreshText)
+    Counts: \(metrics)
+    Handoff checks:
+    \(lines)
+    """
+  }
+
   func dismissUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, for connection: SpaceMailIMAPConnection) {
     removeUncertainSpaceMailMessage(uncertainMessage, from: connection)
     updateSpaceMailIMAPConnection(connection) { draft in

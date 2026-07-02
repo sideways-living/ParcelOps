@@ -148,6 +148,10 @@ struct MailboxView: View {
               store.simulateSpaceMailCredentialStorageError(connection)
             } onCredentialClear: {
               store.simulateSpaceMailCredentialClear(connection)
+            } onCreateShiftHandoff: {
+              store.createSpaceMailShiftHandoffNote(for: connection)
+            } onCreateShiftTask: {
+              store.createSpaceMailShiftReviewTask(for: connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }

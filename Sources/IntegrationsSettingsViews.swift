@@ -463,6 +463,10 @@ struct IntegrationsView: View {
               store.simulateSpaceMailCredentialStorageError(connection)
             } onCredentialClear: {
               store.simulateSpaceMailCredentialClear(connection)
+            } onCreateShiftHandoff: {
+              store.createSpaceMailShiftHandoffNote(for: connection)
+            } onCreateShiftTask: {
+              store.createSpaceMailShiftReviewTask(for: connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }
@@ -1130,6 +1134,8 @@ struct SpaceMailIMAPConnectionRow: View {
   var onCredentialMissing: () -> Void
   var onCredentialError: () -> Void
   var onCredentialClear: () -> Void
+  var onCreateShiftHandoff: () -> Void
+  var onCreateShiftTask: () -> Void
   var onRemove: () -> Void
 
   @State private var isEditing = false
@@ -1184,6 +1190,7 @@ struct SpaceMailIMAPConnectionRow: View {
 
       spaceMailRefreshSummary
       spaceMailNextSteps
+      spaceMailShiftHandoffActions
       spaceMailReviewQueueSummary
 
       if !connection.uncertainMessages.isEmpty {
@@ -1481,13 +1488,40 @@ struct SpaceMailIMAPConnectionRow: View {
     .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  private var spaceMailShiftHandoffActions: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("6. Shift handoff", systemImage: "person.2.wave.2.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.purple)
+        Spacer()
+        Badge("Local only", color: .purple)
+      }
+      Text("Capture the current SpaceMail state as a handoff note or review task so the next operator can continue without opening Audit first.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Create handoff note", systemImage: "arrow.left.arrow.right.square.fill", action: onCreateShiftHandoff)
+        Button("Create review task", systemImage: "checklist", action: onCreateShiftTask)
+      }
+      Text("Uses current local refresh counts, parser diagnostics, mixed-mailbox review queues, and Inbox/order handoff state. It does not fetch mail, read passwords, change classifier rules, or modify mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.purple.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
   private var spaceMailReviewQueueSummary: some View {
     let uncertainCount = connection.uncertainMessages.count
     let filteredCount = connection.filteredMessages.count
 
     return VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Label("5. Review queued examples", systemImage: "tray.full.fill")
+        Label("7. Review queued examples", systemImage: "tray.full.fill")
           .font(.caption.weight(.semibold))
           .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
         Spacer()
