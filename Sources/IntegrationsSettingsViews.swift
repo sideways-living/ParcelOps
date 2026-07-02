@@ -2056,67 +2056,65 @@ struct Microsoft365MailboxConnectionEditor: View {
 
   var body: some View {
     NavigationStack {
-      VStack(spacing: 0) {
-        Form {
-          Section("1. Mailbox placeholder") {
-            TextField("Display name", text: $draft.displayName)
-            TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
-            TextField("Mailbox address", text: $draft.mailboxAddress)
-            TextField("Monitored folders", text: $draft.monitoredFolderNames)
+      Form {
+        Section("1. Mailbox placeholder") {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
+          TextField("Mailbox address", text: $draft.mailboxAddress)
+          TextField("Monitored folders", text: $draft.monitoredFolderNames)
+        }
+        Section("2. Local status and notes") {
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text("Accepted").tag(ReviewState.accepted)
+            Text("Needs review").tag(ReviewState.needsReview)
+            Text("Monitor").tag(ReviewState.monitor)
           }
-          Section("2. Local status and notes") {
-            TextField("Connection status", text: $draft.connectionStatus)
-            TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
-            Picker("Review state", selection: $draft.reviewState) {
-              Text("Accepted").tag(ReviewState.accepted)
-              Text("Needs review").tag(ReviewState.needsReview)
-              Text("Monitor").tag(ReviewState.monitor)
-            }
-            TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
-              .lineLimit(3...6)
-          }
-          Section("3. OAuth readiness placeholders") {
-            Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
-            TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
-            TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
-            TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
-              .lineLimit(2...4)
-            TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
-            TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
-              .lineLimit(3...6)
-          }
-          Section("4. Implementation checklist") {
-            Text(implementationPlan.statusText)
-              .font(.subheadline.weight(.semibold))
-            Text("Review these planning items before adding a real OAuth flow in a later pass.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            ForEach(implementationPlan.items) { item in
-              Label {
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(item.title)
-                  Text(item.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-              } icon: {
-                Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
-                  .foregroundStyle(item.isComplete ? .green : .secondary)
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
+        Section("3. OAuth readiness placeholders") {
+          Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
+          TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
+          TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
+          TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
+            .lineLimit(2...4)
+          TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
+          TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
+        Section("4. Implementation checklist") {
+          Text(implementationPlan.statusText)
+            .font(.subheadline.weight(.semibold))
+          Text("Review these planning items before adding a real OAuth flow in a later pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          ForEach(implementationPlan.items) { item in
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                Text(item.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
+            } icon: {
+              Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(item.isComplete ? .green : .secondary)
             }
-          }
-          Section("Not connected") {
-            Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
           }
         }
-        .formStyle(.grouped)
-
-        Divider()
+        Section("Not connected") {
+          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+      .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
           Button("Cancel") { dismiss() }
@@ -2130,8 +2128,9 @@ struct Microsoft365MailboxConnectionEditor: View {
         }
         .padding()
         .background(.background)
+        .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 420, idealHeight: 680, maxHeight: 720)
+      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 680)
       .navigationTitle("Microsoft 365 mailbox")
     }
   }
