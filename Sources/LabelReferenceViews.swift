@@ -366,6 +366,7 @@ struct LabelReferenceRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -447,20 +448,42 @@ struct LabelReferenceRow: View {
         }
       }
 
+      if let feedbackMessage {
+        LabelReferenceActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Printed", systemImage: "printer.fill", action: onPrinted)
+        Button("Printed", systemImage: "printer.fill") {
+          onPrinted()
+          feedbackMessage = "Label marked printed locally. No printer, label service, carrier API, or external system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Verified", systemImage: "barcode.viewfinder", action: onVerified)
+        Button("Verified", systemImage: "barcode.viewfinder") {
+          onVerified()
+          feedbackMessage = "Label marked scanned/verified locally. Confirm linked scan, custody, or dispatch readiness before handoff."
+        }
           .buttonStyle(.bordered)
-        Button("Invalid", systemImage: "exclamationmark.triangle.fill", action: onInvalid)
+        Button("Invalid", systemImage: "exclamationmark.triangle.fill") {
+          onInvalid()
+          feedbackMessage = "Label marked invalid locally. Create a task or draft if someone needs to resolve the label issue."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Label reference marked reviewed locally. No barcode scanner, camera, or carrier system was used."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this label reference for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this label reference. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -470,7 +493,10 @@ struct LabelReferenceRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Label reference removed locally. No carrier label, barcode, mailbox, or warehouse system was changed."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -480,6 +506,7 @@ struct LabelReferenceRow: View {
     .sheet(isPresented: $isEditing) {
       LabelReferenceEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
+        feedbackMessage = "Label reference details saved locally. Recheck scan, custody, and dispatch context if values changed."
       }
     }
   }
@@ -527,6 +554,25 @@ struct LabelReferenceRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct LabelReferenceActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

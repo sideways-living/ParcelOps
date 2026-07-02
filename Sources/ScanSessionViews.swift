@@ -368,6 +368,7 @@ struct ScanSessionRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -446,22 +447,47 @@ struct ScanSessionRow: View {
         }
       }
 
+      if let feedbackMessage {
+        ScanSessionActionFeedbackPanel(message: feedbackMessage)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Matched", systemImage: "checkmark.circle.fill", action: onMatched)
+        Button("Matched", systemImage: "checkmark.circle.fill") {
+          onMatched()
+          feedbackMessage = "Scan marked matched locally. No camera, scanner hardware, or barcode service was used."
+        }
           .buttonStyle(.bordered)
-        Button("Mismatch", systemImage: "exclamationmark.triangle.fill", action: onMismatch)
+        Button("Mismatch", systemImage: "exclamationmark.triangle.fill") {
+          onMismatch()
+          feedbackMessage = "Scan marked mismatch locally. Review linked label, custody, and dispatch readiness before handoff."
+        }
           .buttonStyle(.bordered)
-        Button("Complete", systemImage: "checkmark.seal.fill", action: onCompleted)
+        Button("Complete", systemImage: "checkmark.seal.fill") {
+          onCompleted()
+          feedbackMessage = "Scan session completed locally. Confirm label and dispatch context before closing related work."
+        }
           .buttonStyle(.bordered)
-        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
+        Button("Reopen", systemImage: "arrow.counterclockwise") {
+          onReopen()
+          feedbackMessage = "Scan session reopened locally for another manual verification pass."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Scan session marked reviewed locally. No scanner, camera, or warehouse system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this scan session for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this scan session. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -471,7 +497,10 @@ struct ScanSessionRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Scan session removed locally. No mailbox, scanner, camera, or warehouse system was changed."
+        }
           .buttonStyle(.bordered)
       }
 
@@ -488,6 +517,7 @@ struct ScanSessionRow: View {
     .sheet(isPresented: $isEditing) {
       ScanSessionEditView(record: record) { updatedRecord in
         onSave(updatedRecord)
+        feedbackMessage = "Scan session details saved locally. Recheck expected and captured values if dispatch readiness depends on this scan."
       }
     }
   }
@@ -535,6 +565,25 @@ struct ScanSessionRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct ScanSessionActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
