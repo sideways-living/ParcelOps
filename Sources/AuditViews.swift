@@ -89,6 +89,45 @@ struct AuditView: View {
     searchMatchedEvents.filter(\.isTechnicalSpaceMailDiagnostic).count
   }
 
+  private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
+    store.spaceMailIntakeHealthSummaries
+  }
+
+  private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
+    store.spaceMailPostRefreshActionPlan
+  }
+
+  private var spaceMailFetchedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var spaceMailImportedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var spaceMailDuplicateCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var spaceMailFilteredCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var spaceMailUncertainCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var spaceMailParserIssueCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
+  }
+
+  private var spaceMailFilteredOnlyOutcome: Bool {
+    spaceMailFetchedCount > 0
+      && spaceMailImportedCount == 0
+      && spaceMailUncertainCount == 0
+      && spaceMailFilteredCount > 0
+  }
+
   private var auditNextCheckTitle: String {
     if !spaceMailEvidenceEvents.isEmpty {
       return "Check the latest mailbox intake result"
@@ -174,6 +213,7 @@ struct AuditView: View {
 
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+        spaceMailAuditOutcomePanel
 
         inboxSourceTrailAuditPanel
 
@@ -328,6 +368,159 @@ struct AuditView: View {
           }
         }
       }
+    }
+  }
+
+  private var spaceMailAuditOutcomePanel: some View {
+    SettingsPanel(title: "Mailbox audit outcome", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: spaceMailAuditOutcomeSymbol)
+            .font(.title3)
+            .foregroundStyle(spaceMailAuditOutcomeColor)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(spaceMailAuditOutcomeTitle)
+              .font(.headline)
+            Text(spaceMailAuditOutcomeDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(spaceMailUncertainCount)", spaceMailUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal),
+          ("Duplicates", "\(spaceMailDuplicateCount)", spaceMailDuplicateCount == 0 ? .secondary : .teal),
+          ("Parser", "\(spaceMailParserIssueCount)", spaceMailParserIssueCount == 0 ? .secondary : .purple),
+          ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(spaceMailPostRefreshPlan.items) { item in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.symbol)
+                  .foregroundStyle(auditColor(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(item.title)
+                    .font(.caption.weight(.semibold))
+                  Text(item.actionLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(auditColor(for: item.tone))
+                  Text(item.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Badge("\(item.count)", color: auditColor(for: item.tone))
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(auditColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text(spaceMailAuditOutcomeFootnote)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(spaceMailAuditOutcomeColor)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          Button(showTechnicalDiagnostics ? "Hide technical diagnostics" : "Show technical diagnostics", systemImage: showTechnicalDiagnostics ? "eye.slash" : "eye") {
+            showTechnicalDiagnostics.toggle()
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var spaceMailAuditOutcomeTitle: String {
+    if spaceMailImportedCount > 0 { return "Mailbox imported order candidates" }
+    if spaceMailUncertainCount > 0 { return "Mailbox has uncertain previews" }
+    if spaceMailParserIssueCount > 0 { return "Mailbox parser diagnostics need review" }
+    if spaceMailFilteredOnlyOutcome { return "Mailbox refresh was mostly non-order mail" }
+    if spaceMailFetchedCount > 0 { return "Mailbox refresh created no operator work" }
+    return spaceMailPostRefreshPlan.title
+  }
+
+  private var spaceMailAuditOutcomeDetail: String {
+    if spaceMailImportedCount > 0 {
+      return "\(spaceMailImportedCount) message reached Inbox as likely order intake. Use Audit to confirm the import happened, then continue in Inbox or Orders."
+    }
+    if spaceMailUncertainCount > 0 {
+      return "\(spaceMailUncertainCount) ambiguous message is held outside Inbox. Review it in Mailbox Monitor before creating tasks or orders."
+    }
+    if spaceMailParserIssueCount > 0 {
+      return "\(spaceMailParserIssueCount) parser diagnostic is available. Keep technical diagnostics hidden unless you need the full evidence trail."
+    }
+    if spaceMailFilteredOnlyOutcome {
+      return "\(spaceMailFilteredCount) fetched message was filtered as non-order mail. That is expected for the mixed SpaceMail mailbox and does not require task or Workbench follow-up."
+    }
+    if spaceMailFetchedCount > 0 {
+      return "The latest refresh fetched mail but did not import, hold uncertain, or create parser work."
+    }
+    return spaceMailPostRefreshPlan.detail
+  }
+
+  private var spaceMailAuditOutcomeFootnote: String {
+    if hiddenTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
+      return "\(hiddenTechnicalDiagnosticCount) duplicate, parser, no-change, or provider-ID diagnostics are hidden from the default operator feed. Turn them on only when investigating intake internals."
+    }
+    return "Audit keeps the operator outcome visible first. Detailed duplicate, parser, and provider-ID evidence remains available without storing passwords, auth strings, or full message bodies."
+  }
+
+  private var spaceMailAuditOutcomeSymbol: String {
+    if spaceMailImportedCount > 0 { return "tray.full.fill" }
+    if spaceMailUncertainCount > 0 { return "questionmark.folder.fill" }
+    if spaceMailParserIssueCount > 0 { return "text.magnifyingglass" }
+    if spaceMailFilteredOnlyOutcome { return "checkmark.seal.fill" }
+    return "tray.and.arrow.down.fill"
+  }
+
+  private var spaceMailAuditOutcomeColor: Color {
+    if spaceMailImportedCount > 0 || spaceMailUncertainCount > 0 { return .orange }
+    if spaceMailParserIssueCount > 0 { return .purple }
+    if spaceMailFilteredOnlyOutcome { return .green }
+    if spaceMailFetchedCount > 0 { return .teal }
+    return auditColor(for: spaceMailPostRefreshPlan.tone)
+  }
+
+  private func auditColor(for tone: String) -> Color {
+    switch tone.localizedLowercase {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    case "neutral":
+      return .teal
+    default:
+      return .blue
     }
   }
 
