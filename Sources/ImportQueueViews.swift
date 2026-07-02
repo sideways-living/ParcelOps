@@ -344,6 +344,7 @@ struct ImportQueueItemRow: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var draft: ImportQueueItem
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var factColumns: [GridItem] {
     Array(repeating: GridItem(.flexible()), count: horizontalSizeClass == .compact ? 1 : 2)
@@ -476,6 +477,7 @@ struct ImportQueueItemRow: View {
         Button(isEditing ? "Save" : "Edit", systemImage: isEditing ? "checkmark" : "pencil") {
           if isEditing {
             onSave(draft)
+            feedbackMessage = "Import item saved locally."
           } else {
             draft = item
           }
@@ -487,6 +489,7 @@ struct ImportQueueItemRow: View {
           ForEach(orders) { order in
             Button("\(order.orderNumber) • \(order.store)") {
               onLinkOrder(order)
+              feedbackMessage = "Import linked to \(order.orderNumber). Check Orders."
             }
           }
         }
@@ -494,10 +497,14 @@ struct ImportQueueItemRow: View {
           ForEach(shipmentGroups) { group in
             Button(group.groupName) {
               onLinkShipmentGroup(group)
+              feedbackMessage = "Import linked to shipment group. Check linked context."
             }
           }
         }
-        Button("Order", systemImage: "shippingbox.fill", action: onCreateOrder)
+        Button("Order", systemImage: "shippingbox.fill") {
+          onCreateOrder()
+          feedbackMessage = "Order created from staged import. Check Orders."
+        }
           .buttonStyle(.bordered)
         if let linkedOrder {
           NavigationLink {
@@ -507,29 +514,95 @@ struct ImportQueueItemRow: View {
           }
           .buttonStyle(.borderedProminent)
         }
-        Button("Group", systemImage: "shippingbox.and.arrow.backward.fill", action: onCreateShipmentGroup)
+        Button("Group", systemImage: "shippingbox.and.arrow.backward.fill") {
+          onCreateShipmentGroup()
+          feedbackMessage = "Shipment group created from staged import."
+        }
           .buttonStyle(.bordered)
       }
 
       CompactActionRow {
-        Button("Accept", systemImage: "checkmark.seal.fill", action: onAccepted)
+        Button("Accept", systemImage: "checkmark.seal.fill") {
+          onAccepted()
+          feedbackMessage = "Import accepted locally. Check Acceptance."
+        }
           .buttonStyle(.borderedProminent)
-        Button("Ignore", systemImage: "eye.slash.fill", action: onIgnored)
+        Button("Ignore", systemImage: "eye.slash.fill") {
+          onIgnored()
+          feedbackMessage = "Import ignored locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill", action: onReopen)
+        Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+          onReopen()
+          feedbackMessage = "Import reopened for review."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
+        Button("Draft", systemImage: "square.and.pencil") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created locally."
+        }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        ImportQueueFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct ImportQueueFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        if message.localizedCaseInsensitiveContains("order") {
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        if message.localizedCaseInsensitiveContains("task") {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        if message.localizedCaseInsensitiveContains("accept") {
+          NavigationLink {
+            AcceptanceReviewView(store: store)
+          } label: {
+            Label("Open Acceptance", systemImage: "checkmark.rectangle.stack.fill")
+          }
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

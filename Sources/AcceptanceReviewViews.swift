@@ -354,6 +354,7 @@ struct AcceptanceCandidateRow: View {
   var onReopen: () -> Void
   var onTask: () -> Void
   var onDraft: () -> Void
+  @State private var feedbackMessage: String?
 
   private var linkedOrder: TrackedOrder? {
     candidate.suggestedLinkedOrderID.flatMap { orderID in
@@ -439,6 +440,7 @@ struct AcceptanceCandidateRow: View {
           ForEach(orders) { order in
             Button("\(order.store) \(order.orderNumber)") {
               onLinkOrder(order)
+              feedbackMessage = "Candidate linked to \(order.orderNumber). Check Orders."
             }
           }
         }
@@ -447,11 +449,15 @@ struct AcceptanceCandidateRow: View {
           ForEach(shipmentGroups) { group in
             Button(group.groupName) {
               onLinkShipmentGroup(group)
+              feedbackMessage = "Candidate linked to shipment group. Check linked context."
             }
           }
         }
 
-        Button("Create order", systemImage: "plus.square.fill", action: onCreateOrder)
+        Button("Create order", systemImage: "plus.square.fill") {
+          onCreateOrder()
+          feedbackMessage = "Order created from acceptance candidate. Check Orders."
+        }
         if let linkedOrder {
           NavigationLink {
             OrderDetailView(order: linkedOrder, store: store)
@@ -459,15 +465,37 @@ struct AcceptanceCandidateRow: View {
             Label("Open order", systemImage: "arrow.up.right.square.fill")
           }
         }
-        Button("Create group", systemImage: "square.stack.3d.up.fill", action: onCreateShipmentGroup)
-        Button("Task", systemImage: "checklist", action: onTask)
-        Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
-        Button("Accept", systemImage: "checkmark.circle.fill", action: onAccept)
-        Button("Ignore", systemImage: "eye.slash.fill", action: onIgnore)
-        Button("Reopen", systemImage: "arrow.counterclockwise", action: onReopen)
+        Button("Create group", systemImage: "square.stack.3d.up.fill") {
+          onCreateShipmentGroup()
+          feedbackMessage = "Shipment group created from acceptance candidate."
+        }
+        Button("Task", systemImage: "checklist") {
+          onTask()
+          feedbackMessage = "Follow-up task created. Check Tasks."
+        }
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onDraft()
+          feedbackMessage = "Draft message created locally."
+        }
+        Button("Accept", systemImage: "checkmark.circle.fill") {
+          onAccept()
+          feedbackMessage = "Candidate accepted locally. Check Orders if an order was linked or created."
+        }
+        Button("Ignore", systemImage: "eye.slash.fill") {
+          onIgnore()
+          feedbackMessage = "Candidate ignored locally."
+        }
+        Button("Reopen", systemImage: "arrow.counterclockwise") {
+          onReopen()
+          feedbackMessage = "Candidate reopened for review."
+        }
       }
       .font(.caption)
       .buttonStyle(.bordered)
+
+      if let feedbackMessage {
+        AcceptanceFeedbackPanel(message: feedbackMessage, store: store)
+      }
     }
     .padding()
     .background(.background, in: RoundedRectangle(cornerRadius: 8))
@@ -475,6 +503,48 @@ struct AcceptanceCandidateRow: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(.quaternary)
     )
+  }
+}
+
+private struct AcceptanceFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        if message.localizedCaseInsensitiveContains("order") {
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        if message.localizedCaseInsensitiveContains("task") {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
