@@ -258,6 +258,7 @@ struct EvidenceAttachmentRow: View {
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
   var onCreateContact: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -369,16 +370,35 @@ struct EvidenceAttachmentRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Evidence marked reviewed locally. No OCR, file picker, external storage, or mailbox system was contacted."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Evidence reference removed locally. No local file, mailbox message, or external system was deleted."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this evidence item for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this evidence item. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
-        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus") {
+          onCreateContact()
+          feedbackMessage = "Contact placeholder created from this evidence item for local follow-up."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        EvidenceActionFeedbackPanel(message: feedbackMessage)
       }
     }
     .padding(12)
@@ -439,6 +459,25 @@ struct EvidenceAttachmentRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct EvidenceActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

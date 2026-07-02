@@ -325,6 +325,7 @@ struct ReconciliationIssueRow: View {
   var onReviewed: () -> Void = {}
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -388,12 +389,21 @@ struct ReconciliationIssueRow: View {
       }
 
       CompactActionRow {
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Reconciliation issue marked reviewed locally. Confirm linked order and intake context before closing related work."
+        }
           .buttonStyle(.bordered)
           .disabled(issue.reviewState == .accepted)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this reconciliation issue for local mismatch follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
+        Button("Draft", systemImage: "square.and.pencil") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this reconciliation issue. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {
           NavigationLink {
@@ -405,11 +415,34 @@ struct ReconciliationIssueRow: View {
         }
       }
       .font(.caption)
+
+      if let feedbackMessage {
+        ReconciliationIssueActionFeedbackPanel(message: feedbackMessage)
+      }
     }
     .padding(12)
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct ReconciliationIssueActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

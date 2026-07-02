@@ -285,6 +285,7 @@ struct ValidationIssueRow: View {
   var packageContents: [PackageContentRecord] = []
   var onCreateTask: () -> Void = {}
   var onCreateDraft: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -322,10 +323,16 @@ struct ValidationIssueRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this validation issue for local follow-up."
+        }
           .buttonStyle(.bordered)
           .disabled(!issue.supportsReviewTask)
-        Button("Draft", systemImage: "square.and.pencil", action: onCreateDraft)
+        Button("Draft", systemImage: "square.and.pencil") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this validation issue. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
           .disabled(!issue.supportsDraftMessage)
         if let store, let linkedOrder {
@@ -336,6 +343,10 @@ struct ValidationIssueRow: View {
           }
           .buttonStyle(.bordered)
         }
+      }
+
+      if let feedbackMessage {
+        ValidationIssueActionFeedbackPanel(message: feedbackMessage)
       }
 
       if !shipmentGroups.isEmpty {
@@ -370,6 +381,25 @@ struct ValidationIssueRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct ValidationIssueActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

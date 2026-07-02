@@ -280,6 +280,7 @@ struct TrackingEventRow: View {
   var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
   var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
   var relatedTasks: () -> [ReviewTask] = { [] }
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -405,13 +406,25 @@ struct TrackingEventRow: View {
       }
 
       CompactActionRow {
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Tracking event marked reviewed locally. No carrier API, notification, or mailbox mutation occurred."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Tracking event removed locally. No carrier record, order system, or mailbox message was changed."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this tracking event for local follow-up."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from this tracking event. It remains local until a person sends anything outside ParcelOps."
+        }
           .buttonStyle(.bordered)
         if let store, let order {
           NavigationLink {
@@ -421,8 +434,15 @@ struct TrackingEventRow: View {
           }
           .buttonStyle(.bordered)
         }
-        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+        Button("Profile", systemImage: "building.2.crop.circle") {
+          onCreateProfile()
+          feedbackMessage = "Vendor profile placeholder created from this tracking event for local reference."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        TrackingEventActionFeedbackPanel(message: feedbackMessage)
       }
     }
     .padding(12)
@@ -467,5 +487,24 @@ struct TrackingEventRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct TrackingEventActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
