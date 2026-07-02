@@ -254,16 +254,23 @@ struct MailboxView: View {
         }
 
         SettingsPanel(title: "Local sample mailbox import", symbol: "tray.and.arrow.down.fill") {
-          Text("Import sample fetched mailbox messages through the same provider-neutral intake path. No mailbox is contacted.")
+          Text("Import local sample fetched mailbox messages through the same provider-neutral intake path. No mailbox is contacted.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
+            Button("Import clear order test email", systemImage: "checklist.checked") {
+              store.importClearOrderIntakeTestMessage()
+            }
+            .buttonStyle(.borderedProminent)
             Button("Import sample messages", systemImage: "envelope.badge.fill") {
               store.importSimulatedFetchedMailboxMessages()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             Badge("\(store.mailboxIngestRecords.count) ingest records", color: .blue)
           }
+          Text("Use the clear order test when you need one obvious Inbox row with an order number and tracking number before testing Create order, link order, and review actions.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         if !store.intakeParserDiagnostics.isEmpty {

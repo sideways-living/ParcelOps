@@ -4821,6 +4821,34 @@ final class ParcelOpsStore {
     importFetchedMailboxMessages(messages)
   }
 
+  func importClearOrderIntakeTestMessage() {
+    let mailbox = localSampleTrackedMailbox()
+    upsertTrackedMailbox(mailbox)
+
+    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+    let suffix = String(timestamp % 1_000_000)
+    let orderNumber = "TEST-\(suffix)"
+    let trackingNumber = "ABC\(suffix)"
+    let message = FetchedMailboxMessage(
+      providerMessageID: "local-clear-order-\(mailbox.id.uuidString)-\(timestamp)",
+      sender: "orders@example-shop.test",
+      subject: "Order \(orderNumber) shipped tracking \(trackingNumber)",
+      receivedDate: Self.auditTimestamp(),
+      plainTextBodyPreview: "Order \(orderNumber) shipped tracking \(trackingNumber) to 24 Sample Street, Melbourne VIC. This is a local-only ParcelOps intake test message.",
+      sourceMailboxID: mailbox.id
+    )
+
+    let result = importFetchedMailboxMessages([message])
+    logAudit(
+      action: .evaluated,
+      entityType: .trackedMailbox,
+      entityID: mailbox.id.uuidString,
+      entityLabel: mailbox.address,
+      summary: "Local clear order intake sample imported.",
+      afterDetail: "Order: \(orderNumber)\nTracking: \(trackingNumber)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nNo mailbox was contacted. The sample used the provider-neutral fetched mailbox ingestion path so Inbox, parser diagnostics, duplicate metadata, JSON persistence, and Audit behave like a real captured message."
+    )
+  }
+
   func importSimulatedFetchedMailboxMessages(for connection: Microsoft365MailboxConnection) {
     Task {
       await refreshMicrosoft365MailboxConnectionThroughMockGraph(connection)
@@ -5122,6 +5150,20 @@ final class ParcelOpsStore {
         sourceMailboxID: mailbox.id
       )
     ]
+  }
+
+  private func localSampleTrackedMailbox() -> TrackedMailbox {
+    if let mailbox = mailboxes.first(where: { $0.address == "local-sample-intake@parcelops.example" }) {
+      return mailbox
+    }
+    return TrackedMailbox(
+      address: "local-sample-intake@parcelops.example",
+      provider: .imap,
+      monitoredFolders: "Local samples",
+      status: "Local-only test mailbox",
+      lastChecked: Self.auditTimestamp(),
+      routingRule: "Clear order/tracking intake sample"
+    )
   }
 
   private func filteredSpaceMailMessages(
