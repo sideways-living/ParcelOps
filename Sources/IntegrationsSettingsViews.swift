@@ -18,6 +18,36 @@ struct IntegrationsView: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var microsoftSetupCount: Int {
+    store.microsoft365MailboxConnections.count
+  }
+
+  private var microsoftConnectedCount: Int {
+    store.microsoft365MailboxConnections.filter {
+      $0.connectionStatus.localizedCaseInsensitiveContains("connected")
+        || $0.connectionStatus.localizedCaseInsensitiveContains("real graph")
+    }.count
+  }
+
+  private var spaceMailLivePathDetail: String {
+    if !hasSpaceMailSetup {
+      return "No SpaceMail setup exists yet. Add one before treating Microsoft 365, Shopify, folders, or login placeholders as daily intake paths."
+    }
+    if !hasSpaceMailCredentialReference {
+      return "SpaceMail setup exists, but the Keychain credential is not ready. Add or check the credential before running the real manual refresh."
+    }
+    if let latestSpaceMailSummary {
+      return "\(latestSpaceMailSummary.displayName): \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.uncertainCount + latestSpaceMailSummary.pendingUncertainReviewCount) uncertain. \(latestSpaceMailSummary.nextAction)"
+    }
+    return "SpaceMail is configured and ready for an explicit manual refresh. No refresh history is recorded yet."
+  }
+
+  private var providerPriorityTone: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    return .green
+  }
+
   private var recommendedSetupTitle: String {
     if !hasSpaceMailSetup {
       return "Start with SpaceMail setup"
@@ -103,6 +133,81 @@ struct IntegrationsView: View {
       showsFolderSetup,
       showsSourceConnections
     ].filter(\.self).count
+  }
+
+  private var providerPriorityPanel: some View {
+    SettingsPanel(title: "Provider priority", symbol: "point.3.connected.trianglepath.dotted") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "server.rack")
+            .font(.title3)
+            .foregroundStyle(providerPriorityTone)
+            .frame(width: 28)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Use SpaceMail as the live mailbox path")
+              .font(.headline)
+            Text(spaceMailLivePathDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("SpaceMail", hasSpaceMailSetup ? "Primary" : "Missing", hasSpaceMailSetup ? .green : .orange),
+          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+          ("M365 records", "\(microsoftSetupCount)", microsoftSetupCount == 0 ? .secondary : .teal),
+          ("M365 ready", "\(microsoftConnectedCount)", microsoftConnectedCount == 0 ? .secondary : .orange),
+          ("Shopify", store.shopifyConnections.isEmpty ? "Planning" : "\(store.shopifyConnections.count)", .secondary),
+          ("Folders", "\(store.watchedFolders.count)", store.watchedFolders.isEmpty ? .secondary : .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ProviderPriorityStep(
+            title: "Primary today",
+            detail: "SpaceMail IMAP supports manual read-only refresh with a Keychain password and mixed-mailbox filtering.",
+            symbol: "server.rack",
+            color: hasSpaceMailCredentialReference ? .green : .orange
+          )
+          ProviderPriorityStep(
+            title: "Secondary testing",
+            detail: "Microsoft 365 remains useful for OAuth/Graph experiments, but it should not block daily SpaceMail intake.",
+            symbol: "mail.stack.fill",
+            color: microsoftSetupCount == 0 ? .secondary : .teal
+          )
+          ProviderPriorityStep(
+            title: "Planning only",
+            detail: "Shopify, folders, carrier, scanner, OCR, notifications, calendars, and background sync are not live integration paths.",
+            symbol: "lock.shield.fill",
+            color: .secondary
+          )
+        }
+
+        Text("Operational rule: run SpaceMail manually, review imported/uncertain/filtered outcomes, then move real order work through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit. Treat every other provider section as optional setup unless deliberately reactivated.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(providerPriorityTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
   }
 
   var body: some View {
@@ -235,6 +340,7 @@ struct IntegrationsView: View {
             SettingsReleaseCandidateCard(store: store)
           }
         }
+          providerPriorityPanel
         }
 
         if showsEditorSafety {
@@ -492,6 +598,28 @@ struct IntegrationsView: View {
 }
 
 struct SetupEditorSafetyItem: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct ProviderPriorityStep: View {
   var title: String
   var detail: String
   var symbol: String
@@ -2011,6 +2139,7 @@ struct SpaceMailCredentialSheet: View {
       }
     }
   }
+
 }
 
 struct SpaceMailIMAPConnectionEditor: View {
