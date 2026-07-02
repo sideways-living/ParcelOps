@@ -63,6 +63,21 @@ struct OrdersView: View {
       task.status != .completed && task.isPartialInboxOrderFollowUp
     }.count
   }
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+  private var pendingUncertainSpaceMailCount: Int {
+    latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
+  }
+  private var spaceMailFetchedCount: Int {
+    latestSpaceMailSummary?.fetchedCount ?? 0
+  }
+  private var spaceMailImportedCount: Int {
+    latestSpaceMailSummary?.importedCount ?? 0
+  }
+  private var spaceMailFilteredCount: Int {
+    latestSpaceMailSummary?.filteredCount ?? 0
+  }
 
   var body: some View {
     @Bindable var store = store
@@ -83,36 +98,7 @@ struct OrdersView: View {
           symbol: "shippingbox.fill"
         )
 
-        if !inboxCreatedOrderItems.isEmpty {
-          SettingsPanel(title: "Created from Inbox", symbol: "tray.and.arrow.down.fill") {
-            VStack(alignment: .leading, spacing: 12) {
-              Text("Newest orders created or linked from mailbox intake, import queue, or acceptance review. Start here after using Create order in Inbox.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-              MetricStrip(items: [
-                ("Inbox orders", "\(inboxCreatedOrderCount)", .teal),
-                ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
-                ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
-                ("Partial tasks", "\(partialInboxOrderTaskCount)", partialInboxOrderTaskCount == 0 ? .green : .orange),
-                ("Need review", "\(inboxCreatedOrdersNeedingReviewCount)", inboxCreatedOrdersNeedingReviewCount == 0 ? .green : .orange),
-                ("Need dispatch setup", "\(inboxCreatedOrdersMissingDispatchCount)", inboxCreatedOrdersMissingDispatchCount == 0 ? .green : .purple)
-              ])
-
-              Text(inboxCreatedOrdersActionableCount == 0
-                ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
-                : "The rows below are sorted by handoff risk: review gaps, missing dispatch setup, exceptions, then routine monitoring.")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(inboxCreatedOrdersActionableCount == 0 ? .green : .orange)
-                .fixedSize(horizontal: false, vertical: true)
-
-              ForEach(inboxCreatedOrderItems) { item in
-                OrderQueueRow(item: item, store: store)
-              }
-            }
-          }
-        }
+        inboxCreatedOrderHandoffPanel
 
         SettingsPanel(title: "Order queue", symbol: "shippingbox.fill") {
           VStack(alignment: .leading, spacing: 12) {
@@ -135,6 +121,47 @@ struct OrdersView: View {
       .padding(isCompact ? 14 : 24)
     }
     .searchable(text: $store.searchText, prompt: "Search orders, tracking, email, store")
+  }
+
+  private var inboxCreatedOrderHandoffPanel: some View {
+    SettingsPanel(title: "Inbox to Orders handoff", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Orders created or linked from mailbox intake, import queue, or acceptance review appear here. Use this after confirming an Inbox row is genuinely order-related.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
+          ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
+          ("Mail fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
+          ("Mail imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
+          ("Mail filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal)
+        ])
+
+        if inboxCreatedOrderItems.isEmpty {
+          OrdersInboxHandoffEmptyState(
+            fetchedCount: spaceMailFetchedCount,
+            importedCount: spaceMailImportedCount,
+            filteredCount: spaceMailFilteredCount,
+            uncertainCount: pendingUncertainSpaceMailCount,
+            store: store
+          )
+        } else {
+          Text(inboxCreatedOrdersActionableCount == 0
+            ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
+            : "The rows below are sorted by handoff risk: review gaps, missing dispatch setup, exceptions, then routine monitoring.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(inboxCreatedOrdersActionableCount == 0 ? .green : .orange)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(inboxCreatedOrderItems) { item in
+            OrderQueueRow(item: item, store: store)
+          }
+        }
+      }
+    }
   }
 
   private var header: some View {
@@ -342,6 +369,88 @@ struct OrdersView: View {
     }
   }
 
+}
+
+private struct OrdersInboxHandoffEmptyState: View {
+  var fetchedCount: Int
+  var importedCount: Int
+  var filteredCount: Int
+  var uncertainCount: Int
+  var store: ParcelOpsStore
+
+  private var title: String {
+    if importedCount > 0 { return "Imported intake is waiting in Inbox" }
+    if uncertainCount > 0 { return "Uncertain SpaceMail needs review" }
+    if filteredCount > 0 { return "No order mail reached Orders" }
+    if fetchedCount > 0 { return "Mailbox refresh found no order handoff" }
+    return "No Inbox-created orders yet"
+  }
+
+  private var detail: String {
+    if importedCount > 0 {
+      return "SpaceMail imported likely order mail, but no order has been created or linked yet. Open Inbox, verify the row, then use Create order or Link order."
+    }
+    if uncertainCount > 0 {
+      return "Mixed-mailbox filtering held possible order mail out of Inbox. Open Mailbox Monitor and import only true order updates."
+    }
+    if filteredCount > 0 {
+      return "The latest SpaceMail refresh mostly filtered non-order mail. Orders stays empty until a confirmed order/tracking message is imported or manually added."
+    }
+    if fetchedCount > 0 {
+      return "A manual mailbox refresh ran, but it did not produce an Inbox order handoff. Send or forward a clear order/tracking test email when testing this path."
+    }
+    return "Run SpaceMail refresh or import an intake row first, then create/link an order from Inbox."
+  }
+
+  private var color: Color {
+    if importedCount > 0 || uncertainCount > 0 { return .orange }
+    if filteredCount > 0 || fetchedCount > 0 { return .teal }
+    return .secondary
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: importedCount > 0 ? "tray.full.fill" : "shippingbox")
+          .foregroundStyle(color)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(importedCount > 0 || uncertainCount > 0 ? "Action" : "Waiting", color: color)
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label("Open Inbox", systemImage: "tray.full.fill")
+        }
+
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          Label("Open Mailbox Monitor", systemImage: "server.rack")
+        }
+
+        Button("Add manual order", systemImage: "plus") {
+          store.createManualOrderPlaceholder()
+        }
+      }
+      .buttonStyle(.bordered)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct OrderQueueItem: Identifiable {
