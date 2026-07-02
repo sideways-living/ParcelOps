@@ -398,6 +398,7 @@ struct SavedFilterRow: View {
   var onTogglePin: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -420,13 +421,29 @@ struct SavedFilterRow: View {
       }
 
       CompactActionRow {
-        Button("Apply", systemImage: "arrow.down.circle", action: onApply)
-        Button(filter.isPinned ? "Unpin" : "Pin", systemImage: filter.isPinned ? "pin.slash" : "pin", action: onTogglePin)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Apply", systemImage: "arrow.down.circle") {
+          onApply()
+          feedbackMessage = "Saved filter applied locally to the current search view."
+        }
+        Button(filter.isPinned ? "Unpin" : "Pin", systemImage: filter.isPinned ? "pin.slash" : "pin") {
+          onTogglePin()
+          feedbackMessage = filter.isPinned ? "Saved filter unpinned locally." : "Saved filter pinned locally for faster access."
+        }
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Saved filter removed locally. No records or external systems were changed."
+        }
           .foregroundStyle(.red)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this saved filter for local follow-up."
+        }
       }
       .buttonStyle(.borderless)
+
+      if let feedbackMessage {
+        SavedFilterActionFeedbackPanel(message: feedbackMessage)
+      }
     }
     .padding(12)
     .background(.quaternary.opacity(0.35))
@@ -438,6 +455,25 @@ struct SavedFilterRow: View {
     let entity = filter.entityTypeFilter?.rawValue ?? "all records"
     let review = filter.reviewStateFilter?.rawValue ?? "all review states"
     return "\(query), \(entity), \(review)"
+  }
+}
+
+private struct SavedFilterActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -308,6 +308,7 @@ struct WishlistItemRow: View {
   var onConvert: () -> Void
   var onLink: () -> Void
   var onDelete: () -> Void
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -336,11 +337,17 @@ struct WishlistItemRow: View {
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
         if isDeleted {
-          Button("Restore", systemImage: "arrow.uturn.backward", action: onConvert)
+          Button("Restore", systemImage: "arrow.uturn.backward") {
+            onConvert()
+            feedbackMessage = "Wishlist item restored locally. Confirm details before linking or converting it to an order."
+          }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Restore")
-          Button("Delete now", systemImage: "trash.fill", action: onDelete)
+          Button("Delete now", systemImage: "trash.fill") {
+            onDelete()
+            feedbackMessage = "Wishlist item deleted locally. No shopfront, mailbox, payment, or order system was contacted."
+          }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Delete permanently")
@@ -359,23 +366,55 @@ struct WishlistItemRow: View {
             .labelStyle(.iconOnly)
             .help("Share link")
           }
-          Button("Convert to order", systemImage: "shippingbox.fill", action: onConvert)
+          Button("Convert to order", systemImage: "shippingbox.fill") {
+            onConvert()
+            feedbackMessage = "Wishlist item converted locally. Check Orders before any dispatch or purchase follow-up."
+          }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Convert to order")
-          Button("Link order", systemImage: "link", action: onLink)
+          Button("Link order", systemImage: "link") {
+            onLink()
+            feedbackMessage = "Wishlist item linked locally. Review the order context before closing this capture."
+          }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Link to existing order")
-          Button("Delete", systemImage: "trash", action: onDelete)
+          Button("Delete", systemImage: "trash") {
+            onDelete()
+            feedbackMessage = "Wishlist item moved to deleted locally. No external shopfront, mailbox, or order system was changed."
+          }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Move to deleted items")
         }
       }
+
+      if let feedbackMessage {
+        WishlistActionFeedbackPanel(message: feedbackMessage)
+      }
     }
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }

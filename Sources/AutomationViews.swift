@@ -229,6 +229,7 @@ struct AutomationRuleRow: View {
   var onReviewed: () -> Void
   var onRemove: () -> Void
   var onCreateTask: () -> Void = {}
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -266,18 +267,55 @@ struct AutomationRuleRow: View {
       }
 
       CompactActionRow {
-        Button(rule.isEnabled ? "Disable" : "Enable", systemImage: rule.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(rule.isEnabled ? "Disable" : "Enable", systemImage: rule.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = rule.isEnabled
+            ? "Automation rule disabled locally. No background job, notification, or external action was stopped."
+            : "Automation rule enabled as local intent only. No background job, notification, or external action will run."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Automation rule marked reviewed locally. This remains planning metadata only."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Automation rule removed locally. No scheduled task, notification, or external system was changed."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Review task created from this automation rule for local planning follow-up."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        AutomationRuleActionFeedbackPanel(message: feedbackMessage)
       }
     }
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct AutomationRuleActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
