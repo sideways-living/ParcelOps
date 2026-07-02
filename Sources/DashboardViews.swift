@@ -599,9 +599,15 @@ struct DashboardView: View {
           feedbackMessage = "Manual order placeholder created locally. Open Orders to confirm customer, destination, tracking, and dispatch setup."
         }
           .buttonStyle(.borderedProminent)
-        Button("Import local sample mail", systemImage: "tray.and.arrow.down.fill") {
+        Button("Import clear order test email", systemImage: "checklist.checked") {
+          store.importClearOrderIntakeTestMessage()
+          feedbackMessage = "Clear local order test email imported. Open Inbox to review the detected order and tracking number, then create or link an order."
+        }
+          .buttonStyle(.bordered)
+          .help("Imports one clear local order/tracking test email through the provider-neutral intake path.")
+        Button("Import sample mail batch", systemImage: "tray.and.arrow.down.fill") {
           store.syncSources()
-          feedbackMessage = "Local sample mailbox messages imported through the same intake path used for manual testing. No external mailbox was contacted."
+          feedbackMessage = "Local sample mailbox batch imported through the same intake path used for manual testing. No external mailbox was contacted."
         }
           .buttonStyle(.bordered)
           .help("Imports simulated mailbox messages through local intake only.")
@@ -1065,9 +1071,16 @@ struct MVPReadinessCallout: View {
 struct MVPHandsOnDashboardStatus: View {
   var store: ParcelOpsStore
 
+  private var clearIntakeCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
   private var inboxCreatedOrdersCount: Int {
     store.orders.filter { order in
-      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import" || order.isInboxCreatedLocalOrder
     }.count
   }
 
@@ -1080,28 +1093,32 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var tone: Color {
-    if !hasManualRefresh { return .orange }
-    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 { return .orange }
+    if clearIntakeCount == 0 && inboxCreatedOrdersCount == 0 { return .orange }
     if blockedDailyCount > 0 { return .red }
+    if !hasManualRefresh { return .teal }
     return .green
   }
 
   private var title: String {
-    if !hasManualRefresh { return "Run one supervised intake refresh" }
-    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 { return "Create or link one intake order" }
+    if clearIntakeCount == 0 && inboxCreatedOrdersCount == 0 { return "Seed one clear Inbox test email" }
+    if inboxCreatedOrdersCount == 0 { return "Create or link one intake order" }
     if blockedDailyCount > 0 { return "Resolve blocked daily work" }
+    if !hasManualRefresh { return "Local workflow ready; live refresh optional" }
     return "Hands-on workflow is ready"
   }
 
   private var detail: String {
-    if !hasManualRefresh {
-      return "Start in Mailbox Monitor, run a manual SpaceMail refresh, then check imported, filtered, duplicate, and uncertain counts."
+    if clearIntakeCount == 0 && inboxCreatedOrdersCount == 0 {
+      return "Use the local clear order test email to verify Inbox parsing, then create or link one order. This avoids depending on SpaceMail while testing the core flow."
     }
-    if store.reviewIntakeEmails.isEmpty && inboxCreatedOrdersCount == 0 {
-      return "Use Inbox to import, reprocess, create, or link one order so the Dashboard, Orders, Workbench, Tasks, and Audit trail can be verified."
+    if inboxCreatedOrdersCount == 0 {
+      return "Use Inbox to review detected fields and create or link one order so the Dashboard, Orders, Workbench, Tasks, and Audit trail can be verified."
     }
     if blockedDailyCount > 0 {
       return "\(blockedDailyCount) blocked work item needs review before this is ready for regular hands-on use."
+    }
+    if !hasManualRefresh {
+      return "The local Inbox-to-Orders flow has enough test data. Run SpaceMail refresh later when you want to verify the live mailbox path."
     }
     return "Use MVP Setup for the full checklist, then quit and reopen the app to confirm local JSON persistence."
   }
@@ -1126,11 +1143,32 @@ struct MVPHandsOnDashboardStatus: View {
 
       MetricStrip(items: [
         ("SpaceMail runs", "\(store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasManualRefresh ? .green : .orange),
-        ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .secondary : .orange),
+        ("Clear intake", "\(clearIntakeCount)", clearIntakeCount == 0 ? .orange : .green),
         ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
         ("Blocked", "\(blockedDailyCount)", blockedDailyCount == 0 ? .green : .red),
         ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
       ])
+
+      CompactActionRow {
+        Button("Import clear order test email", systemImage: "checklist.checked") {
+          store.importClearOrderIntakeTestMessage()
+        }
+        .buttonStyle(.borderedProminent)
+
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label("Open Inbox", systemImage: "tray.full.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          OrdersView(store: store)
+        } label: {
+          Label("Open Orders", systemImage: "shippingbox.fill")
+        }
+        .buttonStyle(.bordered)
+      }
 
       Text("This card is local-only. It does not trigger refresh, background sync, mailbox mutation, Shopify, carrier APIs, OCR, scanners, notifications, or outbound email.")
         .font(.caption2)
