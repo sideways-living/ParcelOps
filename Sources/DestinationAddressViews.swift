@@ -309,6 +309,7 @@ struct DestinationAddressRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var linkedProfile: CustomerRecipientProfile? {
     guard let id = address.customerProfileID else { return nil }
@@ -391,18 +392,37 @@ struct DestinationAddressRow: View {
         }
       }
 
+      if let feedbackMessage {
+        DestinationAddressActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
-        Button(address.isEnabled ? "Disable" : "Enable", systemImage: address.isEnabled ? "pause.circle" : "play.circle", action: onToggle)
+        Button(address.isEnabled ? "Disable" : "Enable", systemImage: address.isEnabled ? "pause.circle" : "play.circle") {
+          onToggle()
+          feedbackMessage = address.isEnabled ? "Destination address disabled locally." : "Destination address enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Destination address marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from destination address. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from destination address. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Destination address removed locally."
+        }
           .buttonStyle(.bordered)
       }
 
@@ -420,6 +440,7 @@ struct DestinationAddressRow: View {
     .sheet(isPresented: $isEditing) {
       DestinationAddressEditView(address: address, customerProfiles: customerProfiles) { updatedAddress in
         onSave(updatedAddress)
+        feedbackMessage = "Destination address saved locally."
         isEditing = false
       }
     }
@@ -462,6 +483,53 @@ struct DestinationAddressRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct DestinationAddressActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local address book tracking only. No address validation, geocoding, map lookup, carrier call, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

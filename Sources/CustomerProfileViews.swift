@@ -301,6 +301,7 @@ struct CustomerProfileRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -383,18 +384,37 @@ struct CustomerProfileRow: View {
         }
       }
 
+      if let feedbackMessage {
+        CustomerProfileActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       CompactActionRow {
         Button("Edit", systemImage: "pencil") { isEditing = true }
           .buttonStyle(.bordered)
-        Button(profile.isEnabled ? "Disable" : "Enable", systemImage: profile.isEnabled ? "pause.circle" : "play.circle", action: onToggle)
+        Button(profile.isEnabled ? "Disable" : "Enable", systemImage: profile.isEnabled ? "pause.circle" : "play.circle") {
+          onToggle()
+          feedbackMessage = profile.isEnabled ? "Customer profile disabled locally." : "Customer profile enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Customer profile marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from customer profile. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from customer profile. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          onRemove()
+          feedbackMessage = "Customer profile removed locally."
+        }
           .buttonStyle(.bordered)
       }
     }
@@ -405,6 +425,7 @@ struct CustomerProfileRow: View {
     .sheet(isPresented: $isEditing) {
       CustomerProfileEditView(profile: profile) { updatedProfile in
         onSave(updatedProfile)
+        feedbackMessage = "Customer profile saved locally."
         isEditing = false
       }
     }
@@ -447,6 +468,53 @@ struct CustomerProfileRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct CustomerProfileActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local customer/recipient profile tracking only. No identity sync, contact sync, email send, address validation, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

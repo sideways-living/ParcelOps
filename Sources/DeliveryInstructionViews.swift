@@ -367,6 +367,7 @@ struct DeliveryInstructionRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -430,16 +431,35 @@ struct DeliveryInstructionRow: View {
         }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button(instruction.isEnabled ? "Disable" : "Enable", systemImage: instruction.isEnabled ? "pause.circle.fill" : "play.circle.fill", action: onToggle)
+        Button(instruction.isEnabled ? "Disable" : "Enable", systemImage: instruction.isEnabled ? "pause.circle.fill" : "play.circle.fill") {
+          onToggle()
+          feedbackMessage = instruction.isEnabled ? "Delivery instruction disabled locally." : "Delivery instruction enabled locally."
+        }
           .buttonStyle(.bordered)
-        Button("Reviewed", systemImage: "checkmark.circle.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.circle.fill") {
+          onReviewed()
+          feedbackMessage = "Delivery instruction marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from delivery instruction. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft created from delivery instruction. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", action: onRemove)
+        Button("Remove", systemImage: "trash") {
+          onRemove()
+          feedbackMessage = "Delivery instruction removed locally."
+        }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        DeliveryInstructionActionFeedbackPanel(message: feedbackMessage, store: store)
       }
 
       if !packageContents.isEmpty {
@@ -499,6 +519,7 @@ struct DeliveryInstructionRow: View {
         customerProfiles: []
       ) { updatedInstruction in
         onSave(updatedInstruction)
+        feedbackMessage = "Delivery instruction saved locally."
       }
     }
   }
@@ -540,6 +561,53 @@ struct DeliveryInstructionRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct DeliveryInstructionActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This is local delivery instruction tracking only. No address validation, carrier call, map lookup, notification, or external service was used.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let store {
+        CompactActionRow {
+          if message.localizedCaseInsensitiveContains("task") {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          if message.localizedCaseInsensitiveContains("draft") {
+            NavigationLink {
+              CommunicationView(store: store)
+            } label: {
+              Label("Open Drafts", systemImage: "envelope.open.fill")
+            }
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.green.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
