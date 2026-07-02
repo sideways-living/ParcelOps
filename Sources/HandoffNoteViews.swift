@@ -361,6 +361,7 @@ struct HandoffNoteRow: View {
   var onCreateDraft: () -> Void
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -466,23 +467,45 @@ struct HandoffNoteRow: View {
         }
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
-        Button("Acknowledge", systemImage: "hand.thumbsup.fill", action: onAcknowledge)
+        Button("Acknowledge", systemImage: "hand.thumbsup.fill") {
+          onAcknowledge()
+          feedbackMessage = "Handoff acknowledged locally."
+        }
           .buttonStyle(.bordered)
         if note.status == .completed {
-          Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill", action: onReopen)
+          Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+            onReopen()
+            feedbackMessage = "Handoff reopened for follow-up."
+          }
             .buttonStyle(.bordered)
         } else {
-          Button("Complete", systemImage: "checkmark.circle.fill", action: onComplete)
+          Button("Complete", systemImage: "checkmark.circle.fill") {
+            onComplete()
+            feedbackMessage = "Handoff completed locally."
+          }
             .buttonStyle(.borderedProminent)
         }
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Handoff marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Follow-up task created from handoff. Check Tasks."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from handoff. Check Drafts."
+        }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage, let store {
+        HandoffActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -535,6 +558,46 @@ struct HandoffNoteRow: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct HandoffActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        NavigationLink {
+          TasksView(store: store)
+        } label: {
+          Label("Open Tasks", systemImage: "checklist")
+        }
+        if message.localizedCaseInsensitiveContains("draft") {
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 

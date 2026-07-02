@@ -466,6 +466,7 @@ private enum TaskQueueSource {
 private struct TaskDraftFollowUpRow: View {
   var draft: DraftMessage
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var statusColor: Color {
     switch draft.status {
@@ -538,21 +539,28 @@ private struct TaskDraftFollowUpRow: View {
       CompactActionRow {
         Button("Ready", systemImage: "checkmark.seal.fill") {
           store.markDraftMessageReady(draft)
+          feedbackMessage = "Draft marked ready locally."
         }
         .buttonStyle(.bordered)
         .disabled(draft.status == .ready)
 
         Button("Sent locally", systemImage: "paperplane.fill") {
           store.markDraftMessageSentLocally(draft)
+          feedbackMessage = "Draft marked sent locally."
         }
         .buttonStyle(.borderedProminent)
         .disabled(draft.status == .sentLocally)
 
         Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
           store.reopenDraftMessage(draft)
+          feedbackMessage = "Draft reopened for follow-up."
         }
         .buttonStyle(.bordered)
         .disabled(draft.status == .reopened)
+      }
+
+      if let feedbackMessage {
+        TaskActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -567,6 +575,7 @@ private struct TaskQueueRow: View {
   var store: ParcelOpsStore
   @State private var editingTask: ReviewTask?
   @State private var editingHandoff: HandoffNote?
+  @State private var feedbackMessage: String?
 
   private var linkedOrder: TrackedOrder? {
     guard item.linkedEntityType == .order,
@@ -659,20 +668,24 @@ private struct TaskQueueRow: View {
           if task.status == .completed {
             Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
               store.reopenReviewTask(task)
+              feedbackMessage = "Task reopened for follow-up."
             }
             .buttonStyle(.bordered)
           } else {
             Button("Complete", systemImage: "checkmark.circle.fill") {
               store.completeReviewTask(task)
+              feedbackMessage = "Task completed locally."
             }
             .buttonStyle(.borderedProminent)
           }
           Button("Reviewed", systemImage: "checkmark.shield.fill") {
             store.markReviewTaskReviewed(task)
+            feedbackMessage = "Task marked reviewed locally."
           }
           .buttonStyle(.bordered)
           Button("Draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: task)
+            feedbackMessage = "Draft message created from task. Check Drafts."
           }
           .buttonStyle(.bordered)
 
@@ -683,32 +696,42 @@ private struct TaskQueueRow: View {
           .buttonStyle(.bordered)
           Button("Acknowledge", systemImage: "hand.thumbsup.fill") {
             store.acknowledgeHandoffNote(note)
+            feedbackMessage = "Handoff acknowledged locally."
           }
           .buttonStyle(.bordered)
           if note.status == .completed {
             Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
               store.reopenHandoffNote(note)
+              feedbackMessage = "Handoff reopened for follow-up."
             }
             .buttonStyle(.bordered)
           } else {
             Button("Complete", systemImage: "checkmark.circle.fill") {
               store.completeHandoffNote(note)
+              feedbackMessage = "Handoff completed locally."
             }
             .buttonStyle(.borderedProminent)
           }
           Button("Reviewed", systemImage: "checkmark.shield.fill") {
             store.markHandoffNoteReviewed(note)
+            feedbackMessage = "Handoff marked reviewed locally."
           }
           .buttonStyle(.bordered)
           Button("Task", systemImage: "checklist") {
             store.createReviewTask(from: note)
+            feedbackMessage = "Follow-up task created from handoff. Check Tasks."
           }
           .buttonStyle(.bordered)
           Button("Draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: note)
+            feedbackMessage = "Draft message created from handoff. Check Drafts."
           }
           .buttonStyle(.bordered)
         }
+      }
+
+      if let feedbackMessage {
+        TaskActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -745,6 +768,46 @@ private struct TaskQueueRow: View {
       }
       .buttonStyle(.bordered)
     }
+  }
+}
+
+private struct TaskActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        if message.localizedCaseInsensitiveContains("draft") {
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+        }
+        NavigationLink {
+          OperationsWorkbenchView(store: store)
+        } label: {
+          Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -1074,6 +1137,7 @@ struct ReviewTaskRow: View {
   var onCreateContact: () -> Void = {}
   var onRemove: () -> Void
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1166,20 +1230,39 @@ struct ReviewTaskRow: View {
         Button("Edit", systemImage: "pencil", action: { isEditing = true })
           .buttonStyle(.bordered)
         if task.status == .completed {
-          Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill", action: onReopen)
+          Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+            onReopen()
+            feedbackMessage = "Task reopened for follow-up."
+          }
             .buttonStyle(.bordered)
         } else {
-          Button("Complete", systemImage: "checkmark.circle.fill", action: onComplete)
+          Button("Complete", systemImage: "checkmark.circle.fill") {
+            onComplete()
+            feedbackMessage = "Task completed locally."
+          }
             .buttonStyle(.borderedProminent)
         }
-        Button("Reviewed", systemImage: "checkmark.shield.fill", action: onReviewed)
+        Button("Reviewed", systemImage: "checkmark.shield.fill") {
+          onReviewed()
+          feedbackMessage = "Task marked reviewed locally."
+        }
           .buttonStyle(.bordered)
-        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
+        Button("Draft", systemImage: "envelope.open.fill") {
+          onCreateDraft()
+          feedbackMessage = "Draft message created from task. Check Drafts."
+        }
           .buttonStyle(.bordered)
-        Button("Contact", systemImage: "person.crop.circle.badge.plus", action: onCreateContact)
+        Button("Contact", systemImage: "person.crop.circle.badge.plus") {
+          onCreateContact()
+          feedbackMessage = "Contact placeholder created from task."
+        }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage, let store {
+        TaskActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
