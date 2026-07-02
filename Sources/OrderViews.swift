@@ -555,6 +555,7 @@ private struct OrderQueueRow: View {
   var item: OrderQueueItem
   var store: ParcelOpsStore
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   var body: some View {
     let order = item.order
@@ -661,11 +662,13 @@ private struct OrderQueueRow: View {
 
         Button("Create task", systemImage: "checklist") {
           store.createReviewTask(from: order)
+          feedbackMessage = "Order follow-up task created. Check Tasks."
         }
         .buttonStyle(.bordered)
 
         Button("Create draft", systemImage: "envelope.open.fill") {
           store.createDraftMessage(from: order)
+          feedbackMessage = "Draft message created from order. Check Drafts."
         }
         .buttonStyle(.bordered)
 
@@ -673,8 +676,13 @@ private struct OrderQueueRow: View {
           var reviewedOrder = order
           reviewedOrder.reviewState = .accepted
           store.updateOrder(reviewedOrder)
+          feedbackMessage = "Order marked reviewed locally."
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(12)
@@ -689,11 +697,61 @@ private struct OrderQueueRow: View {
   }
 }
 
+private struct OrderActionFeedbackPanel: View {
+  var message: String
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(message, systemImage: "checkmark.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.green)
+
+      CompactActionRow {
+        if message.localizedCaseInsensitiveContains("task") {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        if message.localizedCaseInsensitiveContains("draft") {
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+        }
+        if message.localizedCaseInsensitiveContains("dispatch") || message.localizedCaseInsensitiveContains("handoff") || message.localizedCaseInsensitiveContains("readiness") || message.localizedCaseInsensitiveContains("manifest") {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Open Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct OrderDetailView: View {
   var order: TrackedOrder
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
+  @State private var feedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var currentOrder: TrackedOrder {
@@ -720,6 +778,10 @@ struct OrderDetailView: View {
               orderHeaderButtons(order)
             }
           }
+        }
+
+        if let feedbackMessage {
+          OrderActionFeedbackPanel(message: feedbackMessage, store: store)
         }
 
         if order.isInboxCreatedLocalOrder {
@@ -1288,12 +1350,14 @@ struct OrderDetailView: View {
 
           Button("Task", systemImage: "checklist") {
             store.createReviewTask(from: order)
+            feedbackMessage = "Order handoff task created. Check Tasks."
           }
           .buttonStyle(.bordered)
 
           if canCreateDispatchSetup {
             Button("Create dispatch setup", systemImage: "shippingbox.and.arrow.backward.fill") {
               store.createDispatchSetup(for: order)
+              feedbackMessage = "Dispatch setup created for this order. Check Dispatch."
             }
             .buttonStyle(.borderedProminent)
           }
@@ -1472,10 +1536,12 @@ struct OrderDetailView: View {
     .buttonStyle(.bordered)
     Button("Task", systemImage: "checklist") {
       store.createReviewTask(from: order)
+      feedbackMessage = "Order follow-up task created. Check Tasks."
     }
     .buttonStyle(.bordered)
     Button("Draft", systemImage: "envelope.open.fill") {
       store.createDraftMessage(from: order)
+      feedbackMessage = "Draft message created from order. Check Drafts."
     }
     .buttonStyle(.bordered)
   }
@@ -1485,6 +1551,7 @@ private struct PartialInboxOrderFollowUpRow: View {
   var task: ReviewTask
   var store: ParcelOpsStore
   var order: TrackedOrder
+  @State private var feedbackMessage: String?
 
   private var missingTracking: Bool {
     order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
@@ -1548,29 +1615,38 @@ private struct PartialInboxOrderFollowUpRow: View {
         if task.status == .completed {
           Button("Reopen task", systemImage: "arrow.uturn.backward.circle.fill") {
             store.reopenReviewTask(task)
+            feedbackMessage = "Partial order task reopened."
           }
           .buttonStyle(.bordered)
         } else if canResolveFollowUp {
           Button("Resolve follow-up", systemImage: "checkmark.seal.fill") {
             store.resolvePartialInboxOrderFollowUpIfReady(for: order)
+            feedbackMessage = "Partial order follow-up resolved locally."
           }
           .buttonStyle(.borderedProminent)
         } else {
           Button("Complete task", systemImage: "checkmark.circle.fill") {
             store.completeReviewTask(task)
+            feedbackMessage = "Partial order task completed locally."
           }
           .buttonStyle(.borderedProminent)
         }
 
         Button("Mark reviewed", systemImage: "checkmark.shield.fill") {
           store.markReviewTaskReviewed(task)
+          feedbackMessage = "Partial order task marked reviewed locally."
         }
         .buttonStyle(.bordered)
 
         Button("Draft", systemImage: "envelope.open.fill") {
           store.createDraftMessage(from: task)
+          feedbackMessage = "Draft message created from partial order task. Check Drafts."
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(10)
@@ -1584,6 +1660,7 @@ private struct OrderDispatchHandoffRows: View {
   var manifests: [ShipmentManifestRecord]
   var checklists: [DispatchReadinessChecklist]
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var hasBlockedRecord: Bool {
     manifests.contains { $0.dispatchStatus == .blockedNeedsReview }
@@ -1605,12 +1682,14 @@ private struct OrderDispatchHandoffRows: View {
         if hasOpenHandoffRecord && !hasBlockedRecord {
           Button("Complete handoff", systemImage: "checkmark.seal.fill") {
             store.completeInboxDispatchHandoff(for: order)
+            feedbackMessage = "Inbox dispatch handoff completed locally."
           }
           .buttonStyle(.borderedProminent)
           .controlSize(.small)
         } else if !hasBlockedRecord {
           Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
             store.reopenInboxDispatchHandoff(for: order)
+            feedbackMessage = "Inbox dispatch handoff reopened."
           }
           .buttonStyle(.bordered)
           .controlSize(.small)
@@ -1651,6 +1730,10 @@ private struct OrderDispatchHandoffRows: View {
         }
       }
 
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
+      }
+
       ForEach(manifests.prefix(2)) { manifest in
         OrderDispatchManifestRow(record: manifest, store: store)
       }
@@ -1665,6 +1748,7 @@ private struct OrderDispatchHandoffRows: View {
 private struct OrderDispatchManifestRow: View {
   var record: ShipmentManifestRecord
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var nextAction: String {
     switch record.dispatchStatus {
@@ -1706,23 +1790,31 @@ private struct OrderDispatchManifestRow: View {
       CompactActionRow {
         Button("Prepared", systemImage: "checkmark.circle.fill") {
           store.markShipmentManifestPrepared(record)
+          feedbackMessage = "Manifest marked prepared locally."
         }
         .buttonStyle(.bordered)
 
         Button("Dispatched", systemImage: "paperplane.fill") {
           store.markShipmentManifestDispatched(record)
+          feedbackMessage = "Manifest marked dispatched locally."
         }
         .buttonStyle(.bordered)
 
         Button("Handed off", systemImage: "person.badge.shield.checkmark.fill") {
           store.markShipmentManifestHandedOff(record)
+          feedbackMessage = "Manifest handoff recorded locally."
         }
         .buttonStyle(.borderedProminent)
 
         Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
           store.markShipmentManifestBlocked(record)
+          feedbackMessage = "Manifest blocked for dispatch review."
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(10)
@@ -1733,6 +1825,7 @@ private struct OrderDispatchManifestRow: View {
 private struct OrderDispatchReadinessRow: View {
   var checklist: DispatchReadinessChecklist
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var nextAction: String {
     switch checklist.checklistStatus {
@@ -1773,23 +1866,31 @@ private struct OrderDispatchReadinessRow: View {
       CompactActionRow {
         Button("Ready", systemImage: "checkmark.circle.fill") {
           store.markDispatchChecklistReady(checklist)
+          feedbackMessage = "Readiness checklist marked ready locally."
         }
         .buttonStyle(.bordered)
 
         Button("Complete", systemImage: "checkmark.seal.fill") {
           store.markDispatchChecklistCompleted(checklist)
+          feedbackMessage = "Readiness checklist completed locally."
         }
         .buttonStyle(.borderedProminent)
 
         Button("Blocked", systemImage: "exclamationmark.triangle.fill") {
           store.markDispatchChecklistBlocked(checklist)
+          feedbackMessage = "Readiness checklist blocked for review."
         }
         .buttonStyle(.bordered)
 
         Button("Reopen", systemImage: "arrow.counterclockwise") {
           store.reopenDispatchChecklist(checklist)
+          feedbackMessage = "Readiness checklist reopened."
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(10)
@@ -1800,6 +1901,7 @@ private struct OrderDispatchReadinessRow: View {
 private struct OrderOperationalTimelineRow: View {
   var activity: TimelineActivity
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1846,6 +1948,7 @@ private struct OrderOperationalTimelineRow: View {
         if activity.supportsReviewTask {
           Button("Task", systemImage: "checklist") {
             store.createReviewTask(from: activity)
+            feedbackMessage = "Timeline follow-up task created. Check Tasks."
           }
           .buttonStyle(.bordered)
         }
@@ -1853,9 +1956,14 @@ private struct OrderOperationalTimelineRow: View {
         if activity.supportsDraftMessage {
           Button("Draft", systemImage: "envelope.open.fill") {
             store.createDraftMessage(from: activity)
+            feedbackMessage = "Draft message created from timeline item. Check Drafts."
           }
           .buttonStyle(.bordered)
         }
+      }
+
+      if let feedbackMessage {
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(10)
@@ -1931,9 +2039,7 @@ private struct OrderIntakeSourceRow: View {
       }
 
       if let feedbackMessage {
-        Text(feedbackMessage)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
+        OrderActionFeedbackPanel(message: feedbackMessage, store: store)
       }
     }
     .padding(10)
