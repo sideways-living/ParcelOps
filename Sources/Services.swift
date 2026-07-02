@@ -1496,7 +1496,7 @@ struct MockMicrosoft365AuthClient: Microsoft365AuthClient {
     return Microsoft365AuthResult(
       status: .connected,
       signedInAccount: connection.mailboxAddress,
-      detailText: "Mock Microsoft 365 auth succeeded for local UI testing. No OAuth flow ran, no token exchange occurred, Keychain is unused, and Microsoft Graph remains mocked."
+      detailText: "Mock Microsoft 365 auth succeeded for local UI testing. No OAuth flow ran, no token exchange occurred, Keychain is unused, and no Microsoft Graph mailbox call was made by the mock auth action."
     )
   }
 

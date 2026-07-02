@@ -11453,7 +11453,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real SpaceMail IMAP refresh completed.",
-      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nMailbox mode: \(connectionForRefresh.mailboxMode.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredNonOrderCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(filterResult.detail)\n\(fetchResult.detail)\nManual refresh only. Read-only boundary. Filtered non-order messages are counted only; their full bodies are not stored in intake. No password was stored in JSON, no custom Keychain storage was added, and no mailbox items were deleted, moved, marked read, flagged, sent, or modified."
+      afterDetail: "Status: \(refreshStatus.rawValue)\nFetch result: \(fetchResult.status.rawValue)\nMailbox mode: \(connectionForRefresh.mailboxMode.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredNonOrderCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that IMAP provider message ID for this mailbox.\n\(filterResult.detail)\n\(fetchResult.detail)\nManual refresh only. Read-only boundary. Filtered non-order messages are counted only; their full bodies are not stored in intake. The SpaceMail password/app-password is loaded from Keychain only for this manual operation and is not stored in JSON or audit logs. No mailbox items were deleted, moved, marked read, flagged, sent, or modified."
     )
   }
 
@@ -11524,7 +11524,7 @@ final class ParcelOpsStore {
       keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: .keychainNotConfigured,
       tokenStoreDetail: "ParcelOps custom token store is not configured. MSAL may manage its own signed-in account cache when real sign-in succeeds, but ParcelOps does not create, read, write, delete, or log token values.",
-      detailText: "Future Microsoft 365 OAuth connection. No browser sign-in opens, no tokens are requested or stored, and Microsoft Graph remains mocked."
+      detailText: "Microsoft 365 is not connected for this setup record. No browser sign-in opens from this state, no tokens are requested or stored in ParcelOps JSON, and real Graph mailbox reading only runs from the separate manual refresh action after sign-in."
     )
   }
 
