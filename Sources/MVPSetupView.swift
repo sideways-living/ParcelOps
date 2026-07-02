@@ -29,6 +29,7 @@ struct MVPSetupView: View {
         )
 
         MVPHandsOnReleaseChecklist(store: store)
+        MVPReleaseCandidateQACard(store: store)
 
         SpaceMailOperatorGuidanceStack(store: store)
 
@@ -449,6 +450,207 @@ struct MVPHandsOnReleaseChecklistRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct MVPReleaseCandidateQACard: View {
+  var store: ParcelOpsStore
+
+  private var latestDemoOrder: TrackedOrder? {
+    store.orders.first { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+  }
+
+  private var linkedDemoIntakeCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.intakeEmails.filter { $0.linkedOrderID == order.id }.count
+  }
+
+  private var demoManifestCount: Int {
+    latestDemoOrder.map { store.suggestedShipmentManifestRecords(for: $0).count } ?? 0
+  }
+
+  private var demoChecklistCount: Int {
+    latestDemoOrder.map { store.suggestedDispatchReadinessChecklists(for: $0).count } ?? 0
+  }
+
+  private var completedDemoDispatchCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    let manifests = store.suggestedShipmentManifestRecords(for: order).filter { $0.dispatchStatus == .handedOff }.count
+    let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter { $0.checklistStatus == .completed }.count
+    return manifests + checklists
+  }
+
+  private var demoAuditCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.auditEvents.filter {
+      $0.entityID == order.id.uuidString
+        || $0.entityLabel.localizedCaseInsensitiveContains(order.orderNumber)
+        || $0.afterDetail?.localizedCaseInsensitiveContains(order.orderNumber) == true
+    }.count
+  }
+
+  private var hasLiveSpaceMailEvidence: Bool {
+    store.spaceMailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    }
+  }
+
+  private var hasPersistenceEvidence: Bool {
+    store.auditEvents.count > 0 && store.orders.count > 0 && store.intakeEmails.count > 0
+  }
+
+  private var qaItems: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
+    [
+      (
+        "Local demo seed",
+        latestDemoOrder == nil ? "Seed the local demo workflow to create a known-good order path without mailbox access." : "Latest demo order \(latestDemoOrder?.orderNumber ?? "") exists.",
+        "wand.and.stars",
+        latestDemoOrder == nil ? .orange : .green,
+        latestDemoOrder != nil
+      ),
+      (
+        "Inbox source trail",
+        linkedDemoIntakeCount == 0 ? "The demo order needs a linked intake email." : "\(linkedDemoIntakeCount) linked intake row exists for the demo order.",
+        "link.badge.plus",
+        linkedDemoIntakeCount == 0 ? .orange : .green,
+        linkedDemoIntakeCount > 0
+      ),
+      (
+        "Dispatch handoff",
+        demoManifestCount + demoChecklistCount == 0 ? "Create or seed dispatch setup for the demo order." : "\(demoManifestCount) manifest and \(demoChecklistCount) readiness checklist records are linked.",
+        "paperplane.fill",
+        demoManifestCount + demoChecklistCount == 0 ? .orange : .purple,
+        demoManifestCount > 0 && demoChecklistCount > 0
+      ),
+      (
+        "Handoff completion",
+        completedDemoDispatchCount == 0 ? "Complete the demo dispatch handoff once setup exists." : "\(completedDemoDispatchCount) demo dispatch records are completed locally.",
+        "checkmark.rectangle.stack.fill",
+        completedDemoDispatchCount == 0 ? .teal : .green,
+        completedDemoDispatchCount > 0
+      ),
+      (
+        "Audit trace",
+        demoAuditCount == 0 ? "Perform the demo actions and confirm Audit shows the order trail." : "\(demoAuditCount) audit entries reference the latest demo order.",
+        "list.clipboard.fill",
+        demoAuditCount == 0 ? .orange : .purple,
+        demoAuditCount > 0
+      ),
+      (
+        "Live mailbox evidence",
+        hasLiveSpaceMailEvidence ? "SpaceMail has at least one manual refresh result." : "Optional for demo readiness: run real SpaceMail only when credentials and mailbox state are available.",
+        "server.rack",
+        hasLiveSpaceMailEvidence ? .green : .secondary,
+        hasLiveSpaceMailEvidence
+      ),
+      (
+        "Persistence evidence",
+        hasPersistenceEvidence ? "Local JSON-backed records exist across intake, orders, and audit." : "Create local workflow evidence, quit, reopen, and confirm it remains visible.",
+        "internaldrive.fill",
+        hasPersistenceEvidence ? .green : .orange,
+        hasPersistenceEvidence
+      )
+    ]
+  }
+
+  private var requiredItems: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
+    Array(qaItems.prefix(5)) + Array(qaItems.suffix(1))
+  }
+
+  private var completedRequiredCount: Int {
+    requiredItems.filter(\.isComplete).count
+  }
+
+  private var tone: Color {
+    completedRequiredCount == requiredItems.count ? .green : completedRequiredCount >= 4 ? .teal : .orange
+  }
+
+  private var title: String {
+    if completedRequiredCount == requiredItems.count { return "Release-candidate demo path is ready" }
+    if latestDemoOrder == nil { return "Release-candidate QA needs a seeded demo" }
+    return "Release-candidate QA is partly ready"
+  }
+
+  private var detail: String {
+    if completedRequiredCount == requiredItems.count {
+      return "The local demo path has enough evidence for Inbox, Orders, Dispatch, Tasks, Audit, and persistence-oriented hands-on testing."
+    }
+    return "Use the local demo path as the stable QA baseline. Live SpaceMail remains useful, but it should not block app usability checks."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Release-candidate QA", symbol: "checkmark.seal.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: completedRequiredCount == requiredItems.count ? "checkmark.seal.fill" : "checklist")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(completedRequiredCount)/\(requiredItems.count)", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Demo order", latestDemoOrder == nil ? "No" : "Yes", latestDemoOrder == nil ? .orange : .green),
+        ("Inbox links", "\(linkedDemoIntakeCount)", linkedDemoIntakeCount == 0 ? .orange : .green),
+        ("Dispatch", "\(demoManifestCount + demoChecklistCount)", demoManifestCount + demoChecklistCount == 0 ? .orange : .purple),
+        ("Completed", "\(completedDemoDispatchCount)", completedDemoDispatchCount == 0 ? .secondary : .green),
+        ("Audit", "\(demoAuditCount)", demoAuditCount == 0 ? .orange : .purple)
+      ])
+
+      CompactActionRow {
+        Button(latestDemoOrder == nil ? "Seed demo workflow" : "Seed another demo", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        if let order = latestDemoOrder {
+          Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
+            store.completeInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+
+          Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
+            store.reopenInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+        }
+
+        NavigationLink {
+          DashboardView(store: store)
+        } label: {
+          Label("Dashboard", systemImage: "square.grid.2x2.fill")
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Audit", systemImage: "list.clipboard.fill")
+        }
+        .buttonStyle(.bordered)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(qaItems.enumerated()), id: \.offset) { _, item in
+          MVPHandsOnReleaseChecklistRow(title: item.title, detail: item.detail, symbol: item.symbol, color: item.color, isComplete: item.isComplete)
+        }
+      }
+
+      Text("QA boundaries: this card only reads and creates local JSON-backed workflow records through existing local actions. It does not run IMAP, mutate mailboxes, call Shopify/carrier APIs, send messages, create notifications, or schedule background work.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 
