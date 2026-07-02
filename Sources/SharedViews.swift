@@ -3108,6 +3108,18 @@ struct LocalDataSafetyCard: View {
           color: .purple
         )
         safetyLine(
+          title: "Manual backup boundary",
+          detail: "To back up test data, copy the ParcelOps JSON folder outside the app. This screen does not run an export, file picker, cloud sync, or background backup.",
+          symbol: "externaldrive.fill",
+          color: .green
+        )
+        safetyLine(
+          title: "Backup does not include secrets",
+          detail: "JSON backups preserve local records and setup status only. SpaceMail passwords stay in Keychain and must be managed separately by macOS.",
+          symbol: "key.horizontal.fill",
+          color: .orange
+        )
+        safetyLine(
           title: "Still disconnected",
           detail: "Shopify, carrier APIs, background sync, notifications, OCR, scanners, calendars, file pickers, and outbound email remain inactive.",
           symbol: "network.slash",
