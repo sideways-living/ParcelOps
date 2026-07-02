@@ -198,6 +198,7 @@ struct DashboardView: View {
         OperatorMVPReadinessCard(store: store)
         MVPHandsOnDashboardStatus(store: store)
         LocalDemoWorkflowStatusCard(store: store)
+        DashboardReleaseCandidateQACard(store: store)
         FirstLiveMailboxTestCard(store: store)
         dailyOperatorStart
 
@@ -1363,6 +1364,207 @@ private struct LocalDemoWorkflowStatusCard: View {
       }
 
       Text("This demo status only reads local JSON-backed records. It does not contact mailboxes, mutate mailbox messages, call carrier or Shopify APIs, send messages, schedule jobs, or store credentials.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+private struct DashboardReleaseCandidateQACard: View {
+  var store: ParcelOpsStore
+
+  private var latestDemoOrder: TrackedOrder? {
+    store.orders.first { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+  }
+
+  private var linkedIntakeCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.intakeEmails.filter { $0.linkedOrderID == order.id }.count
+  }
+
+  private var dispatchSetupCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.suggestedShipmentManifestRecords(for: order).count
+      + store.suggestedDispatchReadinessChecklists(for: order).count
+  }
+
+  private var completedDispatchCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.suggestedShipmentManifestRecords(for: order).filter { $0.dispatchStatus == .handedOff }.count
+      + store.suggestedDispatchReadinessChecklists(for: order).filter { $0.checklistStatus == .completed }.count
+  }
+
+  private var demoAuditCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.auditEvents.filter {
+      $0.entityID == order.id.uuidString
+        || $0.entityLabel.localizedCaseInsensitiveContains(order.orderNumber)
+        || $0.afterDetail?.localizedCaseInsensitiveContains(order.orderNumber) == true
+    }.count
+  }
+
+  private var persistenceEvidenceReady: Bool {
+    !store.orders.isEmpty && !store.intakeEmails.isEmpty && !store.auditEvents.isEmpty
+  }
+
+  private var liveMailboxEvidenceReady: Bool {
+    store.spaceMailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    }
+  }
+
+  private var checkpoints: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool, required: Bool)] {
+    [
+      (
+        "Seed demo order",
+        latestDemoOrder == nil ? "Seed the local demo workflow before hands-on QA." : "\(latestDemoOrder?.orderNumber ?? "Demo order") is available.",
+        "wand.and.stars",
+        latestDemoOrder == nil ? .orange : .green,
+        latestDemoOrder != nil,
+        true
+      ),
+      (
+        "Inbox source linked",
+        linkedIntakeCount == 0 ? "The demo order needs a linked intake source." : "\(linkedIntakeCount) intake source is linked.",
+        "link.badge.plus",
+        linkedIntakeCount == 0 ? .orange : .green,
+        linkedIntakeCount > 0,
+        true
+      ),
+      (
+        "Dispatch setup exists",
+        dispatchSetupCount == 0 ? "Manifest and readiness records need local setup." : "\(dispatchSetupCount) dispatch setup records are linked.",
+        "paperplane.fill",
+        dispatchSetupCount == 0 ? .orange : .purple,
+        dispatchSetupCount > 0,
+        true
+      ),
+      (
+        "Handoff can close",
+        completedDispatchCount == 0 ? "Complete the local dispatch handoff before final QA." : "\(completedDispatchCount) dispatch records are completed.",
+        "checkmark.rectangle.stack.fill",
+        completedDispatchCount == 0 ? .teal : .green,
+        completedDispatchCount > 0,
+        true
+      ),
+      (
+        "Audit trail exists",
+        demoAuditCount == 0 ? "Audit should show the local demo order trail." : "\(demoAuditCount) audit entries reference the demo order.",
+        "list.clipboard.fill",
+        demoAuditCount == 0 ? .orange : .purple,
+        demoAuditCount > 0,
+        true
+      ),
+      (
+        "Persistence evidence",
+        persistenceEvidenceReady ? "Local JSON-backed intake, order, and audit records exist." : "Create local records, quit, reopen, and confirm they remain visible.",
+        "internaldrive.fill",
+        persistenceEvidenceReady ? .green : .orange,
+        persistenceEvidenceReady,
+        true
+      ),
+      (
+        "Live SpaceMail evidence",
+        liveMailboxEvidenceReady ? "A real or diagnostic SpaceMail refresh result exists." : "Optional: live mailbox evidence is useful but should not block local QA.",
+        "server.rack",
+        liveMailboxEvidenceReady ? .green : .secondary,
+        liveMailboxEvidenceReady,
+        false
+      )
+    ]
+  }
+
+  private var requiredCheckpoints: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool, required: Bool)] {
+    checkpoints.filter(\.required)
+  }
+
+  private var completedRequiredCount: Int {
+    requiredCheckpoints.filter(\.isComplete).count
+  }
+
+  private var tone: Color {
+    completedRequiredCount == requiredCheckpoints.count ? .green : completedRequiredCount >= 4 ? .teal : .orange
+  }
+
+  private var title: String {
+    if completedRequiredCount == requiredCheckpoints.count { return "Release-candidate path is ready to test" }
+    if latestDemoOrder == nil { return "Release-candidate path needs a demo seed" }
+    return "Release-candidate path needs final checks"
+  }
+
+  private var detail: String {
+    if completedRequiredCount == requiredCheckpoints.count {
+      return "The Dashboard has enough local evidence for a hands-on pass through Inbox, Orders, Dispatch, Tasks, Audit, and persistence."
+    }
+    return "Use this compact checklist before asking someone to test the app. Live SpaceMail evidence is optional; the local demo path is the stable baseline."
+  }
+
+  private var canCompleteHandoff: Bool {
+    latestDemoOrder != nil && dispatchSetupCount > 0 && completedDispatchCount == 0
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Release-candidate checkpoint", symbol: "checkmark.seal.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: completedRequiredCount == requiredCheckpoints.count ? "checkmark.seal.fill" : "checklist")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge("\(completedRequiredCount)/\(requiredCheckpoints.count)", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Demo", latestDemoOrder == nil ? "No" : "Yes", latestDemoOrder == nil ? .orange : .green),
+        ("Inbox link", "\(linkedIntakeCount)", linkedIntakeCount == 0 ? .orange : .green),
+        ("Dispatch", "\(dispatchSetupCount)", dispatchSetupCount == 0 ? .orange : .purple),
+        ("Closed", "\(completedDispatchCount)", completedDispatchCount == 0 ? .secondary : .green),
+        ("Audit", "\(demoAuditCount)", demoAuditCount == 0 ? .orange : .purple),
+        ("Live mail", liveMailboxEvidenceReady ? "Seen" : "Optional", liveMailboxEvidenceReady ? .green : .secondary)
+      ])
+
+      CompactActionRow {
+        Button(latestDemoOrder == nil ? "Seed demo workflow" : "Seed another demo", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        if let order = latestDemoOrder {
+          Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
+            store.completeInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!canCompleteHandoff)
+        }
+
+        NavigationLink { MVPSetupView(store: store) } label: { Label("Full QA", systemImage: "checklist.checked") }
+          .buttonStyle(.bordered)
+        NavigationLink { DispatchView(store: store) } label: { Label("Dispatch", systemImage: "paperplane.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(checkpoints.enumerated()), id: \.offset) { _, item in
+          MVPHandsOnReleaseChecklistRow(title: item.title, detail: item.detail, symbol: item.symbol, color: item.color, isComplete: item.isComplete)
+        }
+      }
+
+      Text("This checkpoint only reads local state or runs explicit local demo actions. It does not refresh mail, mutate mailboxes, send messages, call Shopify or carriers, create notifications, or run background work.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
