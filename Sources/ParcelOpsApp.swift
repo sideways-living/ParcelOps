@@ -25,7 +25,7 @@ struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
   @State private var isMoreMenuExpanded = false
-  @State private var showSecondaryDesktopGroups = false
+  @AppStorage("parcelops.showSecondaryDesktopGroups") private var showSecondaryDesktopGroups = false
   @State private var expandedDesktopGroupIDs: Set<String> = []
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -117,13 +117,20 @@ struct ParcelOpsRootView: View {
 
                   Button {
                     withAnimation(.snappy) {
-                      showSecondaryDesktopGroups.toggle()
+                      toggleSecondaryDesktopGroups()
                     }
                   } label: {
-                    Label(shouldShowSecondaryDesktopGroups ? "Hide advanced routes" : "Show advanced routes", systemImage: shouldShowSecondaryDesktopGroups ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                    Label(advancedRoutesButtonTitle, systemImage: advancedRoutesButtonSymbol)
                       .font(.caption.weight(.semibold))
                   }
                   .buttonStyle(.bordered)
+
+                  if selectionIsSecondaryDesktopRoute {
+                    Text("An advanced route is currently selected, so the advanced groups stay visible until you return to the daily workflow.")
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
                 }
                 .padding(.vertical, 4)
               }
@@ -199,6 +206,33 @@ struct ParcelOpsRootView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding()
     .background(.bar)
+  }
+
+  private var advancedRoutesButtonTitle: String {
+    if selectionIsSecondaryDesktopRoute {
+      return "Return to daily focus"
+    }
+    return shouldShowSecondaryDesktopGroups ? "Hide advanced routes" : "Show advanced routes"
+  }
+
+  private var advancedRoutesButtonSymbol: String {
+    if selectionIsSecondaryDesktopRoute {
+      return "sidebar.left"
+    }
+    return shouldShowSecondaryDesktopGroups ? "chevron.up.circle.fill" : "chevron.down.circle.fill"
+  }
+
+  private func toggleSecondaryDesktopGroups() {
+    if selectionIsSecondaryDesktopRoute {
+      selection = .dashboard
+      showSecondaryDesktopGroups = false
+      expandedDesktopGroupIDs.removeAll()
+    } else {
+      showSecondaryDesktopGroups.toggle()
+      if !showSecondaryDesktopGroups {
+        expandedDesktopGroupIDs.removeAll()
+      }
+    }
   }
 
   private func desktopGroupBinding(for group: ParcelNavigationGroup) -> Binding<Bool> {
