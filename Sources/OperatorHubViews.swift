@@ -109,6 +109,7 @@ struct InboxView: View {
         inboxSummaryPanel
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
+        InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
         mailboxHealthPanel
         triagePanel
         detailRoutes
@@ -302,6 +303,175 @@ struct InboxView: View {
       unique.append(item)
     }
     return unique
+  }
+}
+
+private struct InboxSpaceMailDecisionGuide: View {
+  var store: ParcelOpsStore
+  @Binding var showParserDiagnosticsInTriage: Bool
+
+  private var fetchedCount: Int {
+    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var importedCount: Int {
+    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var duplicateCount: Int {
+    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var filteredCount: Int {
+    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var uncertainCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  private var parserIssueCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var topActionTitle: String {
+    if importedCount > 0 { return "Start with imported intake rows" }
+    if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
+    if parserIssueCount > 0 { return "Open parser diagnostics only for investigation" }
+    if filteredCount > 0 { return "Filtered mail stayed out of Inbox" }
+    if duplicateCount > 0 { return "Duplicates were already captured" }
+    if fetchedCount > 0 { return "Refresh ran with no action needed" }
+    return "Run a manual SpaceMail refresh when ready"
+  }
+
+  private var topActionDetail: String {
+    if importedCount > 0 {
+      return "Confirm detected order and tracking fields before creating or linking an order."
+    }
+    if uncertainCount > 0 {
+      return "Use Mailbox Monitor to import only the messages that clearly relate to an order."
+    }
+    if parserIssueCount > 0 {
+      return "Parser diagnostics are not primary work; use them when an expected order email did not classify correctly."
+    }
+    if filteredCount > 0 {
+      return "Filtered mixed-mailbox messages were counted only and did not enter primary Inbox triage."
+    }
+    if duplicateCount > 0 {
+      return "Duplicate prevention avoided repeated Inbox rows. Existing intake can still be refreshed or reprocessed locally."
+    }
+    if fetchedCount > 0 {
+      return "No imported or uncertain order mail was found in the latest SpaceMail result."
+    }
+    return "Run refresh from Mailbox Monitor after confirming setup and Keychain credential status."
+  }
+
+  private var topActionColor: Color {
+    if importedCount > 0 { return .green }
+    if uncertainCount > 0 || parserIssueCount > 0 { return .orange }
+    if filteredCount > 0 || duplicateCount > 0 || fetchedCount > 0 { return .teal }
+    return .secondary
+  }
+
+  var body: some View {
+    SettingsPanel(title: "SpaceMail triage decision guide", symbol: "signpost.right.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "signpost.right.fill")
+            .foregroundStyle(topActionColor)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(topActionTitle)
+              .font(.headline)
+            Text(topActionDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(importedCount > 0 || uncertainCount > 0 ? "Action" : "Monitor", color: topActionColor)
+        }
+
+        MetricStrip(items: [
+          ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
+          ("Uncertain", "\(uncertainCount)", uncertainCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
+          ("Duplicates", "\(duplicateCount)", duplicateCount > 0 ? .orange : .secondary),
+          ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .secondary)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+          InboxDecisionGuideItem(
+            title: "Imported",
+            detail: "Treat as primary work. Confirm merchant, order number, tracking number, and destination before create/link order.",
+            symbol: "tray.full.fill",
+            color: .green
+          )
+          InboxDecisionGuideItem(
+            title: "Uncertain",
+            detail: "Keep out of Inbox until reviewed. Import only if the subject or preview clearly indicates an order/update.",
+            symbol: "questionmark.diamond.fill",
+            color: .orange
+          )
+          InboxDecisionGuideItem(
+            title: "Filtered",
+            detail: "No primary action. Check examples only when an expected order email is missing after refresh.",
+            symbol: "line.3.horizontal.decrease.circle.fill",
+            color: .teal
+          )
+          InboxDecisionGuideItem(
+            title: "Duplicate",
+            detail: "No duplicate row was created. Reprocess existing intake if parser hints changed or fields look stale.",
+            symbol: "doc.on.doc.fill",
+            color: .purple
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Review SpaceMail results", systemImage: "server.rack")
+          }
+
+          Button(showParserDiagnosticsInTriage ? "Hide parser diagnostics" : "Show parser diagnostics", systemImage: "text.magnifyingglass") {
+            showParserDiagnosticsInTriage.toggle()
+          }
+          .disabled(parserIssueCount == 0)
+          .help("Toggles parser diagnostic rows in the unified triage queue below.")
+        }
+        .buttonStyle(.bordered)
+
+        Text("This guide uses local refresh summaries only. It does not fetch mail, mutate the mailbox, call external classifiers, or send messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+}
+
+private struct InboxDecisionGuideItem: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
