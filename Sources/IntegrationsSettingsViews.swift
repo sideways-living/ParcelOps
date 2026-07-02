@@ -1955,60 +1955,58 @@ struct SpaceMailIMAPConnectionEditor: View {
 
   var body: some View {
     NavigationStack {
-      VStack(spacing: 0) {
-        Form {
-          Section("1. SpaceMail mailbox") {
-            TextField("Display name", text: $draft.displayName)
-            TextField("Email address / username", text: $draft.emailAddressUsername)
-            TextField("IMAP host", text: $draft.imapHost)
-            TextField("IMAP port", text: $draft.imapPort)
-            TextField("Security mode", text: $draft.securityMode)
-            TextField("Folder name", text: $draft.folderName)
-            Picker("Mailbox mode", selection: $draft.mailboxMode) {
-              ForEach(SpaceMailMailboxMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
-              }
+      Form {
+        Section("1. SpaceMail mailbox") {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Email address / username", text: $draft.emailAddressUsername)
+          TextField("IMAP host", text: $draft.imapHost)
+          TextField("IMAP port", text: $draft.imapPort)
+          TextField("Security mode", text: $draft.securityMode)
+          TextField("Folder name", text: $draft.folderName)
+          Picker("Mailbox mode", selection: $draft.mailboxMode) {
+            ForEach(SpaceMailMailboxMode.allCases) { mode in
+              Text(mode.rawValue).tag(mode)
             }
-          }
-          Section("2. Local status") {
-            TextField("Connection status", text: $draft.connectionStatus)
-            TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
-            TextField("Credential storage status", text: $draft.credentialStorageStatus)
-            Picker("Review state", selection: $draft.reviewState) {
-              Text("Accepted").tag(ReviewState.accepted)
-              Text("Needs review").tag(ReviewState.needsReview)
-              Text("Monitor").tag(ReviewState.monitor)
-            }
-          }
-          Section("3. Setup notes") {
-            TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
-              .lineLimit(4...8)
-            Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets here. Use the secure credential prompt on the setup row for SpaceMail passwords.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          Section("4. Mixed mailbox filter hints") {
-            TextField("Trusted sender hints", text: listBinding(\.trustedSenderHints), axis: .vertical)
-              .lineLimit(1...3)
-            TextField("Import keyword hints", text: listBinding(\.importKeywordHints), axis: .vertical)
-              .lineLimit(1...3)
-            TextField("Uncertain keyword hints", text: listBinding(\.uncertainKeywordHints), axis: .vertical)
-              .lineLimit(1...3)
-            TextField("Filter keyword hints", text: listBinding(\.filterKeywordHints), axis: .vertical)
-              .lineLimit(1...3)
-            Text("Separate hints with commas. Import hints only help messages that already look order-related; uncertain hints keep ambiguous order/delivery questions out of Inbox but available for review; filter hints suppress obvious non-order mail.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          Section("Read-only plan") {
-            Text("SpaceMail IMAP refresh selects the configured folder read-only, fetches a small page of message headers/previews, then imports likely order messages through the provider-neutral intake path. Mixed mailbox mode keeps obvious non-order messages out of the primary Inbox. It must not delete, move, mark read, send, or modify mailbox messages.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
           }
         }
-        .formStyle(.grouped)
-
-        Divider()
+        Section("2. Local status") {
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+          TextField("Credential storage status", text: $draft.credentialStorageStatus)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text("Accepted").tag(ReviewState.accepted)
+            Text("Needs review").tag(ReviewState.needsReview)
+            Text("Monitor").tag(ReviewState.monitor)
+          }
+        }
+        Section("3. Setup notes") {
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(4...8)
+          Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets here. Use the secure credential prompt on the setup row for SpaceMail passwords.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Section("4. Mixed mailbox filter hints") {
+          TextField("Trusted sender hints", text: listBinding(\.trustedSenderHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Import keyword hints", text: listBinding(\.importKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Uncertain keyword hints", text: listBinding(\.uncertainKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Filter keyword hints", text: listBinding(\.filterKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          Text("Separate hints with commas. Import hints only help messages that already look order-related; uncertain hints keep ambiguous order/delivery questions out of Inbox but available for review; filter hints suppress obvious non-order mail.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Section("Read-only plan") {
+          Text("SpaceMail IMAP refresh selects the configured folder read-only, fetches a small page of message headers/previews, then imports likely order messages through the provider-neutral intake path. Mixed mailbox mode keeps obvious non-order messages out of the primary Inbox. It must not delete, move, mark read, send, or modify mailbox messages.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+      .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
           Button("Cancel") { dismiss() }
@@ -2022,8 +2020,9 @@ struct SpaceMailIMAPConnectionEditor: View {
         }
         .padding()
         .background(.background)
+        .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 380, idealHeight: 600, maxHeight: 700)
+      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 320, idealHeight: 600)
       .navigationTitle("SpaceMail IMAP")
     }
   }
