@@ -1576,61 +1576,118 @@ struct NeedsReviewView: View {
           }
         }
 
-        if showsMixedMailboxReview && store.spaceMailIMAPConnections.contains(where: { !$0.uncertainMessages.isEmpty || !$0.filteredMessages.isEmpty }) {
+        if showsMixedMailboxReview {
           SettingsPanel(title: "SpaceMail mixed-mailbox review", symbol: "questionmark.folder.fill") {
             Text("These previews were held out of the primary Inbox by the mixed-mailbox filter. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
               .font(.caption)
               .foregroundStyle(.secondary)
-            ForEach(store.spaceMailIMAPConnections) { connection in
-              ForEach(connection.uncertainMessages.prefix(5)) { message in
-                SpaceMailNeedsReviewPreviewRow(
-                  title: message.subject,
-                  sender: message.sender,
-                  receivedDate: message.receivedDate,
-                  bodyPreview: message.bodyPreview,
-                  reason: message.reason,
-                  badge: "Uncertain",
-                  color: .orange
-                ) {
-                  store.importUncertainSpaceMailMessage(message, for: connection)
-                } onDismiss: {
-                  store.dismissUncertainSpaceMailMessage(message, for: connection)
-                } onCreateTask: {
-                  store.createReviewTask(from: message, connection: connection)
-                } onCreateDraft: {
-                  store.createDraftMessage(from: message, connection: connection)
-                } onTrustSender: {
-                  store.addSpaceMailHintFromUncertain(message, target: .trustedSender, for: connection)
-                } onImportHint: {
-                  store.addSpaceMailHintFromUncertain(message, target: .importKeyword, for: connection)
-                } onFilterHint: {
-                  store.addSpaceMailHintFromUncertain(message, target: .filterKeyword, for: connection)
+
+            if store.spaceMailIMAPConnections.isEmpty {
+              MVPEmptyState(
+                title: "No SpaceMail setup exists",
+                detail: "Add a SpaceMail IMAP setup before mixed-mailbox review can show uncertain or filtered examples.",
+                symbol: "server.rack"
+              )
+            } else {
+              ForEach(store.spaceMailIMAPConnections) { connection in
+                VStack(alignment: .leading, spacing: 12) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(connection.displayName, systemImage: "server.rack")
+                      .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Badge("\(connection.uncertainMessages.count) uncertain", color: connection.uncertainMessages.isEmpty ? .secondary : .orange)
+                    Badge("\(connection.filteredMessages.count) filtered", color: connection.filteredMessages.isEmpty ? .secondary : .teal)
+                  }
+
+                  Text("Latest refresh: \(connection.lastRefreshSummary)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                  VStack(alignment: .leading, spacing: 8) {
+                    Label("Uncertain SpaceMail messages", systemImage: "questionmark.diamond.fill")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(.orange)
+
+                    if connection.uncertainMessages.isEmpty {
+                      MVPEmptyState(
+                        title: "No uncertain messages waiting",
+                        detail: "Order-ish messages without enough evidence will appear here. A zero count means the classifier either imported likely order mail or filtered likely non-order mail.",
+                        symbol: "checkmark.seal.fill"
+                      )
+                    } else {
+                      ForEach(connection.uncertainMessages.prefix(5)) { message in
+                        SpaceMailNeedsReviewPreviewRow(
+                          title: message.subject,
+                          sender: message.sender,
+                          receivedDate: message.receivedDate,
+                          bodyPreview: message.bodyPreview,
+                          reason: message.reason,
+                          badge: "Uncertain",
+                          color: .orange
+                        ) {
+                          store.importUncertainSpaceMailMessage(message, for: connection)
+                        } onDismiss: {
+                          store.dismissUncertainSpaceMailMessage(message, for: connection)
+                        } onCreateTask: {
+                          store.createReviewTask(from: message, connection: connection)
+                        } onCreateDraft: {
+                          store.createDraftMessage(from: message, connection: connection)
+                        } onTrustSender: {
+                          store.addSpaceMailHintFromUncertain(message, target: .trustedSender, for: connection)
+                        } onImportHint: {
+                          store.addSpaceMailHintFromUncertain(message, target: .importKeyword, for: connection)
+                        } onFilterHint: {
+                          store.addSpaceMailHintFromUncertain(message, target: .filterKeyword, for: connection)
+                        }
+                      }
+                    }
+                  }
+
+                  VStack(alignment: .leading, spacing: 8) {
+                    Label("Filtered SpaceMail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(.teal)
+
+                    if connection.filteredMessages.isEmpty {
+                      MVPEmptyState(
+                        title: "No filtered examples saved",
+                        detail: "Filtered non-order previews are counted locally. Saved examples appear here only when the classifier keeps recent safe subject/sender previews for spot review.",
+                        symbol: "line.3.horizontal.decrease.circle.fill"
+                      )
+                    } else {
+                      ForEach(connection.filteredMessages.prefix(3)) { message in
+                        SpaceMailNeedsReviewPreviewRow(
+                          title: message.subject,
+                          sender: message.sender,
+                          receivedDate: message.receivedDate,
+                          bodyPreview: message.bodyPreview,
+                          reason: message.reason,
+                          badge: "Filtered",
+                          color: .teal
+                        ) {
+                          store.importFilteredSpaceMailMessage(message, for: connection)
+                        } onDismiss: {
+                          store.dismissFilteredSpaceMailMessage(message, for: connection)
+                        } onCreateTask: {
+                          store.createReviewTask(from: message, connection: connection)
+                        } onCreateDraft: {
+                          store.createDraftMessage(from: message, connection: connection)
+                        } onTrustSender: {
+                          store.addSpaceMailHintFromFiltered(message, target: .trustedSender, for: connection)
+                        } onImportHint: {
+                          store.addSpaceMailHintFromFiltered(message, target: .importKeyword, for: connection)
+                        } onFilterHint: {
+                          store.addSpaceMailHintFromFiltered(message, target: .filterKeyword, for: connection)
+                        }
+                      }
+                    }
+                  }
                 }
-              }
-              ForEach(connection.filteredMessages.prefix(3)) { message in
-                SpaceMailNeedsReviewPreviewRow(
-                  title: message.subject,
-                  sender: message.sender,
-                  receivedDate: message.receivedDate,
-                  bodyPreview: message.bodyPreview,
-                  reason: message.reason,
-                  badge: "Filtered",
-                  color: .teal
-                ) {
-                  store.importFilteredSpaceMailMessage(message, for: connection)
-                } onDismiss: {
-                  store.dismissFilteredSpaceMailMessage(message, for: connection)
-                } onCreateTask: {
-                  store.createReviewTask(from: message, connection: connection)
-                } onCreateDraft: {
-                  store.createDraftMessage(from: message, connection: connection)
-                } onTrustSender: {
-                  store.addSpaceMailHintFromFiltered(message, target: .trustedSender, for: connection)
-                } onImportHint: {
-                  store.addSpaceMailHintFromFiltered(message, target: .importKeyword, for: connection)
-                } onFilterHint: {
-                  store.addSpaceMailHintFromFiltered(message, target: .filterKeyword, for: connection)
-                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
               }
             }
           }
