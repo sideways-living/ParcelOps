@@ -289,6 +289,7 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         spaceMailWorkbenchBoundary
+        spaceMailAssignedFollowUpPanel
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
@@ -506,6 +507,80 @@ struct OperationsWorkbenchView: View {
       return "The latest refresh fetched mail but did not produce imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
     }
     return spaceMailPostRefreshPlan.detail
+  }
+
+  private var spaceMailAssignedWorkbenchItems: [WorkbenchItem] {
+    store.openWorkbenchItems.filter { item in
+      (item.source == .reviewTask || item.source == .handoffNote)
+        && (item.title.localizedCaseInsensitiveContains("spacemail")
+          || item.summary.localizedCaseInsensitiveContains("spacemail")
+          || item.suggestedNextAction.localizedCaseInsensitiveContains("spacemail")
+          || item.suggestedNextAction.localizedCaseInsensitiveContains("mailbox monitor"))
+    }
+  }
+
+  @ViewBuilder
+  private var spaceMailAssignedFollowUpPanel: some View {
+    if !spaceMailAssignedWorkbenchItems.isEmpty {
+      SettingsPanel(title: "SpaceMail assigned follow-up", symbol: "person.2.wave.2.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("SpaceMail shift handoffs and review tasks are now assigned work. Use this panel to see them in Workbench, then open Tasks to complete, acknowledge, draft, or review them.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Assigned", "\(spaceMailAssignedWorkbenchItems.count)", .purple),
+            ("Needs review", "\(spaceMailAssignedWorkbenchItems.filter { $0.reviewState == .needsReview }.count)", spaceMailAssignedWorkbenchItems.contains { $0.reviewState == .needsReview } ? .orange : .green),
+            ("High priority", "\(spaceMailAssignedWorkbenchItems.filter { $0.rank >= 3 }.count)", spaceMailAssignedWorkbenchItems.contains { $0.rank >= 3 } ? .orange : .green),
+            ("Blocked", "\(spaceMailAssignedWorkbenchItems.filter(\.isBlocked).count)", spaceMailAssignedWorkbenchItems.contains(where: \.isBlocked) ? .red : .green)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(spaceMailAssignedWorkbenchItems.prefix(4)) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(item.source.rawValue, systemImage: item.source.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color(for: "attention"))
+                  Spacer()
+                  Badge(item.prioritySeverity, color: item.rank >= 3 ? .orange : .purple)
+                }
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(item.suggestedNextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Open Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Check Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
   }
 
   private func color(for tone: String) -> Color {

@@ -3047,10 +3047,14 @@ final class ParcelOpsStore {
 
   private func reviewTaskWorkbenchItems() -> [WorkbenchItem] {
     reviewTasks.filter { $0.status != .completed || $0.reviewState != .accepted }.map { task in
-      WorkbenchItem(
+      let isSpaceMailFollowUp = task.title.localizedCaseInsensitiveContains("spacemail")
+        || task.summary.localizedCaseInsensitiveContains("spacemail")
+      return WorkbenchItem(
         id: "task-\(task.id.uuidString)",
         title: task.title,
-        summary: task.summary,
+        summary: isSpaceMailFollowUp
+          ? "\(task.summary) Mailbox Monitor has the source refresh, mixed-mailbox, and classifier context."
+          : task.summary,
         linkedEntityType: .reviewTask,
         linkedEntityID: task.id.uuidString,
         prioritySeverity: task.priority.rawValue,
@@ -3059,17 +3063,24 @@ final class ParcelOpsStore {
         dueDateText: task.isLocallyOverdue ? "Overdue: \(task.dueDate)" : task.dueDate,
         reviewState: task.reviewState,
         source: .reviewTask,
-        suggestedNextAction: task.status == .completed ? "Mark reviewed" : "Complete or create draft"
+        suggestedNextAction: isSpaceMailFollowUp
+          ? "Open Mailbox Monitor, then complete or draft follow-up"
+          : task.status == .completed ? "Mark reviewed" : "Complete or create draft"
       )
     }
   }
 
   private func handoffNoteWorkbenchItems() -> [WorkbenchItem] {
     handoffNotes.filter { $0.status != .completed || $0.reviewState != .accepted }.map { note in
-      WorkbenchItem(
+      let isSpaceMailFollowUp = note.title.localizedCaseInsensitiveContains("spacemail")
+        || note.summary.localizedCaseInsensitiveContains("spacemail")
+        || note.notes.localizedCaseInsensitiveContains("spacemail")
+      return WorkbenchItem(
         id: "handoff-\(note.id.uuidString)",
         title: note.title,
-        summary: note.summary,
+        summary: isSpaceMailFollowUp
+          ? "\(note.summary) Mailbox Monitor has the source refresh, mixed-mailbox, and classifier context."
+          : note.summary,
         linkedEntityType: .handoffNote,
         linkedEntityID: note.id.uuidString,
         prioritySeverity: note.priority.rawValue,
@@ -3078,7 +3089,9 @@ final class ParcelOpsStore {
         dueDateText: note.isLocallyOverdue ? "Overdue: \(note.dueDate)" : note.dueDate,
         reviewState: note.reviewState,
         source: .handoffNote,
-        suggestedNextAction: note.status == .open ? "Acknowledge handoff" : "Complete handoff"
+        suggestedNextAction: isSpaceMailFollowUp
+          ? "Open Mailbox Monitor, then acknowledge or complete handoff"
+          : note.status == .open ? "Acknowledge handoff" : "Complete handoff"
       )
     }
   }

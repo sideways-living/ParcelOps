@@ -115,6 +115,7 @@ struct TasksView: View {
         taskNextActionPanel
         taskScopePanel
         spaceMailTaskEscalationPanel
+        spaceMailAssignedFollowUpPanel
         draftFollowUpPanel
         taskQueuePanel
         detailRoutes
@@ -418,6 +419,71 @@ struct TasksView: View {
     }.count
   }
 
+  private var spaceMailAssignedFollowUpItems: [TaskQueueItem] {
+    queueItems.filter { item in
+      item.isSpaceMailFollowUp
+    }
+  }
+
+  @ViewBuilder
+  private var spaceMailAssignedFollowUpPanel: some View {
+    if !spaceMailAssignedFollowUpItems.isEmpty {
+      SettingsPanel(title: "SpaceMail assigned follow-up", symbol: "person.2.wave.2.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("These tasks or handoffs were created from SpaceMail intake, classifier review, or shift handoff context. Use Mailbox Monitor for the source refresh state, then complete the assigned work here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Assigned", "\(spaceMailAssignedFollowUpItems.count)", .purple),
+            ("Overdue", "\(spaceMailAssignedFollowUpItems.filter(\.isOverdue).count)", spaceMailAssignedFollowUpItems.contains(where: \.isOverdue) ? .red : .green),
+            ("Handoffs", "\(spaceMailAssignedFollowUpItems.filter { if case .handoff = $0.source { return true }; return false }.count)", .blue),
+            ("Tasks", "\(spaceMailAssignedFollowUpItems.filter { if case .task = $0.source { return true }; return false }.count)", .orange)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(spaceMailAssignedFollowUpItems.prefix(4)) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(item.sourceLabel, systemImage: item.source.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.priority.color)
+                  Spacer()
+                  Badge(item.status.rawValue, color: item.status.color)
+                }
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(item.nextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(item.priority.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Open Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Check Audit trail", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
   private var spaceMailTaskEscalationTitle: String {
     if spaceMailLinkedTaskCount > 0 { return "SpaceMail follow-up is assigned" }
     if spaceMailImportedCount > 0 { return "Imported mail is waiting in Inbox" }
@@ -581,11 +647,19 @@ private struct TaskQueueItem: Identifiable {
   var nextAction: String
   var sortPriority: Int
 
+  var isSpaceMailFollowUp: Bool {
+    title.localizedCaseInsensitiveContains("spacemail")
+      || summary.localizedCaseInsensitiveContains("spacemail")
+      || nextAction.localizedCaseInsensitiveContains("spacemail")
+  }
+
   static func task(_ task: ReviewTask) -> TaskQueueItem {
-    TaskQueueItem(
+    let isSpaceMailFollowUp = task.title.localizedCaseInsensitiveContains("spacemail")
+      || task.summary.localizedCaseInsensitiveContains("spacemail")
+    return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
       source: .task(task),
-      sourceLabel: "Task",
+      sourceLabel: isSpaceMailFollowUp ? "SpaceMail task" : "Task",
       title: task.title,
       summary: task.summary,
       linkedEntityType: task.linkedEntityType,
@@ -596,20 +670,25 @@ private struct TaskQueueItem: Identifiable {
       status: task.status,
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
-      nextAction: task.isReopenedInboxDispatchHandoff
+      nextAction: isSpaceMailFollowUp
+        ? "Open Mailbox Monitor for source context, then complete or draft follow-up"
+        : task.isReopenedInboxDispatchHandoff
         ? "Open the order, inspect dispatch setup, then complete or block the handoff"
         : task.isPartialInboxOrderFollowUp
         ? "Open the order, confirm missing fields, then complete this handoff"
         : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : 0)
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
   static func handoff(_ note: HandoffNote) -> TaskQueueItem {
-    TaskQueueItem(
+    let isSpaceMailFollowUp = note.title.localizedCaseInsensitiveContains("spacemail")
+      || note.summary.localizedCaseInsensitiveContains("spacemail")
+      || note.notes.localizedCaseInsensitiveContains("spacemail")
+    return TaskQueueItem(
       id: "handoff-\(note.id.uuidString)",
       source: .handoff(note),
-      sourceLabel: "Handoff",
+      sourceLabel: isSpaceMailFollowUp ? "SpaceMail handoff" : "Handoff",
       title: note.title,
       summary: note.summary,
       linkedEntityType: note.linkedEntityType,
@@ -620,8 +699,10 @@ private struct TaskQueueItem: Identifiable {
       status: note.status,
       reviewState: note.reviewState,
       isOverdue: note.isLocallyOverdue,
-      nextAction: nextAction(status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue, completedVerb: "Reopen if the handoff is active again"),
-      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue)
+      nextAction: isSpaceMailFollowUp
+        ? "Open Mailbox Monitor for source context, then acknowledge or complete handoff"
+        : nextAction(status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue, completedVerb: "Reopen if the handoff is active again"),
+      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue) + (isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
