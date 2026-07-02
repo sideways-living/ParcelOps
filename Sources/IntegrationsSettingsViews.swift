@@ -64,6 +64,10 @@ struct IntegrationsView: View {
     matchesSetupSection("recommended", "setup", "path", "current", "next", "SpaceMail", "credential", "uncertain", "manual refresh")
   }
 
+  private var showsEditorSafety: Bool {
+    matchesSetupSection("editor", "save", "cancel", "short window", "credential", "password", "secret", "safe setup")
+  }
+
   private var showsSpaceMailSetup: Bool {
     matchesSetupSection("SpaceMail", "IMAP", "Keychain", "credential", "mixed mailbox", "classifier", "uncertain", "filtered", "real refresh", "mock refresh")
   }
@@ -91,6 +95,7 @@ struct IntegrationsView: View {
   private var visibleSetupSectionCount: Int {
     [
       showsRecommendedSetup,
+      showsEditorSafety,
       showsSpaceMailSetup,
       showsMicrosoftSetup,
       showsTrackedMailboxes,
@@ -230,6 +235,49 @@ struct IntegrationsView: View {
             SettingsReleaseCandidateCard(store: store)
           }
         }
+        }
+
+        if showsEditorSafety {
+          SettingsPanel(title: "Setup editor safety", symbol: "rectangle.and.pencil.and.ellipsis") {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("SpaceMail and Microsoft setup editors are for non-secret configuration only. Their forms scroll, and Save/Cancel stay pinned at the bottom of the sheet so they remain reachable on shorter windows.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+                SetupEditorSafetyItem(
+                  title: "Non-secret setup",
+                  detail: "Use setup editors for mailbox address, host, folder, mode, planning notes, and classifier hints.",
+                  symbol: "doc.text.magnifyingglass",
+                  color: .blue
+                )
+                SetupEditorSafetyItem(
+                  title: "Credential prompts only",
+                  detail: "SpaceMail passwords or app passwords belong in the secure credential action, not setup notes or JSON-backed fields.",
+                  symbol: "lock.shield.fill",
+                  color: .green
+                )
+                SetupEditorSafetyItem(
+                  title: "Pinned actions",
+                  detail: "If the sheet is taller than the screen, scroll the form; Save and Cancel should remain visible at the bottom.",
+                  symbol: "arrow.down.to.line.compact",
+                  color: .teal
+                )
+                SetupEditorSafetyItem(
+                  title: "No mailbox mutation",
+                  detail: "Editing setup does not fetch mail, start background sync, mark read, delete, move, send, or modify mailbox items.",
+                  symbol: "envelope.badge.shield.half.filled",
+                  color: .orange
+                )
+              }
+
+              Text("If Save is not visible after opening a setup editor, that is a layout bug. The intended behavior is a scrollable form with a fixed bottom action bar.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
         }
 
         if showsSpaceMailSetup {
@@ -440,6 +488,28 @@ struct IntegrationsView: View {
       }
       .padding(isCompact ? 14 : 24)
     }
+  }
+}
+
+struct SetupEditorSafetyItem: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
