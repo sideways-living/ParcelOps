@@ -410,7 +410,8 @@ struct IntegrationsView: View {
             SpaceMailIMAPConnectionRow(
               connection: connection,
               healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
-              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection)
+              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection),
+              classifierImpactPreviews: store.spaceMailClassifierImpactPreviews(for: connection)
             ) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
@@ -1111,6 +1112,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var connection: SpaceMailIMAPConnection
   var healthSummary: SpaceMailIntakeHealthSummary
   var assignedFollowUpSummaries: [String]
+  var classifierImpactPreviews: [SpaceMailClassifierImpactPreview]
   var onSave: (SpaceMailIMAPConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
@@ -1766,6 +1768,9 @@ struct SpaceMailIMAPConnectionRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
       }
+      if !classifierImpactPreviews.isEmpty {
+        spaceMailClassifierImpactPreview
+      }
       CompactActionRow {
         ForEach(SpaceMailFilterPreset.allCases) { preset in
           Button(presetButtonTitle(preset), systemImage: presetSymbol(preset)) {
@@ -1777,6 +1782,64 @@ struct SpaceMailIMAPConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailClassifierImpactPreview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Preset impact preview", systemImage: "chart.bar.doc.horizontal")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer()
+        Badge("Local samples only", color: .teal)
+      }
+      Text("Preview uses built-in samples plus stored uncertain and filtered previews. It does not fetch mail, import messages, change classifier hints, or modify mailbox items.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+        ForEach(classifierImpactPreviews) { preview in
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Text(presetButtonTitle(preview.preset))
+                .font(.caption.weight(.semibold))
+              Spacer()
+              Badge(preview.riskLabel, color: impactColor(preview.riskLabel))
+            }
+            CompactMetadataGrid(minimumWidth: 74) {
+              Badge("\(preview.sampleCount) samples", color: .secondary)
+              Badge("\(preview.importedCount) import", color: preview.importedCount > 0 ? .green : .secondary)
+              Badge("\(preview.uncertainCount) uncertain", color: preview.uncertainCount > 0 ? .orange : .secondary)
+              Badge("\(preview.filteredCount) filtered", color: preview.filteredCount > 0 ? .teal : .secondary)
+              Badge("\(preview.changedCount) changed", color: preview.changedCount > 0 ? .purple : .secondary)
+            }
+            Text(preview.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(preview.examples, id: \.self) { example in
+              Label(example, systemImage: "arrow.triangle.branch")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(impactColor(preview.riskLabel).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(8)
+    .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func impactColor(_ label: String) -> Color {
+    if label.localizedCaseInsensitiveContains("import") { return .orange }
+    if label.localizedCaseInsensitiveContains("review") { return .purple }
+    if label.localizedCaseInsensitiveContains("stable") { return .green }
+    if label.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
   }
 
   private func presetButtonTitle(_ preset: SpaceMailFilterPreset) -> String {

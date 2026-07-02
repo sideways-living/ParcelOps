@@ -321,6 +321,19 @@ struct SpaceMailClassifierReasonCount: Identifiable, Hashable, Codable {
   var count: Int
 }
 
+struct SpaceMailClassifierImpactPreview: Identifiable, Hashable {
+  var id: String { preset.rawValue }
+  var preset: SpaceMailFilterPreset
+  var sampleCount: Int
+  var importedCount: Int
+  var uncertainCount: Int
+  var filteredCount: Int
+  var changedCount: Int
+  var riskLabel: String
+  var detail: String
+  var examples: [String]
+}
+
 struct SpaceMailClassifierTestResult: Identifiable, Hashable, Codable {
   var id = UUID()
   var sampleName: String

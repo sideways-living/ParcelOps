@@ -965,6 +965,12 @@ final class ParcelOpsStore {
     return Array((handoffSummaries + taskSummaries).prefix(6))
   }
 
+  func spaceMailClassifierImpactPreviews(for connection: SpaceMailIMAPConnection) -> [SpaceMailClassifierImpactPreview] {
+    SpaceMailFilterPreset.allCases.map { preset in
+      spaceMailClassifierImpactPreview(for: connection, preset: preset)
+    }
+  }
+
   var microsoft365OAuthReadinessSummaries: [Microsoft365OAuthReadinessSummary] {
     microsoft365MailboxConnections.map { microsoft365OAuthReadinessSummary(for: $0) }
   }
@@ -5338,6 +5344,143 @@ final class ParcelOpsStore {
     }
 
     return (.nonOrder, score, "no strong order evidence")
+  }
+
+  private func spaceMailClassifierImpactPreview(
+    for connection: SpaceMailIMAPConnection,
+    preset: SpaceMailFilterPreset
+  ) -> SpaceMailClassifierImpactPreview {
+    let samples = spaceMailClassifierImpactSamples(for: connection)
+    let previewConnection = spaceMailPreviewConnection(connection, preset: preset)
+    var imported = 0
+    var uncertain = 0
+    var filtered = 0
+    var changedExamples: [String] = []
+
+    for sample in samples {
+      let current = classifyMailboxMessageRelevance(sample, for: connection)
+      let preview = classifyMailboxMessageRelevance(sample, for: previewConnection)
+      switch preview.decision {
+      case .likelyOrder:
+        imported += 1
+      case .uncertain:
+        uncertain += 1
+      case .nonOrder:
+        filtered += 1
+      }
+      if current.decision != preview.decision {
+        changedExamples.append("\(safeAuditPreview(sample.subject, limit: 70)): \(spaceMailDecisionLabel(current.decision)) -> \(spaceMailDecisionLabel(preview.decision))")
+      }
+    }
+
+    let changedCount = changedExamples.count
+    let riskLabel: String
+    let detail: String
+    if samples.isEmpty {
+      riskLabel = "No samples"
+      detail = "No stored preview samples are available yet. Run a manual refresh or classifier suite before relying on preset impact."
+    } else if imported > max(1, samples.count / 2) {
+      riskLabel = "Import-heavy"
+      detail = "This preset would import \(imported) of \(samples.count) local samples. Use only when the mailbox is mostly forwarded order mail."
+    } else if uncertain > 0 {
+      riskLabel = "Review-heavy"
+      detail = "This preset would leave \(uncertain) sample\(uncertain == 1 ? "" : "s") for manual uncertain review."
+    } else if changedCount == 0 {
+      riskLabel = "Stable"
+      detail = "This preset does not change the decision for the current local samples."
+    } else {
+      riskLabel = "Tighter filter"
+      detail = "This preset changes \(changedCount) local sample\(changedCount == 1 ? "" : "s") while keeping most mail out of Inbox."
+    }
+
+    return SpaceMailClassifierImpactPreview(
+      preset: preset,
+      sampleCount: samples.count,
+      importedCount: imported,
+      uncertainCount: uncertain,
+      filteredCount: filtered,
+      changedCount: changedCount,
+      riskLabel: riskLabel,
+      detail: detail,
+      examples: Array(changedExamples.prefix(3))
+    )
+  }
+
+  private func spaceMailPreviewConnection(
+    _ connection: SpaceMailIMAPConnection,
+    preset: SpaceMailFilterPreset
+  ) -> SpaceMailIMAPConnection {
+    var preview = connection
+    let config = spaceMailFilterPresetConfiguration(preset)
+    preview.mailboxMode = .mixedFiltered
+    preview.trustedSenderHints = config.trustedSenders
+    preview.importKeywordHints = config.importKeywords
+    preview.uncertainKeywordHints = config.uncertainKeywords
+    preview.filterKeywordHints = config.filterKeywords
+    return preview
+  }
+
+  private func spaceMailClassifierImpactSamples(for connection: SpaceMailIMAPConnection) -> [FetchedMailboxMessage] {
+    let mailboxID = trackedMailbox(for: connection).id
+    var messages: [FetchedMailboxMessage] = [
+      FetchedMailboxMessage(
+        providerMessageID: "impact-clear-order-\(connection.id.uuidString)",
+        sender: "orders@example-shop.test",
+        subject: "Order TEST-123 shipped tracking ABC123",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123 to Melbourne.",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "impact-delivery-question-\(connection.id.uuidString)",
+        sender: "customer@example.com",
+        subject: "Delivery question",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "impact-marketing-\(connection.id.uuidString)",
+        sender: "offers@example-shop.test",
+        subject: "Final days for free delivery",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Final days to get free delivery on your next purchase. View this email or unsubscribe.",
+        sourceMailboxID: mailboxID
+      )
+    ]
+
+    messages.append(contentsOf: connection.uncertainMessages.prefix(5).map { message in
+      FetchedMailboxMessage(
+        providerMessageID: "impact-uncertain-\(message.providerMessageID)",
+        sender: message.sender,
+        subject: message.subject,
+        receivedDate: message.receivedDate,
+        plainTextBodyPreview: message.bodyPreview,
+        sourceMailboxID: mailboxID
+      )
+    })
+    messages.append(contentsOf: connection.filteredMessages.prefix(5).map { message in
+      FetchedMailboxMessage(
+        providerMessageID: "impact-filtered-\(message.providerMessageID)",
+        sender: message.sender,
+        subject: message.subject,
+        receivedDate: message.receivedDate,
+        plainTextBodyPreview: message.bodyPreview,
+        sourceMailboxID: mailboxID
+      )
+    })
+    return Array(messages.prefix(13))
+  }
+
+  private func spaceMailDecisionLabel(_ decision: MailboxRelevanceDecision) -> String {
+    switch decision {
+    case .likelyOrder:
+      return "Imported"
+    case .uncertain:
+      return "Uncertain"
+    case .nonOrder:
+      return "Filtered"
+    }
   }
 
   private func spaceMailClassifierEvidence(

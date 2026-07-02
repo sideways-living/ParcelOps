@@ -95,7 +95,8 @@ struct MailboxView: View {
             SpaceMailIMAPConnectionRow(
               connection: connection,
               healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
-              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection)
+              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection),
+              classifierImpactPreviews: store.spaceMailClassifierImpactPreviews(for: connection)
             ) { updatedConnection in
               store.updateSpaceMailIMAPConnection(updatedConnection)
             } onReviewed: {
