@@ -1695,6 +1695,7 @@ struct SpaceMailIMAPConnectionRow: View {
           Text("Classifier test results")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
+          classifierSuiteSummary
           ForEach(connection.classifierTestResults) { result in
             VStack(alignment: .leading, spacing: 4) {
               HStack(alignment: .firstTextBaseline) {
@@ -1758,6 +1759,37 @@ struct SpaceMailIMAPConnectionRow: View {
     .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  private var classifierSuiteSummary: some View {
+    let decisionChecks = connection.classifierTestResults.filter { !$0.decisionStatus.localizedCaseInsensitiveContains("No classifier expectation") }
+    let decisionPasses = decisionChecks.filter { $0.decisionStatus.localizedCaseInsensitiveContains("passed") }
+    let decisionFailures = decisionChecks.filter { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
+    let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+    let parserPasses = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+    let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    let hasFailures = !decisionFailures.isEmpty || !parserFailures.isEmpty
+
+    return VStack(alignment: .leading, spacing: 6) {
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(decisionPasses.count)/\(decisionChecks.count) decisions", color: decisionFailures.isEmpty ? .green : .orange)
+        Badge("\(parserPasses.count)/\(parserChecks.count) parser", color: parserFailures.isEmpty ? .green : .orange)
+        Badge(hasFailures ? "Needs review" : "Suite passed", color: hasFailures ? .orange : .green)
+      }
+      Text(hasFailures ? classifierSuiteFailureSummary(decisionFailures: decisionFailures, parserFailures: parserFailures) : "Built-in classifier expectations passed. Clear order/tracking samples import, ambiguous delivery questions stay uncertain, and obvious non-order mail filters out.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(hasFailures ? .orange : .green)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .background((hasFailures ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func classifierSuiteFailureSummary(decisionFailures: [SpaceMailClassifierTestResult], parserFailures: [SpaceMailClassifierTestResult]) -> String {
+    let decisionText = decisionFailures.prefix(3).map { "\($0.sampleName): \($0.decisionStatus)" }
+    let parserText = parserFailures.prefix(3).map { "\($0.sampleName): \($0.parserStatus)" }
+    let combined = (decisionText + parserText).joined(separator: "; ")
+    return combined.isEmpty ? "Review classifier and parser expectations before trusting mixed-mailbox filtering." : combined
+  }
+
   private var spaceMailClassifierRuleGuide: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text("Decision guide")
@@ -1780,7 +1812,13 @@ struct SpaceMailIMAPConnectionRow: View {
 
   @ViewBuilder
   private var classifierTestBadge: some View {
-    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") {
+    let decisionFailures = connection.classifierTestResults.filter { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
+    let parserFailures = connection.classifierTestResults.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    if !decisionFailures.isEmpty || !parserFailures.isEmpty {
+      Badge("Needs review", color: .orange)
+    } else if !connection.classifierTestResults.isEmpty {
+      Badge("Suite passed", color: .green)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") {
       Badge("Uncertain", color: .orange)
     } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") {
       Badge("Imported", color: .green)
@@ -1792,6 +1830,8 @@ struct SpaceMailIMAPConnectionRow: View {
   }
 
   private var classifierTestColor: Color {
+    if connection.classifierTestResults.contains(where: { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") || $0.parserStatus.localizedCaseInsensitiveContains("needs review") }) { return .orange }
+    if !connection.classifierTestResults.isEmpty { return .green }
     if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") { return .orange }
     if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") { return .green }
     if connection.classifierTestSummary.localizedCaseInsensitiveContains("Filtered") { return .teal }
