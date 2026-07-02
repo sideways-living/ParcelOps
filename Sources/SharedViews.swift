@@ -2933,6 +2933,24 @@ struct SpaceMailPrimaryStatusStrip: View {
     healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
   }
 
+  private var classifierImpactPreviews: [SpaceMailClassifierImpactPreview] {
+    store.spaceMailIMAPConnections.flatMap { store.spaceMailClassifierImpactPreviews(for: $0) }
+  }
+
+  private var safestClassifierPreview: SpaceMailClassifierImpactPreview? {
+    classifierImpactPreviews.sorted { lhs, rhs in
+      let lhsPriority = classifierRiskPriority(lhs.riskLabel)
+      let rhsPriority = classifierRiskPriority(rhs.riskLabel)
+      if lhsPriority == rhsPriority {
+        if lhs.importedCount == rhs.importedCount {
+          return lhs.uncertainCount > rhs.uncertainCount
+        }
+        return lhs.importedCount < rhs.importedCount
+      }
+      return lhsPriority < rhsPriority
+    }.first
+  }
+
   private var color: Color {
     color(for: plan.tone)
   }
@@ -2979,6 +2997,16 @@ struct SpaceMailPrimaryStatusStrip: View {
           symbol: "chart.line.uptrend.xyaxis",
           tone: trend.tone
         )
+
+        if let safestClassifierPreview {
+          statusTile(
+            title: "Classifier preset preview",
+            detail: "\(presetTitle(safestClassifierPreview.preset)): \(safestClassifierPreview.detail)",
+            footer: "\(safestClassifierPreview.importedCount) import, \(safestClassifierPreview.uncertainCount) uncertain, \(safestClassifierPreview.filteredCount) filtered",
+            symbol: "line.3.horizontal.decrease.circle",
+            tone: tone(forClassifierRisk: safestClassifierPreview.riskLabel)
+          )
+        }
       }
     }
     .padding(12)
@@ -3022,6 +3050,33 @@ struct SpaceMailPrimaryStatusStrip: View {
       return .red
     default:
       return .secondary
+    }
+  }
+
+  private func classifierRiskPriority(_ label: String) -> Int {
+    if label.localizedCaseInsensitiveContains("stable") { return 0 }
+    if label.localizedCaseInsensitiveContains("filter") { return 1 }
+    if label.localizedCaseInsensitiveContains("review") { return 2 }
+    if label.localizedCaseInsensitiveContains("import") { return 3 }
+    return 4
+  }
+
+  private func tone(forClassifierRisk label: String) -> String {
+    if label.localizedCaseInsensitiveContains("import") { return "attention" }
+    if label.localizedCaseInsensitiveContains("review") { return "attention" }
+    if label.localizedCaseInsensitiveContains("stable") { return "success" }
+    if label.localizedCaseInsensitiveContains("filter") { return "default" }
+    return "default"
+  }
+
+  private func presetTitle(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative:
+      return "Conservative"
+    case .balanced:
+      return "Balanced"
+    case .forwardedOrders:
+      return "Forwarded orders"
     }
   }
 }
