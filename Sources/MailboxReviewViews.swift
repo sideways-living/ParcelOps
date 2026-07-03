@@ -74,6 +74,8 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
+        MailboxSpaceMailReadinessPanel(store: store)
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
@@ -481,6 +483,136 @@ private struct MailboxReviewStartPanel: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+private struct MailboxSpaceMailReadinessPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasManualRefresh: Bool {
+    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var parserSuiteResults: [SpaceMailClassifierTestResult] {
+    store.spaceMailIMAPConnections.flatMap(\.classifierTestResults)
+  }
+
+  private var parserChecks: [SpaceMailClassifierTestResult] {
+    parserSuiteResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+  }
+
+  private var parserPasses: [SpaceMailClassifierTestResult] {
+    parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+  }
+
+  private var parserFailures: [SpaceMailClassifierTestResult] {
+    parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+  }
+
+  private var readinessTone: Color {
+    if !hasSetup || !hasCredentialReference || !hasManualRefresh || parserChecks.isEmpty || !parserFailures.isEmpty { return .orange }
+    if (latestSummary?.pendingUncertainReviewCount ?? 0) > 0 { return .orange }
+    return .green
+  }
+
+  private var readinessTitle: String {
+    if !hasSetup { return "SpaceMail setup is needed" }
+    if !hasCredentialReference { return "SpaceMail credential is needed" }
+    if parserChecks.isEmpty { return "Run parser QA before live order extraction" }
+    if !parserFailures.isEmpty { return "Review parser QA failures" }
+    if !hasManualRefresh { return "Run a manual SpaceMail refresh" }
+    if (latestSummary?.pendingUncertainReviewCount ?? 0) > 0 { return "Review uncertain SpaceMail previews" }
+    return "SpaceMail intake path is ready"
+  }
+
+  private var readinessDetail: String {
+    if !hasSetup {
+      return "Add one SpaceMail setup record with non-secret host, port, folder, and mixed-mailbox mode before using live intake."
+    }
+    if !hasCredentialReference {
+      return "Set or check the Keychain password/app-password reference. Do not put passwords in setup notes or JSON-backed fields."
+    }
+    if parserChecks.isEmpty {
+      return "Run the parser/classifier suite so the app proves it can distinguish filtered mail from order mail and extract order/tracking values from built-in samples."
+    }
+    if !parserFailures.isEmpty {
+      return "\(parserFailures.count) parser expectation failed. Create a parser QA task or review the sample results before trusting similar live messages."
+    }
+    if !hasManualRefresh {
+      return "Run the explicit manual read-only refresh. It uses EXAMINE/BODY.PEEK and must not delete, move, mark read, flag, send, or modify mailbox items."
+    }
+    if (latestSummary?.pendingUncertainReviewCount ?? 0) > 0 {
+      return "Uncertain previews are held out of Inbox. Import only true order updates; dismiss or tune hints for non-order mail."
+    }
+    return "Setup, credential, parser QA, and latest refresh evidence are present. Continue reviewing imported order emails and Audit as needed."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "SpaceMail readiness", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: readinessTone == .green ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(readinessTone)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(readinessTitle)
+              .font(.headline)
+            Text(readinessDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(readinessTone == .green ? "Ready" : "Action", color: readinessTone)
+        }
+
+        MetricStrip(items: [
+          ("Setup", hasSetup ? "Set" : "Needed", hasSetup ? .green : .orange),
+          ("Credential", hasCredentialReference ? "Keychain" : "Needed", hasCredentialReference ? .green : .orange),
+          ("Parser QA", parserChecks.isEmpty ? "Not run" : "\(parserPasses.count)/\(parserChecks.count)", parserFailures.isEmpty && !parserChecks.isEmpty ? .green : .orange),
+          ("Refresh", hasManualRefresh ? "Seen" : "Needed", hasManualRefresh ? .green : .orange),
+          ("Imported", "\(latestSummary?.importedCount ?? 0)", (latestSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Uncertain", "\(latestSummary?.pendingUncertainReviewCount ?? latestSummary?.uncertainCount ?? 0)", ((latestSummary?.pendingUncertainReviewCount ?? latestSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary),
+          ("Filtered", "\(latestSummary?.filteredCount ?? 0)", (latestSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary)
+        ])
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
     }
   }
 }
