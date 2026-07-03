@@ -3010,6 +3010,60 @@ struct SettingsView: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var settingsManualRefreshCount: Int {
+    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+  }
+
+  private var settingsInboxCreatedOrdersCount: Int {
+    store.orders.filter(\.isInboxCreatedLocalOrder).count
+  }
+
+  private var settingsOpenOperatorWorkCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var settingsReadinessTone: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if settingsManualRefreshCount == 0 { return .orange }
+    if settingsInboxCreatedOrdersCount == 0 { return .teal }
+    if settingsOpenOperatorWorkCount > 0 { return .blue }
+    return .green
+  }
+
+  private var settingsReadinessTitle: String {
+    if !hasSpaceMailSetup { return "Set up SpaceMail before live intake testing" }
+    if !hasSpaceMailCredentialReference { return "Add the SpaceMail Keychain credential" }
+    if settingsManualRefreshCount == 0 { return "Run one manual SpaceMail refresh" }
+    if settingsInboxCreatedOrdersCount == 0 { return "Create or link one Inbox order" }
+    if settingsOpenOperatorWorkCount > 0 { return "Operator workflow has open follow-up" }
+    return "Daily operator setup is ready"
+  }
+
+  private var settingsReadinessDetail: String {
+    if !hasSpaceMailSetup {
+      return "Use Mailbox Monitor or Integrations to add the non-secret SpaceMail IMAP setup. Keep passwords out of setup notes and JSON fields."
+    }
+    if !hasSpaceMailCredentialReference {
+      return "Use the secure SpaceMail credential action. The password/app-password should be stored through Keychain, not in JSON."
+    }
+    if settingsManualRefreshCount == 0 {
+      return "Run the explicit read-only SpaceMail refresh so the app has a real refresh result before hands-on testing."
+    }
+    if settingsInboxCreatedOrdersCount == 0 {
+      return "Review imported intake in Inbox, then create or link one order so Orders, Workbench, Tasks, Dashboard, and Audit show the handoff."
+    }
+    if settingsOpenOperatorWorkCount > 0 {
+      return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
+    }
+    return "SpaceMail setup, manual refresh, Inbox-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
+  }
+
   private var activeSetupTitle: String {
     if let latestSpaceMailSummary {
       if latestSpaceMailSummary.importedCount > 0 {
@@ -3098,6 +3152,68 @@ struct SettingsView: View {
     ].filter(\.self).count
   }
 
+  private var settingsReadinessPanel: some View {
+    SettingsPanel(title: "Daily operator readiness", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: settingsReadinessTone == .green ? "checkmark.seal.fill" : "arrow.forward.circle.fill")
+            .font(.title3)
+            .foregroundStyle(settingsReadinessTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(settingsReadinessTitle)
+              .font(.headline)
+            Text(settingsReadinessDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(settingsReadinessTone == .green ? "Ready" : "Next step", color: settingsReadinessTone)
+        }
+
+        MetricStrip(items: [
+          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
+          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+          ("Refreshes", "\(settingsManualRefreshCount)", settingsManualRefreshCount == 0 ? .orange : .green),
+          ("Inbox orders", "\(settingsInboxCreatedOrdersCount)", settingsInboxCreatedOrdersCount == 0 ? .teal : .green),
+          ("Open work", "\(settingsOpenOperatorWorkCount)", settingsOpenOperatorWorkCount == 0 ? .green : .blue)
+        ])
+
+        Text("Local boundary: SpaceMail refresh is manual and read-only; passwords stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -3105,6 +3221,8 @@ struct SettingsView: View {
       VStack(alignment: .leading, spacing: 14) {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
+
+        settingsReadinessPanel
 
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
