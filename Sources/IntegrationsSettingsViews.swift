@@ -1947,7 +1947,7 @@ struct SpaceMailIMAPConnectionRow: View {
   private var spaceMailClassifierTest: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline) {
-        Label("6. Test classifier decisions", systemImage: "questionmark.diamond.fill")
+        Label("6. Test classifier and parser", systemImage: "text.magnifyingglass")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
         Spacer()
@@ -1957,7 +1957,7 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      Text("Result includes the local filter decision plus the intake fields ParcelOps would detect from the same sample.")
+      Text("Results show two separate checks: whether the mixed-mailbox classifier would import/filter/hold the message, and whether the intake parser would extract order and tracking values correctly.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1984,13 +1984,14 @@ struct SpaceMailIMAPConnectionRow: View {
           onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
         }
         .disabled(classifierSubject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && classifierPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        Button("Run test suite", systemImage: "checklist") {
+        Button("Run parser/classifier suite", systemImage: "checklist") {
           onRunClassifierSuite()
         }
       }
+      parserQASummary
       if !connection.classifierTestResults.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Text("Classifier test results")
+          Text("Sample results")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
           classifierSuiteSummary
@@ -2079,6 +2080,54 @@ struct SpaceMailIMAPConnectionRow: View {
     }
     .padding(8)
     .background((hasFailures ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var parserQASummary: some View {
+    let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+    let parserPasses = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+    let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    let clearOrderSamples = connection.classifierTestResults.filter {
+      !$0.detectedOrderNumber.isPlaceholderValidationValue || !$0.detectedTrackingNumber.isPlaceholderValidationValue
+    }
+
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Parser QA", systemImage: "number.square.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(parserFailures.isEmpty && !parserChecks.isEmpty ? .green : .orange)
+        Spacer()
+        if parserChecks.isEmpty {
+          Badge("Not run", color: .secondary)
+        } else {
+          Badge("\(parserPasses.count)/\(parserChecks.count) passed", color: parserFailures.isEmpty ? .green : .orange)
+        }
+      }
+
+      if parserChecks.isEmpty {
+        Text("Run the parser/classifier suite before trusting live order extraction. It includes samples for clear order shipped tracking text, refund/order text, tracking-only updates, ambiguous delivery questions, and non-order marketing/security mail.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge("\(parserPasses.count) parser passes", color: parserFailures.isEmpty ? .green : .orange)
+          Badge("\(parserFailures.count) parser checks", color: parserFailures.isEmpty ? .green : .orange)
+          Badge("\(clearOrderSamples.count) extracted IDs", color: clearOrderSamples.isEmpty ? .secondary : .blue)
+        }
+        Text(parserFailures.isEmpty ? "Parser expectations passed for the built-in samples with explicit order/tracking values." : "Review parser failures before relying on live SpaceMail extraction.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(parserFailures.isEmpty ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
+        ForEach(parserFailures.prefix(3)) { result in
+          Text("\(result.sampleName): \(result.parserStatus)")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(8)
+    .background((parserFailures.isEmpty && !parserChecks.isEmpty ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private func classifierSuiteFailureSummary(decisionFailures: [SpaceMailClassifierTestResult], parserFailures: [SpaceMailClassifierTestResult]) -> String {
