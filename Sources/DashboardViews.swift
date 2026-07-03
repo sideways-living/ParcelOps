@@ -93,6 +93,39 @@ struct DashboardView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
   }
+  private var openSpaceMailAssignedTasks: [ReviewTask] {
+    store.reviewTasks.filter { task in
+      task.status != .completed
+        && (
+          task.title.localizedCaseInsensitiveContains("spacemail")
+            || task.summary.localizedCaseInsensitiveContains("spacemail")
+            || store.spaceMailIMAPConnections.contains { task.linkedEntityID == $0.id.uuidString }
+        )
+    }
+  }
+  private var openSpaceMailAssignedHandoffs: [HandoffNote] {
+    store.handoffNotes.filter { note in
+      note.status != .completed
+        && (
+          note.title.localizedCaseInsensitiveContains("spacemail")
+            || note.summary.localizedCaseInsensitiveContains("spacemail")
+            || note.notes.localizedCaseInsensitiveContains("spacemail")
+            || store.spaceMailIMAPConnections.contains { note.linkedEntityID == $0.id.uuidString }
+        )
+    }
+  }
+  private var pendingSpaceMailUncertainCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+  private var pendingSpaceMailFilteredCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+  }
+  private var spaceMailAssignedFollowUpCount: Int {
+    openSpaceMailAssignedTasks.count + openSpaceMailAssignedHandoffs.count
+  }
+  private var spaceMailFollowUpNeedsDashboardAttention: Bool {
+    spaceMailAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0
+  }
   private var setupPlaceholderReviewItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { $0.source == .setupPlaceholder }
   }
@@ -233,6 +266,7 @@ struct DashboardView: View {
         LocalDemoWorkflowStatusCard(store: store)
         DashboardReleaseCandidateQACard(store: store)
         FirstLiveMailboxTestCard(store: store)
+        spaceMailFollowUpPanel
         dailyOperatorStart
 
         VStack(alignment: .leading, spacing: 6) {
@@ -325,8 +359,14 @@ struct DashboardView: View {
             MetricStrip(items: [
               ("Open", "\(store.openReviewTasks.count)", .blue),
               ("Attention", "\(store.reviewTasksNeedingAttention.count)", .orange),
+              ("SpaceMail", "\(spaceMailAssignedFollowUpCount)", spaceMailAssignedFollowUpCount == 0 ? .green : .purple),
               ("Total", "\(store.reviewTasks.count)", .teal)
             ])
+            CompactSpaceMailDashboardFollowUp(
+              tasks: Array(openSpaceMailAssignedTasks.prefix(2)),
+              handoffs: Array(openSpaceMailAssignedHandoffs.prefix(2)),
+              store: store
+            )
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)), store: store)
           }
 
@@ -718,6 +758,55 @@ struct DashboardView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var spaceMailFollowUpPanel: some View {
+    if spaceMailFollowUpNeedsDashboardAttention {
+      SettingsPanel(title: "SpaceMail follow-up", symbol: "person.2.wave.2.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Assigned SpaceMail review tasks and handoffs should be worked from Tasks, while uncertain mixed-mailbox previews stay in Mailbox Monitor until an operator imports or dismisses them.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Assigned", "\(spaceMailAssignedFollowUpCount)", spaceMailAssignedFollowUpCount == 0 ? .green : .purple),
+            ("Tasks", "\(openSpaceMailAssignedTasks.count)", openSpaceMailAssignedTasks.isEmpty ? .green : .orange),
+            ("Handoffs", "\(openSpaceMailAssignedHandoffs.count)", openSpaceMailAssignedHandoffs.isEmpty ? .green : .blue),
+            ("Uncertain", "\(pendingSpaceMailUncertainCount)", pendingSpaceMailUncertainCount == 0 ? .green : .orange),
+            ("Filtered", "\(pendingSpaceMailFilteredCount)", pendingSpaceMailFilteredCount == 0 ? .secondary : .teal)
+          ])
+
+          CompactSpaceMailDashboardFollowUp(
+            tasks: Array(openSpaceMailAssignedTasks.prefix(3)),
+            handoffs: Array(openSpaceMailAssignedHandoffs.prefix(3)),
+            store: store
+          )
+
+          CompactActionRow {
+            if spaceMailAssignedFollowUpCount > 0 {
+              NavigationLink {
+                TasksView(store: store)
+              } label: {
+                Label("Open Tasks", systemImage: "checklist")
+              }
+            }
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label(pendingSpaceMailUncertainCount > 0 ? "Review uncertain mail" : "Open Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              OperationsWorkbenchView(store: store)
+            } label: {
+              Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
       }
     }
   }
@@ -2436,6 +2525,58 @@ struct CompactTaskList: View {
             detail: "\(task.assignee) • due \(task.dueDate)",
             badge: task.priority.rawValue,
             color: task.priority.color
+          )
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+}
+
+struct CompactSpaceMailDashboardFollowUp: View {
+  var tasks: [ReviewTask]
+  var handoffs: [HandoffNote]
+  var store: ParcelOpsStore
+
+  var body: some View {
+    CompactList(title: "Assigned SpaceMail work", symbol: "person.2.wave.2.fill") {
+      ForEach(tasks) { task in
+        NavigationLink {
+          TasksView(store: store)
+        } label: {
+          CompactRow(
+            title: task.title,
+            detail: "\(task.assignee) • \(task.status.rawValue) • due \(task.dueDate)",
+            badge: task.priority.rawValue,
+            color: task.priority.color
+          )
+        }
+        .buttonStyle(.plain)
+      }
+
+      ForEach(handoffs) { note in
+        NavigationLink {
+          TasksView(store: store)
+        } label: {
+          CompactRow(
+            title: note.title,
+            detail: "\(note.assignee) • \(note.status.rawValue) • due \(note.dueDate)",
+            badge: note.priority.rawValue,
+            color: note.priority.color
+          )
+        }
+        .buttonStyle(.plain)
+      }
+
+      if tasks.isEmpty && handoffs.isEmpty {
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          CompactRow(
+            title: "No assigned SpaceMail tasks yet",
+            detail: "Use Mailbox Monitor to review uncertain mixed-mailbox previews or create follow-up tasks.",
+            badge: "Mailbox",
+            color: .teal
           )
         }
         .buttonStyle(.plain)
