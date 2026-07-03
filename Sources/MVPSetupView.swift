@@ -635,6 +635,11 @@ struct MVPReleaseCandidateQACard: View {
         }
         .buttonStyle(.borderedProminent)
 
+        Button("Create QA task", systemImage: "checklist") {
+          store.createReviewTaskFromSpaceMailReleaseSnapshot()
+        }
+        .buttonStyle(.bordered)
+
         if let order = latestDemoOrder {
           Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
             store.completeInboxDispatchHandoff(for: order)
