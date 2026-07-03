@@ -709,6 +709,82 @@ private struct OrderQueueItem: Identifiable {
       "Monitor progress"
     }
   }
+  var handoffDecisionTitle: String {
+    if !isInboxCreated {
+      return riskLabel == "High risk" ? "Resolve order risk" : "Continue normal order monitoring"
+    }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 {
+      return "Inbox handoff is not complete"
+    }
+    if sourceTrailCount == 0 {
+      return "Source trail needs confirmation"
+    }
+    if order.reviewState != .accepted {
+      return "Order needs local review"
+    }
+    if needsDispatchSetup {
+      return "Dispatch setup is next"
+    }
+    if order.status == .exception || criticalTrackingCount > 0 {
+      return "Exception follow-up is needed"
+    }
+    return "Inbox handoff is ready"
+  }
+  var handoffDecisionDetail: String {
+    if !isInboxCreated {
+      if urgentTaskCount > 0 {
+        return "\(urgentTaskCount) urgent or overdue order task needs action before routine monitoring."
+      }
+      if warningTrackingCount > 0 {
+        return "\(warningTrackingCount) tracking warning should be checked from the order detail or Tracking screen."
+      }
+      return "This order is not marked as Inbox-created. Use the normal status, tracking, task, and dispatch context to decide the next step."
+    }
+    if partialInboxTaskCount > 0 {
+      return "\(partialInboxTaskCount) verification task is open for missing intake details. Resolve it after order number, tracking, and destination are confirmed."
+    }
+    if missingDetectedFieldCount > 0 {
+      return "\(missingDetectedFieldCount) key intake field is still missing or placeholder text. Edit the order before dispatch setup."
+    }
+    if sourceTrailCount == 0 {
+      return "No linked intake, import, or acceptance source matched this order yet. Confirm the source trail before marking the handoff reviewed."
+    }
+    if order.reviewState != .accepted {
+      return "Customer, destination, tracking, and source trail are present enough for a local review decision."
+    }
+    if needsDispatchSetup {
+      return "The order is reviewed and has no manifest/readiness context yet. Create or open dispatch setup when it is ready to move."
+    }
+    if order.status == .exception || criticalTrackingCount > 0 {
+      return "Create a follow-up task or inspect tracking before moving this order forward."
+    }
+    return "Source trail and review state are clear. Continue monitoring dispatch, tracking, and linked tasks."
+  }
+  var handoffDecisionBadge: String {
+    if !isInboxCreated { return riskLabel }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return "Verify" }
+    if sourceTrailCount == 0 { return "Trace" }
+    if order.reviewState != .accepted { return "Review" }
+    if needsDispatchSetup { return "Dispatch" }
+    if order.status == .exception || criticalTrackingCount > 0 { return "Exception" }
+    return "Ready"
+  }
+  var handoffDecisionColor: Color {
+    if !isInboxCreated { return riskColor }
+    if order.status == .exception || criticalTrackingCount > 0 { return .red }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 || sourceTrailCount == 0 || order.reviewState != .accepted { return .orange }
+    if needsDispatchSetup { return .purple }
+    return .green
+  }
+  var handoffDecisionSymbol: String {
+    if !isInboxCreated { return order.status == .exception ? "exclamationmark.triangle.fill" : "shippingbox.fill" }
+    if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return "checklist.unchecked" }
+    if sourceTrailCount == 0 { return "link.badge.plus" }
+    if order.reviewState != .accepted { return "checkmark.shield.fill" }
+    if needsDispatchSetup { return "paperplane.fill" }
+    if order.status == .exception || criticalTrackingCount > 0 { return "exclamationmark.triangle.fill" }
+    return "checkmark.seal.fill"
+  }
   var sortPriority: Int {
     if order.status == .exception { return 120 }
     if criticalTrackingCount > 0 { return 110 }
@@ -857,6 +933,8 @@ private struct OrderQueueRow: View {
         }
       }
 
+      orderHandoffDecisionPanel
+
       CompactActionRow {
         NavigationLink {
           OrderDetailView(order: order, store: store)
@@ -904,6 +982,29 @@ private struct OrderQueueRow: View {
         store.updateOrder(updatedOrder)
       }
     }
+  }
+
+  private var orderHandoffDecisionPanel: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.handoffDecisionSymbol)
+        .foregroundStyle(item.handoffDecisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.handoffDecisionTitle)
+          .font(.caption.weight(.semibold))
+        Text(item.handoffDecisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 8)
+      Badge(item.handoffDecisionBadge, color: item.handoffDecisionColor)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(item.handoffDecisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
