@@ -190,6 +190,59 @@ struct AuditView: View {
     return "list.clipboard.fill"
   }
 
+  private var auditEvidenceItems: [(title: String, detail: String, count: Int, symbol: String, color: Color)] {
+    [
+      (
+        "Mailbox refresh evidence",
+        "SpaceMail or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
+        spaceMailEvidenceEvents.count,
+        "server.rack",
+        spaceMailEvidenceEvents.isEmpty ? .orange : .teal
+      ),
+      (
+        "Inbox-to-order handoff",
+        "Audit can explain when intake became a linked or created local order.",
+        inboxOrderHandoffEvents.count,
+        "link.badge.plus",
+        inboxOrderHandoffEvents.isEmpty ? .orange : .blue
+      ),
+      (
+        "Dispatch handoff trail",
+        "Dispatch actions show whether Inbox-created orders gained manifest/readiness context.",
+        inboxDispatchHandoffEvents.count,
+        "paperplane.fill",
+        inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple
+      ),
+      (
+        "Workflow actions",
+        "Operator reviews, task creation, acknowledgements, completions, drafts, and handoffs are grouped separately from raw logs.",
+        workflowEvents.count,
+        "checklist",
+        workflowEvents.isEmpty ? .secondary : .teal
+      ),
+      (
+        "Record changes",
+        "Creates, edits, removals, enables, disables, and local corrections remain visible for traceability.",
+        recordChangeEvents.count,
+        "pencil.and.list.clipboard",
+        recordChangeEvents.isEmpty ? .secondary : .orange
+      ),
+      (
+        "Technical diagnostics",
+        "Parser, duplicate, and mailbox internals are hidden by default so daily audit review stays readable.",
+        hiddenTechnicalDiagnosticCount,
+        "eye.slash.fill",
+        hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange
+      )
+    ]
+  }
+
+  private var auditEvidenceReadyCount: Int {
+    auditEvidenceItems.filter { item in
+      item.count > 0 || item.title == "Technical diagnostics"
+    }.count
+  }
+
   private func eventMatchesSearch(_ event: AuditEvent) -> Bool {
     let query = normalizedAuditSearch
     guard !query.isEmpty else { return true }
@@ -214,6 +267,7 @@ struct AuditView: View {
         header
 
         auditNextCheckPanel
+        auditEvidenceChecklistPanel
 
         MVPWorkflowGuide(
           title: "Audit workflow",
@@ -312,6 +366,57 @@ struct AuditView: View {
         Text("Use Show technical diagnostics only when investigating mailbox connection or parser behavior; the default feed keeps routine operator history readable.")
           .font(.caption)
           .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private var auditEvidenceChecklistPanel: some View {
+    SettingsPanel(title: "Audit evidence checklist", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: auditEvidenceReadyCount >= auditEvidenceItems.count - 1 ? "checkmark.seal.fill" : "list.clipboard.fill")
+            .font(.title3)
+            .foregroundStyle(auditEvidenceReadyCount >= auditEvidenceItems.count - 1 ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(auditEvidenceReadyCount >= auditEvidenceItems.count - 1 ? "Audit has usable workflow evidence" : "Audit still needs more operator evidence")
+              .font(.headline)
+            Text("Use this checklist to decide whether Audit proves the daily flow, rather than just showing technical mailbox diagnostics.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(auditEvidenceReadyCount)/\(auditEvidenceItems.count)", color: auditEvidenceReadyCount >= auditEvidenceItems.count - 1 ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(auditEvidenceItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.count == 0 ? "None" : "\(item.count)", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: Audit only displays local events already recorded by ParcelOps. This panel does not create records, fetch mail, mutate mailbox messages, send notifications, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
