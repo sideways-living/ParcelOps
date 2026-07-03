@@ -319,6 +319,7 @@ struct DashboardView: View {
         header
         dailyStartDecisionPanel
         liveMailboxStatusPanel
+        MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
           title: "Daily operator path",
           detail: "Use these screens in order for the current SpaceMail-first local workflow.",
