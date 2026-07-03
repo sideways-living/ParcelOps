@@ -282,6 +282,7 @@ struct OperationsWorkbenchView: View {
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         operatorSummary
+        resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         Text("SpaceMail refresh trend is context for triage. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
@@ -313,6 +314,114 @@ struct OperationsWorkbenchView: View {
       VStack(alignment: .trailing, spacing: 6) {
         Badge("\(store.openWorkbenchItems.count) open", color: .blue)
         Badge("\(store.highPriorityWorkbenchItems.count) high", color: .orange)
+      }
+    }
+  }
+
+  private var resolutionLadderItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
+    let inboxCount = store.reviewIntakeEmails.count
+      + store.importQueueItemsNeedingReview.count
+      + store.blockedImportQueueItems.count
+      + store.acceptanceRecordsNeedingReview.count
+    let mailboxReviewCount = spaceMailUncertainCount + pendingFilteredSpaceMailCount + store.intakeParserDiagnostics.count
+    let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
+    let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+    let taskCount = store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
+    let auditCount = store.auditEvents.filter { event in
+      event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.summary.localizedCaseInsensitiveContains("Inbox")
+        || event.entityType == .intakeEmail
+        || event.entityType == .spaceMailIMAPConnection
+    }.count
+
+    return [
+      (
+        "Incoming records",
+        "Use Inbox for imported order mail, blocked imports, and acceptance decisions before treating them as exceptions.",
+        inboxCount,
+        "Inbox",
+        "tray.full.fill",
+        inboxCount == 0 ? .green : .teal
+      ),
+      (
+        "Mailbox review",
+        "Use Mailbox Monitor for uncertain, filtered, or parser-diagnostic SpaceMail evidence that should not flood Workbench.",
+        mailboxReviewCount,
+        "Mailbox Monitor",
+        "server.rack",
+        mailboxReviewCount == 0 ? .green : .orange
+      ),
+      (
+        "Order handoff",
+        "Use Orders when an Inbox-created order needs source trail, customer, destination, tracking, or dispatch setup confirmation.",
+        orderCount,
+        "Orders",
+        "shippingbox.fill",
+        orderCount == 0 ? .green : .purple
+      ),
+      (
+        "Dispatch follow-up",
+        "Use Dispatch when manifests, readiness, labels, custody, or reopened handoffs block outbound completion.",
+        dispatchCount,
+        "Dispatch",
+        "paperplane.fill",
+        dispatchCount == 0 ? .green : .blue
+      ),
+      (
+        "Owned work",
+        "Use Tasks when someone needs a due date, acknowledgement, draft, completion, or shift handoff.",
+        taskCount,
+        "Tasks",
+        "checklist",
+        taskCount == 0 ? .green : .orange
+      ),
+      (
+        "Traceability",
+        "Use Audit when the question is what changed, who acted locally, or why a mailbox/intake decision happened.",
+        auditCount,
+        "Audit",
+        "list.clipboard.fill",
+        auditCount == 0 ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var resolutionLadderPanel: some View {
+    SettingsPanel(title: "Workbench resolution ladder", symbol: "arrow.triangle.branch") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this to choose the right screen before opening advanced record queues. Workbench should point to the owner of the next local action, not become a dumping ground for every supporting record.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(resolutionLadderItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge("\(item.count)", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Go to \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this panel reads existing local counts only. It does not fetch mail, modify mailbox messages, create records, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
