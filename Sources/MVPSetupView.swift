@@ -31,6 +31,7 @@ struct MVPSetupView: View {
         MVPHandsOnReleaseChecklist(store: store)
         MVPReleaseCandidateQACard(store: store)
         MVPReleaseEvidenceReport(store: store)
+        MVPReleaseRunbook(store: store)
 
         SpaceMailOperatorGuidanceStack(store: store)
 
@@ -891,6 +892,181 @@ struct MVPReleaseEvidenceReport: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct MVPReleaseRunbook: View {
+  var store: ParcelOpsStore
+
+  private var hasDemoOrder: Bool {
+    store.orders.contains { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+  }
+
+  private var hasSpaceMailResult: Bool {
+    store.spaceMailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    }
+  }
+
+  private var hasAuditEvidence: Bool {
+    store.auditEvents.contains { event in
+      [.spaceMailIMAPConnection, .intakeEmail, .order, .reviewTask, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
+    }
+  }
+
+  private var hasOpenPrimaryWork: Bool {
+    !store.reviewIntakeEmails.isEmpty
+      || !store.openWorkbenchItems.isEmpty
+      || !store.reviewTasksNeedingAttention.isEmpty
+      || !store.incompleteDispatchChecklists.isEmpty
+  }
+
+  private var runbookTone: Color {
+    if hasDemoOrder && hasAuditEvidence { return .green }
+    if hasDemoOrder || hasSpaceMailResult { return .teal }
+    return .orange
+  }
+
+  private var runbookTitle: String {
+    if hasDemoOrder && hasAuditEvidence { return "Runbook is ready for a supervised MVP pass" }
+    if hasDemoOrder { return "Runbook has demo data; confirm Audit next" }
+    return "Runbook needs a stable local demo seed"
+  }
+
+  private var runbookDetail: String {
+    if hasDemoOrder && hasAuditEvidence {
+      return "Use this sequence to run a short release-candidate pass. It is deliberately local-first and does not require live mailbox success."
+    }
+    if hasDemoOrder {
+      return "The local demo order exists. Complete or reopen the dispatch handoff, then confirm the trail in Audit."
+    }
+    return "Seed the local demo workflow first so testing does not depend on SpaceMail inbox contents or classifier results."
+  }
+
+  private var normalSteps: [(String, String, String, Color)] {
+    [
+      ("1. Start at Dashboard", "Use Start here, Hands-on status, and Release-candidate checkpoint to decide where work should begin.", "square.grid.2x2.fill", .teal),
+      ("2. Prove intake", "Use Inbox or Mailbox Monitor. A local demo email is enough; SpaceMail refresh is useful but optional for release-candidate QA.", "tray.full.fill", .blue),
+      ("3. Create/link order", "Confirm merchant, order number, tracking, destination, and source trail before treating the order as operational.", "shippingbox.fill", .green),
+      ("4. Close dispatch handoff", "Confirm manifest and readiness setup, then complete or reopen the local handoff as needed.", "paperplane.fill", .purple),
+      ("5. Resolve owned work", "Open Workbench and Tasks. Complete only assigned local follow-up; filtered non-order mailbox results should not flood task work.", "checklist", .orange),
+      ("6. Confirm Audit", "Audit should show the local source trail and handoff actions without secrets, full mailbox bodies, or mailbox mutation.", "list.clipboard.fill", .purple)
+    ]
+  }
+
+  private var passCriteria: [(String, String, String, Color, Bool)] {
+    [
+      ("Dashboard gives a next action", "A tester can identify whether to open Inbox, Orders, Workbench, Dispatch, Tasks, or Audit.", "arrow.forward.circle.fill", .teal, true),
+      ("Inbox creates or links an order", "A clear local/demo intake can become an order without relying on external services.", "link.badge.plus", .green, hasDemoOrder || !store.orders.isEmpty),
+      ("Order keeps source trail", "The order detail can explain where the order came from and what still needs review.", "tray.and.arrow.down.fill", .blue, hasDemoOrder),
+      ("Dispatch has a handoff path", "The tester can see manifest/readiness context and complete or reopen local handoff records.", "checkmark.rectangle.stack.fill", .purple, hasDemoOrder),
+      ("Audit explains the trail", "Recent local actions appear in Audit with safe non-secret details.", "list.clipboard.fill", .purple, hasAuditEvidence),
+      ("Settings explains boundaries", "Local JSON storage, SpaceMail credentials, and disconnected integrations are clear from Settings/MVP Setup.", "lock.shield.fill", .green, true)
+    ]
+  }
+
+  private var knownLimitations: [(String, String, String, Color)] {
+    [
+      ("SpaceMail is manual", "Real IMAP refresh is explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
+      ("Shopify is not connected", "Shopify records remain placeholders. No Shopify API, OAuth, store login, or order sync is active.", "cart.badge.plus", .orange),
+      ("Carrier tracking is local", "Carrier events are local records only. No carrier APIs, label printing, booking, scanner, or tracking refresh is active.", "location.fill.viewfinder", .orange),
+      ("Outbound communication is draft-only", "Draft messages and templates are local planning records. ParcelOps does not send email or notifications.", "paperplane.slash.fill", .secondary),
+      ("Secrets stay out of JSON", "SpaceMail passwords are handled through Keychain status/actions, while JSON stores only non-secret operational records.", "key.horizontal.fill", .green),
+      ("Advanced records are supporting context", "Costs, claims, procurement, receiving, custody, labels, and scans exist locally but are not the primary daily path.", "archivebox.fill", .secondary)
+    ]
+  }
+
+  private var completedPassCriteriaCount: Int {
+    passCriteria.filter(\.4).count
+  }
+
+  var body: some View {
+    SettingsPanel(title: "MVP release runbook", symbol: "book.closed.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "book.closed.fill")
+          .foregroundStyle(runbookTone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(runbookTitle)
+            .font(.headline)
+          Text(runbookDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(completedPassCriteriaCount)/\(passCriteria.count)", color: runbookTone)
+      }
+
+      MetricStrip(items: [
+        ("Demo order", hasDemoOrder ? "Ready" : "Needed", hasDemoOrder ? .green : .orange),
+        ("SpaceMail", hasSpaceMailResult ? "Seen" : "Optional", hasSpaceMailResult ? .green : .secondary),
+        ("Open work", "\(store.openWorkbenchItems.count + store.reviewTasksNeedingAttention.count)", hasOpenPrimaryWork ? .orange : .green),
+        ("Audit", hasAuditEvidence ? "Ready" : "Needed", hasAuditEvidence ? .green : .orange),
+        ("Records", "\(store.orders.count + store.intakeEmails.count + store.auditEvents.count)", .blue)
+      ])
+
+      CompactActionRow {
+        Button(hasDemoOrder ? "Seed another demo" : "Seed demo workflow", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        NavigationLink { DashboardView(store: store) } label: { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { OrdersView(store: store) } label: { Label("Orders", systemImage: "shippingbox.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { DispatchView(store: store) } label: { Label("Dispatch", systemImage: "paperplane.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      runbookSection(title: "Test sequence", symbol: "list.number", items: normalSteps)
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(passCriteria.enumerated()), id: \.offset) { _, item in
+          MVPHandsOnReleaseChecklistRow(title: item.0, detail: item.1, symbol: item.2, color: item.3, isComplete: item.4)
+        }
+      }
+
+      runbookSection(title: "Known limitations", symbol: "exclamationmark.triangle.fill", items: knownLimitations)
+
+      Text("Pass/fail rule: this MVP is ready for hands-on testing when a tester can complete the local demo path, understand filtered/uncertain mailbox results, and confirm Audit/Settings boundaries without expecting live Shopify, carrier, notification, scanner, OCR, calendar, file-picker, outbound email, or background automation behavior.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(runbookTone)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func runbookSection(title: String, symbol: String, items: [(String, String, String, Color)]) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(item.0, systemImage: item.2)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(item.3)
+            Text(item.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(item.3.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
   }
 }
 
