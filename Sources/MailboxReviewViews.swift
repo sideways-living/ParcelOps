@@ -76,6 +76,8 @@ struct MailboxView: View {
 
         MailboxSpaceMailReadinessPanel(store: store)
 
+        MailboxSpaceMailRunbookPanel(store: store)
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
@@ -609,6 +611,180 @@ private struct MailboxSpaceMailReadinessPanel: View {
             AuditView(store: store)
           } label: {
             Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+}
+
+private struct MailboxSpaceMailRunbookPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var primaryConnection: SpaceMailIMAPConnection? {
+    store.spaceMailIMAPConnections.first
+  }
+
+  private var hasSetup: Bool {
+    primaryConnection != nil
+  }
+
+  private var hasCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasRefreshEvidence: Bool {
+    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var actionableIntakeCount: Int {
+    store.intakeEmails.filter { $0.reviewState != .reviewed && $0.reviewState != .ignored }.count
+  }
+
+  private var linkedIntakeCount: Int {
+    store.intakeEmails.filter { $0.linkedOrderID != nil }.count
+  }
+
+  private var parserDiagnosticCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var pendingUncertainCount: Int {
+    latestSummary?.pendingUncertainReviewCount ?? latestSummary?.uncertainCount ?? 0
+  }
+
+  private var pendingFilteredReviewCount: Int {
+    latestSummary?.pendingFilteredReviewCount ?? 0
+  }
+
+  private var runbookItems: [(title: String, detail: String, status: String, symbol: String, color: Color)] {
+    [
+      (
+        "1. Confirm setup",
+        hasSetup ? "SpaceMail host, port, folder, and mailbox mode are present." : "Add the SpaceMail setup record before testing live intake.",
+        hasSetup ? "Ready" : "Needed",
+        "server.rack",
+        hasSetup ? .green : .orange
+      ),
+      (
+        "2. Check credential",
+        hasCredentialReference ? "A Keychain password/app-password reference is available for manual refresh." : "Set or check the Keychain credential before real refresh.",
+        hasCredentialReference ? "Ready" : "Needed",
+        "key.fill",
+        hasCredentialReference ? .green : .orange
+      ),
+      (
+        "3. Run refresh",
+        hasRefreshEvidence ? "A manual read-only refresh has run. Latest refresh: \(latestSummary?.lastRefreshDate ?? primaryConnection?.lastManualRefreshDate ?? "unknown")." : "Run one manual read-only refresh after setup and credentials are ready.",
+        hasRefreshEvidence ? "Seen" : "Needed",
+        "arrow.triangle.2.circlepath",
+        hasRefreshEvidence ? .green : .orange
+      ),
+      (
+        "4. Review results",
+        "Fetched \(latestSummary?.fetchedCount ?? 0), imported \(latestSummary?.importedCount ?? 0), duplicates \(latestSummary?.duplicateCount ?? 0), filtered \(latestSummary?.filteredCount ?? 0), uncertain \(pendingUncertainCount).",
+        hasRefreshEvidence ? "Current" : "Waiting",
+        "chart.bar.doc.horizontal",
+        hasRefreshEvidence ? .blue : .secondary
+      ),
+      (
+        "5. Triage Inbox",
+        actionableIntakeCount > 0 ? "\(actionableIntakeCount) actionable intake rows need review. \(linkedIntakeCount) intake rows already have linked-order context." : "No actionable intake rows are waiting in the primary Inbox.",
+        actionableIntakeCount > 0 ? "Action" : "Clear",
+        "tray.full.fill",
+        actionableIntakeCount > 0 ? .orange : .green
+      ),
+      (
+        "6. Handle edge cases",
+        pendingUncertainCount > 0 || pendingFilteredReviewCount > 0 || parserDiagnosticCount > 0
+          ? "\(pendingUncertainCount) uncertain, \(pendingFilteredReviewCount) filtered-review, and \(parserDiagnosticCount) parser diagnostic rows need optional review."
+          : "No uncertain, filtered-review, or parser diagnostic rows are currently blocking intake.",
+        pendingUncertainCount > 0 || pendingFilteredReviewCount > 0 || parserDiagnosticCount > 0 ? "Review" : "Clear",
+        "questionmark.folder.fill",
+        pendingUncertainCount > 0 || pendingFilteredReviewCount > 0 || parserDiagnosticCount > 0 ? .orange : .green
+      )
+    ]
+  }
+
+  private var headline: String {
+    if !hasSetup { return "Start by adding SpaceMail setup" }
+    if !hasCredentialReference { return "Set the SpaceMail credential next" }
+    if !hasRefreshEvidence { return "Run the first manual SpaceMail refresh" }
+    if actionableIntakeCount > 0 { return "Review imported order emails" }
+    if pendingUncertainCount > 0 { return "Review uncertain SpaceMail messages" }
+    return "SpaceMail intake runbook is clear"
+  }
+
+  private var headlineColor: Color {
+    if !hasSetup || !hasCredentialReference || !hasRefreshEvidence || actionableIntakeCount > 0 || pendingUncertainCount > 0 { return .orange }
+    return .green
+  }
+
+  var body: some View {
+    SettingsPanel(title: "SpaceMail refresh runbook", symbol: "list.bullet.rectangle.portrait.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: headlineColor == .green ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+            .foregroundStyle(headlineColor)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(headline)
+              .font(.headline)
+            Text("This is the operator path after opening Mailbox Monitor. It uses existing local state only and does not fetch, mutate, or reclassify messages.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(headlineColor == .green ? "Clear" : "Next action", color: headlineColor)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(runbookItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.status, color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit evidence", systemImage: "list.clipboard.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open follow-up tasks", systemImage: "checklist")
           }
         }
         .buttonStyle(.bordered)
