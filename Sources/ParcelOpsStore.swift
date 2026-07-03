@@ -1808,6 +1808,7 @@ final class ParcelOpsStore {
       + dispatchChecklistWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems()
+      + localDataHygieneWorkbenchItems()
       + setupPlaceholderWorkbenchItems())
       .sorted { lhs, rhs in
         if lhs.rank == rhs.rank {
@@ -3933,6 +3934,46 @@ final class ParcelOpsStore {
       }
 
     return mailboxItems + shopifyItems + folderItems + sourceItems
+  }
+
+  private func localDataHygieneWorkbenchItems() -> [WorkbenchItem] {
+    let summary = localDataHygieneSummary
+    guard summary.signalCount > 0 else { return [] }
+
+    let flaggedMetrics = summary.metrics
+      .filter { metric in
+        guard let value = Int(metric.value) else { return false }
+        return value > 0 && metric.tone != "success"
+      }
+      .prefix(4)
+      .map { "\($0.title): \($0.value)" }
+
+    let summaryText = ([summary.detail] + flaggedMetrics).joined(separator: " • ")
+    let priority: String
+    if summary.tone == "warning" {
+      priority = "High"
+    } else if summary.signalCount > 5 {
+      priority = "Medium"
+    } else {
+      priority = "Normal"
+    }
+
+    return [
+      WorkbenchItem(
+        id: "local-data-hygiene",
+        title: summary.verdict,
+        summary: summaryText,
+        linkedEntityType: .integration,
+        linkedEntityID: "local-data-hygiene",
+        prioritySeverity: priority,
+        status: "\(summary.signalCount) hygiene signals",
+        assignee: "Operations",
+        dueDateText: "Before next test pass",
+        reviewState: .needsReview,
+        source: .setupPlaceholder,
+        suggestedNextAction: summary.nextAction
+      )
+    ]
   }
 
   private func intakeValidationIssues() -> [ValidationIssue] {
