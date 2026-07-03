@@ -4118,6 +4118,107 @@ struct LocalDataHygieneCard: View {
   }
 }
 
+struct LocalDataHygieneSummaryCard: View {
+  var store: ParcelOpsStore
+  var title: String = "Local data hygiene"
+  var detail: String = "A compact read-only check for test noise, parser leftovers, duplicate ingest, and partial Inbox order follow-up."
+  var showExamples: Bool = true
+
+  private var summary: LocalDataHygieneSummary {
+    store.localDataHygieneSummary
+  }
+
+  private var tone: Color {
+    color(for: summary.tone)
+  }
+
+  private var visibleMetrics: [LocalDataHygieneMetric] {
+    let preferredTitles = ["Intake placeholders", "Needs review", "Parser diagnostics", "Uncertain SpaceMail", "Filtered review", "Partial order tasks"]
+    return preferredTitles.compactMap { title in summary.metrics.first { $0.title == title } }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: summary.signalCount == 0 ? "checkmark.seal.fill" : "stethoscope")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(summary.verdict)
+            .font(.subheadline.weight(.semibold))
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.signalCount == 0 ? "Tidy" : "\(summary.signalCount) signals", color: tone)
+      }
+
+      MetricStrip(items: visibleMetrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      Text(summary.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tone)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if showExamples && !summary.examples.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(summary.examples.prefix(3), id: \.self) { example in
+            Text(example)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      CompactActionRow {
+        NavigationLink { SettingsView(store: store) } label: { Label("Full hygiene view", systemImage: "gearshape.2.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { TasksView(store: store) } label: { Label("Tasks", systemImage: "checklist") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Read-only boundary: this card does not delete, merge, rewrite, refresh mail, read Keychain, or mutate mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(tone.opacity(0.18)))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .orange
+    case "neutral":
+      return .secondary
+    default:
+      return .blue
+    }
+  }
+}
+
 private struct LocalPersistenceSnapshot {
   var storePath: String
   var expectedFileNames: [String]

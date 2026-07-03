@@ -39,6 +39,11 @@ struct MVPSetupView: View {
 
         SpaceMailOperatorGuidanceStack(store: store)
 
+        LocalDataHygieneSummaryCard(
+          store: store,
+          title: "Pre-test data hygiene",
+          detail: "Check whether old mailbox/parser experiments are adding noise before running a new hands-on MVP pass."
+        )
         LocalDataSafetyCard(store: store, compact: isCompact)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {

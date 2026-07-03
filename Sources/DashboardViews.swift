@@ -199,6 +199,11 @@ struct DashboardView: View {
         OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
         OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
         OperatorMVPReadinessCard(store: store)
+        LocalDataHygieneSummaryCard(
+          store: store,
+          title: "Testing data hygiene",
+          detail: "Use this before judging the app by old mailbox/parser test data. It points to noisy local records without changing them."
+        )
         MVPHandsOnDashboardStatus(store: store)
         LocalDemoWorkflowStatusCard(store: store)
         DashboardReleaseCandidateQACard(store: store)
