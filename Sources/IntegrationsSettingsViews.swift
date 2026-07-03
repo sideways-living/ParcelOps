@@ -3098,6 +3098,91 @@ struct SettingsView: View {
       + store.blockedDispatchChecklists.count
   }
 
+  private var setupPlanningPlaceholderCount: Int {
+    store.mailboxes.count
+      + store.shopifyConnections.count
+      + store.watchedFolders.count
+  }
+
+  private var setupUncertainReviewCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { total, connection in
+      total + connection.uncertainMessages.count
+    }
+  }
+
+  private var setupCompletionItems: [(title: String, detail: String, blockers: Int, destination: String, symbol: String, color: Color)] {
+    [
+      (
+        "SpaceMail setup",
+        "A non-secret SpaceMail IMAP setup must exist before live mailbox intake is the primary path.",
+        hasSpaceMailSetup ? 0 : 1,
+        "Mailbox Monitor",
+        "server.rack",
+        hasSpaceMailSetup ? .green : .orange
+      ),
+      (
+        "Keychain credential",
+        "The SpaceMail password/app-password must be set through the secure Keychain action, not setup notes or JSON.",
+        hasSpaceMailCredentialReference ? 0 : 1,
+        "SpaceMail row",
+        "lock.shield.fill",
+        hasSpaceMailCredentialReference ? .green : .orange
+      ),
+      (
+        "Manual refresh proof",
+        "Run at least one explicit read-only SpaceMail refresh so setup has real fetched/imported/filtered evidence.",
+        settingsManualRefreshCount == 0 ? 1 : 0,
+        "Mailbox Monitor",
+        "tray.and.arrow.down.fill",
+        settingsManualRefreshCount == 0 ? .orange : .green
+      ),
+      (
+        "Mixed-mailbox review",
+        "Uncertain messages and parser diagnostics should be reviewed without flooding the primary Inbox.",
+        setupUncertainReviewCount + store.intakeParserDiagnostics.count,
+        "Mailbox Monitor",
+        "text.magnifyingglass",
+        setupUncertainReviewCount + store.intakeParserDiagnostics.count == 0 ? .green : .orange
+      ),
+      (
+        "Inbox to order handoff",
+        "At least one Inbox-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
+        settingsInboxCreatedOrdersCount == 0 ? 1 : 0,
+        "Inbox or Orders",
+        "shippingbox.fill",
+        settingsInboxCreatedOrdersCount == 0 ? .teal : .green
+      ),
+      (
+        "Open operator work",
+        "Outstanding review, Workbench, task, handoff, and blocked dispatch work should be assigned or deliberately left open.",
+        settingsOpenOperatorWorkCount,
+        "Dashboard or Tasks",
+        "checklist",
+        settingsOpenOperatorWorkCount == 0 ? .green : .blue
+      ),
+      (
+        "Planning-only records",
+        "Tracked mailbox, Shopify, folder, and account placeholders are allowed, but should not be mistaken for live integrations.",
+        setupPlanningPlaceholderCount,
+        "Settings",
+        "lock.shield.fill",
+        setupPlanningPlaceholderCount == 0 ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var setupCompletionBlockerCount: Int {
+    setupCompletionItems.reduce(0) { total, item in
+      item.title == "Planning-only records" ? total : total + item.blockers
+    }
+  }
+
+  private var setupCompletionCompleteCount: Int {
+    setupCompletionItems.filter { item in
+      item.blockers == 0 || item.title == "Planning-only records"
+    }.count
+  }
+
   private var settingsReadinessTone: Color {
     if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
     if settingsManualRefreshCount == 0 { return .orange }
@@ -3284,6 +3369,62 @@ struct SettingsView: View {
     }
   }
 
+  private var setupCompletionLadderPanel: some View {
+    SettingsPanel(title: "Setup completion ladder", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: setupCompletionBlockerCount == 0 ? "checkmark.seal.fill" : "list.bullet.clipboard.fill")
+            .font(.title3)
+            .foregroundStyle(setupCompletionBlockerCount == 0 ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(setupCompletionBlockerCount == 0 ? "Setup path is ready for hands-on use" : "Clear setup blockers before relying on daily intake")
+              .font(.headline)
+            Text("This breaks Settings into the daily operator sequence: configure SpaceMail, protect the credential, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(setupCompletionCompleteCount)/\(setupCompletionItems.count)", color: setupCompletionBlockerCount == 0 ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(setupCompletionItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.title == "Planning-only records" ? "\(item.blockers)" : (item.blockers == 0 ? "Clear" : "\(item.blockers)"), color: item.color)
+              }
+
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Text("Check \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this panel reads existing local setup, JSON-backed records, Keychain status labels, and auditable workflow counts only. It does not fetch mail, save passwords, contact Shopify/carriers, start background sync, send notifications, or mutate mailbox messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -3293,6 +3434,7 @@ struct SettingsView: View {
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
         settingsReadinessPanel
+        setupCompletionLadderPanel
 
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
