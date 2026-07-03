@@ -19,6 +19,18 @@ struct DashboardView: View {
   private var incomingAttentionCount: Int {
     store.reviewIntakeEmails.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
   }
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+  private var hasSpaceMailManualRefreshEvidence: Bool {
+    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
   private var spaceMailHealthAttentionCount: Int {
     store.spaceMailIntakeHealthSummaries.filter {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
@@ -126,6 +138,7 @@ struct DashboardView: View {
   }
 
   private var dailyStartTone: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference || !hasSpaceMailManualRefreshEvidence { return .orange }
     if incomingAttentionCount > 0 { return .orange }
     if !partialInboxOrderBlockers.isEmpty { return .orange }
     if problemOrdersCount > 0 { return .red }
@@ -138,6 +151,9 @@ struct DashboardView: View {
   }
 
   private var dailyStartTitle: String {
+    if !hasSpaceMailSetup { return "Set up SpaceMail first" }
+    if !hasSpaceMailCredentialReference { return "Add the SpaceMail Keychain credential" }
+    if !hasSpaceMailManualRefreshEvidence { return "Run one manual SpaceMail refresh" }
     if incomingAttentionCount > 0 { return "Start in Inbox" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify Inbox-created orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
@@ -150,6 +166,15 @@ struct DashboardView: View {
   }
 
   private var dailyStartDetail: String {
+    if !hasSpaceMailSetup {
+      return "Add the non-secret SpaceMail IMAP setup from Settings or Mailbox Monitor before relying on live intake. You can still test the local demo flow."
+    }
+    if !hasSpaceMailCredentialReference {
+      return "Use the secure SpaceMail credential action. Do not put passwords or app passwords into setup notes or JSON-backed fields."
+    }
+    if !hasSpaceMailManualRefreshEvidence {
+      return "Run the explicit read-only SpaceMail refresh once so Dashboard, Mailbox Monitor, and Audit have a real refresh result."
+    }
     if incomingAttentionCount > 0 {
       return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, SpaceMail review, import queue, or acceptance review."
     }
@@ -654,6 +679,9 @@ struct DashboardView: View {
         }
 
         MetricStrip(items: [
+          ("Setup", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
+          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+          ("Refresh", hasSpaceMailManualRefreshEvidence ? "Seen" : "Needed", hasSpaceMailManualRefreshEvidence ? .green : .orange),
           ("Inbox", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
           ("Orders", "\(problemOrdersCount)", problemOrdersCount == 0 ? .green : .red),
           ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
@@ -677,6 +705,11 @@ struct DashboardView: View {
             OperationsWorkbenchView(store: store)
           } label: {
             Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Open Settings", systemImage: "gearshape.fill")
           }
           NavigationLink {
             DispatchView(store: store)
