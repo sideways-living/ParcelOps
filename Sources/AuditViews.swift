@@ -49,6 +49,14 @@ struct AuditView: View {
     recentEvents.filter(\.isRecordChange)
   }
 
+  private var mvpFollowUpEvents: [AuditEvent] {
+    searchMatchedEvents.filter(\.isMVPTestOrReleaseFollowUp)
+  }
+
+  private var visibleMVPFollowUpEvents: [AuditEvent] {
+    Array(mvpFollowUpEvents.prefix(8))
+  }
+
   private var inboxOrderHandoffEvents: [AuditEvent] {
     searchMatchedEvents.filter(\.isInboxOrderHandoff)
   }
@@ -129,6 +137,9 @@ struct AuditView: View {
   }
 
   private var auditNextCheckTitle: String {
+    if !mvpFollowUpEvents.isEmpty {
+      return "Review MVP test and release follow-ups"
+    }
     if !spaceMailEvidenceEvents.isEmpty {
       return "Check the latest mailbox intake result"
     }
@@ -148,6 +159,9 @@ struct AuditView: View {
   }
 
   private var auditNextCheckDetail: String {
+    if !mvpFollowUpEvents.isEmpty {
+      return "Start with local data hygiene, operator test-session, and release snapshot tasks so readiness gaps stay visible in Tasks instead of being buried in Audit."
+    }
     if !spaceMailEvidenceEvents.isEmpty {
       return "Start with SpaceMail intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals."
     }
@@ -167,6 +181,7 @@ struct AuditView: View {
   }
 
   private var auditNextCheckSymbol: String {
+    if !mvpFollowUpEvents.isEmpty { return "checkmark.rectangle.stack.fill" }
     if !spaceMailEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
     if !inboxDispatchHandoffEvents.isEmpty { return "arrow.triangle.2.circlepath.circle.fill" }
     if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
@@ -261,6 +276,7 @@ struct AuditView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
+          ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
           ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
@@ -310,6 +326,7 @@ struct AuditView: View {
       MetricStrip(items: [
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
+        ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
         ("SpaceMail", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
@@ -599,6 +616,10 @@ struct AuditView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
           }
+
+          AuditFeedSection(title: "MVP test and release follow-up", detail: "Local tasks created from data hygiene, operator test-session, or release snapshot evidence.", events: visibleMVPFollowUpEvents, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
 
           AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox setup.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
@@ -974,6 +995,27 @@ struct AuditDetailBlock: View {
 }
 
 private extension AuditEvent {
+  var isMVPTestOrReleaseFollowUp: Bool {
+    guard entityType == .reviewTask || entityType == .settings || entityType == .auditEvent else {
+      return false
+    }
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? ""
+    ].joined(separator: " ")
+
+    return searchableText.localizedCaseInsensitiveContains("local data hygiene")
+      || searchableText.localizedCaseInsensitiveContains("operator MVP test")
+      || searchableText.localizedCaseInsensitiveContains("operator test-session")
+      || searchableText.localizedCaseInsensitiveContains("SpaceMail MVP release snapshot")
+      || searchableText.localizedCaseInsensitiveContains("release snapshot follow-up")
+      || searchableText.localizedCaseInsensitiveContains("spacemail-release-snapshot")
+      || searchableText.localizedCaseInsensitiveContains("operator-test-session")
+      || searchableText.localizedCaseInsensitiveContains("local-data-hygiene")
+  }
+
   var isTechnicalSpaceMailDiagnostic: Bool {
     guard entityType == .spaceMailIMAPConnection || entityType == .intakeEmail || summary.localizedCaseInsensitiveContains("spacemail") else {
       return false
