@@ -873,6 +873,19 @@ struct DashboardView: View {
           ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
         ])
 
+        CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+
+        DisclosureGroup {
+          SpaceMailOperationsRunbook()
+            .padding(.top, 8)
+        } label: {
+          Label("SpaceMail operator runbook", systemImage: "list.bullet.clipboard.fill")
+            .font(.subheadline.weight(.semibold))
+        }
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
         CompactActionRow {
           NavigationLink {
             MailboxView(store: store)
