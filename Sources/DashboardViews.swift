@@ -36,6 +36,46 @@ struct DashboardView: View {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
     }.count
   }
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+  private var latestSpaceMailTone: Color {
+    guard let summary = latestSpaceMailSummary else { return hasSpaceMailSetup ? .orange : .secondary }
+    switch summary.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
+  }
+  private var latestSpaceMailTitle: String {
+    guard let summary = latestSpaceMailSummary else {
+      if !hasSpaceMailSetup { return "SpaceMail setup not started" }
+      if !hasSpaceMailCredentialReference { return "SpaceMail credential needed" }
+      return "Run a manual SpaceMail refresh"
+    }
+    if summary.importedCount > 0 { return "Latest SpaceMail refresh imported order mail" }
+    if summary.pendingUncertainReviewCount > 0 || summary.uncertainCount > 0 { return "Latest SpaceMail refresh needs uncertain review" }
+    if summary.filteredCount > 0 && summary.importedCount == 0 { return "Latest SpaceMail refresh filtered non-order mail" }
+    if summary.duplicateCount > 0 { return "Latest SpaceMail refresh found duplicates" }
+    return summary.verdict
+  }
+  private var latestSpaceMailDetail: String {
+    guard let summary = latestSpaceMailSummary else {
+      if !hasSpaceMailSetup {
+        return "Add a SpaceMail IMAP setup in Mailbox Monitor or Settings before testing live mailbox intake."
+      }
+      if !hasSpaceMailCredentialReference {
+        return "Set or check the Keychain credential, then run an explicit read-only refresh."
+      }
+      return "No real SpaceMail refresh summary is available yet. Run manual refresh from Mailbox Monitor."
+    }
+    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+  }
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
@@ -278,6 +318,7 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        liveMailboxStatusPanel
         MVPWorkflowGuide(
           title: "Daily operator path",
           detail: "Use these screens in order for the current SpaceMail-first local workflow.",
@@ -797,6 +838,69 @@ struct DashboardView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var liveMailboxStatusPanel: some View {
+    SettingsPanel(title: "Live mailbox status", symbol: "server.rack") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: latestSpaceMailTone == .green ? "checkmark.seal.fill" : "tray.and.arrow.down.fill")
+            .font(.title3)
+            .foregroundStyle(latestSpaceMailTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(latestSpaceMailTitle)
+              .font(.headline)
+            Text(latestSpaceMailDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(latestSpaceMailSummary?.lastRefreshDate ?? "No refresh", color: latestSpaceMailTone)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
+          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Duplicates", "\(latestSpaceMailSummary?.duplicateCount ?? 0)", (latestSpaceMailSummary?.duplicateCount ?? 0) > 0 ? .teal : .secondary),
+          ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+          ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary),
+          ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
+        ])
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Manual read-only boundary: Dashboard only summarizes local refresh results. It does not start IMAP, read passwords, mutate mailbox messages, send mail, call Shopify/carriers, schedule background work, or create notifications.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
