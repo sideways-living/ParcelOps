@@ -5473,125 +5473,17 @@ final class ParcelOpsStore {
   }
 
   private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage, for connection: SpaceMailIMAPConnection) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
-    let text = "\(message.sender)\n\(message.subject)\n\(message.plainTextBodyPreview)"
-    let lowercasedText = text.lowercased()
-    let lowercasedSender = message.sender.lowercased()
-    let orderNumber = detectedOrderNumber(in: text)
-    let trackingNumber = detectedTrackingNumber(in: text, excluding: orderNumber)
-    let hasOrderNumber = !orderNumber.isPlaceholderValidationValue
-    let hasTrackingNumber = !trackingNumber.isPlaceholderValidationValue
-    let trustedSenderHint = firstConfiguredHint(in: lowercasedSender, hints: connection.trustedSenderHints)
-    let importKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.importKeywordHints)
-    let uncertainKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.uncertainKeywordHints)
-    let filterKeywordHint = firstConfiguredHint(in: lowercasedText, hints: connection.filterKeywordHints)
-
-    let strongOrderSignals = [
-      "order ", "order:", "order #", "order number", "order no", "order id",
-      "purchase order", "po ", "refund", "return", "replacement", "claim"
-    ]
-    let strongShipmentSignals = [
-      "tracking", "tracking number", "shipment", "shipped", "shipping", "dispatch",
-      "dispatched", "delivery", "delivered", "parcel", "package", "courier", "carrier",
-      "consignment", "waybill", "awb", "in transit", "out for delivery"
-    ]
-    let hardNonOrderSignals = [
-      "newsletter", "promotion", "marketing", "sale ends", "final days",
-      "password reset", "security alert", "verification code", "calendar", "invitation",
-      "webinar", "social", "follow us"
-    ]
-    let footerSignals = ["unsubscribe", "privacy policy", "terms of service", "view this email", "sent securely from spacemail"]
-    let orderQuestionSignals = [
-      "delivery question", "order question", "relates to an order", "related to an order",
-      "about an order", "where is my order", "do not have the tracking", "don't have the tracking",
-      "tracking number yet", "tracking yet", "missing tracking"
-    ]
-
-    let hasStrongOrderSignal = strongOrderSignals.contains { lowercasedText.contains($0) }
-      let hasStrongShipmentSignal = strongShipmentSignals.contains { lowercasedText.contains($0) }
-    let hasHardNonOrderSignal = hardNonOrderSignals.contains { lowercasedText.contains($0) }
-    let hasFooterSignal = footerSignals.contains { lowercasedText.contains($0) }
-    let hasOrderQuestionSignal = orderQuestionSignals.contains { lowercasedText.contains($0) }
-      || firstMatch(in: text, pattern: #"(?i)\border\s*(?:\?|\.|,|$)"#) != nil
-    let hasClearShipmentPhrase = firstMatch(
-      in: text,
-      pattern: #"(?i)\border\s+[A-Z0-9][A-Z0-9._/-]{2,30}\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\s+(?:with\s+)?tracking\s+[A-Z0-9][A-Z0-9 -]{4,34}"#
-    ) != nil
-
-    var score = 0
-    if hasOrderNumber { score += 35 }
-    if hasTrackingNumber { score += 35 }
-    if hasStrongOrderSignal { score += 18 }
-    if hasStrongShipmentSignal { score += 18 }
-    if hasOrderQuestionSignal { score += 16 }
-    if hasClearShipmentPhrase { score += 30 }
-    if trustedSenderHint != nil { score += 10 }
-    if importKeywordHint != nil { score += 14 }
-    if uncertainKeywordHint != nil { score += 10 }
-    if filterKeywordHint != nil { score -= 50 }
-    if hasHardNonOrderSignal { score -= 45 }
-    if hasFooterSignal { score -= 8 }
-
-    if hasOrderQuestionSignal && !hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber || hasClearShipmentPhrase) {
-      return (.uncertain, score, "order/delivery question without detected id")
+    let result = SpaceMailMailboxRelevanceClassifier.classify(message: message, connection: connection)
+    let decision: MailboxRelevanceDecision
+    switch result.decision {
+    case .likelyOrder:
+      decision = .likelyOrder
+    case .uncertain:
+      decision = .uncertain
+    case .nonOrder:
+      decision = .nonOrder
     }
-
-    if let filterKeywordHint, !(hasClearShipmentPhrase || ((hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal || importKeywordHint != nil))) {
-      return (.nonOrder, score, "local filter hint: \(filterKeywordHint)")
-    }
-
-    if hasClearShipmentPhrase {
-      return (.likelyOrder, score, "clear order-shipped-tracking phrase")
-    }
-
-    if let importKeywordHint, (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal || trustedSenderHint != nil) {
-      return (.likelyOrder, score, "local import hint with detected id: \(importKeywordHint)")
-    }
-
-    if let trustedSenderHint, (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal) {
-      return (.likelyOrder, score, "trusted sender hint with detected id: \(trustedSenderHint)")
-    }
-
-    if hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber) {
-      return (.nonOrder, score, "non-order signal without order/tracking id")
-    }
-
-    if hasHardNonOrderSignal && !(hasStrongOrderSignal && (hasOrderNumber || hasTrackingNumber)) {
-      return (.nonOrder, score, "marketing/security/social signal")
-    }
-
-    if hasStrongOrderSignal && hasStrongShipmentSignal && (hasOrderNumber || hasTrackingNumber) {
-      return (.likelyOrder, score, "order/shipping signal with detected id")
-    }
-
-    if hasStrongShipmentSignal && hasTrackingNumber {
-      return (.likelyOrder, score, "tracking/shipping signal with tracking id")
-    }
-
-    if hasStrongOrderSignal && hasOrderNumber {
-      return (.likelyOrder, score, "order/refund signal with order id")
-    }
-
-    if (hasOrderNumber || hasTrackingNumber) && (hasStrongOrderSignal || hasStrongShipmentSignal) {
-      return (.uncertain, score, "weak order signal with detected id")
-    }
-
-    if let uncertainKeywordHint, hasStrongOrderSignal || hasStrongShipmentSignal || hasOrderQuestionSignal || lowercasedText.contains("order") || lowercasedText.contains("tracking") || lowercasedText.contains("delivery") {
-      return (.uncertain, score, "local uncertain hint: \(uncertainKeywordHint)")
-    }
-
-    if let trustedSenderHint, hasStrongOrderSignal || hasStrongShipmentSignal || hasOrderQuestionSignal {
-      return (.uncertain, score, "trusted sender hint without detected id: \(trustedSenderHint)")
-    }
-
-    if hasOrderQuestionSignal && (hasStrongOrderSignal || hasStrongShipmentSignal || lowercasedText.contains("order") || lowercasedText.contains("tracking")) {
-      return (.uncertain, score, "order/delivery question without detected id")
-    }
-
-    if hasStrongOrderSignal || hasStrongShipmentSignal {
-      return (.uncertain, score, "order/shipping words without detected id")
-    }
-
-    return (.nonOrder, score, "no strong order evidence")
+    return (decision, result.score, result.reason)
   }
 
   private func spaceMailClassifierImpactPreview(
