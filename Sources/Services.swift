@@ -14,6 +14,10 @@ protocol SpaceMailIMAPClient {
   func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String?) async -> SpaceMailIMAPFetchResult
 }
 
+protocol GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult
+}
+
 protocol SpaceMailCredentialStore {
   func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
   func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult
@@ -214,6 +218,79 @@ struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
       status: .success,
       messages: messages,
       detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used by the mock refresh, and no mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
+struct MockGmailMailboxClient: GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult {
+    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !emailAddress.isEmpty, !labels.isEmpty else {
+      return GmailMailboxFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Gmail setup is missing an email address or monitored label names. No OAuth flow, token request, Gmail API call, or mailbox access occurred."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("connected") {
+      return GmailMailboxFetchResult(
+        status: .oauthPlaceholder,
+        messages: [],
+        detail: "Gmail OAuth is still a future boundary in this app. Mock Gmail refresh does not use tokens, Keychain, Google APIs, or mailbox access."
+      )
+    }
+
+    if labels.localizedCaseInsensitiveContains("empty") {
+      return GmailMailboxFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock Gmail client returned no deterministic sample messages for labels '\(labels)'."
+      )
+    }
+
+    if labels.localizedCaseInsensitiveContains("missing") ||
+        labels.localizedCaseInsensitiveContains("not found") {
+      return GmailMailboxFetchResult(
+        status: .labelNotFoundSimulated,
+        messages: [],
+        detail: "Mock Gmail client simulated a missing label. No Gmail API request was made."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("parse failed") {
+      return GmailMailboxFetchResult(
+        status: .parseFailedSimulated,
+        messages: [],
+        detail: "Mock Gmail client simulated a parse failure. No Gmail message content was read."
+      )
+    }
+
+    let messages = [
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1001",
+        sender: "shipping@example-merchant.test",
+        subject: "Order GMAIL-1001 shipped tracking GM123456",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Order GMAIL-1001 shipped tracking GM123456. Destination Brisbane receiving desk. Original Gmail mailbox: \(emailAddress).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1002",
+        sender: "updates@example-merchant.test",
+        subject: "Refund update for order GMAIL-1002",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Refund update for order GMAIL-1002. Please review whether a return claim is needed. Labels: \(labels).",
+        sourceMailboxID: sourceMailboxID
+      )
+    ]
+
+    return GmailMailboxFetchResult(
+      status: .success,
+      messages: messages,
+      detail: "Mock Gmail client returned deterministic local messages through the provider-neutral intake model. No Google OAuth flow ran, no token was requested or stored, no Gmail API request was made, and no mailbox items were deleted, moved, marked read, sent, or modified."
     )
   }
 }

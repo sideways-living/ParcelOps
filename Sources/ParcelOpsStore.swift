@@ -126,6 +126,7 @@ final class ParcelOpsStore {
   private let mailboxIngestionService: MailboxIngestionService
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient
+  private let gmailMailboxClient: GmailMailboxClient
   private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
   private let microsoft365AuthClient: Microsoft365AuthClient
   private let microsoft365RealAuthClient: Microsoft365AuthClient
@@ -146,6 +147,7 @@ final class ParcelOpsStore {
     spaceMailCredentialStore: SpaceMailCredentialStore = KeychainSpaceMailCredentialStore(),
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
+    gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
     microsoft365RealAuthClient: Microsoft365AuthClient = MSALMicrosoft365AuthClient(),
@@ -200,6 +202,7 @@ final class ParcelOpsStore {
     self.mailboxIngestionService = mailboxIngestionService
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
     self.realMicrosoftGraphMailboxClient = realMicrosoftGraphMailboxClient
+    self.gmailMailboxClient = gmailMailboxClient
     self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
     self.microsoft365AuthClient = microsoft365AuthClient
     self.microsoft365RealAuthClient = microsoft365RealAuthClient
@@ -11107,37 +11110,32 @@ final class ParcelOpsStore {
   }
 
   func importMockGmailMessages(for connection: GmailMailboxConnection) {
+    Task { await refreshMockGmailMessages(for: connection) }
+  }
+
+  private func refreshMockGmailMessages(for connection: GmailMailboxConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
     let timestamp = Self.auditTimestamp()
-    let messages = [
-      FetchedMailboxMessage(
-        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1001",
-        sender: "shipping@example-merchant.test",
-        subject: "Order GMAIL-1001 shipped tracking GM123456",
-        receivedDate: timestamp,
-        plainTextBodyPreview: "Order GMAIL-1001 shipped tracking GM123456. Destination Brisbane receiving desk.",
-        sourceMailboxID: mailbox.id
-      ),
-      FetchedMailboxMessage(
-        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1002",
-        sender: "updates@example-merchant.test",
-        subject: "Refund update for order GMAIL-1002",
-        receivedDate: timestamp,
-        plainTextBodyPreview: "Refund update for order GMAIL-1002. Please review whether a return claim is needed.",
-        sourceMailboxID: mailbox.id
-      )
-    ]
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Gmail refresh started.",
+      afterDetail: "Labels: \(connection.monitoredLabelNames)\nMode: Local mock client boundary only.\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+    )
 
-    let result = importFetchedMailboxMessages(messages)
+    let fetchResult = await gmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let result = importFetchedMailboxMessages(fetchResult.messages)
     updateGmailMailboxConnection(connection) { draft in
-      draft.connectionStatus = "Mock Gmail refresh completed"
+      draft.connectionStatus = "Mock Gmail: \(fetchResult.status.rawValue)"
       draft.lastManualRefreshDate = timestamp
-      draft.lastRefreshFetchedCount = messages.count
+      draft.lastRefreshFetchedCount = fetchResult.messages.count
       draft.lastRefreshImportedCount = result.imported
       draft.lastRefreshDuplicateCount = result.duplicates
       draft.lastRefreshFilteredNonOrderCount = 0
-      draft.lastRefreshSummary = "Mock Gmail refresh: \(messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. Gmail OAuth/API is not connected."
+      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. \(fetchResult.detail)"
     }
     logAudit(
       action: .evaluated,
@@ -11145,7 +11143,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Gmail refresh completed.",
-      afterDetail: "Fetched: \(messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nLabels: \(connection.monitoredLabelNames)\nMode: Local mock only through provider-neutral intake.\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nLabels: \(connection.monitoredLabelNames)\nMode: Local mock client boundary through provider-neutral intake.\nDetail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
     )
   }
 

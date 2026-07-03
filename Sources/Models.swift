@@ -630,6 +630,23 @@ enum MicrosoftGraphMailboxFetchStatus: String, CaseIterable, Identifiable, Hasha
   var id: String { rawValue }
 }
 
+struct GmailMailboxFetchResult: Hashable {
+  var status: GmailMailboxFetchStatus
+  var messages: [FetchedMailboxMessage]
+  var detail: String
+}
+
+enum GmailMailboxFetchStatus: String, CaseIterable, Identifiable, Hashable {
+  case success = "Fetch success"
+  case noMessages = "No messages"
+  case notConfigured = "Not configured"
+  case oauthPlaceholder = "OAuth placeholder"
+  case labelNotFoundSimulated = "Label not found simulated"
+  case parseFailedSimulated = "Parse failed simulated"
+
+  var id: String { rawValue }
+}
+
 struct Microsoft365GraphTokenResult {
   var status: Microsoft365GraphTokenStatus
   var accessToken: String?
