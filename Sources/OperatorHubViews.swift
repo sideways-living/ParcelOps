@@ -1442,6 +1442,7 @@ struct DispatchView: View {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         dispatchSummaryPanel
+        dispatchReadinessLadderPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel
         detailRoutes
@@ -1449,6 +1450,123 @@ struct DispatchView: View {
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var dispatchReadinessItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
+    let verifyFirstCount = partialInboxDispatchBlockerCount
+    let setupMissingCount = inboxDispatchSetupOrders.filter(orderNeedsDispatchSetup).count
+    let blockedCount = blockedDispatchCount
+    let readyToMoveCount = readyDispatchCount
+    let incompleteChecklistCount = store.incompleteDispatchChecklists.count
+    let handoffReviewCount = reopenedInboxDispatchHandoffCount
+      + store.shipmentManifestRecords.filter { $0.dispatchStatus == .dispatched && $0.reviewState != .accepted }.count
+      + store.dispatchReadinessChecklists.filter { $0.checklistStatus == .completed && $0.reviewState != .accepted }.count
+
+    return [
+      (
+        "Verify first",
+        "Inbox-created orders with missing intake details or open verification tasks should not move to manifest/readiness setup yet.",
+        verifyFirstCount,
+        "Orders",
+        "checkmark.shield.fill",
+        verifyFirstCount == 0 ? .green : .orange
+      ),
+      (
+        "Create setup",
+        "Inbox-created shipped, in-transit, or exception orders need manifest or readiness context before dispatch is ready.",
+        setupMissingCount,
+        "Dispatch setup",
+        "tray.and.arrow.down.fill",
+        setupMissingCount == 0 ? .green : .teal
+      ),
+      (
+        "Resolve blockers",
+        "Blocked manifests and readiness checklists should be fixed or assigned before routine outbound work.",
+        blockedCount,
+        "Manifests or Readiness",
+        "exclamationmark.triangle.fill",
+        blockedCount == 0 ? .green : .red
+      ),
+      (
+        "Complete checks",
+        "Draft, reopened, or incomplete readiness checklists need labels, scans, custody, requirements, or handoff confirmation.",
+        incompleteChecklistCount,
+        "Dispatch Readiness",
+        "checkmark.rectangle.stack.fill",
+        incompleteChecklistCount == 0 ? .green : .orange
+      ),
+      (
+        "Move ready work",
+        "Prepared manifests and ready checklists can be dispatched, completed, handed off, or blocked with a reason.",
+        readyToMoveCount,
+        "Dispatch queue",
+        "paperplane.fill",
+        readyToMoveCount == 0 ? .secondary : .blue
+      ),
+      (
+        "Review handoff",
+        "Dispatched, completed, or reopened Inbox handoffs need local review before they disappear from the operator queue.",
+        handoffReviewCount,
+        "Audit or linked order",
+        "arrow.left.arrow.right.square.fill",
+        handoffReviewCount == 0 ? .green : .purple
+      )
+    ]
+  }
+
+  private var dispatchReadinessCompleteCount: Int {
+    dispatchReadinessItems.filter { $0.count == 0 || $0.title == "Move ready work" }.count
+  }
+
+  private var dispatchReadinessLadderPanel: some View {
+    SettingsPanel(title: "Dispatch readiness ladder", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: dispatchReadinessCompleteCount == dispatchReadinessItems.count ? "checkmark.seal.fill" : "list.bullet.clipboard.fill")
+            .foregroundStyle(dispatchReadinessCompleteCount == dispatchReadinessItems.count ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Check dispatch in this order")
+              .font(.headline)
+            Text("This panel explains what must be true before a local outbound record should be considered ready. It reads existing records only.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(dispatchReadinessCompleteCount)/\(dispatchReadinessItems.count)", color: dispatchReadinessCompleteCount == dispatchReadinessItems.count ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(dispatchReadinessItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge("\(item.count)", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Check \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this does not create manifests, complete checklists, mutate mailbox messages, call carriers, print labels, scan barcodes, or run background work.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   private var dispatchSummaryPanel: some View {
