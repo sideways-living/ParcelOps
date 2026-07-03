@@ -903,7 +903,11 @@ struct OperationsWorkbenchView: View {
       intakeSourceSummary: intakeSourceSummary(for: item),
       contextDestination: AnyView(workbenchDestination(for: item))
     ) {
-      store.createReviewTask(from: item)
+      if item.id == "local-data-hygiene" {
+        store.createReviewTaskFromLocalDataHygiene()
+      } else {
+        store.createReviewTask(from: item)
+      }
     } onCreateDraft: {
       store.createDraftMessage(from: item)
     } onReviewed: {

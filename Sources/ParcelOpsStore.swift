@@ -10754,7 +10754,16 @@ final class ParcelOpsStore {
         markVendorProfileReviewed(profile)
       }
     case .setupPlaceholder:
-      if let mailbox = mailboxes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+      if item.linkedEntityID == "local-data-hygiene" {
+        logAudit(
+          action: .reviewed,
+          entityType: .settings,
+          entityID: item.linkedEntityID,
+          entityLabel: item.title,
+          summary: "Local data hygiene workbench item reviewed locally.",
+          afterDetail: "\(item.status): \(item.summary)\nNext action at review time: \(item.suggestedNextAction)\nNo records were deleted, merged, rewritten, or refreshed."
+        )
+      } else if let mailbox = mailboxes.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markTrackedMailboxPlaceholderReviewed(mailbox)
       } else if let connection = shopifyConnections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markShopifyPlaceholderReviewed(connection)
