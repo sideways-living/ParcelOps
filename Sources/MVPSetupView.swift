@@ -14,6 +14,7 @@ struct MVPSetupView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         MVPUsableVersionPanel(store: store)
+        MVPDevelopmentProgressPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
         MVPNextDevelopmentPrioritiesPanel(store: store)
         OperatorMVPReadinessCard(store: store)
@@ -521,6 +522,217 @@ struct MVPUsableVersionPanel: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct MVPDevelopmentProgressPanel: View {
+  var store: ParcelOpsStore
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasRefreshEvidence: Bool {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+      || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var hasInboxOrderHandoff: Bool {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var hasDispatchContext: Bool {
+    !store.shipmentManifestRecords.isEmpty || !store.dispatchReadinessChecklists.isEmpty
+  }
+
+  private var hasTaskContext: Bool {
+    !store.reviewTasks.isEmpty || !store.handoffNotes.isEmpty || !store.draftMessages.isEmpty
+  }
+
+  private var hasAuditEvidence: Bool {
+    !store.auditEvents.isEmpty
+  }
+
+  private var openOperationalNoiseCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var completedFoundationCount: Int {
+    progressItems.filter(\.isComplete).count
+  }
+
+  private var progressPercent: Int {
+    guard !progressItems.isEmpty else { return 0 }
+    return Int((Double(completedFoundationCount) / Double(progressItems.count) * 100).rounded())
+  }
+
+  private var progressTone: Color {
+    if completedFoundationCount >= progressItems.count - 1 { return .green }
+    if completedFoundationCount >= 5 { return .teal }
+    return .orange
+  }
+
+  private var progressTitle: String {
+    if completedFoundationCount >= progressItems.count - 1 {
+      return "MVP is close to a usable supervised version"
+    }
+    if completedFoundationCount >= 5 {
+      return "Core app is usable; remaining work is QA and cleanup"
+    }
+    return "Core screens exist; finish the live intake proof"
+  }
+
+  private var progressDetail: String {
+    if completedFoundationCount >= progressItems.count - 1 {
+      return "The remaining work should be hands-on QA, data cleanup, parser/classifier tuning, and simplifying any screens that still feel too technical. Additional integrations should wait."
+    }
+    if completedFoundationCount >= 5 {
+      return "Dashboard, primary navigation, local records, SpaceMail setup, and order handoff are mostly in place. Finish repeatable QA evidence before expanding integrations."
+    }
+    return "Keep focusing on the local daily flow: setup, manual refresh, Inbox triage, order handoff, dispatch context, tasks, and audit trace."
+  }
+
+  private var progressItems: [(title: String, detail: String, isComplete: Bool, symbol: String, color: Color)] {
+    [
+      (
+        "Primary UI",
+        "Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Settings are the daily operator path.",
+        true,
+        "square.grid.2x2.fill",
+        .green
+      ),
+      (
+        "Local persistence",
+        "JSON-backed local records and audit history exist for hands-on testing.",
+        !store.orders.isEmpty && !store.auditEvents.isEmpty,
+        "internaldrive.fill",
+        !store.orders.isEmpty && !store.auditEvents.isEmpty ? .green : .orange
+      ),
+      (
+        "SpaceMail setup",
+        "The current live intake path has non-secret IMAP setup and Keychain credential status.",
+        hasSpaceMailSetup && hasSpaceMailCredential,
+        "server.rack",
+        hasSpaceMailSetup && hasSpaceMailCredential ? .green : .orange
+      ),
+      (
+        "Manual refresh proof",
+        "At least one manual read-only mailbox refresh has produced a local result.",
+        hasRefreshEvidence,
+        "tray.and.arrow.down.fill",
+        hasRefreshEvidence ? .green : .orange
+      ),
+      (
+        "Inbox-to-order handoff",
+        "At least one intake row has become or linked to a tracked order.",
+        hasInboxOrderHandoff,
+        "shippingbox.fill",
+        hasInboxOrderHandoff ? .green : .orange
+      ),
+      (
+        "Dispatch context",
+        "Local manifest or readiness context exists for outbound handoff testing.",
+        hasDispatchContext,
+        "paperplane.fill",
+        hasDispatchContext ? .green : .teal
+      ),
+      (
+        "Tasks and handoffs",
+        "Review tasks, handoff notes, or draft follow-up exist so ownership can be tested.",
+        hasTaskContext,
+        "checklist",
+        hasTaskContext ? .green : .teal
+      ),
+      (
+        "Audit trace",
+        "Actions are visible in Audit so a tester can verify what changed locally.",
+        hasAuditEvidence,
+        "list.clipboard.fill",
+        hasAuditEvidence ? .green : .orange
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Development progress estimate", symbol: "chart.bar.doc.horizontal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: completedFoundationCount >= progressItems.count - 1 ? "checkmark.seal.fill" : "chart.line.uptrend.xyaxis")
+            .font(.title3)
+            .foregroundStyle(progressTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(progressTitle)
+              .font(.headline)
+            Text(progressDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(progressPercent)%", color: progressTone)
+        }
+
+        MetricStrip(items: [
+          ("Foundations", "\(completedFoundationCount)/\(progressItems.count)", progressTone),
+          ("Open noise", "\(openOperationalNoiseCount)", openOperationalNoiseCount == 0 ? .green : .orange),
+          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
+          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(progressItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 7) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.isComplete ? "Ready" : "Needed", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Estimate boundary: this is a local readiness guide, not a release guarantee. It does not run tests, fetch mail, mutate mailbox messages, store secrets, call Shopify/carriers, send notifications, or start background work.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 }
 
