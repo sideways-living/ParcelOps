@@ -30,6 +30,7 @@ struct MVPSetupView: View {
 
         MVPHandsOnReleaseChecklist(store: store)
         MVPReleaseCandidateQACard(store: store)
+        MVPReleaseEvidenceReport(store: store)
 
         SpaceMailOperatorGuidanceStack(store: store)
 
@@ -581,6 +582,17 @@ struct MVPReleaseCandidateQACard: View {
     return "Use the local demo path as the stable QA baseline. Live SpaceMail remains useful, but it should not block app usability checks."
   }
 
+  private var canCompleteHandoff: Bool {
+    latestDemoOrder != nil
+      && demoManifestCount > 0
+      && demoChecklistCount > 0
+      && completedDemoDispatchCount == 0
+  }
+
+  private var canReopenHandoff: Bool {
+    latestDemoOrder != nil && completedDemoDispatchCount > 0
+  }
+
   var body: some View {
     SettingsPanel(title: "Release-candidate QA", symbol: "checkmark.seal.fill") {
       HStack(alignment: .top, spacing: 12) {
@@ -618,11 +630,13 @@ struct MVPReleaseCandidateQACard: View {
             store.completeInboxDispatchHandoff(for: order)
           }
           .buttonStyle(.bordered)
+          .disabled(!canCompleteHandoff)
 
           Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
             store.reopenInboxDispatchHandoff(for: order)
           }
           .buttonStyle(.bordered)
+          .disabled(!canReopenHandoff)
         }
 
         NavigationLink {
@@ -651,6 +665,232 @@ struct MVPReleaseCandidateQACard: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+struct MVPReleaseEvidenceReport: View {
+  var store: ParcelOpsStore
+
+  private var latestDemoOrder: TrackedOrder? {
+    store.orders.first { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+  }
+
+  private var linkedIntakeCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.intakeEmails.filter { $0.linkedOrderID == order.id }.count
+  }
+
+  private var dispatchSetupCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.suggestedShipmentManifestRecords(for: order).count
+      + store.suggestedDispatchReadinessChecklists(for: order).count
+  }
+
+  private var completedDispatchCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.suggestedShipmentManifestRecords(for: order).filter { $0.dispatchStatus == .handedOff }.count
+      + store.suggestedDispatchReadinessChecklists(for: order).filter { $0.checklistStatus == .completed }.count
+  }
+
+  private var openDemoTaskCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.reviewTasks.filter {
+      $0.linkedEntityType == .order
+        && $0.linkedEntityID == order.id.uuidString
+        && $0.status != .completed
+    }.count
+  }
+
+  private var demoAuditCount: Int {
+    guard let order = latestDemoOrder else { return 0 }
+    return store.auditEvents.filter {
+      $0.entityID == order.id.uuidString
+        || $0.entityLabel.localizedCaseInsensitiveContains(order.orderNumber)
+        || $0.afterDetail?.localizedCaseInsensitiveContains(order.orderNumber) == true
+    }.count
+  }
+
+  private var persistenceEvidenceReady: Bool {
+    !store.orders.isEmpty && !store.intakeEmails.isEmpty && !store.auditEvents.isEmpty
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var liveMailboxEvidenceReady: Bool {
+    guard let summary = latestSpaceMailSummary else { return false }
+    return summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+  }
+
+  private var requiredBlockers: [String] {
+    var blockers: [String] = []
+    if latestDemoOrder == nil { blockers.append("Seed local demo workflow") }
+    if linkedIntakeCount == 0 { blockers.append("Link Inbox source to order") }
+    if dispatchSetupCount == 0 { blockers.append("Create dispatch setup") }
+    if completedDispatchCount == 0 { blockers.append("Complete demo handoff") }
+    if demoAuditCount == 0 { blockers.append("Confirm Audit trail") }
+    if !persistenceEvidenceReady { blockers.append("Confirm local JSON evidence") }
+    return blockers
+  }
+
+  private var readyCount: Int {
+    [
+      latestDemoOrder != nil,
+      linkedIntakeCount > 0,
+      dispatchSetupCount > 0,
+      completedDispatchCount > 0,
+      demoAuditCount > 0,
+      persistenceEvidenceReady
+    ].filter { $0 }.count
+  }
+
+  private var tone: Color {
+    if requiredBlockers.isEmpty { return .green }
+    if readyCount >= 4 { return .teal }
+    return .orange
+  }
+
+  private var verdictTitle: String {
+    if requiredBlockers.isEmpty { return "QA evidence supports a hands-on release-candidate pass" }
+    if latestDemoOrder == nil { return "QA evidence needs a stable local demo path" }
+    return "QA evidence is incomplete"
+  }
+
+  private var verdictDetail: String {
+    if requiredBlockers.isEmpty {
+      return "The local path has enough traceable evidence for Dashboard, Inbox, Orders, Dispatch, Tasks, Audit, and persistence checks. Live SpaceMail evidence remains optional."
+    }
+    return "Finish the required blockers below before treating this as a release-candidate baseline. This report avoids live integrations and uses local records only."
+  }
+
+  private var canCompleteHandoff: Bool {
+    latestDemoOrder != nil && dispatchSetupCount > 0 && completedDispatchCount == 0
+  }
+
+  private var canReopenHandoff: Bool {
+    latestDemoOrder != nil && completedDispatchCount > 0
+  }
+
+  var body: some View {
+    SettingsPanel(title: "QA evidence report", symbol: "doc.text.magnifyingglass") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: requiredBlockers.isEmpty ? "checkmark.seal.fill" : "doc.text.magnifyingglass")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(verdictTitle)
+            .font(.headline)
+          Text(verdictDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge("\(readyCount)/6", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Demo order", latestDemoOrder == nil ? "Missing" : "Present", latestDemoOrder == nil ? .orange : .green),
+        ("Source links", "\(linkedIntakeCount)", linkedIntakeCount == 0 ? .orange : .green),
+        ("Dispatch setup", "\(dispatchSetupCount)", dispatchSetupCount == 0 ? .orange : .purple),
+        ("Closed handoff", "\(completedDispatchCount)", completedDispatchCount == 0 ? .secondary : .green),
+        ("Open tasks", "\(openDemoTaskCount)", openDemoTaskCount == 0 ? .green : .orange),
+        ("Audit trail", "\(demoAuditCount)", demoAuditCount == 0 ? .orange : .purple),
+        ("Persistence", persistenceEvidenceReady ? "Seen" : "Check", persistenceEvidenceReady ? .green : .orange),
+        ("Live mail", liveMailboxEvidenceReady ? "Seen" : "Optional", liveMailboxEvidenceReady ? .green : .secondary)
+      ])
+
+      if requiredBlockers.isEmpty {
+        evidenceLine(
+          title: "Required local evidence is complete",
+          detail: "Run the hands-on pass from Dashboard, then quit and reopen the app to confirm the same local JSON-backed records remain visible.",
+          symbol: "checkmark.circle.fill",
+          color: .green
+        )
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Required blockers", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          ForEach(requiredBlockers, id: \.self) { blocker in
+            Label(blocker, systemImage: "circle")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        evidenceLine(
+          title: "Stable local baseline",
+          detail: latestDemoOrder.map { "\($0.orderNumber) links Inbox, Orders, Dispatch, Tasks, and Audit." } ?? "Seed the demo workflow to create a stable non-mailbox baseline.",
+          symbol: "wand.and.stars",
+          color: latestDemoOrder == nil ? .orange : .green
+        )
+        evidenceLine(
+          title: "Live mailbox is not a blocker",
+          detail: liveMailboxEvidenceReady ? "SpaceMail has refresh evidence for mixed-mailbox testing." : "SpaceMail evidence is useful, but release-candidate QA can continue with local demo data.",
+          symbol: "server.rack",
+          color: liveMailboxEvidenceReady ? .green : .secondary
+        )
+        evidenceLine(
+          title: "No external automation required",
+          detail: "The QA path does not require Shopify, carrier APIs, outbound email, notifications, scanners, OCR, calendars, or background sync.",
+          symbol: "network.slash",
+          color: .secondary
+        )
+      }
+
+      CompactActionRow {
+        Button(latestDemoOrder == nil ? "Seed demo workflow" : "Seed another demo", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        if let order = latestDemoOrder {
+          Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
+            store.completeInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!canCompleteHandoff)
+
+          Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
+            store.reopenInboxDispatchHandoff(for: order)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!canReopenHandoff)
+        }
+
+        NavigationLink { DashboardView(store: store) } label: { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func evidenceLine(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
