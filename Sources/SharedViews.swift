@@ -3606,6 +3606,192 @@ struct OperatorTestSessionChecklistCard: View {
   }
 }
 
+struct OperatorHandoffBriefCard: View {
+  var store: ParcelOpsStore
+  var title: String = "Operator handoff brief"
+  var detail: String = "Use this before stopping work or handing the app to another operator."
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var inboxLinkedOrderCount: Int {
+    Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
+  }
+
+  private var taskFollowUpCount: Int {
+    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + store.draftMessagesNeedingReview.count
+  }
+
+  private var dispatchFollowUpCount: Int {
+    store.blockedShipmentManifests.count
+      + store.undispatchedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+      + store.incompleteDispatchChecklists.count
+      + store.dispatchChecklistsNeedingReview.count
+      + store.shipmentManifestsNeedingReview.count
+  }
+
+  private var mailboxLine: String {
+    guard let summary = latestSpaceMailSummary else {
+      return "SpaceMail: no refresh summary yet."
+    }
+    return "SpaceMail: \(summary.displayName), \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. Next: \(summary.nextAction)"
+  }
+
+  private var handoffLines: [(String, String, String, Color)] {
+    [
+      (
+        "Mailbox intake",
+        mailboxLine,
+        "server.rack",
+        latestSpaceMailSummary == nil ? .orange : (latestSpaceMailSummary?.tone == "warning" ? .red : .teal)
+      ),
+      (
+        "Inbox and orders",
+        "\(store.reviewIntakeEmails.count) intake row\(store.reviewIntakeEmails.count == 1 ? "" : "s") need review; \(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to orders.",
+        "tray.full.fill",
+        store.reviewIntakeEmails.isEmpty && inboxLinkedOrderCount > 0 ? .green : .orange
+      ),
+      (
+        "Workbench",
+        "\(store.openWorkbenchItems.count) open item\(store.openWorkbenchItems.count == 1 ? "" : "s"); \(store.highPriorityWorkbenchItems.count) high-priority item\(store.highPriorityWorkbenchItems.count == 1 ? "" : "s").",
+        "rectangle.stack.badge.person.crop.fill",
+        store.highPriorityWorkbenchItems.isEmpty ? .teal : .orange
+      ),
+      (
+        "Tasks and handoffs",
+        "\(taskFollowUpCount) task, handoff, or draft follow-up item\(taskFollowUpCount == 1 ? "" : "s") needs attention.",
+        "checklist",
+        taskFollowUpCount == 0 ? .green : .orange
+      ),
+      (
+        "Dispatch",
+        "\(dispatchFollowUpCount) manifest or readiness item\(dispatchFollowUpCount == 1 ? "" : "s") needs review, preparation, completion, or unblock work.",
+        "paperplane.fill",
+        dispatchFollowUpCount == 0 ? .green : .blue
+      ),
+      (
+        "Audit",
+        "\(store.auditEvents.count) audit event\(store.auditEvents.count == 1 ? "" : "s") available. Use Audit for exact local action history and technical diagnostics when needed.",
+        "list.clipboard.fill",
+        store.auditEvents.isEmpty ? .orange : .purple
+      )
+    ]
+  }
+
+  private var attentionCount: Int {
+    store.reviewIntakeEmails.count
+      + store.highPriorityWorkbenchItems.count
+      + taskFollowUpCount
+      + dispatchFollowUpCount
+      + (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestSpaceMailSummary?.parserIssueCount ?? 0)
+  }
+
+  private var tone: Color {
+    if latestSpaceMailSummary == nil { return .orange }
+    if attentionCount == 0 { return .green }
+    if attentionCount <= 5 { return .orange }
+    return .red
+  }
+
+  private var briefText: String {
+    [
+      "ParcelOps operator handoff",
+      "Status: \(attentionCount == 0 ? "clear" : "\(attentionCount) attention item\(attentionCount == 1 ? "" : "s")")",
+      mailboxLine,
+      "Inbox: \(store.reviewIntakeEmails.count) review row\(store.reviewIntakeEmails.count == 1 ? "" : "s"), \(inboxLinkedOrderCount) linked intake order source\(inboxLinkedOrderCount == 1 ? "" : "s").",
+      "Workbench: \(store.openWorkbenchItems.count) open, \(store.highPriorityWorkbenchItems.count) high priority.",
+      "Tasks/handoffs/drafts: \(taskFollowUpCount) attention item\(taskFollowUpCount == 1 ? "" : "s").",
+      "Dispatch: \(dispatchFollowUpCount) attention item\(dispatchFollowUpCount == 1 ? "" : "s").",
+      "Audit: \(store.auditEvents.count) local event\(store.auditEvents.count == 1 ? "" : "s").",
+      "Boundary: SpaceMail refresh is manual/read-only. Do not commit xcuserdata, DerivedData, local signing/team changes, or generated project noise."
+    ].joined(separator: "\n")
+  }
+
+  var body: some View {
+    SettingsPanel(title: title, symbol: "person.2.wave.2.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "person.2.wave.2.fill")
+          .font(.title3)
+          .foregroundStyle(tone)
+          .frame(width: 28)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(detail)
+            .font(.headline)
+          Text(attentionCount == 0 ? "No promoted daily handoff items are open." : "\(attentionCount) promoted daily item\(attentionCount == 1 ? "" : "s") should be mentioned before handoff.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(attentionCount == 0 ? "Clear" : "Handoff", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Inbox", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .orange),
+        ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .secondary : .green),
+        ("Workbench", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .purple),
+        ("Tasks", "\(taskFollowUpCount)", taskFollowUpCount == 0 ? .green : .orange),
+        ("Dispatch", "\(dispatchFollowUpCount)", dispatchFollowUpCount == 0 ? .green : .blue),
+        ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 245), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(handoffLines.enumerated()), id: \.offset) { _, line in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(line.0, systemImage: line.2)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(line.3)
+            Text(line.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(line.3.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Selectable handoff note")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(briefText)
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      CompactActionRow {
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { OperationsWorkbenchView(store: store) } label: { Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { TasksView(store: store) } label: { Label("Tasks", systemImage: "checklist") }
+          .buttonStyle(.bordered)
+        NavigationLink { DispatchView(store: store) } label: { Label("Dispatch", systemImage: "paperplane.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Handoff boundary: this brief is computed from existing local records only. It does not send messages, create notifications, run mailbox refresh, mutate mailbox messages, or change credentials.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
 struct LocalDataSafetyCard: View {
   var store: ParcelOpsStore
   var compact: Bool = false

@@ -197,6 +197,7 @@ struct DashboardView: View {
         MVPReadinessCallout(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
         OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
+        OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
         OperatorMVPReadinessCard(store: store)
         MVPHandsOnDashboardStatus(store: store)
         LocalDemoWorkflowStatusCard(store: store)

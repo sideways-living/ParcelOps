@@ -17,6 +17,7 @@ struct MVPSetupView: View {
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
         OperatorTestSessionChecklistCard(store: store, detail: "Use this evidence checklist for one complete hands-on MVP validation pass.")
+        OperatorHandoffBriefCard(store: store, detail: "Use this before handing testing or operation to another person.")
 
         MVPWorkflowGuide(
           title: "First usable workflow",
