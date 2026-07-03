@@ -208,6 +208,22 @@ enum SampleData {
     )
   ]
 
+  static var gmailMailboxConnections: [GmailMailboxConnection] = [
+    GmailMailboxConnection(
+      displayName: "Gmail order updates",
+      emailAddress: "orders@gmail.example",
+      monitoredLabelNames: "INBOX, Order Updates",
+      connectionStatus: "OAuth not connected",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Gmail setup placeholder for mailboxes hosted on Gmail/Google Workspace. No OAuth flow, token exchange, Gmail API call, or mailbox mutation is connected yet.",
+      oauthReadinessStatus: "Needs Google Cloud OAuth setup",
+      requestedScopesSummary: "Future read-only Gmail metadata/message read scope for manual refresh only",
+      credentialStorageStatus: "Token storage not configured",
+      mailboxMode: .mixedFiltered,
+      reviewState: .needsReview
+    )
+  ]
+
   static var shopifyConnections: [ShopifyConnection] = [
     ShopifyConnection(storeName: "Acme Parts", storeDomain: "acme-parts.myshopify.com", mappedMailbox: "field-purchasing@parcelops.example", mappedTeam: "Brisbane Field Team", status: "Synced", lastSync: "6 min ago", isEnabled: true),
     ShopifyConnection(storeName: "SafetyPro Direct", storeDomain: "safetypro-direct.myshopify.com", mappedMailbox: "tracking-intake@parcelops.example", mappedTeam: "Melbourne Operations", status: "Synced", lastSync: "12 min ago", isEnabled: true),

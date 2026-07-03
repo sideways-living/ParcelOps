@@ -2025,6 +2025,64 @@ enum SpaceMailHintTarget: String, CaseIterable, Identifiable, Hashable {
   var id: String { rawValue }
 }
 
+struct GmailMailboxConnection: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var displayName: String
+  var emailAddress: String
+  var monitoredLabelNames: String
+  var connectionStatus: String
+  var lastManualRefreshDate: String
+  var setupNotes: String
+  var oauthReadinessStatus: String
+  var requestedScopesSummary: String
+  var credentialStorageStatus: String
+  var mailboxMode: SpaceMailMailboxMode
+  var lastRefreshFetchedCount: Int
+  var lastRefreshImportedCount: Int
+  var lastRefreshDuplicateCount: Int
+  var lastRefreshFilteredNonOrderCount: Int
+  var lastRefreshSummary: String
+  var reviewState: ReviewState
+
+  init(
+    id: UUID = UUID(),
+    displayName: String,
+    emailAddress: String,
+    monitoredLabelNames: String,
+    connectionStatus: String,
+    lastManualRefreshDate: String,
+    setupNotes: String,
+    oauthReadinessStatus: String,
+    requestedScopesSummary: String,
+    credentialStorageStatus: String,
+    mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
+    lastRefreshFetchedCount: Int = 0,
+    lastRefreshImportedCount: Int = 0,
+    lastRefreshDuplicateCount: Int = 0,
+    lastRefreshFilteredNonOrderCount: Int = 0,
+    lastRefreshSummary: String = "No Gmail refresh has run yet.",
+    reviewState: ReviewState
+  ) {
+    self.id = id
+    self.displayName = displayName
+    self.emailAddress = emailAddress
+    self.monitoredLabelNames = monitoredLabelNames
+    self.connectionStatus = connectionStatus
+    self.lastManualRefreshDate = lastManualRefreshDate
+    self.setupNotes = setupNotes
+    self.oauthReadinessStatus = oauthReadinessStatus
+    self.requestedScopesSummary = requestedScopesSummary
+    self.credentialStorageStatus = credentialStorageStatus
+    self.mailboxMode = mailboxMode
+    self.lastRefreshFetchedCount = lastRefreshFetchedCount
+    self.lastRefreshImportedCount = lastRefreshImportedCount
+    self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
+    self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
+    self.lastRefreshSummary = lastRefreshSummary
+    self.reviewState = reviewState
+  }
+}
+
 struct ShopifyConnection: Identifiable, Hashable, Codable {
   var id = UUID()
   var storeName: String
@@ -2173,6 +2231,7 @@ enum AuditEntityType: String, CaseIterable, Identifiable, Hashable, Codable {
   case reconciliationIssue = "Reconciliation issue"
   case microsoft365MailboxConnection = "Microsoft 365 mailbox"
   case spaceMailIMAPConnection = "SpaceMail IMAP mailbox"
+  case gmailMailboxConnection = "Gmail mailbox"
   case trackedMailbox = "Tracked mailbox"
   case shopifyConnection = "Shopify connection"
   case sourceConnection = "Source connection"

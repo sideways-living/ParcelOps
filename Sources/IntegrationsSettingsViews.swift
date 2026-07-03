@@ -110,6 +110,10 @@ struct IntegrationsView: View {
     matchesSetupSection("Microsoft", "365", "Graph", "OAuth", "MSAL", "mock", "sign in", "mailbox")
   }
 
+  private var showsGmailSetup: Bool {
+    matchesSetupSection("Gmail", "Google", "Workspace", "OAuth", "labels", "mock", "mailbox")
+  }
+
   private var showsTrackedMailboxes: Bool {
     matchesSetupSection("tracked", "mailboxes", "mailbox", "email", "placeholder")
   }
@@ -133,6 +137,7 @@ struct IntegrationsView: View {
       showsLocalDataSafety,
       showsSpaceMailSetup,
       showsMicrosoftSetup,
+      showsGmailSetup,
       showsTrackedMailboxes,
       showsShopifySetup,
       showsFolderSetup,
@@ -232,6 +237,10 @@ struct IntegrationsView: View {
             Button("Microsoft 365 setup", systemImage: "mail.stack.fill") {
               store.addMicrosoft365MailboxConnectionPlaceholder()
               setupFeedbackMessage = "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here."
+            }
+            Button("Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
+              store.addGmailMailboxConnectionPlaceholder()
+              setupFeedbackMessage = "Gmail setup placeholder added locally. Real Gmail OAuth/API access is not connected yet."
             }
             Button("Mailbox setup", systemImage: "envelope.badge.fill") {
               store.addTrackedMailboxPlaceholder()
@@ -501,6 +510,36 @@ struct IntegrationsView: View {
               store.createSpaceMailParserQAReviewTask(for: connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
+            }
+          }
+        }
+        }
+
+        if showsGmailSetup {
+          SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
+          Text("Use this for Gmail or Google Workspace mailboxes that may later feed the same Inbox intake path. This is planning/mock only: no Google OAuth, Gmail API call, token exchange, Keychain token item, or mailbox access runs here.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Add Gmail setup", systemImage: "plus") {
+              store.addGmailMailboxConnectionPlaceholder()
+              setupFeedbackMessage = "Gmail setup placeholder added locally. Use Mock Gmail refresh to test local intake only."
+            }
+              .buttonStyle(.bordered)
+            Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
+          }
+          if store.gmailMailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture email address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
+          }
+          ForEach(store.gmailMailboxConnections) { connection in
+            GmailMailboxConnectionRow(connection: connection) { updatedConnection in
+              store.updateGmailMailboxConnection(updatedConnection)
+            } onReviewed: {
+              store.markGmailMailboxConnectionReviewed(connection)
+            } onMockRefresh: {
+              store.importMockGmailMessages(for: connection)
+            } onRemove: {
+              store.removeGmailMailboxConnection(connection)
             }
           }
         }
@@ -1132,6 +1171,134 @@ struct ActionGroupHeader: View {
     Label(title, systemImage: symbol)
       .font(.caption.weight(.semibold))
       .foregroundStyle(.secondary)
+  }
+}
+
+struct GmailMailboxConnectionRow: View {
+  var connection: GmailMailboxConnection
+  var onSave: (GmailMailboxConnection) -> Void
+  var onReviewed: () -> Void
+  var onMockRefresh: () -> Void
+  var onRemove: () -> Void
+
+  @State private var draft: GmailMailboxConnection
+  @State private var isEditing = false
+
+  init(
+    connection: GmailMailboxConnection,
+    onSave: @escaping (GmailMailboxConnection) -> Void,
+    onReviewed: @escaping () -> Void,
+    onMockRefresh: @escaping () -> Void,
+    onRemove: @escaping () -> Void
+  ) {
+    self.connection = connection
+    self.onSave = onSave
+    self.onReviewed = onReviewed
+    self.onMockRefresh = onMockRefresh
+    self.onRemove = onRemove
+    _draft = State(initialValue: connection)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(.teal)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddress)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("Labels: \(connection.monitoredLabelNames)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Mailbox mode: \(connection.mailboxMode.rawValue)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
+        ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+        ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
+        ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+      ])
+
+      Text("Status: \(connection.connectionStatus) • Last refresh: \(connection.lastManualRefreshDate)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text("OAuth readiness: \(connection.oauthReadinessStatus)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text("Credential storage: \(connection.credentialStorageStatus)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      Text(connection.lastRefreshSummary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text("Gmail is not connected yet. Mock Gmail refresh only creates deterministic local test messages through the provider-neutral intake path.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if isEditing {
+        VStack(alignment: .leading, spacing: 8) {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Email address", text: $draft.emailAddress)
+          TextField("Label names", text: $draft.monitoredLabelNames)
+          Picker("Mailbox mode", selection: $draft.mailboxMode) {
+            ForEach(SpaceMailMailboxMode.allCases) { mode in
+              Text(mode.rawValue).tag(mode)
+            }
+          }
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("OAuth readiness", text: $draft.oauthReadinessStatus)
+          TextField("Requested scopes", text: $draft.requestedScopesSummary)
+          TextField("Credential storage", text: $draft.credentialStorageStatus)
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(2...5)
+          CompactActionRow {
+            Button("Save Gmail setup", systemImage: "checkmark.circle.fill") {
+              onSave(draft)
+              isEditing = false
+            }
+            .buttonStyle(.borderedProminent)
+            Button("Cancel", systemImage: "xmark.circle") {
+              draft = connection
+              isEditing = false
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        .textFieldStyle(.roundedBorder)
+      }
+
+      CompactActionRow {
+        Button(isEditing ? "Close editor" : "Edit setup", systemImage: "pencil") {
+          draft = connection
+          isEditing.toggle()
+        }
+        .buttonStyle(.bordered)
+        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Run Mock Gmail refresh", systemImage: "envelope.badge") {
+          onMockRefresh()
+        }
+        .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding()
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

@@ -173,6 +173,31 @@ struct MailboxView: View {
           }
         }
 
+        SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
+          Text("Use this for Gmail or Google Workspace mailboxes that may later feed Inbox. This is local planning/mock support only; no Google OAuth flow, Gmail API call, token exchange, Keychain token item, or real mailbox access is connected yet.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Add Gmail setup", systemImage: "plus", action: store.addGmailMailboxConnectionPlaceholder)
+              .buttonStyle(.bordered)
+            Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
+          }
+          if store.gmailMailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
+          }
+          ForEach(store.gmailMailboxConnections) { connection in
+            GmailMailboxConnectionRow(connection: connection) { updatedConnection in
+              store.updateGmailMailboxConnection(updatedConnection)
+            } onReviewed: {
+              store.markGmailMailboxConnectionReviewed(connection)
+            } onMockRefresh: {
+              store.importMockGmailMessages(for: connection)
+            } onRemove: {
+              store.removeGmailMailboxConnection(connection)
+            }
+          }
+        }
+
         SettingsPanel(title: "After mailbox refresh", symbol: "arrow.right.circle.fill") {
           VStack(alignment: .leading, spacing: 12) {
             Text("Use these shortcuts after a real or mock refresh. Imported order emails go to Inbox; detailed refresh and action history stays in Audit.")

@@ -17,6 +17,7 @@ final class ParcelOpsStore {
   var mailboxes: [TrackedMailbox]
   var microsoft365MailboxConnections: [Microsoft365MailboxConnection]
   var spaceMailIMAPConnections: [SpaceMailIMAPConnection]
+  var gmailMailboxConnections: [GmailMailboxConnection]
   var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
   private var activeMicrosoft365AuthAttempts: [UUID: UUID] = [:]
   var shopifyConnections: [ShopifyConnection]
@@ -215,6 +216,7 @@ final class ParcelOpsStore {
     self.mailboxes = repository.loadMailboxes()
     self.microsoft365MailboxConnections = repository.loadMicrosoft365MailboxConnections()
     self.spaceMailIMAPConnections = repository.loadSpaceMailIMAPConnections()
+    self.gmailMailboxConnections = repository.loadGmailMailboxConnections()
     self.shopifyConnections = repository.loadShopifyConnections()
     self.watchedFolders = repository.loadWatchedFolders()
     self.connections = repository.loadSourceConnections()
@@ -4804,6 +4806,17 @@ final class ParcelOpsStore {
           ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
           : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
         isMock ? "mock" : "microsoft"
+      )
+    }
+
+    if let connection = gmailMailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      let isMock = providerMessageID.localizedCaseInsensitiveContains("mock")
+      return (
+        isMock ? "Mock Gmail" : "Gmail",
+        isMock
+          ? "Captured from \(connection.displayName) using deterministic mock Gmail refresh."
+          : "Captured from \(connection.displayName) using future manual read-only Gmail refresh.",
+        isMock ? "mock" : "gmail"
       )
     }
 
@@ -11036,6 +11049,122 @@ final class ParcelOpsStore {
     )
   }
 
+  func addGmailMailboxConnectionPlaceholder() {
+    let connection = GmailMailboxConnection(
+      displayName: "Gmail order updates",
+      emailAddress: "orders@gmail.example",
+      monitoredLabelNames: "INBOX, Order Updates",
+      connectionStatus: "OAuth not connected",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Local Gmail setup placeholder. Confirm Google account, labels, mixed-mailbox mode, and future OAuth/token storage before real refresh.",
+      oauthReadinessStatus: "Needs Google Cloud OAuth setup",
+      requestedScopesSummary: "Future read-only Gmail message scope for manual refresh only",
+      credentialStorageStatus: "Token storage not configured",
+      mailboxMode: .mixedFiltered,
+      reviewState: .needsReview
+    )
+    gmailMailboxConnections.insert(connection, at: 0)
+    persistIntegrations()
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail mailbox setup placeholder created.",
+      afterDetail: gmailMailboxConnectionAuditDetail(connection)
+    )
+  }
+
+  func updateGmailMailboxConnection(_ connection: GmailMailboxConnection) {
+    guard let index = gmailMailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = gmailMailboxConnectionAuditDetail(gmailMailboxConnections[index])
+    gmailMailboxConnections[index] = connection
+    persistIntegrations()
+    logAudit(
+      action: .edited,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail mailbox setup placeholder edited.",
+      beforeDetail: beforeDetail,
+      afterDetail: gmailMailboxConnectionAuditDetail(connection)
+    )
+  }
+
+  func markGmailMailboxConnectionReviewed(_ connection: GmailMailboxConnection) {
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Ready for Gmail planning"
+      draft.reviewState = .accepted
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail mailbox setup placeholder reviewed locally.",
+      afterDetail: "No OAuth flow, Gmail API call, token, Keychain item, or mailbox message access occurred."
+    )
+  }
+
+  func importMockGmailMessages(for connection: GmailMailboxConnection) {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    let timestamp = Self.auditTimestamp()
+    let messages = [
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1001",
+        sender: "shipping@example-merchant.test",
+        subject: "Order GMAIL-1001 shipped tracking GM123456",
+        receivedDate: timestamp,
+        plainTextBodyPreview: "Order GMAIL-1001 shipped tracking GM123456. Destination Brisbane receiving desk.",
+        sourceMailboxID: mailbox.id
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1002",
+        sender: "updates@example-merchant.test",
+        subject: "Refund update for order GMAIL-1002",
+        receivedDate: timestamp,
+        plainTextBodyPreview: "Refund update for order GMAIL-1002. Please review whether a return claim is needed.",
+        sourceMailboxID: mailbox.id
+      )
+    ]
+
+    let result = importFetchedMailboxMessages(messages)
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Mock Gmail refresh completed"
+      draft.lastManualRefreshDate = timestamp
+      draft.lastRefreshFetchedCount = messages.count
+      draft.lastRefreshImportedCount = result.imported
+      draft.lastRefreshDuplicateCount = result.duplicates
+      draft.lastRefreshFilteredNonOrderCount = 0
+      draft.lastRefreshSummary = "Mock Gmail refresh: \(messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. Gmail OAuth/API is not connected."
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Gmail refresh completed.",
+      afterDetail: "Fetched: \(messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nLabels: \(connection.monitoredLabelNames)\nMode: Local mock only through provider-neutral intake.\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+    )
+  }
+
+  func removeGmailMailboxConnection(_ connection: GmailMailboxConnection) {
+    guard let index = gmailMailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = gmailMailboxConnectionAuditDetail(gmailMailboxConnections[index])
+    gmailMailboxConnections.remove(at: index)
+    persistIntegrations()
+    logAudit(
+      action: .removed,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail mailbox setup placeholder removed.",
+      beforeDetail: beforeDetail,
+      afterDetail: "No OAuth flow, Gmail API call, token, Keychain item, or mailbox message was changed."
+    )
+  }
+
   func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
@@ -12717,6 +12846,14 @@ final class ParcelOpsStore {
     persistIntegrations()
   }
 
+  private func updateGmailMailboxConnection(_ connection: GmailMailboxConnection, mutate: (inout GmailMailboxConnection) -> Void) {
+    guard let index = gmailMailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    var draft = gmailMailboxConnections[index]
+    mutate(&draft)
+    gmailMailboxConnections[index] = draft
+    persistIntegrations()
+  }
+
   private func removeUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, from connection: SpaceMailIMAPConnection) {
     updateSpaceMailIMAPConnection(connection) { draft in
       draft.uncertainMessages.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
@@ -13155,6 +13292,18 @@ final class ParcelOpsStore {
     )
   }
 
+  private func trackedMailbox(for connection: GmailMailboxConnection) -> TrackedMailbox {
+    TrackedMailbox(
+      id: connection.id,
+      address: connection.emailAddress,
+      provider: .gmail,
+      monitoredFolders: connection.monitoredLabelNames,
+      status: connection.connectionStatus,
+      lastChecked: connection.lastManualRefreshDate,
+      routingRule: "Gmail labels: \(connection.monitoredLabelNames)"
+    )
+  }
+
   private func upsertTrackedMailbox(_ mailbox: TrackedMailbox) {
     if let index = mailboxes.firstIndex(where: { $0.id == mailbox.id }) {
       mailboxes[index] = mailbox
@@ -13172,6 +13321,10 @@ final class ParcelOpsStore {
 
   private func spaceMailIMAPConnectionAuditDetail(_ connection: SpaceMailIMAPConnection) -> String {
     "Display name: \(connection.displayName)\nEmail/username: \(connection.emailAddressUsername)\nIMAP host: \(connection.imapHost)\nIMAP port: \(connection.imapPort)\nSecurity: \(connection.securityMode)\nFolder: \(connection.folderName)\nMailbox mode: \(connection.mailboxMode.rawValue)\nTrusted sender hints: \(connection.trustedSenderHints.joined(separator: ", "))\nImport keyword hints: \(connection.importKeywordHints.joined(separator: ", "))\nUncertain keyword hints: \(connection.uncertainKeywordHints.joined(separator: ", "))\nFilter keyword hints: \(connection.filterKeywordHints.joined(separator: ", "))\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nNo password, app password, token, Keychain item, raw IMAP session content, or full mailbox content is stored in this setup record."
+  }
+
+  private func gmailMailboxConnectionAuditDetail(_ connection: GmailMailboxConnection) -> String {
+    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nOAuth readiness: \(connection.oauthReadinessStatus)\nScopes: \(connection.requestedScopesSummary)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nLast refresh: \(connection.lastRefreshSummary)\nNo OAuth token, refresh token, auth code, client secret, password, Keychain item, Gmail API response, raw Gmail message, or full mailbox content is stored in this setup record."
   }
 
   private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {
@@ -13219,6 +13372,7 @@ final class ParcelOpsStore {
     integrationRepository.saveMailboxes(mailboxes)
     integrationRepository.saveMicrosoft365MailboxConnections(microsoft365MailboxConnections)
     integrationRepository.saveSpaceMailIMAPConnections(spaceMailIMAPConnections)
+    integrationRepository.saveGmailMailboxConnections(gmailMailboxConnections)
     integrationRepository.saveShopifyConnections(shopifyConnections)
     integrationRepository.saveWatchedFolders(watchedFolders)
     integrationRepository.saveSourceConnections(connections)
