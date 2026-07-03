@@ -7342,6 +7342,55 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromOperatorTestSession() {
+    let readiness = spaceMailMVPReadinessSummary
+    let qa = spaceMailQACheckSummary
+    let hygiene = localDataHygieneSummary
+    let incompleteReadiness = readiness.items.filter { !$0.isComplete }.map { "Readiness: \($0.title) - \($0.detail)" }
+    let incompleteQA = qa.checks.filter { !$0.isComplete }.map { "QA: \($0.title) - \($0.evidence)" }
+    let latestSpaceMail = spaceMailIntakeHealthSummaries.first
+    let refreshLine = latestSpaceMail.map {
+      "Latest SpaceMail refresh: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain."
+    } ?? "Latest SpaceMail refresh: no summary available."
+    let handoffLine = "Current handoff: \(orders.filter(\.isInboxCreatedLocalOrder).count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count) task/handoff items."
+    let summaryLines = [
+      readiness.verdict,
+      readiness.detail,
+      "Next: \(readiness.nextAction)",
+      "RC evidence: \(qa.completedCount)/\(qa.totalCount) checks complete.",
+      refreshLine,
+      handoffLine,
+      "Data hygiene: \(hygiene.signalCount) signal\(hygiene.signalCount == 1 ? "" : "s"). \(hygiene.nextAction)"
+    ] + incompleteReadiness + incompleteQA + hygiene.boundaries
+
+    let taskPriority: TaskPriority
+    if readiness.completedCount <= max(readiness.totalCount - 3, 0) || qa.completedCount <= max(qa.totalCount - 3, 0) {
+      taskPriority = .high
+    } else if readiness.completedCount < readiness.totalCount || qa.completedCount < qa.totalCount || hygiene.signalCount > 0 {
+      taskPriority = .normal
+    } else {
+      taskPriority = .low
+    }
+
+    let task = ReviewTask(
+      title: taskPriority == .low ? "Confirm operator MVP test pass" : "Complete operator MVP test follow-up",
+      summary: summaryLines.joined(separator: "\n"),
+      linkedEntityType: .integration,
+      linkedEntityID: "operator-test-session",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from operator MVP test-session checklist."
+    )
+  }
+
   func updateReviewTask(_ task: ReviewTask) {
     guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
     let beforeDetail = reviewTasks[index].auditDetail

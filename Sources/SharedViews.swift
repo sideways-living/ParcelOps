@@ -3421,6 +3421,7 @@ struct OperatorTestSessionChecklistCard: View {
   var store: ParcelOpsStore
   var title: String = "Operator test session"
   var detail: String = "A short evidence-led path for proving the MVP flow without guessing what to test next."
+  @State private var feedbackMessage: String?
 
   private var qa: SpaceMailQACheckSummary {
     store.spaceMailQACheckSummary
@@ -3585,8 +3586,15 @@ struct OperatorTestSessionChecklistCard: View {
       CompactActionRow {
         Button("Seed demo workflow", systemImage: "wand.and.stars") {
           store.seedLocalInboxOrderDemoWorkflow()
+          feedbackMessage = "Local demo workflow seeded. Check Inbox, Orders, Workbench, Tasks, and Audit."
         }
         .buttonStyle(.borderedProminent)
+
+        Button("Create test follow-up", systemImage: "checklist") {
+          store.createReviewTaskFromOperatorTestSession()
+          feedbackMessage = "Operator test follow-up task created. Check Tasks."
+        }
+        .buttonStyle(.bordered)
 
         NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
           .buttonStyle(.bordered)
@@ -3596,6 +3604,24 @@ struct OperatorTestSessionChecklistCard: View {
           .buttonStyle(.bordered)
         NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(feedbackMessage)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+            Text("This action only creates local JSON-backed records and Audit history.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
       }
 
       Text("Test-session boundary: this checklist reads existing local state and can seed local demo records. It does not run mailbox refresh, change credentials, mutate mailbox messages, call external services, or create background jobs.")
