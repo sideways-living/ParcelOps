@@ -540,6 +540,14 @@ struct ExpandableBottomMenu: View {
           .font(.callout)
           .padding(.horizontal, 4)
 
+        if !isSearching {
+          Text("Dispatch, Audit, Settings, and detailed records live here. Workbench stays in the primary bar for daily exception work.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 6)
+        }
+
         ScrollView(.vertical, showsIndicators: false) {
           VStack(alignment: .leading, spacing: 10) {
             if secondaryGroups.isEmpty {
