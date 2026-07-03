@@ -101,6 +101,24 @@ struct TasksView: View {
     }
   }
 
+  private var mvpFollowUpItems: [TaskQueueItem] {
+    queueItems.filter(\.isMVPFollowUp)
+  }
+
+  private var visibleMVPFollowUpItems: [TaskQueueItem] {
+    let query = queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    guard !query.isEmpty else { return mvpFollowUpItems }
+    return mvpFollowUpItems.filter { item in
+      [
+        item.title,
+        item.summary,
+        item.assignee,
+        item.linkedEntityID,
+        item.nextAction
+      ].joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
     guard draft.linkedEntityType == .order,
       let orderID = UUID(uuidString: draft.linkedEntityID)
@@ -118,6 +136,7 @@ struct TasksView: View {
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
         draftFollowUpPanel
+        mvpFollowUpPanel
         taskQueuePanel
         detailRoutes
       }
@@ -574,6 +593,31 @@ struct TasksView: View {
     }
   }
 
+  @ViewBuilder
+  private var mvpFollowUpPanel: some View {
+    if !visibleMVPFollowUpItems.isEmpty {
+      SettingsPanel(title: "MVP follow-up tasks", symbol: "checkmark.seal.text.page.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Tasks created from data hygiene, operator test sessions, or release snapshot checks appear here before the general queue.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Follow-ups", "\(visibleMVPFollowUpItems.count)", .teal),
+            ("Overdue", "\(visibleMVPFollowUpItems.filter(\.isOverdue).count)", visibleMVPFollowUpItems.contains(where: \.isOverdue) ? .red : .green),
+            ("Blocked", "\(visibleMVPFollowUpItems.filter { $0.status == .blocked }.count)", visibleMVPFollowUpItems.contains { $0.status == .blocked } ? .red : .green),
+            ("Needs review", "\(visibleMVPFollowUpItems.filter { $0.reviewState != .accepted }.count)", visibleMVPFollowUpItems.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          ForEach(visibleMVPFollowUpItems.prefix(4)) { item in
+            TaskQueueRow(item: item, store: store)
+          }
+        }
+      }
+    }
+  }
+
   private var taskQueuePanel: some View {
     SettingsPanel(title: "Unified action queue", symbol: "checklist") {
       VStack(alignment: .leading, spacing: 12) {
@@ -654,13 +698,44 @@ private struct TaskQueueItem: Identifiable {
       || nextAction.localizedCaseInsensitiveContains("spacemail")
   }
 
+  var isMVPFollowUp: Bool {
+    guard linkedEntityType == .integration else { return false }
+
+    let knownIDs = [
+      "local-data-hygiene",
+      "operator-test-session",
+      "spacemail-release-snapshot"
+    ]
+    if knownIDs.contains(linkedEntityID) { return true }
+
+    let searchableText = [
+      title,
+      summary,
+      nextAction,
+      linkedEntityID
+    ].joined(separator: " ").localizedLowercase
+
+    return searchableText.contains("local data hygiene")
+      || searchableText.contains("operator mvp test")
+      || searchableText.contains("operator test-session")
+      || searchableText.contains("operator test session")
+      || searchableText.contains("release snapshot")
+      || searchableText.contains("mvp release")
+  }
+
   static func task(_ task: ReviewTask) -> TaskQueueItem {
     let isSpaceMailFollowUp = task.title.localizedCaseInsensitiveContains("spacemail")
       || task.summary.localizedCaseInsensitiveContains("spacemail")
+    let isMVPFollowUp = task.linkedEntityType == .integration
+      && [
+        "local-data-hygiene",
+        "operator-test-session",
+        "spacemail-release-snapshot"
+      ].contains(task.linkedEntityID)
     return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
       source: .task(task),
-      sourceLabel: isSpaceMailFollowUp ? "SpaceMail task" : "Task",
+      sourceLabel: isMVPFollowUp ? "MVP follow-up" : isSpaceMailFollowUp ? "SpaceMail task" : "Task",
       title: task.title,
       summary: task.summary,
       linkedEntityType: task.linkedEntityType,
@@ -673,12 +748,14 @@ private struct TaskQueueItem: Identifiable {
       isOverdue: task.isLocallyOverdue,
       nextAction: isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then complete or draft follow-up"
+        : isMVPFollowUp
+        ? "Complete this validation task or create a draft if someone needs the result"
         : task.isReopenedInboxDispatchHandoff
         ? "Open the order, inspect dispatch setup, then complete or block the handoff"
         : task.isPartialInboxOrderFollowUp
         ? "Open the order, confirm missing fields, then complete this handoff"
         : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isSpaceMailFollowUp ? 6 : 0)
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isMVPFollowUp ? 7 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
