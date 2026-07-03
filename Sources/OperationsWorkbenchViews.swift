@@ -1486,6 +1486,8 @@ struct WorkbenchItemRow: View {
         .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
+      workbenchDecisionPanel
+
       CompactActionRow {
         if let contextDestination {
           NavigationLink {
@@ -1573,6 +1575,155 @@ struct WorkbenchItemRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var workbenchDecisionPanel: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: decisionSymbol)
+        .foregroundStyle(decisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(decisionTitle)
+          .font(.caption.weight(.semibold))
+        Text(decisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 8)
+      Badge(decisionBadge, color: decisionColor)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var decisionTitle: String {
+    if isSetupPlaceholder { return "Setup placeholder needs review" }
+    if item.isBlocked { return "Blocked work needs an owner" }
+    if item.isException { return "Exception or mismatch needs a decision" }
+    if item.reviewState == .needsReview { return "Local review is required" }
+    if item.rank >= 4 { return "Urgent work should move first" }
+    if item.rank >= 3 { return "High-priority work needs action" }
+
+    switch item.source {
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+      return "Route through Inbox"
+    case .shipmentManifest, .dispatchChecklist:
+      return "Route through Dispatch"
+    case .reviewTask, .handoffNote:
+      return "Route through Tasks"
+    case .tracking:
+      return "Check tracking context"
+    case .validation, .reconciliation:
+      return "Resolve data mismatch"
+    case .evidence:
+      return "Review supporting evidence"
+    case .shipmentGroup:
+      return "Review shipment group risk"
+    default:
+      return "Review linked local record"
+    }
+  }
+
+  private var decisionDetail: String {
+    if isSetupPlaceholder {
+      return "This is a local planning/setup item. Open Settings, complete or review the placeholder, then mark it reviewed when no further setup follow-up is needed."
+    }
+    if item.isBlocked {
+      return "Create or assign a task, open the linked context, and clear the blocker before moving this item through the daily flow."
+    }
+    if item.isException {
+      return "Open the linked record and decide whether to correct data, create a task, draft a message, or mark reviewed after the exception is understood."
+    }
+    if item.reviewState == .needsReview {
+      return "Open the work item, confirm the local evidence, then mark reviewed only when no follow-up remains."
+    }
+    if item.rank >= 4 {
+      return "Treat this as urgent. Open context first, then create a task or draft if another person needs to own the work."
+    }
+    if item.rank >= 3 {
+      return "Handle this before routine monitoring. The suggested action is: \(item.suggestedNextAction)"
+    }
+
+    switch item.source {
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+      return "Use Inbox or Mailbox Monitor to confirm source details before creating, linking, accepting, or ignoring records."
+    case .shipmentManifest, .dispatchChecklist:
+      return "Use Dispatch to prepare, complete, block, or review outbound work. Do not treat it as ready until linked order and handoff context is clear."
+    case .reviewTask, .handoffNote:
+      return "Use Tasks to complete, reopen, acknowledge, or create follow-up ownership."
+    case .tracking:
+      return "Open tracking context and compare severity, carrier state, and linked order before creating follow-up work."
+    case .validation, .reconciliation:
+      return "Compare detected and expected local values, then correct the linked record or create a task if someone must verify it."
+    case .evidence:
+      return "Open the evidence record and confirm whether it supports an order, dispatch, claim, or review task."
+    case .shipmentGroup:
+      return "Open shipment group context and check high-risk, blocked, or review-needed group state before dispatch."
+    default:
+      return "Open the linked local context and use task/draft/review actions only when they help the daily operator flow."
+    }
+  }
+
+  private var decisionBadge: String {
+    if isSetupPlaceholder { return "Setup" }
+    if item.isBlocked { return "Blocked" }
+    if item.isException { return "Exception" }
+    if item.reviewState == .needsReview { return "Review" }
+    if item.rank >= 4 { return "Urgent" }
+    if item.rank >= 3 { return "High" }
+    switch item.source {
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+      return "Inbox"
+    case .shipmentManifest, .dispatchChecklist:
+      return "Dispatch"
+    case .reviewTask, .handoffNote:
+      return "Tasks"
+    default:
+      return "Open"
+    }
+  }
+
+  private var decisionColor: Color {
+    if item.isBlocked { return .red }
+    if item.isException || item.rank >= 4 { return .orange }
+    if item.reviewState == .needsReview || item.rank >= 3 { return .orange }
+    if isSetupPlaceholder { return .teal }
+    switch item.source {
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+      return .teal
+    case .shipmentManifest, .dispatchChecklist:
+      return .purple
+    case .reviewTask, .handoffNote:
+      return .blue
+    default:
+      return item.color
+    }
+  }
+
+  private var decisionSymbol: String {
+    if isSetupPlaceholder { return "gearshape.2.fill" }
+    if item.isBlocked { return "hand.raised.fill" }
+    if item.isException { return "arrow.triangle.2.circlepath.circle.fill" }
+    if item.reviewState == .needsReview { return "checkmark.shield.fill" }
+    if item.rank >= 3 { return "flame.fill" }
+    switch item.source {
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+      return "tray.full.fill"
+    case .shipmentManifest, .dispatchChecklist:
+      return "paperplane.fill"
+    case .reviewTask, .handoffNote:
+      return "checklist"
+    case .tracking:
+      return "location.north.line.fill"
+    case .validation, .reconciliation:
+      return "exclamationmark.arrow.triangle.2.circlepath"
+    default:
+      return item.source.symbol
+    }
   }
 }
 
