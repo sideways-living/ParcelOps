@@ -98,6 +98,10 @@ struct IntegrationsView: View {
     matchesSetupSection("editor", "save", "cancel", "short window", "credential", "password", "secret", "safe setup")
   }
 
+  private var showsLocalDataSafety: Bool {
+    matchesSetupSection("local", "data", "JSON", "persistence", "backup", "storage", "credentials", "Keychain", "privacy")
+  }
+
   private var showsSpaceMailSetup: Bool {
     matchesSetupSection("SpaceMail", "IMAP", "Keychain", "credential", "mixed mailbox", "classifier", "uncertain", "filtered", "real refresh", "mock refresh")
   }
@@ -126,6 +130,7 @@ struct IntegrationsView: View {
     [
       showsRecommendedSetup,
       showsEditorSafety,
+      showsLocalDataSafety,
       showsSpaceMailSetup,
       showsMicrosoftSetup,
       showsTrackedMailboxes,
@@ -253,7 +258,7 @@ struct IntegrationsView: View {
         SettingsPanel(title: "Find setup section", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
-              TextField("Search setup, SpaceMail, Microsoft 365, Shopify, folders, credentials", text: $setupSearchText)
+              TextField("Search setup, SpaceMail, JSON, credentials, Microsoft 365, Shopify", text: $setupSearchText)
                 .textFieldStyle(.roundedBorder)
 
               Button("Clear", systemImage: "xmark.circle") {
@@ -272,7 +277,7 @@ struct IntegrationsView: View {
         }
 
         if visibleSetupSectionCount == 0 {
-          MVPEmptyState(title: "No setup sections match", detail: "Clear the setup search or try SpaceMail, Microsoft 365, Shopify, folder, mailbox, credential, or classifier.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No setup sections match", detail: "Clear the setup search or try SpaceMail, JSON, persistence, Microsoft 365, Shopify, folder, mailbox, credential, or classifier.", symbol: "magnifyingglass")
         }
 
         if showsRecommendedSetup {
@@ -341,6 +346,22 @@ struct IntegrationsView: View {
           }
         }
           providerPriorityPanel
+        }
+
+        if showsLocalDataSafety {
+          SettingsPanel(title: "Local data and privacy", symbol: "internaldrive.fill") {
+            Text("Use this section when checking where the MVP stores local records, what is deliberately excluded from JSON, and how to reason about manual test backups.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            LocalDataSafetyCard(store: store, compact: isCompact)
+
+            Text("This is a read-only support view. It does not export files, open a file picker, sync to cloud, read Keychain passwords, change JSON contents, or mutate mailbox messages.")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
 
         if showsEditorSafety {
