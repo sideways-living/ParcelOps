@@ -15,6 +15,7 @@ struct MVPSetupView: View {
         header
         MVPUsableVersionPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
+        MVPNextDevelopmentPrioritiesPanel(store: store)
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
         OperatorTestSessionChecklistCard(store: store, detail: "Use this evidence checklist for one complete hands-on MVP validation pass.")
@@ -82,6 +83,162 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPNextDevelopmentPrioritiesPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasLiveRefreshEvidence: Bool {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+  }
+
+  private var hasInboxOrderHandoff: Bool {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var qaEvidenceReady: Bool {
+    hasSpaceMailSetup && hasSpaceMailCredential && hasLiveRefreshEvidence && hasInboxOrderHandoff && !store.auditEvents.isEmpty
+  }
+
+  private var currentPriorityTitle: String {
+    if !hasSpaceMailSetup { return "Priority: finish SpaceMail setup" }
+    if !hasSpaceMailCredential { return "Priority: confirm SpaceMail credential" }
+    if !hasLiveRefreshEvidence { return "Priority: capture one refresh result" }
+    if !hasInboxOrderHandoff { return "Priority: prove Inbox-to-order handoff" }
+    if !qaEvidenceReady { return "Priority: complete QA evidence" }
+    return "Priority: simplify and harden the operator loop"
+  }
+
+  private var currentPriorityDetail: String {
+    if !hasSpaceMailSetup {
+      return "Add the non-secret SpaceMail IMAP setup and keep Microsoft 365 as an advanced provider option."
+    }
+    if !hasSpaceMailCredential {
+      return "Use Keychain-backed SpaceMail credential storage; do not place passwords in JSON fields or notes."
+    }
+    if !hasLiveRefreshEvidence {
+      return "Run one manual read-only refresh so the app has real fetched/imported/filtered/uncertain evidence."
+    }
+    if !hasInboxOrderHandoff {
+      return "Create or link one order from a confirmed Inbox row so Orders, Workbench, Dispatch, Tasks, and Audit have real context."
+    }
+    if !qaEvidenceReady {
+      return "Complete one repeatable test pass and confirm the result survives quit/reopen through local JSON persistence."
+    }
+    return "The next highest-value work is reducing noisy screens, tightening parser/classifier edge cases, and documenting a repeatable QA baseline before adding more integrations."
+  }
+
+  private var priorityTone: Color {
+    qaEvidenceReady ? .green : .orange
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Next development priorities", symbol: "list.bullet.rectangle.portrait.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: qaEvidenceReady ? "checkmark.seal.fill" : "arrow.forward.circle.fill")
+            .foregroundStyle(priorityTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(currentPriorityTitle)
+              .font(.headline)
+            Text(currentPriorityDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(qaEvidenceReady ? "Post-MVP" : "MVP QA", color: priorityTone)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
+          priorityBlock(
+            title: "1. Prove repeatability",
+            detail: "Run the same local flow several times: refresh or demo import, triage, create/link order, Workbench follow-up, Dispatch setup, task, Audit, quit/reopen.",
+            symbol: "repeat.circle.fill",
+            color: qaEvidenceReady ? .green : .orange
+          )
+          priorityBlock(
+            title: "2. Reduce operator noise",
+            detail: "Keep improving primary screens so operators see Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Settings rather than internal record tables.",
+            symbol: "sidebar.left",
+            color: .teal
+          )
+          priorityBlock(
+            title: "3. Harden intake parsing",
+            detail: "Use saved diagnostics, classifier tests, uncertain examples, and local hints to improve real mixed-mailbox intake without external AI or mailbox mutation.",
+            symbol: "text.magnifyingglass",
+            color: .purple
+          )
+          priorityBlock(
+            title: "4. Defer broad integrations",
+            detail: "Do not add Shopify, carrier APIs, notifications, OCR, scanners, calendars, outbound email, or background sync until the manual operator loop is boringly reliable.",
+            symbol: "network.slash",
+            color: .secondary
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func priorityBlock(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
