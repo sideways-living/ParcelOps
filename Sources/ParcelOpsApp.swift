@@ -588,7 +588,7 @@ struct ParcelNavigationGroup: Identifiable {
 
   static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
 
-  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .dispatch, .tasks]
+  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .workbench, .tasks]
 
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
