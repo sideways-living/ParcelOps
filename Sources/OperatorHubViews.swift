@@ -55,8 +55,27 @@ struct InboxView: View {
     store.intakeParserDiagnostics.count
   }
 
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
   private var uncertainSpaceMailCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  private var filteredSpaceMailCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
   }
 
   private var blockedIncomingCount: Int {
@@ -65,6 +84,78 @@ struct InboxView: View {
 
   private var readyAcceptanceCount: Int {
     store.acceptanceRecordsNeedingReview.count
+  }
+
+  private var inboxLinkedOrderCount: Int {
+    Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
+  }
+
+  private var hasInboxAuditEvidence: Bool {
+    store.auditEvents.contains(where: { event in
+      event.entityType.rawValue.localizedCaseInsensitiveContains("intake")
+        || event.summary.localizedCaseInsensitiveContains("Inbox")
+        || event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
+    })
+  }
+
+  private var dailyFlowSteps: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
+    let hasRefreshEvidence = latestSpaceMailSummary != nil
+    let hasMailboxDecisionEvidence = (latestSpaceMailSummary?.importedCount ?? 0) > 0
+      || (latestSpaceMailSummary?.filteredCount ?? 0) > 0
+      || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
+      || uncertainSpaceMailCount > 0
+      || filteredSpaceMailCount > 0
+      || !triageItems.isEmpty
+
+    return [
+      (
+        "Setup",
+        hasSpaceMailSetup ? "SpaceMail setup exists." : "Add SpaceMail setup in Mailbox Monitor.",
+        "server.rack",
+        hasSpaceMailSetup ? .green : .orange,
+        hasSpaceMailSetup
+      ),
+      (
+        "Credential",
+        hasSpaceMailCredentialReference ? "Keychain credential reference is ready." : "Set or check the SpaceMail Keychain credential.",
+        "key.horizontal.fill",
+        hasSpaceMailCredentialReference ? .green : .orange,
+        hasSpaceMailCredentialReference
+      ),
+      (
+        "Refresh",
+        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "Run manual read-only SpaceMail refresh.",
+        "arrow.triangle.2.circlepath",
+        hasRefreshEvidence ? .green : .orange,
+        hasRefreshEvidence
+      ),
+      (
+        "Review",
+        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount) uncertain, \(filteredSpaceMailCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
+        "tray.full.fill",
+        hasMailboxDecisionEvidence ? .teal : .orange,
+        hasMailboxDecisionEvidence
+      ),
+      (
+        "Order",
+        inboxLinkedOrderCount > 0 ? "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to orders." : "Create or link one confirmed intake row to an order.",
+        "shippingbox.fill",
+        inboxLinkedOrderCount > 0 ? .green : .orange,
+        inboxLinkedOrderCount > 0
+      ),
+      (
+        "Audit",
+        hasInboxAuditEvidence ? "Inbox or SpaceMail activity is visible in Audit." : "Confirm local activity appears in Audit.",
+        "list.clipboard.fill",
+        hasInboxAuditEvidence ? .green : .orange,
+        hasInboxAuditEvidence
+      )
+    ]
+  }
+
+  private var dailyFlowCompleteCount: Int {
+    dailyFlowSteps.filter(\.isComplete).count
   }
 
   private var inboxSummaryTone: Color {
@@ -145,6 +236,37 @@ struct InboxView: View {
           ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
           ("Blocked", "\(blockedIncomingCount)", blockedIncomingCount == 0 ? .green : .red)
         ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Label("Daily Inbox flow", systemImage: "checklist.checked")
+              .font(.caption.weight(.semibold))
+            Spacer()
+            Badge("\(dailyFlowCompleteCount)/\(dailyFlowSteps.count)", color: dailyFlowCompleteCount == dailyFlowSteps.count ? .green : .orange)
+          }
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 145 : 170), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(dailyFlowSteps, id: \.title) { step in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.symbol)
+                  .foregroundStyle(step.color)
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(step.title)
+                    .font(.caption.weight(.semibold))
+                  Text(step.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
 
         CompactActionRow {
           NavigationLink {
