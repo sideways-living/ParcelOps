@@ -4067,6 +4067,10 @@ struct LocalDataHygieneCard: View {
       .background(.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
 
       CompactActionRow {
+        Button("Create hygiene task", systemImage: "checklist") {
+          store.createReviewTaskFromLocalDataHygiene()
+        }
+        .buttonStyle(.borderedProminent)
         NavigationLink { InboxView(store: store) } label: { Label("Open Inbox", systemImage: "tray.full.fill") }
           .buttonStyle(.bordered)
         NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
@@ -4182,6 +4186,10 @@ struct LocalDataHygieneSummaryCard: View {
       }
 
       CompactActionRow {
+        Button("Create task", systemImage: "checklist") {
+          store.createReviewTaskFromLocalDataHygiene()
+        }
+        .buttonStyle(.borderedProminent)
         NavigationLink { SettingsView(store: store) } label: { Label("Full hygiene view", systemImage: "gearshape.2.fill") }
           .buttonStyle(.bordered)
         NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }

@@ -7275,6 +7275,32 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromLocalDataHygiene() {
+    let summary = localDataHygieneSummary
+    let taskPriority: TaskPriority = summary.signalCount > 10 ? .high : summary.signalCount > 0 ? .normal : .low
+    let metricLines = summary.metrics.map { "\($0.title): \($0.value) - \($0.detail)" }
+    let exampleLines = summary.examples.isEmpty
+      ? ["No example records are currently flagged."]
+      : summary.examples.map { "Example: \($0)" }
+    let task = ReviewTask(
+      title: summary.signalCount == 0 ? "Confirm local data hygiene" : "Review local data hygiene signals",
+      summary: ([summary.verdict, summary.detail, "Next: \(summary.nextAction)"] + metricLines + exampleLines + summary.boundaries).joined(separator: "\n"),
+      linkedEntityType: .integration,
+      linkedEntityID: "local-data-hygiene",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from local data hygiene summary."
+    )
+  }
+
   func updateReviewTask(_ task: ReviewTask) {
     guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
     let beforeDetail = reviewTasks[index].auditDetail
