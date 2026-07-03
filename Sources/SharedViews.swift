@@ -2360,6 +2360,18 @@ struct OperatorMVPReadinessCard: View {
     checks.filter(\.isComplete).count
   }
 
+  private var incompleteChecks: [(title: String, detail: String, isComplete: Bool, tone: String, symbol: String)] {
+    checks.filter { !$0.isComplete }
+  }
+
+  private var warningBlockerCount: Int {
+    incompleteChecks.filter { $0.tone == "warning" }.count
+  }
+
+  private var attentionBlockerCount: Int {
+    incompleteChecks.filter { $0.tone == "attention" }.count
+  }
+
   private var tone: String {
     if completeCount == checks.count { return "success" }
     if completeCount >= max(checks.count - 2, 1) { return "attention" }
@@ -2406,6 +2418,41 @@ struct OperatorMVPReadinessCard: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(color)
         .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Complete", "\(completeCount)", completeCount == checks.count ? .green : .teal),
+        ("Remaining", "\(incompleteChecks.count)", incompleteChecks.isEmpty ? .green : .orange),
+        ("Blockers", "\(warningBlockerCount)", warningBlockerCount == 0 ? .green : .red),
+        ("Follow-up", "\(attentionBlockerCount)", attentionBlockerCount == 0 ? .green : .orange)
+      ])
+
+      if !incompleteChecks.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Top readiness blockers", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(warningBlockerCount > 0 ? .red : .orange)
+
+          ForEach(Array(incompleteChecks.prefix(3)), id: \.title) { check in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: check.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(for: check.tone))
+                .frame(width: 18)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(check.title)
+                  .font(.caption.weight(.semibold))
+                Text(check.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background((warningBlockerCount > 0 ? Color.red : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
         ForEach(checks, id: \.title) { check in
