@@ -313,11 +313,86 @@ struct DashboardView: View {
     return "No primary daily operator queue has promoted work right now. Use Audit or advanced routes only when checking detailed history."
   }
 
+  private var dailyFlowCheckpointItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
+    let setupBlockers = (hasSpaceMailSetup ? 0 : 1)
+      + (hasSpaceMailCredentialReference ? 0 : 1)
+      + (hasSpaceMailManualRefreshEvidence ? 0 : 1)
+      + setupAttentionCount
+    let orderBlockers = problemOrdersCount + partialInboxOrderBlockers.count
+    let workbenchBlockers = highPriorityOperatorWorkbenchItems.count + overdueOperatorWorkbenchItems.count + blockedOperatorWorkbenchItems.count
+
+    return [
+      (
+        "Settings",
+        "Confirm SpaceMail setup, Keychain credential, manual refresh evidence, and planning-only placeholders.",
+        setupBlockers,
+        "Settings",
+        "gearshape.fill",
+        setupBlockers == 0 ? .green : .orange
+      ),
+      (
+        "Inbox",
+        "Triage imported order mail, uncertain mixed-mailbox items, import queue items, and acceptance review.",
+        incomingAttentionCount,
+        "Inbox",
+        "tray.full.fill",
+        incomingAttentionCount == 0 ? .green : .orange
+      ),
+      (
+        "Orders",
+        "Verify Inbox-created orders, source trails, tracking warnings, exceptions, and missing dispatch context.",
+        orderBlockers,
+        "Orders",
+        "shippingbox.fill",
+        orderBlockers == 0 ? .green : .red
+      ),
+      (
+        "Workbench",
+        "Resolve high-priority, overdue, blocked, validation, reconciliation, parser, and setup follow-up.",
+        workbenchBlockers,
+        "Workbench",
+        "rectangle.stack.badge.person.crop.fill",
+        workbenchBlockers == 0 ? .green : .purple
+      ),
+      (
+        "Dispatch",
+        "Prepare manifests, readiness checklists, reopened handoffs, and missing dispatch setup.",
+        dispatchAttentionCount,
+        "Dispatch",
+        "paperplane.fill",
+        dispatchAttentionCount == 0 ? .green : .blue
+      ),
+      (
+        "Tasks",
+        "Complete or assign review tasks, handoff notes, draft follow-up, and overdue local work.",
+        taskAttentionCount,
+        "Tasks",
+        "checklist",
+        taskAttentionCount == 0 ? .green : .orange
+      ),
+      (
+        "Audit",
+        "Use the activity feed to confirm local actions, record changes, imports, reviews, and task creation.",
+        store.auditEvents.count,
+        "Audit",
+        "list.clipboard.fill",
+        store.auditEvents.isEmpty ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var dailyFlowClearCount: Int {
+    dailyFlowCheckpointItems.filter { item in
+      item.count == 0 || item.title == "Audit"
+    }.count
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        dailyFlowCheckpointPanel
         liveMailboxStatusPanel
         MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
@@ -739,6 +814,62 @@ struct DashboardView: View {
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var dailyFlowCheckpointPanel: some View {
+    SettingsPanel(title: "Daily flow checkpoints", symbol: "map.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: dailyFlowClearCount == dailyFlowCheckpointItems.count ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .font(.title3)
+            .foregroundStyle(dailyFlowClearCount == dailyFlowCheckpointItems.count ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Follow the primary queue from setup to audit")
+              .font(.headline)
+            Text("This summarizes the daily operator path without exposing every supporting record type as the starting point.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(dailyFlowClearCount)/\(dailyFlowCheckpointItems.count)", color: dailyFlowClearCount == dailyFlowCheckpointItems.count ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(dailyFlowCheckpointItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.title == "Audit" ? "\(item.count)" : (item.count == 0 ? "Clear" : "\(item.count)"), color: item.color)
+              }
+
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Text("Open \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this is a read-only summary of existing local queues and audit history. It does not fetch mail, create orders, mutate mailbox messages, send notifications, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   private var header: some View {
