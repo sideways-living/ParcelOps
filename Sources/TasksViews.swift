@@ -156,6 +156,7 @@ struct TasksView: View {
         header
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
         taskNextActionPanel
+        taskResolutionLadderPanel
         taskScopePanel
         mvpValidationPanel
         spaceMailTaskEscalationPanel
@@ -226,6 +227,85 @@ struct TasksView: View {
 
   private var draftActionCount: Int {
     draftFollowUpItems.count
+  }
+
+  private var taskAuditTrailCount: Int {
+    store.auditEvents.filter { event in
+      [
+        event.entityType.rawValue,
+        event.summary,
+        event.action.rawValue
+      ].joined(separator: " ").localizedCaseInsensitiveContains("task")
+        || event.summary.localizedCaseInsensitiveContains("handoff")
+        || event.summary.localizedCaseInsensitiveContains("draft")
+    }.count
+  }
+
+  private var taskResolutionItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
+    [
+      (
+        "Overdue or blocked",
+        "Open the row, resolve the blocker, reassign ownership, or create a draft/task so the follow-up is explicit.",
+        overdueActionCount + blockedActionCount,
+        "Tasks or Workbench",
+        "exclamationmark.triangle.fill",
+        overdueActionCount + blockedActionCount == 0 ? .green : .red
+      ),
+      (
+        "High priority",
+        "Handle urgent and high-priority tasks before routine handoffs or review-only rows.",
+        urgentActionCount,
+        "Tasks",
+        "flag.fill",
+        urgentActionCount == 0 ? .green : .orange
+      ),
+      (
+        "Inbox order handoff",
+        "Open the linked order, confirm the Inbox-created source trail and dispatch context, then complete the follow-up.",
+        inboxOrderActionCount,
+        "Orders",
+        "shippingbox.fill",
+        inboxOrderActionCount == 0 ? .green : .teal
+      ),
+      (
+        "Shift handoff",
+        "Acknowledge the note, complete it when the next owner has the context, or reopen it if the issue comes back.",
+        handoffActionCount,
+        "Tasks",
+        "arrow.left.arrow.right.square.fill",
+        handoffActionCount == 0 ? .green : .blue
+      ),
+      (
+        "Draft follow-up",
+        "Review local draft messages created from workflow actions and mark them ready, sent locally, or reopened.",
+        draftActionCount,
+        "Drafts",
+        "envelope.open.fill",
+        draftActionCount == 0 ? .green : .blue
+      ),
+      (
+        "Review closure",
+        "Read the row context and mark reviewed once the local evidence, order, or handoff state is clear.",
+        reviewActionCount,
+        "Tasks",
+        "checkmark.shield.fill",
+        reviewActionCount == 0 ? .green : .purple
+      ),
+      (
+        "Audit trail",
+        "Use Audit when the question is what changed, who acted locally, or why a task/draft/handoff exists.",
+        taskAuditTrailCount,
+        "Audit",
+        "list.clipboard.fill",
+        taskAuditTrailCount == 0 ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var taskResolutionCompleteCount: Int {
+    taskResolutionItems.filter { item in
+      item.count == 0 || item.title == "Audit trail"
+    }.count
   }
 
   private var nextActionTone: Color {
@@ -322,6 +402,57 @@ struct TasksView: View {
           }
           .buttonStyle(.bordered)
         }
+      }
+    }
+  }
+
+  private var taskResolutionLadderPanel: some View {
+    SettingsPanel(title: "Task resolution ladder", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: taskResolutionCompleteCount == taskResolutionItems.count ? "checkmark.seal.fill" : "list.bullet.clipboard.fill")
+            .foregroundStyle(taskResolutionCompleteCount == taskResolutionItems.count ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Clear follow-up in this order")
+              .font(.headline)
+            Text("Use this to decide why an item is still in the task queue and which primary screen should close the loop. It reads existing local tasks, handoffs, drafts, orders, and audit entries only.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(taskResolutionCompleteCount)/\(taskResolutionItems.count)", color: taskResolutionCompleteCount == taskResolutionItems.count ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(taskResolutionItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge("\(item.count)", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Check \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this panel does not send email, run automation, fetch mail, mutate mailbox messages, call external services, or create records.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
