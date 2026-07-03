@@ -1048,6 +1048,115 @@ private struct TaskQueueItem: Identifiable {
     if status == .open { return 50 }
     return 20
   }
+
+  var decisionTitle: String {
+    switch source {
+    case .task(let task):
+      if task.isReopenedInboxDispatchHandoff { return "Reopened dispatch handoff" }
+      if task.isPartialInboxOrderFollowUp { return "Verify Inbox-created order" }
+      if isSpaceMailFollowUp { return "SpaceMail follow-up" }
+      if isMVPFollowUp { return "MVP validation follow-up" }
+      if isOverdue { return "Task is overdue" }
+      if status == .blocked { return "Task is blocked" }
+      if status == .completed { return reviewState == .accepted ? "Task is complete" : "Completed task needs review" }
+      return "Owned follow-up work"
+    case .handoff:
+      if isSpaceMailFollowUp { return "SpaceMail shift handoff" }
+      if isOverdue { return "Handoff is overdue" }
+      if status == .blocked { return "Handoff is blocked" }
+      if status == .completed { return reviewState == .accepted ? "Handoff is complete" : "Completed handoff needs review" }
+      return "Shift handoff needs action"
+    }
+  }
+
+  var decisionDetail: String {
+    switch source {
+    case .task(let task):
+      if task.isReopenedInboxDispatchHandoff {
+        return "Open the linked order and dispatch records before completing this task. The handoff was reopened after dispatch setup had started."
+      }
+      if task.isPartialInboxOrderFollowUp {
+        return "Confirm the missing order, tracking, or destination details on the linked Inbox-created order before completing this task."
+      }
+      if isSpaceMailFollowUp {
+        return "Use Mailbox Monitor or Inbox to inspect the source refresh/intake context, then complete the task or create a draft for follow-up."
+      }
+      if isMVPFollowUp {
+        return "Use this to record local test or release-candidate follow-up. Complete it when the check is done, or create a draft if someone else needs the result."
+      }
+      if status == .blocked {
+        return "Resolve the blocker, create a draft, or leave the task open with the owner/team clear."
+      }
+      if isOverdue {
+        return "Complete, reassign, or create a draft today so this does not disappear into the queue."
+      }
+      if status == .completed && reviewState != .accepted {
+        return "Review the completed work and mark reviewed when no further local follow-up is needed."
+      }
+      return "Confirm the linked record context, then complete the task when the owner has finished the work."
+    case .handoff:
+      if isSpaceMailFollowUp {
+        return "Review the mailbox refresh or classifier context before acknowledging/completing this shift note."
+      }
+      if status == .blocked {
+        return "Clarify why the handoff is blocked, create a task if ownership is needed, or reopen once work resumes."
+      }
+      if isOverdue {
+        return "Acknowledge or complete this handoff today, or create a task if another person owns the follow-up."
+      }
+      if status == .completed && reviewState != .accepted {
+        return "Review the completed handoff before it leaves the operator queue."
+      }
+      return "Acknowledge when the next operator has read it; complete when the handoff no longer needs action."
+    }
+  }
+
+  var decisionBadge: String {
+    if status == .blocked { return "Blocked" }
+    if isOverdue { return "Overdue" }
+    if status == .completed { return reviewState == .accepted ? "Done" : "Review" }
+    if isSpaceMailFollowUp { return "SpaceMail" }
+    if isMVPFollowUp { return "MVP" }
+    switch source {
+    case .task(let task):
+      if task.isPartialInboxOrderFollowUp || task.isReopenedInboxDispatchHandoff { return "Verify" }
+      return "Do"
+    case .handoff:
+      return "Handoff"
+    }
+  }
+
+  var decisionColor: Color {
+    if status == .blocked { return .red }
+    if isOverdue { return .red }
+    if status == .completed && reviewState == .accepted { return .green }
+    if status == .completed { return .orange }
+    if isSpaceMailFollowUp { return .teal }
+    if isMVPFollowUp { return .purple }
+    switch source {
+    case .task(let task):
+      if task.isPartialInboxOrderFollowUp || task.isReopenedInboxDispatchHandoff { return .orange }
+      return priority.color
+    case .handoff:
+      return .blue
+    }
+  }
+
+  var decisionSymbol: String {
+    if status == .blocked { return "xmark.octagon.fill" }
+    if isOverdue { return "clock.badge.exclamationmark.fill" }
+    if status == .completed { return reviewState == .accepted ? "checkmark.seal.fill" : "checkmark.shield.fill" }
+    if isSpaceMailFollowUp { return "server.rack" }
+    if isMVPFollowUp { return "checklist.checked" }
+    switch source {
+    case .task(let task):
+      if task.isReopenedInboxDispatchHandoff { return "arrow.counterclockwise.circle.fill" }
+      if task.isPartialInboxOrderFollowUp { return "tray.and.arrow.down.fill" }
+      return "checklist"
+    case .handoff:
+      return "arrow.left.arrow.right.square.fill"
+    }
+  }
 }
 
 private enum TaskQueueSource {
@@ -1255,6 +1364,8 @@ private struct TaskQueueRow: View {
         }
       }
 
+      taskDecisionPanel
+
       CompactActionRow {
         openLink
 
@@ -1347,6 +1458,29 @@ private struct TaskQueueRow: View {
         store.updateHandoffNote(updatedNote)
       }
     }
+  }
+
+  private var taskDecisionPanel: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.decisionSymbol)
+        .foregroundStyle(item.decisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.decisionTitle)
+          .font(.caption.weight(.semibold))
+        Text(item.decisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 8)
+      Badge(item.decisionBadge, color: item.decisionColor)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(item.decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   @ViewBuilder
