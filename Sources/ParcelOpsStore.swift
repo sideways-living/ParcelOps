@@ -11427,6 +11427,49 @@ final class ParcelOpsStore {
     )
   }
 
+  func addSpaceMailDemoUncertainMessage(for connection: SpaceMailIMAPConnection) {
+    let timestamp = Self.auditTimestamp()
+    let sample = SpaceMailUncertainMessage(
+      providerMessageID: "local-demo-uncertain-\(connection.id.uuidString)",
+      sourceMailboxID: trackedMailbox(for: connection).id,
+      sender: "customer@example.com",
+      subject: "Delivery question",
+      receivedDate: timestamp,
+      bodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+      reason: "Demo uncertain preview for local review testing",
+      capturedDate: timestamp
+    )
+    updateSpaceMailIMAPConnection(connection) { draft in
+      draft.uncertainMessages.removeAll { $0.providerMessageID == sample.providerMessageID }
+      draft.uncertainMessages.insert(sample, at: 0)
+      draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+      draft.lastRefreshUncertainExamples = ["\(sample.subject) (\(sample.reason))"]
+      draft.lastRefreshSummary = "Demo uncertain SpaceMail preview added locally. No mailbox fetch, import, or mailbox mutation occurred."
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: timestamp,
+          eventType: "Demo uncertain preview",
+          status: "Added locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Demo uncertain SpaceMail preview added locally.",
+      afterDetail: "Subject: \(sample.subject)\nReason: \(sample.reason)\nThis creates a local review preview only. No mailbox fetch, Inbox import, duplicate metadata change, password, auth string, or mailbox mutation occurred."
+    )
+  }
+
   func testSpaceMailCustomClassifier(for connection: SpaceMailIMAPConnection, sender: String, subject: String, preview: String) {
     let safeSender = safeAuditPreview(sender.isEmpty ? connection.emailAddressUsername : sender, limit: 120)
     let safeSubject = safeAuditPreview(subject.isEmpty ? "No subject" : subject, limit: 160)

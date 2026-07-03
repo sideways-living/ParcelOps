@@ -133,6 +133,8 @@ struct MailboxView: View {
               store.addSpaceMailHintFromFiltered(filteredMessage, target: target, for: connection)
             } onTestClassifier: {
               store.testSpaceMailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addSpaceMailDemoUncertainMessage(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
               store.testSpaceMailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {

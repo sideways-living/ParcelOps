@@ -469,6 +469,8 @@ struct IntegrationsView: View {
               store.addSpaceMailHintFromFiltered(filteredMessage, target: target, for: connection)
             } onTestClassifier: {
               store.testSpaceMailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addSpaceMailDemoUncertainMessage(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
               store.testSpaceMailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {
@@ -1152,6 +1154,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onAddUncertainHint: (SpaceMailUncertainMessage, SpaceMailHintTarget) -> Void
   var onAddFilteredHint: (SpaceMailFilteredMessage, SpaceMailHintTarget) -> Void
   var onTestClassifier: () -> Void
+  var onAddDemoUncertain: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
   var onApplyFilterPreset: (SpaceMailFilterPreset) -> Void
@@ -1967,7 +1970,10 @@ struct SpaceMailIMAPConnectionRow: View {
           .textFieldStyle(.roundedBorder)
       }
       CompactActionRow {
-        Button("Run built-in test", systemImage: "play.circle", action: onTestClassifier)
+        Button("Test ambiguous sample", systemImage: "play.circle", action: onTestClassifier)
+        Button("Add demo uncertain", systemImage: "questionmark.diamond") {
+          onAddDemoUncertain()
+        }
         Button("Run custom test", systemImage: "text.magnifyingglass") {
           onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
         }
