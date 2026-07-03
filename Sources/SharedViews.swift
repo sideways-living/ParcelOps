@@ -2596,6 +2596,8 @@ struct SpaceMailQACheckCard: View {
 
 struct SpaceMailReleaseSnapshotCard: View {
   var snapshot: SpaceMailReleaseSnapshot
+  var store: ParcelOpsStore?
+  @State private var feedbackMessage: String?
 
   private var color: Color {
     color(for: snapshot.tone)
@@ -2625,6 +2627,48 @@ struct SpaceMailReleaseSnapshotCard: View {
       MetricStrip(items: snapshot.metrics.map { metric in
         (metric.title, metric.value, color(for: metric.tone))
       })
+
+      if let store {
+        CompactActionRow {
+          Button("Create release follow-up", systemImage: "checklist") {
+            store.createReviewTaskFromSpaceMailReleaseSnapshot()
+            feedbackMessage = "Release snapshot follow-up task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(feedbackMessage)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+            Text("The report text was copied into a local JSON-backed task. No file export or external service ran.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       VStack(alignment: .leading, spacing: 6) {
         Text("Selectable release notes")
@@ -3051,7 +3095,7 @@ struct SpaceMailOperatorGuidanceStack: View {
           SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
           SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
           if showReleaseSnapshot {
-            SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot)
+            SpaceMailReleaseSnapshotCard(snapshot: store.spaceMailReleaseSnapshot, store: store)
           }
         }
         .padding(.top, 10)

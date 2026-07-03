@@ -7391,6 +7391,37 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromSpaceMailReleaseSnapshot() {
+    let snapshot = spaceMailReleaseSnapshot
+    let taskPriority: TaskPriority
+    switch snapshot.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let task = ReviewTask(
+      title: snapshot.tone == "success" ? "Confirm SpaceMail MVP release snapshot" : "Resolve SpaceMail MVP release snapshot gaps",
+      summary: snapshot.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "spacemail-release-snapshot",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from SpaceMail MVP release snapshot."
+    )
+  }
+
   func updateReviewTask(_ task: ReviewTask) {
     guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
     let beforeDetail = reviewTasks[index].auditDetail
