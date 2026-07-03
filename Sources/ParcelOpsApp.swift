@@ -146,7 +146,15 @@ struct ParcelOpsRootView: View {
             .navigationTitle(selection.title)
         }
         .safeAreaInset(edge: .bottom) {
-          ExpandableBottomMenu(selection: $selection, isExpanded: $isMoreMenuExpanded) { section in
+          ExpandableBottomMenu(
+            selection: $selection,
+            isExpanded: $isMoreMenuExpanded,
+            readinessItems: sidebarReadinessItems,
+            mvpStatusTitle: sidebarMVPStatusTitle,
+            mvpStatusColor: sidebarMVPStatusColor,
+            mvpStatusDetail: sidebarMVPStatusDetail,
+            dailyAttentionCount: dailyAttentionCount
+          ) { section in
             withAnimation(.snappy) {
               selection = section
             }
@@ -516,6 +524,11 @@ struct ExpandableBottomMenu: View {
   @Binding var selection: ParcelSection
   @Binding var isExpanded: Bool
   @State private var routeSearchText = ""
+  var readinessItems: [(title: String, isReady: Bool)]
+  var mvpStatusTitle: String
+  var mvpStatusColor: Color
+  var mvpStatusDetail: String
+  var dailyAttentionCount: Int
   var onSelect: (ParcelSection) -> Void
   var attentionCount: (ParcelSection) -> Int?
 
@@ -560,6 +573,34 @@ struct ExpandableBottomMenu: View {
           .padding(.horizontal, 4)
 
         if !isSearching {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Label("Daily readiness", systemImage: dailyAttentionCount == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(dailyAttentionCount == 0 ? .green : .orange)
+              Spacer()
+              Badge(mvpStatusTitle, color: mvpStatusColor)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 6)], alignment: .leading, spacing: 6) {
+              ForEach(readinessItems, id: \.title) { item in
+                Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(item.isReady ? .green : .secondary)
+                  .lineLimit(1)
+              }
+            }
+
+            Text(dailyAttentionCount == 0 ? mvpStatusDetail : "Start with the badged daily routes. \(mvpStatusDetail)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(.horizontal, 8)
+          .padding(.vertical, 8)
+          .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          .padding(.horizontal, 4)
+
           Text("Dispatch, Audit, Settings, and detailed records live here. Workbench stays in the primary bar for daily exception work.")
             .font(.caption2)
             .foregroundStyle(.secondary)
