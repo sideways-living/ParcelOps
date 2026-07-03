@@ -126,6 +126,16 @@ struct ParcelOpsRootView: View {
     return "Ready for a supervised daily-flow QA pass."
   }
 
+  private var sidebarReadinessItems: [(title: String, isReady: Bool)] {
+    [
+      ("Setup", hasSpaceMailSetup),
+      ("Credential", hasSpaceMailCredentialReference),
+      ("Refresh", hasRealMailboxRefreshEvidence),
+      ("Order", hasInboxOrderHandoff),
+      ("Audit", !store.auditEvents.isEmpty)
+    ]
+  }
+
   var body: some View {
     GeometryReader { proxy in
       let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
@@ -263,6 +273,15 @@ struct ParcelOpsRootView: View {
             .foregroundStyle(.secondary)
           Spacer()
           Badge(sidebarMVPStatusTitle, color: sidebarMVPStatusColor)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 6)], alignment: .leading, spacing: 6) {
+          ForEach(sidebarReadinessItems, id: \.title) { item in
+            Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(item.isReady ? .green : .secondary)
+              .lineLimit(1)
+          }
         }
       }
 
