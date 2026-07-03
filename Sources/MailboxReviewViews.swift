@@ -161,6 +161,8 @@ struct MailboxView: View {
               store.createSpaceMailShiftHandoffNote(for: connection)
             } onCreateShiftTask: {
               store.createSpaceMailShiftReviewTask(for: connection)
+            } onCreateParserQATask: {
+              store.createSpaceMailParserQAReviewTask(for: connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }

@@ -497,6 +497,8 @@ struct IntegrationsView: View {
               store.createSpaceMailShiftHandoffNote(for: connection)
             } onCreateShiftTask: {
               store.createSpaceMailShiftReviewTask(for: connection)
+            } onCreateParserQATask: {
+              store.createSpaceMailParserQAReviewTask(for: connection)
             } onRemove: {
               store.removeSpaceMailIMAPConnection(connection)
             }
@@ -1170,6 +1172,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onCredentialClear: () -> Void
   var onCreateShiftHandoff: () -> Void
   var onCreateShiftTask: () -> Void
+  var onCreateParserQATask: () -> Void
   var onRemove: () -> Void
 
   @State private var isEditing = false
@@ -2108,6 +2111,8 @@ struct SpaceMailIMAPConnectionRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        Button("Create parser QA task", systemImage: "checklist", action: onCreateParserQATask)
+          .buttonStyle(.bordered)
       } else {
         CompactMetadataGrid(minimumWidth: 140) {
           Badge("\(parserPasses.count) parser passes", color: parserFailures.isEmpty ? .green : .orange)
@@ -2123,6 +2128,10 @@ struct SpaceMailIMAPConnectionRow: View {
             .font(.caption2)
             .foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
+        }
+        if !parserFailures.isEmpty {
+          Button("Create parser QA task", systemImage: "checklist", action: onCreateParserQATask)
+            .buttonStyle(.bordered)
         }
       }
     }

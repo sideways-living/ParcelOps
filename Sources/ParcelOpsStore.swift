@@ -11262,6 +11262,42 @@ final class ParcelOpsStore {
     )
   }
 
+  func createSpaceMailParserQAReviewTask(for connection: SpaceMailIMAPConnection) {
+    let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+    let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    let extractedIDs = connection.classifierTestResults.filter {
+      !$0.detectedOrderNumber.isPlaceholderValidationValue || !$0.detectedTrackingNumber.isPlaceholderValidationValue
+    }
+    let priority: TaskPriority = parserFailures.isEmpty && !parserChecks.isEmpty ? .normal : .high
+    let label = parserChecks.isEmpty ? "Run SpaceMail parser QA" : "Review SpaceMail parser QA"
+    let summary: String
+    if parserChecks.isEmpty {
+      summary = "Run the parser/classifier suite for \(connection.displayName) before relying on live SpaceMail order and tracking extraction."
+    } else if parserFailures.isEmpty {
+      summary = "Review SpaceMail parser QA evidence for \(connection.displayName). \(parserChecks.count) parser expectations passed and \(extractedIDs.count) sample ID extraction result\(extractedIDs.count == 1 ? "" : "s") exist."
+    } else {
+      let examples = parserFailures.prefix(3).map { "\($0.sampleName): \($0.parserStatus)" }.joined(separator: "; ")
+      summary = "Review SpaceMail parser QA failures for \(connection.displayName). \(parserFailures.count) parser expectation\(parserFailures.count == 1 ? "" : "s") need review. \(examples)"
+    }
+
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: label,
+      summary: summary,
+      priority: priority,
+      assignee: "Mailbox team"
+    )
+    logAudit(
+      action: .linked,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "SpaceMail parser QA review task created locally.",
+      afterDetail: "Parser checks: \(parserChecks.count)\nParser failures: \(parserFailures.count)\nExtracted ID samples: \(extractedIDs.count)\nTask summary: \(summary)\nNo mailbox fetch, mailbox mutation, password read, external service call, parser rule change, or full body logging occurred."
+    )
+  }
+
   private func spaceMailHandoffPriority(for tone: String) -> TaskPriority {
     switch tone {
     case "warning":
