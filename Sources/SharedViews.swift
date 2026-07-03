@@ -3417,6 +3417,195 @@ struct OperatorSupportSnapshotCard: View {
   }
 }
 
+struct OperatorTestSessionChecklistCard: View {
+  var store: ParcelOpsStore
+  var title: String = "Operator test session"
+  var detail: String = "A short evidence-led path for proving the MVP flow without guessing what to test next."
+
+  private var qa: SpaceMailQACheckSummary {
+    store.spaceMailQACheckSummary
+  }
+
+  private var readiness: SpaceMailMVPReadinessSummary {
+    store.spaceMailMVPReadinessSummary
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var inboxLinkedOrderCount: Int {
+    Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
+  }
+
+  private var openTasksCount: Int {
+    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+  }
+
+  private var passCount: Int {
+    sessionSteps.filter(\.isComplete).count
+  }
+
+  private var sessionTone: Color {
+    if passCount == sessionSteps.count { return .green }
+    if passCount >= max(sessionSteps.count - 2, 1) { return .orange }
+    return .red
+  }
+
+  private var sessionStatus: String {
+    if passCount == sessionSteps.count { return "Ready to test" }
+    if passCount >= max(sessionSteps.count - 2, 1) { return "Nearly ready" }
+    return "Needs setup"
+  }
+
+  private var sessionSteps: [(title: String, detail: String, evidence: String, symbol: String, isComplete: Bool, color: Color)] {
+    let hasCredential = qa.checks.contains { $0.title == "Credential evidence" && $0.isComplete }
+    let hasRefresh = qa.checks.contains { $0.title == "Read-only refresh evidence" && $0.isComplete }
+    let hasFiltering = qa.checks.contains { $0.title == "Mixed-mailbox filter evidence" && $0.isComplete }
+    let hasParserEvidence = qa.checks.contains { $0.title == "Parser evidence" && $0.isComplete }
+    let hasOrderHandoff = qa.checks.contains { $0.title == "Order handoff evidence" && $0.isComplete }
+    let hasAuditTrail = qa.checks.contains { $0.title == "Audit trail evidence" && $0.isComplete }
+    let dispatchWorkCount = store.blockedShipmentManifests.count
+      + store.undispatchedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+      + store.incompleteDispatchChecklists.count
+    let hasActionQueue = openTasksCount > 0 || !store.openWorkbenchItems.isEmpty || dispatchWorkCount > 0
+
+    return [
+      (
+        "1. Confirm setup",
+        "SpaceMail connection and Keychain credential are ready before a real refresh.",
+        hasCredential ? "Credential evidence exists." : "Set or check the SpaceMail credential first.",
+        "key.horizontal.fill",
+        hasCredential,
+        hasCredential ? .green : .orange
+      ),
+      (
+        "2. Run read-only refresh",
+        "Manual SpaceMail refresh has completed or returned a clear safe result.",
+        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "No refresh summary yet.",
+        "server.rack",
+        hasRefresh,
+        hasRefresh ? .green : .orange
+      ),
+      (
+        "3. Review mixed mailbox decisions",
+        "Filtered non-order mail stays out of Inbox, while uncertain mail is held in Mailbox Monitor.",
+        latestSpaceMailSummary.map { "\($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "Run refresh or classifier tests to create evidence.",
+        "line.3.horizontal.decrease.circle",
+        hasFiltering,
+        hasFiltering ? .green : .orange
+      ),
+      (
+        "4. Validate parser output",
+        "Review detected merchant, order, tracking, destination, and parser diagnostics before creating records.",
+        hasParserEvidence ? "\(store.intakeEmails.count) intake row\(store.intakeEmails.count == 1 ? "" : "s") available." : "No parser evidence yet.",
+        "text.magnifyingglass",
+        hasParserEvidence,
+        hasParserEvidence ? .green : .orange
+      ),
+      (
+        "5. Prove Inbox-to-order handoff",
+        "Create or link one order from a confirmed intake row, then check Orders and order detail source trail.",
+        hasOrderHandoff ? "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to orders." : "No linked intake order evidence yet.",
+        "shippingbox.fill",
+        hasOrderHandoff,
+        hasOrderHandoff ? .green : .orange
+      ),
+      (
+        "6. Check follow-up queues",
+        "Workbench, Dispatch, and Tasks should show the relevant local follow-up context for the order.",
+        hasActionQueue ? "\(store.openWorkbenchItems.count) workbench item\(store.openWorkbenchItems.count == 1 ? "" : "s"), \(openTasksCount) task/handoff item\(openTasksCount == 1 ? "" : "s"), \(dispatchWorkCount) dispatch item\(dispatchWorkCount == 1 ? "" : "s")." : "No active local follow-up queue evidence yet.",
+        "rectangle.stack.badge.person.crop.fill",
+        hasActionQueue,
+        hasActionQueue ? .green : .orange
+      ),
+      (
+        "7. Confirm Audit",
+        "Audit should show setup, refresh, parser, intake, order, task, and review actions as local activity.",
+        hasAuditTrail ? "\(store.auditEvents.count) audit event\(store.auditEvents.count == 1 ? "" : "s") available." : "No intake/order audit evidence yet.",
+        "list.clipboard.fill",
+        hasAuditTrail,
+        hasAuditTrail ? .green : .orange
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: title, symbol: "checkmark.rectangle.stack.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "checkmark.rectangle.stack.fill")
+          .font(.title3)
+          .foregroundStyle(sessionTone)
+          .frame(width: 28)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(detail)
+            .font(.headline)
+          Text(readiness.nextAction)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(sessionStatus, color: sessionTone)
+      }
+
+      MetricStrip(items: [
+        ("Session", "\(passCount)/\(sessionSteps.count)", sessionTone),
+        ("RC evidence", "\(qa.completedCount)/\(qa.totalCount)", qa.completedCount == qa.totalCount ? .green : .orange),
+        ("Inbox rows", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .secondary : .blue),
+        ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
+        ("Open work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .secondary : .purple),
+        ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .green)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 245), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(sessionSteps.enumerated()), id: \.offset) { _, step in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(step.title, systemImage: step.isComplete ? "checkmark.circle.fill" : step.symbol)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(step.color)
+            Text(step.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(step.evidence)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(step.color)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      CompactActionRow {
+        Button("Seed demo workflow", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { OrdersView(store: store) } label: { Label("Orders", systemImage: "shippingbox.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Test-session boundary: this checklist reads existing local state and can seed local demo records. It does not run mailbox refresh, change credentials, mutate mailbox messages, call external services, or create background jobs.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
 struct LocalDataSafetyCard: View {
   var store: ParcelOpsStore
   var compact: Bool = false
