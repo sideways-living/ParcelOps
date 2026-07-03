@@ -1067,6 +1067,8 @@ private struct InboxTriageRow: View {
         }
       }
 
+      inboxOperatorDecisionPanel
+
       CompactActionRow {
         NavigationLink {
           detailDestination
@@ -1268,6 +1270,132 @@ private struct InboxTriageRow: View {
       return .blue
     default:
       return .secondary
+    }
+  }
+
+  private var inboxOperatorDecisionPanel: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: operatorDecisionSymbol)
+        .foregroundStyle(operatorDecisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(operatorDecisionTitle)
+          .font(.caption.weight(.semibold))
+        Text(operatorDecisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 8)
+      Badge(operatorDecisionBadge, color: operatorDecisionColor)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(operatorDecisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var operatorDecisionTitle: String {
+    switch item.source {
+    case .email(let email):
+      if email.linkedOrderID != nil { return "Linked order exists" }
+      if email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue {
+        return "Confirm details before order creation"
+      }
+      return "Ready to create or link order"
+    case .importQueue(let importItem):
+      if importItem.importStatus == .blocked { return "Resolve blocked import first" }
+      if importItem.suggestedLinkedOrderID != nil { return "Suggested order context exists" }
+      return "Ready for import decision"
+    case .acceptance(let candidate):
+      if candidate.decision == .blocked { return "Resolve acceptance blocker first" }
+      if candidate.suggestedLinkedOrderID != nil { return "Ready to accept into operations" }
+      return "Choose or create the order"
+    case .parserDiagnostic:
+      return "Parser diagnostic only"
+    }
+  }
+
+  private var operatorDecisionDetail: String {
+    switch item.source {
+    case .email(let email):
+      if email.linkedOrderID != nil {
+        return "Open the linked order, verify dispatch and tracking context, then mark the intake reviewed when the source trail is clear."
+      }
+      let missing = [
+        email.detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+        email.detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+        email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+        email.detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+      ].compactMap { $0 }
+      if !missing.isEmpty {
+        return "Missing or weak: \(missing.joined(separator: ", ")). Use Reprocess/Edit in the detailed mailbox view, or create a partial order only when that is useful."
+      }
+      return "Detected fields look usable. Create a local order from this row or open the detailed intake record to link it to an existing order."
+    case .importQueue(let importItem):
+      if importItem.importStatus == .blocked {
+        return "Open Import Queue, correct the blocker, then accept or ignore the staged record."
+      }
+      if importItem.confidenceScore < 70 {
+        return "Confidence is below 70%. Check merchant, order, tracking, and destination before accepting."
+      }
+      return "Accept the import when fields look right, or create/link an order if the suggested context is missing."
+    case .acceptance(let candidate):
+      if candidate.decision == .blocked {
+        return "Open Acceptance Review and resolve the blocker before accepting this source record."
+      }
+      if candidate.suggestedLinkedOrderID == nil {
+        return "Create a new local order or link an existing one before accepting the source record."
+      }
+      return "The source record has linked order context. Accept it when the comparison looks correct."
+    case .parserDiagnostic:
+      return "This row does not represent a new email. Reprocess the stored preview or create a task for parser follow-up."
+    }
+  }
+
+  private var operatorDecisionBadge: String {
+    switch item.source {
+    case .email(let email):
+      if email.linkedOrderID != nil { return "Verify" }
+      if email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue { return "Check" }
+      return "Ready"
+    case .importQueue(let importItem):
+      return importItem.importStatus == .blocked ? "Blocked" : "Decide"
+    case .acceptance(let candidate):
+      return candidate.decision == .blocked ? "Blocked" : "Accept"
+    case .parserDiagnostic:
+      return "Diagnostic"
+    }
+  }
+
+  private var operatorDecisionColor: Color {
+    switch item.source {
+    case .email(let email):
+      if email.linkedOrderID != nil { return .blue }
+      if email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue { return .orange }
+      return .green
+    case .importQueue(let importItem):
+      return importItem.importStatus == .blocked ? .red : .teal
+    case .acceptance(let candidate):
+      return candidate.decision == .blocked ? .red : .green
+    case .parserDiagnostic:
+      return .orange
+    }
+  }
+
+  private var operatorDecisionSymbol: String {
+    switch item.source {
+    case .email(let email):
+      if email.linkedOrderID != nil { return "link.circle.fill" }
+      if email.detectedOrderNumber.isPlaceholderValidationValue || email.detectedTrackingNumber.isPlaceholderValidationValue { return "exclamationmark.triangle.fill" }
+      return "checkmark.circle.fill"
+    case .importQueue(let importItem):
+      return importItem.importStatus == .blocked ? "xmark.octagon.fill" : "tray.and.arrow.down.fill"
+    case .acceptance(let candidate):
+      return candidate.decision == .blocked ? "xmark.octagon.fill" : "checkmark.seal.fill"
+    case .parserDiagnostic:
+      return "text.magnifyingglass"
     }
   }
 }
