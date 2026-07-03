@@ -126,6 +126,44 @@ struct DashboardView: View {
   private var spaceMailFollowUpNeedsDashboardAttention: Bool {
     spaceMailAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0
   }
+  private var spaceMailParserSuiteResults: [SpaceMailClassifierTestResult] {
+    store.spaceMailIMAPConnections.flatMap(\.classifierTestResults)
+  }
+  private var spaceMailParserSuiteChecks: [SpaceMailClassifierTestResult] {
+    spaceMailParserSuiteResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+  }
+  private var spaceMailParserSuitePasses: [SpaceMailClassifierTestResult] {
+    spaceMailParserSuiteChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+  }
+  private var spaceMailParserSuiteFailures: [SpaceMailClassifierTestResult] {
+    spaceMailParserSuiteChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+  }
+  private var spaceMailParserExtractedIDCount: Int {
+    spaceMailParserSuiteResults.filter {
+      !$0.detectedOrderNumber.isPlaceholderValidationValue || !$0.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+  private var spaceMailParserQANeedsDashboardAttention: Bool {
+    spaceMailParserSuiteChecks.isEmpty || !spaceMailParserSuiteFailures.isEmpty
+  }
+  private var spaceMailParserQATone: Color {
+    if spaceMailParserSuiteChecks.isEmpty { return .secondary }
+    return spaceMailParserSuiteFailures.isEmpty ? .green : .orange
+  }
+  private var spaceMailParserQATitle: String {
+    if spaceMailParserSuiteChecks.isEmpty { return "Run parser QA before relying on live intake" }
+    if !spaceMailParserSuiteFailures.isEmpty { return "Review parser QA failures" }
+    return "Parser QA passed"
+  }
+  private var spaceMailParserQADetail: String {
+    if spaceMailParserSuiteChecks.isEmpty {
+      return "The parser/classifier suite has not been run for SpaceMail. Run it from Mailbox Monitor before treating extracted order and tracking numbers as trusted."
+    }
+    if !spaceMailParserSuiteFailures.isEmpty {
+      return "\(spaceMailParserSuiteFailures.count) parser expectation failed. Review the sample result before creating orders from similar SpaceMail messages."
+    }
+    return "\(spaceMailParserSuitePasses.count) parser expectations passed with \(spaceMailParserExtractedIDCount) sample ID extraction result\(spaceMailParserExtractedIDCount == 1 ? "" : "s")."
+  }
   private var setupPlaceholderReviewItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { $0.source == .setupPlaceholder }
   }
@@ -266,6 +304,7 @@ struct DashboardView: View {
         LocalDemoWorkflowStatusCard(store: store)
         DashboardReleaseCandidateQACard(store: store)
         FirstLiveMailboxTestCard(store: store)
+        spaceMailParserQAPanel
         spaceMailFollowUpPanel
         dailyOperatorStart
 
@@ -811,6 +850,72 @@ struct DashboardView: View {
     }
   }
 
+  @ViewBuilder
+  private var spaceMailParserQAPanel: some View {
+    if spaceMailParserQANeedsDashboardAttention {
+      SettingsPanel(title: "SpaceMail parser QA", symbol: "text.magnifyingglass") {
+        VStack(alignment: .leading, spacing: 12) {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: spaceMailParserSuiteChecks.isEmpty ? "exclamationmark.magnifyingglass" : "exclamationmark.triangle.fill")
+              .foregroundStyle(spaceMailParserQATone)
+              .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+              Text(spaceMailParserQATitle)
+                .font(.headline)
+              Text(spaceMailParserQADetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+            Badge(spaceMailParserSuiteChecks.isEmpty ? "Not run" : "Needs review", color: spaceMailParserQATone)
+          }
+
+          MetricStrip(items: [
+            ("Checks", "\(spaceMailParserSuiteChecks.count)", spaceMailParserSuiteChecks.isEmpty ? .secondary : .blue),
+            ("Passed", "\(spaceMailParserSuitePasses.count)", spaceMailParserSuiteFailures.isEmpty && !spaceMailParserSuiteChecks.isEmpty ? .green : .secondary),
+            ("Failures", "\(spaceMailParserSuiteFailures.count)", spaceMailParserSuiteFailures.isEmpty ? .green : .orange),
+            ("IDs", "\(spaceMailParserExtractedIDCount)", spaceMailParserExtractedIDCount == 0 ? .secondary : .blue)
+          ])
+
+          if !spaceMailParserSuiteFailures.isEmpty {
+            CompactList(title: "Parser failures", symbol: "exclamationmark.triangle.fill") {
+              ForEach(spaceMailParserSuiteFailures.prefix(3)) { result in
+                NavigationLink {
+                  MailboxView(store: store)
+                } label: {
+                  CompactRow(
+                    title: result.sampleName,
+                    detail: result.parserStatus,
+                    badge: "Parser",
+                    color: .orange
+                  )
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Open Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Open Inbox", systemImage: "tray.full.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
   private var dailyOperatorStart: some View {
     VStack(alignment: .leading, spacing: 16) {
       AnalyticsSection(title: "What needs attention now", symbol: "exclamationmark.triangle.fill") {
@@ -942,6 +1047,7 @@ struct DashboardView: View {
               ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
               ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
               ("Mailbox", "\(spaceMailHealthAttentionCount)", spaceMailHealthAttentionCount == 0 ? .green : .orange),
+              ("Parser QA", spaceMailParserSuiteChecks.isEmpty ? "Not run" : "\(spaceMailParserSuitePasses.count)/\(spaceMailParserSuiteChecks.count)", spaceMailParserQATone),
               ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
               ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
             ])
