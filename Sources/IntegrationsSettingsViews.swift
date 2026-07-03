@@ -3188,6 +3188,8 @@ struct SettingsView: View {
             }
           }
         }
+
+          OperatorSupportSnapshotCard(store: store, title: "Setup support snapshot", detail: "Current mailbox, credential, source trail, and audit readiness.")
         }
 
         if showsLocalOnlyStatus {

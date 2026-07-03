@@ -15,6 +15,7 @@ struct MVPSetupView: View {
         header
         MVPUsableVersionPanel(store: store)
         OperatorMVPReadinessCard(store: store)
+        OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
 
         MVPWorkflowGuide(
           title: "First usable workflow",

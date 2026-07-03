@@ -3252,6 +3252,171 @@ struct SpaceMailPrimaryStatusStrip: View {
   }
 }
 
+struct OperatorSupportSnapshotCard: View {
+  var store: ParcelOpsStore
+  var title: String = "Operator support snapshot"
+  var detail: String = "Current local readiness and recovery context for hands-on testing."
+
+  private var readiness: SpaceMailMVPReadinessSummary {
+    store.spaceMailMVPReadinessSummary
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var activeSpaceMailConnection: SpaceMailIMAPConnection? {
+    store.spaceMailIMAPConnections.first
+  }
+
+  private var inboxLinkedOrderCount: Int {
+    Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
+  }
+
+  private var inboxCreatedOrderCount: Int {
+    store.orders.filter(\.isInboxCreatedLocalOrder).count
+  }
+
+  private var openDailyWorkCount: Int {
+    store.reviewIntakeEmails.count
+      + store.importQueueItemsNeedingReview.count
+      + store.acceptanceRecordsNeedingReview.count
+      + store.reviewOrders.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+  }
+
+  private var credentialReady: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var supportTone: Color {
+    if store.spaceMailIMAPConnections.isEmpty || !credentialReady { return .orange }
+    if latestSpaceMailSummary?.tone == "warning" { return .red }
+    if readiness.completedCount < readiness.totalCount { return .orange }
+    return .green
+  }
+
+  private var supportBadge: String {
+    if store.spaceMailIMAPConnections.isEmpty { return "Setup needed" }
+    if !credentialReady { return "Credential needed" }
+    if latestSpaceMailSummary?.tone == "warning" { return "Check mailbox" }
+    if readiness.completedCount < readiness.totalCount { return "In progress" }
+    return "Ready"
+  }
+
+  private var mailboxModeText: String {
+    activeSpaceMailConnection?.mailboxMode.rawValue ?? "Not configured"
+  }
+
+  private var latestRefreshText: String {
+    guard let latestSpaceMailSummary else {
+      return "No SpaceMail refresh summary yet."
+    }
+    return "\(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.duplicateCount) duplicate, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+  }
+
+  private var supportTiles: [(String, String, String, Color)] {
+    [
+      (
+        "Readiness",
+        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail MVP checks complete. \(readiness.nextAction)",
+        "checklist.checked",
+        readiness.completedCount == readiness.totalCount ? .green : .orange
+      ),
+      (
+        "Mailbox mode",
+        "\(mailboxModeText). Mixed mailbox mode keeps filtered non-order mail out of Inbox and holds uncertain mail for review.",
+        "line.3.horizontal.decrease.circle",
+        latestSpaceMailSummary?.filteredCount ?? 0 > 0 ? .teal : .secondary
+      ),
+      (
+        "Inbox-to-order trail",
+        "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to order records; \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s") available for follow-up.",
+        "link.badge.plus",
+        inboxLinkedOrderCount > 0 ? .green : .orange
+      ),
+      (
+        "Local audit",
+        "\(store.auditEvents.count) audit event\(store.auditEvents.count == 1 ? "" : "s") recorded. Use Audit for exact action history and safe diagnostics.",
+        "list.clipboard.fill",
+        store.auditEvents.isEmpty ? .orange : .purple
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: title, symbol: "lifepreserver.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "lifepreserver.fill")
+          .font(.title3)
+          .foregroundStyle(supportTone)
+          .frame(width: 28)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(detail)
+            .font(.headline)
+          Text(latestRefreshText)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(supportBadge, color: supportTone)
+      }
+
+      MetricStrip(items: [
+        ("Readiness", "\(readiness.completedCount)/\(readiness.totalCount)", readiness.completedCount == readiness.totalCount ? .green : .orange),
+        ("Daily work", "\(openDailyWorkCount)", openDailyWorkCount == 0 ? .green : .orange),
+        ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
+        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", latestSpaceMailSummary == nil ? .secondary : .blue),
+        ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) == 0 ? .secondary : .teal),
+        ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) == 0) ? .secondary : .orange)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(supportTiles.enumerated()), id: \.offset) { _, tile in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(tile.0, systemImage: tile.2)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(tile.3)
+            Text(tile.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(tile.3.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { OrdersView(store: store) } label: { Label("Orders", systemImage: "shippingbox.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { MVPSetupView(store: store) } label: { Label("MVP Setup", systemImage: "checklist.checked") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Support boundary: this snapshot reads existing local records only. It does not run IMAP refresh, change Keychain credentials, mutate mailbox messages, call external services, or alter JSON persistence.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
 struct LocalDataSafetyCard: View {
   var store: ParcelOpsStore
   var compact: Bool = false

@@ -195,6 +195,7 @@ struct DashboardView: View {
           symbol: "map.fill"
         )
         MVPReadinessCallout(store: store)
+        OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
         OperatorMVPReadinessCard(store: store)
         MVPHandsOnDashboardStatus(store: store)
         LocalDemoWorkflowStatusCard(store: store)
