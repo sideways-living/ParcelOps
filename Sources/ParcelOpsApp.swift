@@ -567,6 +567,7 @@ struct ParcelNavigationGroup: Identifiable {
           || section.title.lowercased().contains(trimmed)
           || section.shortTitle.lowercased().contains(trimmed)
           || section.rawValue.lowercased().contains(trimmed)
+          || section.searchKeywords.joined(separator: " ").lowercased().contains(trimmed)
       }
       guard !sections.isEmpty else { return nil }
       return ParcelNavigationGroup(title: group.title, sections: sections)

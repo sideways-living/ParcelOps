@@ -198,6 +198,101 @@ enum ParcelSection: String, CaseIterable, Identifiable {
     case .settings: "gearshape.fill"
     }
   }
+
+  var searchKeywords: [String] {
+    switch self {
+    case .dashboard:
+      ["home", "start", "daily", "status", "summary", "mvp", "support", "handoff", "qa"]
+    case .inbox:
+      ["mail", "email", "spacemail", "triage", "intake", "parser", "order email", "uncertain", "filtered"]
+    case .orders:
+      ["order", "tracking", "recipient", "customer", "source trail", "inbox-created", "handoff"]
+    case .workbench:
+      ["exception", "blocked", "validation", "reconciliation", "high priority", "follow up", "problem"]
+    case .dispatch:
+      ["manifest", "readiness", "ready", "outbound", "handoff", "courier", "ship", "reopened"]
+    case .mvpSetup:
+      ["mvp", "setup", "qa", "release", "runbook", "troubleshooting", "testing", "support"]
+    case .mailbox:
+      ["mail", "email", "spacemail", "imap", "microsoft", "graph", "oauth", "classifier", "parser", "uncertain", "filtered", "refresh"]
+    case .review:
+      ["needs review", "review queue", "attention", "blocked", "parser", "mailbox", "evidence"]
+    case .wishlist:
+      ["wishlist", "wanted", "purchase idea", "future order"]
+    case .integrations:
+      ["settings", "sources", "spacemail", "imap", "microsoft", "graph", "oauth", "shopify", "credential", "keychain", "folder"]
+    case .automation:
+      ["automation", "flow", "rules", "planned automation", "local rule"]
+    case .tracking:
+      ["carrier", "tracking", "event", "warning", "delivery", "in transit", "shipment"]
+    case .evidence:
+      ["attachment", "proof", "document", "file reference", "photo", "record"]
+    case .tasks:
+      ["task", "handoff", "follow-up", "draft", "assignee", "due", "action queue"]
+    case .handoffNotes:
+      ["handoff", "shift", "team note", "acknowledge", "complete", "reopen"]
+    case .slaPolicies:
+      ["sla", "policy", "timing", "service level", "deadline", "threshold"]
+    case .exceptionPlaybooks:
+      ["exception", "playbook", "procedure", "instructions", "blocked", "missing tracking"]
+    case .communication:
+      ["draft", "template", "message", "email", "communication", "outbound placeholder"]
+    case .contacts:
+      ["contact", "person", "team", "supplier", "carrier", "email"]
+    case .customerProfiles:
+      ["customer", "recipient", "profile", "team", "organisation", "delivery preference"]
+    case .destinationAddresses:
+      ["address", "destination", "recipient", "delivery location", "city", "region"]
+    case .deliveryInstructions:
+      ["instruction", "access", "delivery window", "constraint", "carrier note"]
+    case .packageContents:
+      ["package", "contents", "items", "quantity", "verification", "discrepancy"]
+    case .costsBudgets:
+      ["cost", "budget", "reimbursement", "expense", "approval", "gst", "tax"]
+    case .returnsClaims:
+      ["return", "claim", "refund", "exchange", "damage", "missing item", "carrier claim"]
+    case .procurement:
+      ["procurement", "purchase", "buyer", "approval", "vendor", "requested items"]
+    case .receivingInspections:
+      ["receiving", "inspection", "condition", "quantity", "discrepancy", "received"]
+    case .inventoryReceipts:
+      ["inventory", "receipt", "stock", "storage", "handoff", "accepted", "rejected"]
+    case .storageLocations:
+      ["storage", "location", "bin", "shelf", "cage", "locker", "capacity"]
+    case .custodyChain:
+      ["custody", "possession", "transfer", "returned", "location", "handoff"]
+    case .labelReferences:
+      ["label", "barcode", "qr", "tracking label", "shelf label", "scan"]
+    case .scanSessions:
+      ["scan", "session", "barcode", "qr", "verify", "mismatch", "label"]
+    case .shipmentManifests:
+      ["manifest", "batch", "dispatch", "courier", "handoff", "outbound"]
+    case .dispatchReadiness:
+      ["dispatch", "readiness", "checklist", "ready", "blocked", "handoff"]
+    case .accounts:
+      ["account", "credential", "login", "password", "secret placeholder", "keychain"]
+    case .vendorProfiles:
+      ["vendor", "supplier", "carrier", "store", "profile", "account manager"]
+    case .shipmentGroups:
+      ["shipment", "group", "parcel", "order group", "tracking", "risk"]
+    case .importQueue:
+      ["import", "queue", "staged", "csv", "mailbox import", "blocked import"]
+    case .acceptanceReview:
+      ["acceptance", "accept", "candidate", "review", "ready", "ignore", "reopen"]
+    case .reconciliation:
+      ["reconciliation", "mismatch", "duplicate", "compare", "conflict", "reconcile"]
+    case .timeline:
+      ["timeline", "activity", "history", "watchlist", "event"]
+    case .validation:
+      ["validation", "validate", "issue", "missing link", "field", "quality"]
+    case .search:
+      ["search", "find", "global", "lookup", "query"]
+    case .audit:
+      ["audit", "activity", "history", "log", "diagnostic", "trace", "event"]
+    case .settings:
+      ["settings", "local only", "privacy", "setup", "credential", "source", "configuration"]
+    }
+  }
 }
 
 struct TrackedOrder: Identifiable, Hashable, Codable {
