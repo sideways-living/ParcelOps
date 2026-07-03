@@ -5,6 +5,7 @@ struct TasksView: View {
 
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var queueSearchText = ""
+  @State private var mvpFeedbackMessage: String?
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.reviewTasks
@@ -119,6 +120,29 @@ struct TasksView: View {
     }
   }
 
+  private var releaseSnapshot: SpaceMailReleaseSnapshot {
+    store.spaceMailReleaseSnapshot
+  }
+
+  private var releaseSnapshotTone: Color {
+    switch releaseSnapshot.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
+  }
+
+  private var openReleaseSnapshotTaskCount: Int {
+    mvpFollowUpItems.filter { item in
+      item.linkedEntityID == "spacemail-release-snapshot" && item.status != .completed
+    }.count
+  }
+
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
     guard draft.linkedEntityType == .order,
       let orderID = UUID(uuidString: draft.linkedEntityID)
@@ -133,6 +157,7 @@ struct TasksView: View {
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
         taskNextActionPanel
         taskScopePanel
+        mvpValidationPanel
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
         draftFollowUpPanel
@@ -338,6 +363,88 @@ struct TasksView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var mvpValidationPanel: some View {
+    SettingsPanel(title: "MVP validation follow-up", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: openReleaseSnapshotTaskCount > 0 ? "checklist.checked" : "doc.badge.plus")
+            .font(.title3)
+            .foregroundStyle(releaseSnapshotTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(openReleaseSnapshotTaskCount > 0 ? "Release snapshot task is active" : "Create a release snapshot task when QA starts")
+              .font(.headline)
+            Text(openReleaseSnapshotTaskCount > 0
+              ? "The SpaceMail MVP release snapshot has an open task in this queue. Refresh it when setup or test evidence changes."
+              : "Use this to turn the current MVP snapshot into owned work before a hands-on test session.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(releaseSnapshot.tone.capitalized, color: releaseSnapshotTone)
+        }
+
+        MetricStrip(items: releaseSnapshot.metrics.map { metric in
+          (metric.title, metric.value, taskMetricColor(for: metric.tone))
+        })
+
+        Text(releaseSnapshot.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          Button(openReleaseSnapshotTaskCount > 0 ? "Refresh QA task" : "Create QA task", systemImage: "checklist") {
+            store.createReviewTaskFromSpaceMailReleaseSnapshot()
+            mvpFeedbackMessage = openReleaseSnapshotTaskCount > 0
+              ? "Existing release snapshot task refreshed from current local state."
+              : "Release snapshot QA task created. It now appears in the MVP follow-up section."
+          }
+          .buttonStyle(.borderedProminent)
+
+          NavigationLink {
+            MVPSetupView(store: store)
+          } label: {
+            Label("MVP Setup", systemImage: "wrench.and.screwdriver.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if let mvpFeedbackMessage {
+          Label(mvpFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption)
+            .foregroundStyle(.green)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+  }
+
+  private func taskMetricColor(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
     }
   }
 
