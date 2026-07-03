@@ -14,6 +14,7 @@ struct MVPSetupView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         MVPUsableVersionPanel(store: store)
+        MVPDevelopmentStatusPanel(store: store)
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
         OperatorTestSessionChecklistCard(store: store, detail: "Use this evidence checklist for one complete hands-on MVP validation pass.")
@@ -81,6 +82,162 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPDevelopmentStatusPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasRealRefreshEvidence: Bool {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+  }
+
+  private var hasInboxOrderHandoff: Bool {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var liveCapabilityCount: Int {
+    [
+      true,
+      hasSpaceMailSetup,
+      hasSpaceMailCredential,
+      hasRealRefreshEvidence,
+      hasInboxOrderHandoff,
+      !store.auditEvents.isEmpty
+    ].filter { $0 }.count
+  }
+
+  private var maturityTitle: String {
+    if liveCapabilityCount >= 5 { return "MVP is usable for supervised daily-flow testing" }
+    if liveCapabilityCount >= 3 { return "MVP is usable, but needs a complete hands-on pass" }
+    return "MVP shell is usable, live intake setup still needs work"
+  }
+
+  private var maturityDetail: String {
+    if liveCapabilityCount >= 5 {
+      return "The app now has local persistence, manual SpaceMail intake, mixed-mailbox filtering, Inbox triage, order handoff, Tasks, Dispatch context, Audit, and Settings. The next work should be QA, simplification, and specific gaps found during use."
+    }
+    if liveCapabilityCount >= 3 {
+      return "The main local workflow is present. Run one complete SpaceMail-to-Inbox-to-Order-to-Audit pass before treating it as operator-ready."
+    }
+    return "Navigation, local records, and persistence are in place. Finish SpaceMail setup, credential check, and one manual refresh before judging the live intake workflow."
+  }
+
+  private var maturityColor: Color {
+    if liveCapabilityCount >= 5 { return .green }
+    if liveCapabilityCount >= 3 { return .teal }
+    return .orange
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Development status", symbol: "chart.line.uptrend.xyaxis") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: liveCapabilityCount >= 5 ? "checkmark.seal.fill" : "hammer.fill")
+            .foregroundStyle(maturityColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(maturityTitle)
+              .font(.headline)
+            Text(maturityDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(liveCapabilityCount)/6 signals", color: maturityColor)
+        }
+
+        MetricStrip(items: [
+          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
+          ("Credential", hasSpaceMailCredential ? "Ready" : "Needed", hasSpaceMailCredential ? .green : .orange),
+          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", hasRealRefreshEvidence ? .blue : .secondary),
+          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Inbox orders", hasInboxOrderHandoff ? "Seen" : "Needed", hasInboxOrderHandoff ? .green : .orange),
+          ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
+          statusBlock(
+            title: "Usable now",
+            detail: "Local JSON persistence, primary navigation, SpaceMail manual refresh boundary, mixed-mailbox filtering, Inbox triage, local order handoff, Tasks, Dispatch context, Audit, and Settings.",
+            symbol: "checkmark.circle.fill",
+            color: .green
+          )
+          statusBlock(
+            title: "Needs QA evidence",
+            detail: "One repeatable pass through SpaceMail refresh, uncertain/filtered review, create or link order, Workbench follow-up, Dispatch setup, Task completion, Audit, quit and reopen.",
+            symbol: "checklist.checked",
+            color: .orange
+          )
+          statusBlock(
+            title: "Later integrations",
+            detail: "Shopify, carrier APIs, outbound email, background sync, notifications, OCR, scanners, calendars, and file pickers remain intentionally disconnected.",
+            symbol: "network.slash",
+            color: .secondary
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            DashboardView(store: store)
+          } label: {
+            Label("Dashboard", systemImage: "square.grid.2x2.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func statusBlock(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
