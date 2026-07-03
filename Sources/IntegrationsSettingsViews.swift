@@ -455,6 +455,8 @@ struct IntegrationsView: View {
               store.dismissAllUncertainSpaceMailMessages(for: connection)
             } onDismissAllFiltered: {
               store.dismissAllFilteredSpaceMailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainSpaceMailMessages(for: connection)
             } onTaskFromUncertain: { uncertainMessage in
               store.createReviewTask(from: uncertainMessage, connection: connection)
             } onDraftFromUncertain: { uncertainMessage in
@@ -1147,6 +1149,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onPromoteFiltered: (SpaceMailFilteredMessage) -> Void
   var onDismissAllUncertain: () -> Void
   var onDismissAllFiltered: () -> Void
+  var onCreateTasksForAllUncertain: () -> Void
   var onTaskFromUncertain: (SpaceMailUncertainMessage) -> Void
   var onDraftFromUncertain: (SpaceMailUncertainMessage) -> Void
   var onTaskFromFiltered: (SpaceMailFilteredMessage) -> Void
@@ -1643,6 +1646,9 @@ struct SpaceMailIMAPConnectionRow: View {
       if uncertainCount > 0 || filteredCount > 0 {
         CompactActionRow {
           if uncertainCount > 0 {
+            Button("Task all uncertain", systemImage: "checklist") {
+              onCreateTasksForAllUncertain()
+            }
             Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
           }
           if filteredCount > 0 {

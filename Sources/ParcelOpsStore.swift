@@ -11103,6 +11103,79 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTasksForAllUncertainSpaceMailMessages(for connection: SpaceMailIMAPConnection) {
+    guard let current = spaceMailIMAPConnections.first(where: { $0.id == connection.id }) else { return }
+    let pending = current.uncertainMessages
+    guard !pending.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .spaceMailIMAPConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "No uncertain SpaceMail previews needed task creation.",
+        afterDetail: "The local uncertain review queue is empty. No mailbox fetch, Inbox import, task creation, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    var createdCount = 0
+    var skippedCount = 0
+    for message in pending {
+      let hasExistingOpenTask = reviewTasks.contains { task in
+        task.status != .completed
+          && task.linkedEntityType == .integration
+          && task.linkedEntityID == connection.id.uuidString
+          && task.summary.localizedCaseInsensitiveContains(message.providerMessageID)
+      }
+      if hasExistingOpenTask {
+        skippedCount += 1
+        continue
+      }
+
+      let label = message.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : message.subject
+      let task = ReviewTask(
+        title: "Follow up uncertain SpaceMail: \(safeAuditPreview(label, limit: 80))",
+        summary: "Review uncertain SpaceMail preview from \(safeAuditPreview(message.sender, limit: 120)). Reason: \(message.reason). Provider message ID: \(message.providerMessageID). Import only if this is real order work; otherwise dismiss locally.",
+        linkedEntityType: .integration,
+        linkedEntityID: connection.id.uuidString,
+        priority: .normal,
+        dueDate: "Tomorrow",
+        assignee: "Mailbox team",
+        status: .open,
+        createdDate: Self.auditTimestamp(),
+        completedDate: nil,
+        reviewState: .needsReview
+      )
+      addReviewTask(task, summary: "Review task created from uncertain SpaceMail preview.")
+      createdCount += 1
+    }
+
+    updateSpaceMailIMAPConnection(connection) { draft in
+      appendSpaceMailRefreshHistory(
+        SpaceMailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain task batch",
+          status: createdCount > 0 ? "Tasks created" : "No new tasks",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: skippedCount,
+          filteredNonOrderCount: draft.filteredMessages.count,
+          uncertainCount: draft.uncertainMessages.count,
+          summary: "Created \(createdCount) review task\(createdCount == 1 ? "" : "s") from uncertain previews. Skipped \(skippedCount) preview\(skippedCount == 1 ? "" : "s") with existing open tasks."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review tasks created from uncertain SpaceMail previews.",
+      afterDetail: "Created: \(createdCount)\nSkipped existing open task: \(skippedCount)\nPending uncertain previews: \(pending.count)\nNo mailbox fetch, Inbox import, duplicate metadata change, password, auth string, or mailbox mutation occurred."
+    )
+  }
+
   func createReviewTask(from filteredMessage: SpaceMailFilteredMessage, connection: SpaceMailIMAPConnection) {
     createReviewTask(
       linkedEntityType: .integration,

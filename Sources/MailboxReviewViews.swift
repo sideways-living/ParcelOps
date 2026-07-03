@@ -119,6 +119,8 @@ struct MailboxView: View {
               store.dismissAllUncertainSpaceMailMessages(for: connection)
             } onDismissAllFiltered: {
               store.dismissAllFilteredSpaceMailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainSpaceMailMessages(for: connection)
             } onTaskFromUncertain: { uncertainMessage in
               store.createReviewTask(from: uncertainMessage, connection: connection)
             } onDraftFromUncertain: { uncertainMessage in
