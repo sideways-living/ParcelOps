@@ -7239,8 +7239,34 @@ final class ParcelOpsStore {
       taskPriority = .low
     }
 
+    let taskTitle = snapshot.tone == "success" ? "Confirm SpaceMail MVP release snapshot" : "Resolve SpaceMail MVP release snapshot gaps"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "spacemail-release-snapshot"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = snapshot.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing SpaceMail MVP release snapshot review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current local release snapshot. No duplicate task was created."
+      )
+      return
+    }
+
     let task = ReviewTask(
-      title: snapshot.tone == "success" ? "Confirm SpaceMail MVP release snapshot" : "Resolve SpaceMail MVP release snapshot gaps",
+      title: taskTitle,
       summary: snapshot.reportText,
       linkedEntityType: .integration,
       linkedEntityID: "spacemail-release-snapshot",
