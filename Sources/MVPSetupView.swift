@@ -32,6 +32,7 @@ struct MVPSetupView: View {
         MVPReleaseCandidateQACard(store: store)
         MVPReleaseEvidenceReport(store: store)
         MVPReleaseRunbook(store: store)
+        MVPHandsOnTroubleshootingGuide(store: store)
 
         SpaceMailOperatorGuidanceStack(store: store)
 
@@ -1067,6 +1068,181 @@ struct MVPReleaseRunbook: View {
         }
       }
     }
+  }
+}
+
+struct MVPHandsOnTroubleshootingGuide: View {
+  var store: ParcelOpsStore
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestMailboxDetail: String {
+    guard let summary = latestSpaceMailSummary else {
+      return "No refresh summary yet. Start with the local demo workflow, then use SpaceMail only when credentials are ready."
+    }
+    return "\(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+  }
+
+  private var issueTone: Color {
+    if !hasSpaceMailSetup || !hasSpaceMailCredential { return .orange }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    return .teal
+  }
+
+  private var issueTitle: String {
+    if !hasSpaceMailSetup { return "Most issues can be tested with the local demo first" }
+    if !hasSpaceMailCredential { return "SpaceMail setup exists; credential still needs attention" }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+      return "SpaceMail has uncertain messages to review"
+    }
+    return "Use this guide when Xcode, setup, or mailbox testing stalls"
+  }
+
+  private var quickChecks: [(String, String, String, Color)] {
+    [
+      (
+        "Xcode signing error",
+        "If Xcode says a development team is required, open the ParcelOps target, choose Signing & Capabilities, select your team, then run again. This is local Xcode state and should not be committed unless deliberately shared.",
+        "person.badge.key.fill",
+        .orange
+      ),
+      (
+        "LLDB already attached",
+        "If Xcode says it cannot attach to a process more than once, stop the running app, quit any duplicate ParcelOps windows if needed, then run again. A clean Xcode restart is acceptable.",
+        "ladybug.fill",
+        .purple
+      ),
+      (
+        "Settings sheet too tall",
+        "Setup editors are intended to scroll with Save and Cancel reachable at the bottom. If actions are hidden, use the Settings setup search to narrow the page and reopen the editor.",
+        "rectangle.and.pencil.and.ellipsis",
+        .teal
+      ),
+      (
+        "SwiftPM build database error",
+        "A command-line build can compile/link successfully and still report a generated .build/build.db disk I/O error. Clean generated build data before treating it as a source failure.",
+        "hammer.fill",
+        .secondary
+      ),
+      (
+        "SpaceMail imports nothing",
+        "Mixed mailbox mode is conservative. Filtered non-order mail stays out of Inbox; uncertain messages stay in Mailbox Monitor; only strong order/tracking evidence imports automatically.",
+        "line.3.horizontal.decrease.circle",
+        .blue
+      ),
+      (
+        "Duplicate mailbox rows",
+        "Duplicate provider message IDs should not create duplicate intake. Use refresh summaries, reprocess, or duplicate-refresh audit entries to confirm existing rows were updated or skipped.",
+        "doc.on.doc.fill",
+        .green
+      )
+    ]
+  }
+
+  private var recoverySteps: [(String, String, String, Color)] {
+    [
+      ("1. Prove local flow", "Seed the demo workflow from Dashboard or MVP Setup. This avoids relying on live mailbox content while testing UI and persistence.", "wand.and.stars", .green),
+      ("2. Check source trail", "Open Inbox, Orders, and order detail. Confirm the source trail points back to intake/import/acceptance context.", "link.badge.plus", .blue),
+      ("3. Use Mailbox Monitor", "For SpaceMail, review latest refresh counts, uncertain examples, filtered examples, classifier tests, and credential status before changing parser rules.", "server.rack", .teal),
+      ("4. Confirm Audit", "Use Audit to verify local actions. Technical SpaceMail diagnostics can stay hidden unless you are debugging parser/provider internals.", "list.clipboard.fill", .purple),
+      ("5. Keep generated noise out", "Do not commit xcuserdata, DerivedData, local signing/team changes, or accidental generated project folders unless the change is intentionally shared.", "xmark.bin.fill", .orange)
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Hands-on troubleshooting", symbol: "wrench.and.screwdriver.fill") {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "wrench.and.screwdriver.fill")
+          .foregroundStyle(issueTone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(issueTitle)
+            .font(.headline)
+          Text(latestMailboxDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(hasSpaceMailCredential ? "Ready" : "Setup", color: issueTone)
+      }
+
+      MetricStrip(items: [
+        ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
+        ("Credential", hasSpaceMailCredential ? "Keychain" : "Needed", hasSpaceMailCredential ? .green : .orange),
+        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
+        ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+        ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary),
+        ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(Array(quickChecks.enumerated()), id: \.offset) { _, item in
+          troubleshootingTile(title: item.0, detail: item.1, symbol: item.2, color: item.3)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 10) {
+        Label("Recovery order", systemImage: "arrow.triangle.2.circlepath.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(Array(recoverySteps.enumerated()), id: \.offset) { _, item in
+            troubleshootingTile(title: item.0, detail: item.1, symbol: item.2, color: item.3)
+          }
+        }
+      }
+
+      CompactActionRow {
+        Button("Seed demo workflow", systemImage: "wand.and.stars") {
+          store.seedLocalInboxOrderDemoWorkflow()
+        }
+        .buttonStyle(.borderedProminent)
+
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { IntegrationsView(store: store) } label: { Label("Settings", systemImage: "gearshape.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Troubleshooting boundary: this guide only explains local recovery steps and can seed local demo records. It does not run mailbox refresh, change credentials, mutate mailbox messages, clean build folders, edit signing, or touch external services.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func troubleshootingTile(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
