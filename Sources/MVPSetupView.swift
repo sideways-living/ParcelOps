@@ -466,6 +466,7 @@ struct MVPHandsOnReleaseChecklistRow: View {
 
 struct MVPReleaseCandidateQACard: View {
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var latestDemoOrder: TrackedOrder? {
     store.orders.first { order in
@@ -603,6 +604,30 @@ struct MVPReleaseCandidateQACard: View {
     latestDemoOrder != nil && completedDemoDispatchCount > 0
   }
 
+  private var snapshot: SpaceMailReleaseSnapshot {
+    store.spaceMailReleaseSnapshot
+  }
+
+  private var snapshotPreviewLines: [String] {
+    snapshot.reportText
+      .split(separator: "\n", omittingEmptySubsequences: false)
+      .prefix(12)
+      .map(String.init)
+  }
+
+  private var snapshotTone: Color {
+    switch snapshot.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
+  }
+
   var body: some View {
     SettingsPanel(title: "Release-candidate QA", symbol: "checkmark.seal.fill") {
       HStack(alignment: .top, spacing: 12) {
@@ -629,26 +654,61 @@ struct MVPReleaseCandidateQACard: View {
         ("Audit", "\(demoAuditCount)", demoAuditCount == 0 ? .orange : .purple)
       ])
 
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
+          Label("Current release snapshot", systemImage: "doc.plaintext.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(snapshotTone)
+          Spacer()
+          Badge(snapshot.tone.capitalized, color: snapshotTone)
+        }
+
+        Text(snapshotPreviewLines.joined(separator: "\n"))
+          .font(.caption2.monospaced())
+          .foregroundStyle(.secondary)
+          .lineLimit(14)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Text("This preview is generated from local state only. Create a QA task to preserve the full snapshot for the next tester.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(snapshotTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       CompactActionRow {
         Button(latestDemoOrder == nil ? "Seed demo workflow" : "Seed another demo", systemImage: "wand.and.stars") {
           store.seedLocalInboxOrderDemoWorkflow()
+          feedbackMessage = "Local demo workflow seeded. Review the updated snapshot and Audit trail."
         }
         .buttonStyle(.borderedProminent)
 
         Button("Create QA task", systemImage: "checklist") {
           store.createReviewTaskFromSpaceMailReleaseSnapshot()
+          feedbackMessage = "QA task created from the current release snapshot. Open Tasks to assign or complete it."
+        }
+        .buttonStyle(.bordered)
+
+        NavigationLink {
+          TasksView(store: store)
+        } label: {
+          Label("Tasks", systemImage: "checklist")
         }
         .buttonStyle(.bordered)
 
         if let order = latestDemoOrder {
           Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
             store.completeInboxDispatchHandoff(for: order)
+            feedbackMessage = "Dispatch handoff completed locally. Confirm the resulting Audit event."
           }
           .buttonStyle(.bordered)
           .disabled(!canCompleteHandoff)
 
           Button("Reopen handoff", systemImage: "arrow.counterclockwise.circle.fill") {
             store.reopenInboxDispatchHandoff(for: order)
+            feedbackMessage = "Dispatch handoff reopened locally. Review the follow-up task before retesting."
           }
           .buttonStyle(.bordered)
           .disabled(!canReopenHandoff)
@@ -667,6 +727,15 @@ struct MVPReleaseCandidateQACard: View {
           Label("Audit", systemImage: "list.clipboard.fill")
         }
         .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+          .font(.caption)
+          .foregroundStyle(.green)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
