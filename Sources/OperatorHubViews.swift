@@ -2140,6 +2140,153 @@ private struct DispatchQueueItem: Identifiable {
     if checklist.reviewState != .accepted { return 65 }
     return 35
   }
+
+  var decisionTitle: String {
+    switch source {
+    case .manifest(let record):
+      if record.dispatchStatus == .blockedNeedsReview { return "Manifest is blocked" }
+      if record.isInboxHandoffSetup && (record.dispatchStatus == .draft || record.dispatchStatus == .reopened) { return "Confirm Inbox handoff before dispatch" }
+      switch record.dispatchStatus {
+      case .draft:
+        return "Prepare manifest when details are ready"
+      case .prepared:
+        return "Ready to dispatch or block"
+      case .dispatched:
+        return "Confirm courier or team handoff"
+      case .handedOff:
+        return record.reviewState == .accepted ? "Handoff complete" : "Review completed handoff"
+      case .reopened:
+        return "Reopened manifest needs review"
+      case .blockedNeedsReview:
+        return "Manifest is blocked"
+      }
+    case .checklist(let checklist):
+      if checklist.checklistStatus == .blockedNeedsReview { return "Readiness checklist is blocked" }
+      if checklist.isInboxHandoffSetup && (checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened) { return "Confirm Inbox order readiness" }
+      switch checklist.checklistStatus {
+      case .draft:
+        return "Complete required checks"
+      case .ready:
+        return "Ready to complete or block"
+      case .completed:
+        return checklist.reviewState == .accepted ? "Checklist complete" : "Review completed checklist"
+      case .reopened:
+        return "Reopened checklist needs review"
+      case .blockedNeedsReview:
+        return "Readiness checklist is blocked"
+      }
+    }
+  }
+
+  var decisionDetail: String {
+    switch source {
+    case .manifest(let record):
+      if record.dispatchStatus == .blockedNeedsReview {
+        return "Open the manifest, resolve the blocker or assign a task, then prepare it again when the outbound work is safe."
+      }
+      if record.includedOrderIDs.isEmpty {
+        return "No included orders are linked. Add or confirm order context before treating this manifest as dispatch-ready."
+      }
+      if record.handoffLocationStorageLocationID == nil {
+        return "Handoff location is missing. Confirm where the parcel leaves custody before dispatch."
+      }
+      if record.isInboxHandoffSetup && (record.dispatchStatus == .draft || record.dispatchStatus == .reopened) {
+        return "This manifest came from Inbox-created order setup. Open the linked order and confirm intake details before dispatch."
+      }
+      switch record.dispatchStatus {
+      case .draft, .reopened:
+        return "Prepare only after carrier/courier, destination, included orders, label references, and handoff location are usable."
+      case .prepared:
+        return "Dispatch if outbound details are confirmed. Use Blocked if labels, scans, custody, or carrier details are not ready."
+      case .dispatched:
+        return "Record handoff once the courier, internal team, or handoff area has taken responsibility."
+      case .handedOff:
+        return "Mark reviewed when the local handoff trail is complete and no follow-up task is needed."
+      case .blockedNeedsReview:
+        return "Open the manifest, resolve the blocker or assign a task, then prepare it again when the outbound work is safe."
+      }
+    case .checklist(let checklist):
+      if checklist.checklistStatus == .blockedNeedsReview {
+        return "Open the checklist, record what is missing, and keep it blocked until labels, scans, custody, or requirements are fixed."
+      }
+      if checklist.orderIDs.isEmpty {
+        return "No orders are linked. Confirm order context before marking readiness complete."
+      }
+      if !checklist.missingRequirementsSummary.isPlaceholderValidationValue && !checklist.missingRequirementsSummary.isEmpty {
+        return "Missing requirements are recorded: \(checklist.missingRequirementsSummary). Mark ready only after they are resolved."
+      }
+      if checklist.isInboxHandoffSetup && (checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened) {
+        return "This checklist came from Inbox-created order setup. Confirm the linked order source trail before marking ready."
+      }
+      switch checklist.checklistStatus {
+      case .draft, .reopened:
+        return "Mark ready only after required checks, labels, scan/custody evidence, and handoff requirements look complete."
+      case .ready:
+        return "Complete once the final local checks are done, or block it if a requirement has failed."
+      case .completed:
+        return "Mark reviewed when the completed checklist has no missing local follow-up."
+      case .blockedNeedsReview:
+        return "Open the checklist, record what is missing, and keep it blocked until labels, scans, custody, or requirements are fixed."
+      }
+    }
+  }
+
+  var decisionBadge: String {
+    switch source {
+    case .manifest(let record):
+      switch record.dispatchStatus {
+      case .blockedNeedsReview: return "Blocked"
+      case .draft, .reopened: return record.isInboxHandoffSetup ? "Verify" : "Prepare"
+      case .prepared: return "Move"
+      case .dispatched: return "Handoff"
+      case .handedOff: return record.reviewState == .accepted ? "Done" : "Review"
+      }
+    case .checklist(let checklist):
+      switch checklist.checklistStatus {
+      case .blockedNeedsReview: return "Blocked"
+      case .draft, .reopened: return checklist.isInboxHandoffSetup ? "Verify" : "Check"
+      case .ready: return "Complete"
+      case .completed: return checklist.reviewState == .accepted ? "Done" : "Review"
+      }
+    }
+  }
+
+  var decisionColor: Color {
+    switch source {
+    case .manifest(let record):
+      if record.dispatchStatus == .blockedNeedsReview { return .red }
+      if record.riskLevel == .critical || record.riskLevel == .high { return .orange }
+      if record.dispatchStatus == .prepared || record.dispatchStatus == .dispatched { return .blue }
+      if record.dispatchStatus == .handedOff && record.reviewState == .accepted { return .green }
+      return record.isInboxHandoffSetup ? .purple : .teal
+    case .checklist(let checklist):
+      if checklist.checklistStatus == .blockedNeedsReview { return .red }
+      if checklist.riskLevel == .critical || checklist.riskLevel == .high { return .orange }
+      if checklist.checklistStatus == .ready { return .blue }
+      if checklist.checklistStatus == .completed && checklist.reviewState == .accepted { return .green }
+      return checklist.isInboxHandoffSetup ? .purple : .teal
+    }
+  }
+
+  var decisionSymbol: String {
+    switch source {
+    case .manifest(let record):
+      switch record.dispatchStatus {
+      case .blockedNeedsReview: return "exclamationmark.triangle.fill"
+      case .draft, .reopened: return record.isInboxHandoffSetup ? "tray.and.arrow.down.fill" : "list.bullet.clipboard.fill"
+      case .prepared: return "paperplane.fill"
+      case .dispatched: return "person.badge.shield.checkmark.fill"
+      case .handedOff: return "checkmark.seal.fill"
+      }
+    case .checklist(let checklist):
+      switch checklist.checklistStatus {
+      case .blockedNeedsReview: return "exclamationmark.triangle.fill"
+      case .draft, .reopened: return checklist.isInboxHandoffSetup ? "tray.and.arrow.down.fill" : "checklist.unchecked"
+      case .ready: return "checkmark.circle.fill"
+      case .completed: return "checkmark.seal.fill"
+      }
+    }
+  }
 }
 
 private enum DispatchQueueSource {
@@ -2241,6 +2388,8 @@ private struct DispatchQueueRow: View {
           }
         }
       }
+
+      dispatchDecisionPanel
 
       CompactActionRow {
         NavigationLink {
@@ -2360,6 +2509,29 @@ private struct DispatchQueueRow: View {
     case .checklist:
       DispatchReadinessView(store: store)
     }
+  }
+
+  private var dispatchDecisionPanel: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.decisionSymbol)
+        .foregroundStyle(item.decisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.decisionTitle)
+          .font(.caption.weight(.semibold))
+        Text(item.decisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 8)
+      Badge(item.decisionBadge, color: item.decisionColor)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(item.decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
