@@ -65,6 +65,67 @@ struct ParcelOpsRootView: View {
     max(store.reviewQueueCount - dailyAttentionCount, 0)
   }
 
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasRealMailboxRefreshEvidence: Bool {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+      || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var hasInboxOrderHandoff: Bool {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var mvpReadinessSignalCount: Int {
+    [
+      true,
+      hasSpaceMailSetup,
+      hasSpaceMailCredentialReference,
+      hasRealMailboxRefreshEvidence,
+      hasInboxOrderHandoff,
+      !store.auditEvents.isEmpty
+    ].filter { $0 }.count
+  }
+
+  private var sidebarMVPStatusTitle: String {
+    if mvpReadinessSignalCount >= 5 { return "MVP usable" }
+    if mvpReadinessSignalCount >= 3 { return "MVP needs QA" }
+    return "Setup needed"
+  }
+
+  private var sidebarMVPStatusColor: Color {
+    if mvpReadinessSignalCount >= 5 { return .green }
+    if mvpReadinessSignalCount >= 3 { return .teal }
+    return .orange
+  }
+
+  private var sidebarMVPStatusDetail: String {
+    if !hasSpaceMailSetup { return "Add SpaceMail setup before live intake testing." }
+    if !hasSpaceMailCredentialReference { return "Set/check the SpaceMail Keychain credential." }
+    if !hasRealMailboxRefreshEvidence { return "Run one manual read-only SpaceMail refresh." }
+    if !hasInboxOrderHandoff { return "Create or link one order from Inbox." }
+    if store.auditEvents.isEmpty { return "Perform one local action and confirm Audit." }
+    return "Ready for a supervised daily-flow QA pass."
+  }
+
   var body: some View {
     GeometryReader { proxy in
       let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
@@ -196,9 +257,16 @@ struct ParcelOpsRootView: View {
           Spacer()
           Badge("\(advancedBacklogCount)", color: advancedBacklogCount == 0 ? .green : .secondary)
         }
+        HStack {
+          Text("MVP status")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Badge(sidebarMVPStatusTitle, color: sidebarMVPStatusColor)
+        }
       }
 
-      Text(dailyAttentionCount == 0 ? "Primary workflow is clear; advanced records can be reviewed when needed." : "Start with Inbox, Orders, Workbench, Dispatch, and Tasks.")
+      Text(dailyAttentionCount == 0 ? sidebarMVPStatusDetail : "Start with Inbox, Orders, Workbench, Dispatch, and Tasks. \(sidebarMVPStatusDetail)")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
