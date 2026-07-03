@@ -86,6 +86,7 @@ struct OrdersView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         orderNextActionPanel
+        orderReadinessLadderPanel
 
         MVPWorkflowGuide(
           title: "Order workflow",
@@ -248,6 +249,106 @@ struct OrdersView: View {
       return "\(activeOrderCount) active order is in the queue with no critical blockers promoted above it."
     }
     return "There are no active, review-needed, exception, or tracking-warning orders in the current queue."
+  }
+
+  private var orderReadinessItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
+    let sourceTrailMissing = orderItems.filter { $0.isInboxCreated && $0.sourceTrailCount == 0 }.count
+    let detectedFieldMissing = orderItems.filter { $0.missingDetectedFieldCount > 0 }.count
+    let reviewNeeded = orderItems.filter { $0.order.reviewState != .accepted }.count
+    let linkedTaskWork = orderItems.filter { $0.urgentTaskCount > 0 || $0.partialInboxTaskCount > 0 }.count
+    let dispatchSetupMissing = orderItems.filter(\.needsDispatchSetup).count
+    let auditTrailCount = store.auditEvents.filter { event in
+      event.entityType == .order
+        || event.summary.localizedCaseInsensitiveContains("order")
+        || event.summary.localizedCaseInsensitiveContains("Inbox-created")
+        || event.afterDetail?.localizedCaseInsensitiveContains("Inbox") == true
+    }.count
+
+    return [
+      (
+        "Source trail",
+        "Inbox-created orders should link back to intake, import, or acceptance evidence before handoff is closed.",
+        sourceTrailMissing,
+        "Inbox or order detail",
+        "tray.and.arrow.down.fill",
+        sourceTrailMissing == 0 ? .green : .orange
+      ),
+      (
+        "Detected fields",
+        "Order number, tracking, and destination should be confirmed before dispatch setup or review closure.",
+        detectedFieldMissing,
+        "Order detail",
+        "number.square.fill",
+        detectedFieldMissing == 0 ? .green : .orange
+      ),
+      (
+        "Local review",
+        "Rows stay promoted until customer, destination, status, tracking, and linked context are reviewed locally.",
+        reviewNeeded,
+        "Orders",
+        "checkmark.shield.fill",
+        reviewNeeded == 0 ? .green : .purple
+      ),
+      (
+        "Linked work",
+        "Open verification, overdue, or high-priority tasks should be completed before routine monitoring.",
+        linkedTaskWork,
+        "Tasks",
+        "checklist",
+        linkedTaskWork == 0 ? .green : .orange
+      ),
+      (
+        "Dispatch setup",
+        "Shipped, in-transit, or exception orders need manifest/readiness context before dispatch can be treated as ready.",
+        dispatchSetupMissing,
+        "Dispatch",
+        "paperplane.fill",
+        dispatchSetupMissing == 0 ? .green : .blue
+      ),
+      (
+        "Audit trail",
+        "Audit confirms local create, link, review, task, draft, and dispatch handoff actions.",
+        auditTrailCount,
+        "Audit",
+        "list.clipboard.fill",
+        auditTrailCount == 0 ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var orderReadinessLadderPanel: some View {
+    SettingsPanel(title: "Order readiness ladder", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this to decide why an order is still visible in the primary queue. It reads existing local records only and does not create or change order data.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(orderReadinessItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge("\(item.count)", color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Check \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+    }
   }
 
   private var orderNextActionPanel: some View {
