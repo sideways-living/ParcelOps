@@ -3974,6 +3974,150 @@ struct LocalDataSafetyCard: View {
   }
 }
 
+struct LocalDataHygieneCard: View {
+  var store: ParcelOpsStore
+  var compact: Bool = false
+
+  private var summary: LocalDataHygieneSummary {
+    store.localDataHygieneSummary
+  }
+
+  private var tone: Color {
+    color(for: summary.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "stethoscope")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Local data hygiene")
+            .font(.headline)
+          Text(summary.verdict)
+            .font(.subheadline.weight(.semibold))
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(summary.signalCount) signals", color: tone)
+      }
+
+      MetricStrip(items: summary.metrics.prefix(6).map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(summary.metrics.dropFirst(6)) { metric in
+          hygieneMetric(metric)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Suggested next action", systemImage: "arrow.right.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+        Text(summary.nextAction)
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(tone)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("This is guidance only. Use the existing workflow buttons on Inbox, Mailbox Monitor, Tasks, and Audit when you intentionally review, ignore, link, or complete records.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      if !summary.examples.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Example signals", systemImage: "text.magnifyingglass")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(summary.examples, id: \.self) { example in
+            Text(example)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Boundaries", systemImage: "lock.shield.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        ForEach(summary.boundaries, id: \.self) { boundary in
+          Text(boundary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
+      CompactActionRow {
+        NavigationLink { InboxView(store: store) } label: { Label("Open Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { TasksView(store: store) } label: { Label("Tasks", systemImage: "checklist") }
+          .buttonStyle(.bordered)
+        NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private func hygieneMetric(_ metric: LocalDataHygieneMetric) -> some View {
+    let metricColor = color(for: metric.tone)
+    return VStack(alignment: .leading, spacing: 5) {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text(metric.title)
+          .font(.caption.weight(.semibold))
+        Spacer()
+        Badge(metric.value, color: metricColor)
+      }
+      Text(metric.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(metricColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .orange
+    case "neutral":
+      return .secondary
+    default:
+      return .blue
+    }
+  }
+}
+
 private struct LocalPersistenceSnapshot {
   var storePath: String
   var expectedFileNames: [String]

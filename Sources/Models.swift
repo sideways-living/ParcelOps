@@ -1727,6 +1727,25 @@ struct SpaceMailMVPReadinessItem: Identifiable, Hashable {
   var tone: String
 }
 
+struct LocalDataHygieneMetric: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var value: String
+  var detail: String
+  var tone: String
+}
+
+struct LocalDataHygieneSummary: Hashable {
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var signalCount: Int
+  var metrics: [LocalDataHygieneMetric]
+  var examples: [String]
+  var boundaries: [String]
+}
+
 struct SpaceMailQACheckSummary: Hashable {
   var verdict: String
   var detail: String

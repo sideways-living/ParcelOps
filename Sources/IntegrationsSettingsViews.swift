@@ -3211,6 +3211,8 @@ struct SettingsView: View {
 
           LocalDataSafetyCard(store: store, compact: isCompact)
 
+          LocalDataHygieneCard(store: store, compact: isCompact)
+
           LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             IntegrationStatusRow(title: "Email mailbox", status: mailboxStatus.0, symbol: "envelope.badge.fill", color: mailboxStatus.1)
             IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)

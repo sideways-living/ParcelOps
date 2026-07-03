@@ -665,6 +665,123 @@ final class ParcelOpsStore {
     )
   }
 
+  var localDataHygieneSummary: LocalDataHygieneSummary {
+    func isPlaceholder(_ value: String) -> Bool {
+      let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      let compact = normalized.replacingOccurrences(of: " ", with: "")
+      return normalized.isEmpty
+        || normalized == "pending"
+        || normalized == "unknown"
+        || normalized == "no subject"
+        || normalized == "unknown sender"
+        || normalized == "unknown date"
+        || normalized == "unassigned"
+        || compact.contains("needsreview")
+        || compact.contains("unknownsender")
+        || compact.contains("unknowndate")
+    }
+
+    func preview(_ value: String, limit: Int = 72) -> String {
+      let cleaned = value
+        .replacingOccurrences(of: "\n", with: " ")
+        .replacingOccurrences(of: "\t", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      guard cleaned.count > limit else { return cleaned.isEmpty ? "Untitled" : cleaned }
+      return String(cleaned.prefix(limit - 1)) + "..."
+    }
+
+    let intakeIDs = Set(intakeEmails.map(\.id))
+    let orderIDs = Set(orders.map(\.id))
+    let duplicateIngestCount = mailboxIngestRecords.filter { $0.status == .duplicateSkipped }.count
+    let orphanIngestCount = mailboxIngestRecords.filter { record in
+      guard let intakeEmailID = record.intakeEmailID else { return false }
+      return !intakeIDs.contains(intakeEmailID)
+    }.count
+    let orphanLinkedIntakeCount = intakeEmails.filter { email in
+      guard let linkedOrderID = email.linkedOrderID else { return false }
+      return !orderIDs.contains(linkedOrderID)
+    }.count
+    let placeholderIntakeCount = intakeEmails.filter { email in
+      isPlaceholder(email.subject)
+        || isPlaceholder(email.sender)
+        || isPlaceholder(email.detectedOrderNumber)
+        || isPlaceholder(email.detectedTrackingNumber)
+        || email.rawBodyPreview.localizedCaseInsensitiveContains("Content-Type:")
+        || email.rawBodyPreview.localizedCaseInsensitiveContains("Return-Path:")
+    }.count
+    let ignoredIntakeCount = intakeEmails.filter { $0.reviewState == .ignored }.count
+    let reviewedUnlinkedIntakeCount = intakeEmails.filter { $0.reviewState == .reviewed && $0.linkedOrderID == nil }.count
+    let pendingUncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    let pendingFilteredReviewCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+    let parserDiagnosticCount = intakeParserDiagnostics.count
+    let inboxCreatedOrderCount = orders.filter { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" }.count
+    let openPartialOrderTasks = reviewTasks.filter { $0.isPartialInboxOrderFollowUp && $0.status != .completed }.count
+    let activeNoiseSignals = placeholderIntakeCount
+      + orphanIngestCount
+      + orphanLinkedIntakeCount
+      + parserDiagnosticCount
+      + pendingUncertainCount
+      + openPartialOrderTasks
+
+    let verdict: String
+    let detail: String
+    let nextAction: String
+    let tone: String
+    if activeNoiseSignals == 0 && reviewIntakeEmails.isEmpty {
+      verdict = "Local data looks tidy enough for routine testing"
+      detail = "No obvious intake, ingest, parser, or partial-order hygiene signals are active."
+      nextAction = "Continue normal Inbox-to-Orders testing"
+      tone = "success"
+    } else if activeNoiseSignals <= 5 {
+      verdict = "Local data has a small review load"
+      detail = "\(activeNoiseSignals) hygiene signal\(activeNoiseSignals == 1 ? "" : "s") are visible. They can usually be handled from Inbox, Mailbox Monitor, or Tasks."
+      nextAction = "Review flagged intake rows and partial order tasks"
+      tone = "attention"
+    } else {
+      verdict = "Local data has accumulated testing noise"
+      detail = "\(activeNoiseSignals) hygiene signals are visible, mostly from mailbox testing, parser diagnostics, duplicate ingest, or partial order handoff."
+      nextAction = "Use Inbox, Mailbox Monitor, Tasks, and Audit to resolve or ignore records intentionally"
+      tone = "warning"
+    }
+
+    var examples: [String] = []
+    examples.append(contentsOf: intakeEmails.filter {
+      isPlaceholder($0.subject) || isPlaceholder($0.sender) || isPlaceholder($0.detectedOrderNumber) || isPlaceholder($0.detectedTrackingNumber)
+    }.prefix(3).map { "Intake needs cleanup: \(preview($0.subject))" })
+    examples.append(contentsOf: spaceMailIMAPConnections.flatMap(\.uncertainMessages).prefix(2).map { "Uncertain SpaceMail: \(preview($0.subject))" })
+    examples.append(contentsOf: intakeParserDiagnostics.prefix(2).map { "Parser diagnostic: \(preview($0.title))" })
+    examples.append(contentsOf: reviewTasks.filter { $0.isPartialInboxOrderFollowUp && $0.status != .completed }.prefix(2).map { "Partial order task: \(preview($0.title))" })
+
+    return LocalDataHygieneSummary(
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      signalCount: activeNoiseSignals,
+      metrics: [
+        LocalDataHygieneMetric(title: "Intake placeholders", value: "\(placeholderIntakeCount)", detail: "Rows with missing sender, subject, order, tracking, or raw header-like preview text.", tone: placeholderIntakeCount == 0 ? "success" : "attention"),
+        LocalDataHygieneMetric(title: "Needs review", value: "\(reviewIntakeEmails.count)", detail: "Forwarded intake emails still waiting for operator review.", tone: reviewIntakeEmails.isEmpty ? "success" : "attention"),
+        LocalDataHygieneMetric(title: "Ignored intake", value: "\(ignoredIntakeCount)", detail: "Rows already ignored locally; useful as test noise evidence, not active Inbox work.", tone: ignoredIntakeCount == 0 ? "success" : "neutral"),
+        LocalDataHygieneMetric(title: "Reviewed unlinked", value: "\(reviewedUnlinkedIntakeCount)", detail: "Reviewed intake rows that were not linked to an order.", tone: reviewedUnlinkedIntakeCount == 0 ? "success" : "neutral"),
+        LocalDataHygieneMetric(title: "Duplicate ingest", value: "\(duplicateIngestCount)", detail: "Duplicate provider message IDs skipped by the ingest layer.", tone: duplicateIngestCount == 0 ? "success" : "neutral"),
+        LocalDataHygieneMetric(title: "Orphan ingest links", value: "\(orphanIngestCount)", detail: "Ingest records pointing at intake IDs no longer present locally.", tone: orphanIngestCount == 0 ? "success" : "warning"),
+        LocalDataHygieneMetric(title: "Orphan order links", value: "\(orphanLinkedIntakeCount)", detail: "Intake rows linked to order IDs no longer present locally.", tone: orphanLinkedIntakeCount == 0 ? "success" : "warning"),
+        LocalDataHygieneMetric(title: "Parser diagnostics", value: "\(parserDiagnosticCount)", detail: "Local parser checks still visible for review.", tone: parserDiagnosticCount == 0 ? "success" : "attention"),
+        LocalDataHygieneMetric(title: "Uncertain SpaceMail", value: "\(pendingUncertainCount)", detail: "Ambiguous previews kept out of Inbox until imported or dismissed.", tone: pendingUncertainCount == 0 ? "success" : "attention"),
+        LocalDataHygieneMetric(title: "Filtered review", value: "\(pendingFilteredReviewCount)", detail: "Filtered mixed-mailbox examples available for spot review.", tone: pendingFilteredReviewCount == 0 ? "success" : "neutral"),
+        LocalDataHygieneMetric(title: "Inbox orders", value: "\(inboxCreatedOrderCount)", detail: "Orders created or linked from Inbox/import handoff.", tone: inboxCreatedOrderCount == 0 ? "neutral" : "success"),
+        LocalDataHygieneMetric(title: "Partial order tasks", value: "\(openPartialOrderTasks)", detail: "Open verification tasks for incomplete Inbox-created orders.", tone: openPartialOrderTasks == 0 ? "success" : "attention")
+      ],
+      examples: Array(examples.prefix(6)),
+      boundaries: [
+        "Read-only summary: no records are deleted, merged, or rewritten.",
+        "Duplicate tracking metadata remains intact.",
+        "No mailbox refresh, Keychain read, network call, or mailbox mutation runs from this card.",
+        "Use existing Inbox, Mailbox Monitor, Tasks, and Audit actions to resolve records deliberately."
+      ]
+    )
+  }
+
   var spaceMailMVPReadinessSummary: SpaceMailMVPReadinessSummary {
     let hasConnection = !spaceMailIMAPConnections.isEmpty
     let configuredConnections = spaceMailIMAPConnections.filter { connection in
