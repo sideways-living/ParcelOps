@@ -334,6 +334,49 @@ private struct InboxSpaceMailDecisionGuide: View {
     store.intakeParserDiagnostics.count
   }
 
+  private var parserSuiteResults: [SpaceMailClassifierTestResult] {
+    store.spaceMailIMAPConnections.flatMap(\.classifierTestResults)
+  }
+
+  private var parserSuiteChecks: [SpaceMailClassifierTestResult] {
+    parserSuiteResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+  }
+
+  private var parserSuitePasses: [SpaceMailClassifierTestResult] {
+    parserSuiteChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+  }
+
+  private var parserSuiteFailures: [SpaceMailClassifierTestResult] {
+    parserSuiteChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+  }
+
+  private var parserExtractedIDCount: Int {
+    parserSuiteResults.filter {
+      !$0.detectedOrderNumber.isPlaceholderValidationValue || !$0.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var parserQATitle: String {
+    if parserSuiteChecks.isEmpty { return "Parser QA not run yet" }
+    if !parserSuiteFailures.isEmpty { return "Parser QA needs review" }
+    return "Parser QA passed"
+  }
+
+  private var parserQADetail: String {
+    if parserSuiteChecks.isEmpty {
+      return "Run the parser/classifier suite in Mailbox Monitor before relying on live SpaceMail extraction for order and tracking numbers."
+    }
+    if !parserSuiteFailures.isEmpty {
+      return "\(parserSuiteFailures.count) parser expectation failed. Review the sample result before creating orders from similar email text."
+    }
+    return "\(parserSuitePasses.count) parser expectations passed, including built-in samples for order and tracking extraction."
+  }
+
+  private var parserQAColor: Color {
+    if parserSuiteChecks.isEmpty { return .secondary }
+    return parserSuiteFailures.isEmpty ? .green : .orange
+  }
+
   private var topActionTitle: String {
     if importedCount > 0 { return "Start with imported intake rows" }
     if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
@@ -402,6 +445,29 @@ private struct InboxSpaceMailDecisionGuide: View {
           ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .secondary)
         ])
 
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: parserSuiteFailures.isEmpty && !parserSuiteChecks.isEmpty ? "checkmark.seal.fill" : "text.magnifyingglass")
+            .foregroundStyle(parserQAColor)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(parserQATitle)
+              .font(.subheadline.weight(.semibold))
+            Text(parserQADetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          CompactMetadataGrid(minimumWidth: 100) {
+            Badge(parserSuiteChecks.isEmpty ? "Not run" : "\(parserSuitePasses.count)/\(parserSuiteChecks.count)", color: parserQAColor)
+            Badge("\(parserExtractedIDCount) IDs", color: parserExtractedIDCount == 0 ? .secondary : .blue)
+          }
+        }
+        .padding(10)
+        .background(parserQAColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
           InboxDecisionGuideItem(
             title: "Imported",
@@ -433,7 +499,7 @@ private struct InboxSpaceMailDecisionGuide: View {
           NavigationLink {
             MailboxView(store: store)
           } label: {
-            Label("Review SpaceMail results", systemImage: "server.rack")
+            Label(parserSuiteChecks.isEmpty ? "Run parser QA in Mailbox Monitor" : "Review SpaceMail results", systemImage: "server.rack")
           }
 
           Button(showParserDiagnosticsInTriage ? "Hide parser diagnostics" : "Show parser diagnostics", systemImage: "text.magnifyingglass") {
