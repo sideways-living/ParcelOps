@@ -4930,7 +4930,7 @@ final class ParcelOpsStore {
     if let connection = spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
       return (
         "SpaceMail IMAP",
-        "Captured from \(connection.displayName) using manual read-only IMAP refresh.",
+        "Captured from \(connection.displayName) using manual read-only IMAP refresh. Search terms: SpaceMail, IMAP, mailbox source trail.",
         "spacemail"
       )
     }
@@ -4940,8 +4940,8 @@ final class ParcelOpsStore {
       return (
         isMock ? "Mock Graph" : "Microsoft Graph",
         isMock
-          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh."
-          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh.",
+          ? "Captured from \(connection.displayName) using deterministic mock Graph refresh. Search terms: Microsoft 365, mock Graph, mailbox source trail."
+          : "Captured from \(connection.displayName) using manual read-only Microsoft Graph refresh. Search terms: Microsoft 365, Graph, mailbox source trail.",
         isMock ? "mock" : "microsoft"
       )
     }
@@ -4951,8 +4951,8 @@ final class ParcelOpsStore {
       return (
         isMock ? "Mock Gmail" : "Gmail",
         isMock
-          ? "Captured from \(connection.displayName) using deterministic mock Gmail refresh."
-          : "Captured from \(connection.displayName) using manual read-only Gmail refresh.",
+          ? "Captured from \(connection.displayName) using deterministic mock Gmail refresh. Search terms: Gmail, Google Workspace, mock Gmail, mailbox source trail."
+          : "Captured from \(connection.displayName) using manual read-only Gmail refresh. Search terms: Gmail, Google Workspace, mailbox source trail.",
         isMock ? "mock" : "gmail"
       )
     }
@@ -4960,7 +4960,7 @@ final class ParcelOpsStore {
     if let mailbox = mailboxes.first(where: { $0.id == sourceMailboxID }) {
       return (
         "\(mailbox.provider.rawValue) mailbox",
-        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path.",
+        "Captured from tracked mailbox \(mailbox.address) through the provider-neutral intake path. Search terms: mailbox source trail.",
         "mailbox"
       )
     }

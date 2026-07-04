@@ -23,12 +23,26 @@ struct SearchView: View {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
   }
 
+  private var uncertainGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + max(connection.uncertainMessages?.count ?? 0, connection.lastRefreshUncertainCount ?? 0)
+    }
+  }
+
+  private var uncertainMailboxCount: Int {
+    uncertainSpaceMailCount + uncertainGmailCount
+  }
+
   private var parserIssueCount: Int {
     store.intakeParserDiagnostics.count
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
   }
 
   private var resultGroups: [SearchResultGroup] {
@@ -79,9 +93,10 @@ struct SearchView: View {
           inboxCreatedOrderCount: inboxCreatedOrders.count,
           inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
           inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
-          uncertainSpaceMailCount: uncertainSpaceMailCount,
+          uncertainMailboxCount: uncertainMailboxCount,
           parserIssueCount: parserIssueCount,
-          latestSpaceMailSummary: latestSpaceMailSummary
+          latestSpaceMailSummary: latestSpaceMailSummary,
+          latestGmailSummary: latestGmailSummary
         )
 
         SearchOperatorHintsPanel { query, entity, reviewState in
@@ -170,27 +185,28 @@ private struct SearchReadinessPanel: View {
   var inboxCreatedOrderCount: Int
   var inboxCreatedOrdersWithSourceTrailCount: Int
   var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder]
-  var uncertainSpaceMailCount: Int
+  var uncertainMailboxCount: Int
   var parserIssueCount: Int
   var latestSpaceMailSummary: SpaceMailIntakeHealthSummary?
+  var latestGmailSummary: GmailIntakeHealthSummary?
 
   private var filteredCount: Int {
-    latestSpaceMailSummary?.filteredCount ?? 0
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
   }
 
   private var importedCount: Int {
-    latestSpaceMailSummary?.importedCount ?? 0
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
   }
 
   private var tone: Color {
-    if !inboxCreatedOrdersMissingSourceTrail.isEmpty || uncertainSpaceMailCount > 0 || parserIssueCount > 0 { return .orange }
+    if !inboxCreatedOrdersMissingSourceTrail.isEmpty || uncertainMailboxCount > 0 || parserIssueCount > 0 { return .orange }
     if inboxCreatedOrderCount > 0 || importedCount > 0 { return .green }
     return .teal
   }
 
   private var title: String {
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty { return "Trace Inbox-created orders" }
-    if uncertainSpaceMailCount > 0 { return "Review uncertain SpaceMail mail" }
+    if uncertainMailboxCount > 0 { return "Review uncertain mailbox mail" }
     if parserIssueCount > 0 { return "Parser diagnostics are available" }
     if inboxCreatedOrderCount > 0 { return "Search is ready for handoff checks" }
     return "Use Search to recover local context"
@@ -200,8 +216,8 @@ private struct SearchReadinessPanel: View {
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
       return "Some Inbox-created orders do not currently match intake, import, or acceptance source context. Open them here before closing related handoff work."
     }
-    if uncertainSpaceMailCount > 0 {
-      return "Uncertain mixed-mailbox messages stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
+    if uncertainMailboxCount > 0 {
+      return "Uncertain mixed-mailbox messages from SpaceMail or Gmail stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
     }
     if parserIssueCount > 0 {
       return "Parser diagnostics are hidden from the primary Inbox queue by default. Use Search or Mailbox Monitor when investigating a specific intake row."
@@ -234,7 +250,7 @@ private struct SearchReadinessPanel: View {
         MetricStrip(items: [
           ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("With source", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrderCount == 0 ? .secondary : (inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)),
-          ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
+          ("Uncertain", "\(uncertainMailboxCount)", uncertainMailboxCount == 0 ? .green : .orange),
           ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
           ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
           ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green)
@@ -299,7 +315,8 @@ private struct SearchOperatorHintsPanel: View {
     SearchOperatorHint(title: "Inbox-created orders", query: "Inbox-created order", entityType: .order, reviewState: nil, symbol: "tray.and.arrow.down.fill", detail: "Find orders created from intake, import, or acceptance handoff."),
     SearchOperatorHint(title: "Missing source trail", query: "No linked intake import acceptance source", entityType: .order, reviewState: nil, symbol: "link.badge.plus", detail: "Find Inbox-created orders that need source context checked before handoff closure."),
     SearchOperatorHint(title: "Linked Inbox orders", query: "Linked Inbox intake", entityType: .intakeEmail, reviewState: nil, symbol: "link.circle.fill", detail: "Find intake rows that already carry linked order context."),
-    SearchOperatorHint(title: "Uncertain SpaceMail", query: "uncertain mixed mailbox", entityType: .auditEvent, reviewState: nil, symbol: "questionmark.folder.fill", detail: "Find local evidence for mixed-mailbox messages that require operator review."),
+    SearchOperatorHint(title: "Uncertain mailbox mail", query: "uncertain mixed mailbox Gmail SpaceMail", entityType: .auditEvent, reviewState: nil, symbol: "questionmark.folder.fill", detail: "Find local evidence for mixed-mailbox messages that require operator review."),
+    SearchOperatorHint(title: "Gmail source trails", query: "Gmail Google Workspace mailbox source trail", entityType: .intakeEmail, reviewState: nil, symbol: "envelope.badge.shield.half.filled", detail: "Find intake rows captured through Gmail or Google Workspace manual refresh."),
     SearchOperatorHint(title: "Reopened dispatch handoffs", query: "reopened dispatch handoff", entityType: .order, reviewState: nil, symbol: "arrow.counterclockwise.circle.fill", detail: "Find Inbox-created orders whose local dispatch handoff was reopened."),
     SearchOperatorHint(title: "Missing tracking", query: "tracking number needs review", entityType: .intakeEmail, reviewState: .needsReview, symbol: "number.circle.fill", detail: "Find intake rows where the parser did not extract a usable tracking value."),
     SearchOperatorHint(title: "SpaceMail parser checks", query: "parser diagnostics", entityType: .intakeEmail, reviewState: nil, symbol: "server.rack", detail: "Find intake and audit clues from mixed-mailbox parsing and classifier work.")

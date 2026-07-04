@@ -4646,6 +4646,8 @@ struct IntakeSourceContextPanel: View {
     switch tone {
     case "spacemail":
       return .teal
+    case "gmail":
+      return .green
     case "mock":
       return .purple
     case "microsoft", "mailbox":
