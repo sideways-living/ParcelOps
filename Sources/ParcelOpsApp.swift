@@ -50,6 +50,7 @@ struct ParcelOpsRootView: View {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
@@ -69,8 +70,20 @@ struct ParcelOpsRootView: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasLiveMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
   }
 
   private var hasSpaceMailCredentialReference: Bool {
@@ -80,9 +93,21 @@ struct ParcelOpsRootView: View {
     }
   }
 
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasLiveMailboxCredentialOrAuth: Bool {
+    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+  }
+
   private var hasRealMailboxRefreshEvidence: Bool {
     (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
       || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -97,8 +122,8 @@ struct ParcelOpsRootView: View {
   private var mvpReadinessSignalCount: Int {
     [
       true,
-      hasSpaceMailSetup,
-      hasSpaceMailCredentialReference,
+      hasLiveMailboxSetup,
+      hasLiveMailboxCredentialOrAuth,
       hasRealMailboxRefreshEvidence,
       hasInboxOrderHandoff,
       !store.auditEvents.isEmpty
@@ -118,9 +143,9 @@ struct ParcelOpsRootView: View {
   }
 
   private var sidebarMVPStatusDetail: String {
-    if !hasSpaceMailSetup { return "Add SpaceMail setup before live intake testing." }
-    if !hasSpaceMailCredentialReference { return "Set/check the SpaceMail Keychain credential." }
-    if !hasRealMailboxRefreshEvidence { return "Run one manual read-only SpaceMail refresh." }
+    if !hasLiveMailboxSetup { return "Add SpaceMail or Gmail setup before live intake testing." }
+    if !hasLiveMailboxCredentialOrAuth { return "Set the SpaceMail Keychain credential or complete Gmail sign-in." }
+    if !hasRealMailboxRefreshEvidence { return "Run one manual read-only SpaceMail or Gmail refresh." }
     if !hasInboxOrderHandoff { return "Create or link one order from Inbox." }
     if store.auditEvents.isEmpty { return "Perform one local action and confirm Audit." }
     return "Ready for a supervised daily-flow QA pass."
@@ -128,8 +153,8 @@ struct ParcelOpsRootView: View {
 
   private var sidebarReadinessItems: [(title: String, isReady: Bool)] {
     [
-      ("Setup", hasSpaceMailSetup),
-      ("Credential", hasSpaceMailCredentialReference),
+      ("Setup", hasLiveMailboxSetup),
+      ("Credential", hasLiveMailboxCredentialOrAuth),
       ("Refresh", hasRealMailboxRefreshEvidence),
       ("Order", hasInboxOrderHandoff),
       ("Audit", !store.auditEvents.isEmpty)
