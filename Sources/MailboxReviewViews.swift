@@ -251,10 +251,14 @@ struct MailboxView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onCreateUncertainTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
             } onImportFiltered: { message in
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
+            } onCreateFilteredTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1308,6 +1312,7 @@ struct GmailNeedsReviewPreviewRow: View {
   var recommendationDetail: String = "This Gmail preview stayed out of Inbox because the classifier was not confident. Import only true order mail; dismiss local false positives."
   var symbol: String = "questionmark.folder.fill"
   var onImport: () -> Void
+  var onCreateTask: () -> Void
   var onDismiss: () -> Void
 
   private var displayTitle: String {
@@ -1360,6 +1365,7 @@ struct GmailNeedsReviewPreviewRow: View {
         .foregroundStyle(color)
       CompactActionRow {
         Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
+        Button("Task", systemImage: "checklist", action: onCreateTask)
         Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
       }
     }
@@ -2444,6 +2450,8 @@ struct NeedsReviewView: View {
                           reason: message.reason
                         ) {
                           store.importUncertainGmailMessage(message, for: connection)
+                        } onCreateTask: {
+                          store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
                         } onDismiss: {
                           store.dismissUncertainGmailMessage(message, for: connection)
                         }
@@ -2472,6 +2480,8 @@ struct NeedsReviewView: View {
                           symbol: "line.3.horizontal.decrease.circle.fill"
                         ) {
                           store.importFilteredGmailMessage(message, for: connection)
+                        } onCreateTask: {
+                          store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
                         } onDismiss: {
                           store.dismissFilteredGmailMessage(message, for: connection)
                         }

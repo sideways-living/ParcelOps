@@ -11645,6 +11645,26 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTask(from gmailMessage: GmailReviewMessage, connection: GmailMailboxConnection, reviewQueue: String) {
+    let title = gmailMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : gmailMessage.subject
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: title,
+      summary: "Review \(reviewQueue) Gmail preview from \(gmailMessage.sender): \(gmailMessage.reason). Provider message ID: \(gmailMessage.providerMessageID). Use Mailbox Monitor to import true order mail or dismiss local false positives.",
+      priority: reviewQueue.localizedCaseInsensitiveContains("uncertain") ? .normal : .low,
+      assignee: "Mailbox team"
+    )
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from \(reviewQueue) Gmail preview.",
+      afterDetail: "Subject: \(gmailMessage.subject)\nReason: \(gmailMessage.reason)\nLinked provider message ID: \(gmailMessage.providerMessageID)\nThe task was created from the stored safe preview only. No Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
   func testGmailAmbiguousClassifier(for connection: GmailMailboxConnection) {
     let sample = FetchedMailboxMessage(
       providerMessageID: "gmail-local-classifier-\(connection.id.uuidString)",

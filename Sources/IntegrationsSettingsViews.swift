@@ -627,10 +627,14 @@ struct IntegrationsView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onCreateUncertainTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
             } onImportFiltered: { message in
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
+            } onCreateFilteredTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1295,8 +1299,10 @@ struct GmailMailboxConnectionRow: View {
   var onCreatePlanTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
+  var onCreateUncertainTask: (GmailReviewMessage) -> Void
   var onImportFiltered: (GmailReviewMessage) -> Void
   var onDismissFiltered: (GmailReviewMessage) -> Void
+  var onCreateFilteredTask: (GmailReviewMessage) -> Void
   var onTestClassifier: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
@@ -1330,8 +1336,10 @@ struct GmailMailboxConnectionRow: View {
     onCreatePlanTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
+    onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
     onImportFiltered: @escaping (GmailReviewMessage) -> Void,
     onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
+    onCreateFilteredTask: @escaping (GmailReviewMessage) -> Void,
     onTestClassifier: @escaping () -> Void,
     onTestCustomClassifier: @escaping (String, String, String) -> Void,
     onRunClassifierSuite: @escaping () -> Void,
@@ -1358,8 +1366,10 @@ struct GmailMailboxConnectionRow: View {
     self.onCreatePlanTask = onCreatePlanTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
+    self.onCreateUncertainTask = onCreateUncertainTask
     self.onImportFiltered = onImportFiltered
     self.onDismissFiltered = onDismissFiltered
+    self.onCreateFilteredTask = onCreateFilteredTask
     self.onTestClassifier = onTestClassifier
     self.onTestCustomClassifier = onTestCustomClassifier
     self.onRunClassifierSuite = onRunClassifierSuite
@@ -1546,6 +1556,10 @@ struct GmailMailboxConnectionRow: View {
                   onImportUncertain(message)
                 }
                 .buttonStyle(.bordered)
+                Button("Task", systemImage: "checklist") {
+                  onCreateUncertainTask(message)
+                }
+                .buttonStyle(.bordered)
                 Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
                   onDismissUncertain(message)
                 }
@@ -1592,6 +1606,10 @@ struct GmailMailboxConnectionRow: View {
               CompactActionRow {
                 Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
                   onImportFiltered(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Task", systemImage: "checklist") {
+                  onCreateFilteredTask(message)
                 }
                 .buttonStyle(.bordered)
                 Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
