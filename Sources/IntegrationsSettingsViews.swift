@@ -17,6 +17,24 @@ struct IntegrationsView: View {
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
   }
+  private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+  private var hasGmailCoreSetup: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    }
+  }
 
   private var microsoftSetupCount: Int {
     store.microsoft365MailboxConnections.count
@@ -30,8 +48,14 @@ struct IntegrationsView: View {
   }
 
   private var spaceMailLivePathDetail: String {
+    if hasGmailSetup && !hasSpaceMailSetup {
+      if let latestGmailSummary {
+        return "\(latestGmailSummary.displayName): \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.uncertainCount + latestGmailSummary.pendingUncertainReviewCount) uncertain. \(latestGmailSummary.nextAction)"
+      }
+      return "Gmail setup exists for Google-hosted mailboxes. Finish setup/sign-in, then use manual read-only Gmail refresh when needed."
+    }
     if !hasSpaceMailSetup {
-      return "No SpaceMail setup exists yet. Add one before treating Microsoft 365, Shopify, folders, or login placeholders as daily intake paths."
+      return "No live mailbox setup exists yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before treating planning-only providers as daily intake paths."
     }
     if !hasSpaceMailCredentialReference {
       return "SpaceMail setup exists, but the Keychain credential is not ready. Add or check the credential before running the real manual refresh."
@@ -43,40 +67,65 @@ struct IntegrationsView: View {
   }
 
   private var providerPriorityTone: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if hasGmailSetup && !hasGmailCoreSetup { return .orange }
+    if hasGmailSetup && !hasGmailConnectedAuth { return .orange }
+    if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
     if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 { return .orange }
     return .green
   }
 
   private var recommendedSetupTitle: String {
-    if !hasSpaceMailSetup {
-      return "Start with SpaceMail setup"
+    if !hasSpaceMailSetup && !hasGmailSetup {
+      return "Start with mailbox setup"
     }
-    if !hasSpaceMailCredentialReference {
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
       return "Add the SpaceMail Keychain credential"
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Finish Gmail setup details"
+    }
+    if hasGmailSetup && !hasGmailConnectedAuth {
+      return "Test Google sign-in"
     }
     if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
       return "Review uncertain mixed-mailbox messages"
     }
-    return "Run SpaceMail manual refresh when needed"
+    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
+      return "Review uncertain Gmail messages"
+    }
+    return "Run manual mailbox refresh when needed"
   }
 
   private var recommendedSetupDetail: String {
-    if !hasSpaceMailSetup {
-      return "SpaceMail IMAP is the only live mailbox path currently intended for this project. Add or edit that setup before using planning-only integrations."
+    if !hasSpaceMailSetup && !hasGmailSetup {
+      return "Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Both feed the same local Inbox intake path."
     }
-    if !hasSpaceMailCredentialReference {
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
       return "Use the secure password prompt on the SpaceMail row. Passwords and app passwords must not be typed into setup notes or JSON-backed fields."
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Add Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes. Do not enter client secrets or token values."
+    }
+    if hasGmailSetup && !hasGmailConnectedAuth {
+      return "Use the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
     }
     if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
       return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
     }
-    return "Use the explicit read-only SpaceMail refresh action. Microsoft 365, Shopify, watched folders, and login placeholders remain secondary planning surfaces."
+    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
+      return "Uncertain Gmail previews stay out of Inbox until an operator imports or dismisses them locally."
+    }
+    return "Use explicit manual read-only refresh for the active mailbox provider. Microsoft 365, Shopify, watched folders, and login placeholders remain secondary planning surfaces."
   }
 
   private var recommendedSetupTone: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
+    if hasGmailSetup && (!hasGmailCoreSetup || !hasGmailConnectedAuth) { return .orange }
     if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 { return .orange }
     return .green
   }
 
@@ -91,7 +140,7 @@ struct IntegrationsView: View {
   }
 
   private var showsRecommendedSetup: Bool {
-    matchesSetupSection("recommended", "setup", "path", "current", "next", "SpaceMail", "credential", "uncertain", "manual refresh")
+    matchesSetupSection("recommended", "setup", "path", "current", "next", "SpaceMail", "Gmail", "Google", "credential", "uncertain", "manual refresh")
   }
 
   private var showsEditorSafety: Bool {
@@ -146,15 +195,15 @@ struct IntegrationsView: View {
   }
 
   private var providerPriorityPanel: some View {
-    SettingsPanel(title: "Provider priority", symbol: "point.3.connected.trianglepath.dotted") {
+    SettingsPanel(title: "Mailbox provider status", symbol: "point.3.connected.trianglepath.dotted") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 10) {
-          Image(systemName: "server.rack")
+          Image(systemName: hasGmailSetup && !hasSpaceMailSetup ? "envelope.badge.shield.half.filled" : "server.rack")
             .font(.title3)
             .foregroundStyle(providerPriorityTone)
             .frame(width: 28)
           VStack(alignment: .leading, spacing: 4) {
-            Text("Use SpaceMail as the live mailbox path")
+            Text("Use SpaceMail or Gmail as the live mailbox path")
               .font(.headline)
             Text(spaceMailLivePathDetail)
               .font(.subheadline)
@@ -164,36 +213,42 @@ struct IntegrationsView: View {
         }
 
         MetricStrip(items: [
-          ("SpaceMail", hasSpaceMailSetup ? "Primary" : "Missing", hasSpaceMailSetup ? .green : .orange),
-          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+          ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .secondary),
+          ("SpaceMail credential", hasSpaceMailCredentialReference ? "Keychain" : hasSpaceMailSetup ? "Needed" : "N/A", hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary),
+          ("Gmail", hasGmailSetup ? "Configured" : "Not set", hasGmailSetup ? .green : .secondary),
+          ("Google sign-in", hasGmailConnectedAuth ? "Connected" : hasGmailSetup ? "Needed" : "N/A", hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary),
           ("M365 records", "\(microsoftSetupCount)", microsoftSetupCount == 0 ? .secondary : .teal),
-          ("M365 ready", "\(microsoftConnectedCount)", microsoftConnectedCount == 0 ? .secondary : .orange),
-          ("Shopify", store.shopifyConnections.isEmpty ? "Planning" : "\(store.shopifyConnections.count)", .secondary),
-          ("Folders", "\(store.watchedFolders.count)", store.watchedFolders.isEmpty ? .secondary : .teal)
+          ("M365 ready", "\(microsoftConnectedCount)", microsoftConnectedCount == 0 ? .secondary : .orange)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
           ProviderPriorityStep(
-            title: "Primary today",
-            detail: "SpaceMail IMAP supports manual read-only refresh with a Keychain password and mixed-mailbox filtering.",
+            title: "IMAP path",
+            detail: "SpaceMail supports manual read-only IMAP refresh with a Keychain password and mixed-mailbox filtering.",
             symbol: "server.rack",
-            color: hasSpaceMailCredentialReference ? .green : .orange
+            color: hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? .green : .orange) : .secondary
           )
           ProviderPriorityStep(
-            title: "Secondary testing",
-            detail: "Microsoft 365 remains useful for OAuth/Graph experiments, but it should not block daily SpaceMail intake.",
+            title: "Gmail path",
+            detail: "Gmail/Google Workspace supports manual read-only refresh after Google sign-in and Gmail setup are ready.",
+            symbol: "envelope.badge.shield.half.filled",
+            color: hasGmailSetup ? (hasGmailConnectedAuth ? .green : .orange) : .secondary
+          )
+          ProviderPriorityStep(
+            title: "Advanced testing",
+            detail: "Microsoft 365 remains available for OAuth/Graph experiments, but it should not block SpaceMail or Gmail intake.",
             symbol: "mail.stack.fill",
             color: microsoftSetupCount == 0 ? .secondary : .teal
           )
           ProviderPriorityStep(
             title: "Planning only",
-            detail: "Shopify, folders, carrier, scanner, OCR, notifications, calendars, and background sync are not live integration paths.",
+            detail: "Shopify, folders, carrier, scanner, OCR, notifications, calendars, and background sync are still not live paths.",
             symbol: "lock.shield.fill",
             color: .secondary
           )
         }
 
-        Text("Operational rule: run SpaceMail manually, review imported/uncertain/filtered outcomes, then move real order work through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit. Treat every other provider section as optional setup unless deliberately reactivated.")
+        Text("Operational rule: run the relevant mailbox provider manually, review imported/uncertain/filtered outcomes, then move real order work through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit. Treat non-mailbox providers as optional setup unless deliberately reactivated.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(providerPriorityTone)
           .fixedSize(horizontal: false, vertical: true)
@@ -226,7 +281,7 @@ struct IntegrationsView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          Text("SpaceMail IMAP is the current manual read-only mailbox path. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
+          Text("SpaceMail IMAP and Gmail are the current manual read-only mailbox paths. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -293,7 +348,7 @@ struct IntegrationsView: View {
           SettingsPanel(title: "Recommended setup path", symbol: "arrow.forward.circle.fill") {
           VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
-              Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : "envelope.badge.fill")
                 .foregroundStyle(recommendedSetupTone)
                 .frame(width: 24)
               VStack(alignment: .leading, spacing: 4) {
@@ -305,22 +360,24 @@ struct IntegrationsView: View {
                   .fixedSize(horizontal: false, vertical: true)
               }
               Spacer()
-              Badge(hasSpaceMailSetup ? "SpaceMail" : "Setup needed", color: recommendedSetupTone)
+              Badge(hasSpaceMailSetup ? "SpaceMail" : hasGmailSetup ? "Gmail" : "Setup needed", color: recommendedSetupTone)
             }
 
             MetricStrip(items: [
-              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .orange),
-              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
-              ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
-              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
-              ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
+              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : hasGmailSetup ? .secondary : .orange),
+              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : hasSpaceMailSetup ? "Needed" : "N/A", hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary),
+              ("Gmail", hasGmailSetup ? "Configured" : "Not set", hasGmailSetup ? .green : .secondary),
+              ("Google sign-in", hasGmailConnectedAuth ? "Connected" : hasGmailSetup ? "Needed" : "N/A", hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary),
+              ("Fetched", "\((latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", .blue),
+              ("Imported", "\((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
+              ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", (((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) > 0) ? .orange : .secondary)
             ])
 
             SpaceMailPrimaryStatusStrip(store: store, title: "Current SpaceMail intake", showTitle: true)
 
             SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
 
-            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail.")
+            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail/Gmail mailbox intake.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
