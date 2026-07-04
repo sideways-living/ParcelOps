@@ -2228,6 +2228,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshFilteredExamples: [String]?
   var lastRefreshUncertainExamples: [String]?
   var uncertainMessages: [GmailReviewMessage]?
+  var filteredMessages: [GmailReviewMessage]?
   var classifierTestSummary: String?
   var classifierTestResults: [GmailClassifierTestResult]?
   var reviewState: ReviewState
@@ -2257,6 +2258,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshFilteredExamples: [String]? = nil,
     lastRefreshUncertainExamples: [String]? = nil,
     uncertainMessages: [GmailReviewMessage]? = nil,
+    filteredMessages: [GmailReviewMessage]? = nil,
     classifierTestSummary: String? = nil,
     classifierTestResults: [GmailClassifierTestResult]? = nil,
     reviewState: ReviewState
@@ -2285,6 +2287,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
     self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
     self.uncertainMessages = uncertainMessages
+    self.filteredMessages = filteredMessages
     self.classifierTestSummary = classifierTestSummary
     self.classifierTestResults = classifierTestResults
     self.reviewState = reviewState

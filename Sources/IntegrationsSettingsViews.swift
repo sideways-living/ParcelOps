@@ -627,6 +627,10 @@ struct IntegrationsView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onImportFiltered: { message in
+              store.importFilteredGmailMessage(message, for: connection)
+            } onDismissFiltered: { message in
+              store.dismissFilteredGmailMessage(message, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1291,6 +1295,8 @@ struct GmailMailboxConnectionRow: View {
   var onCreatePlanTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
+  var onImportFiltered: (GmailReviewMessage) -> Void
+  var onDismissFiltered: (GmailReviewMessage) -> Void
   var onTestClassifier: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
@@ -1324,6 +1330,8 @@ struct GmailMailboxConnectionRow: View {
     onCreatePlanTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
+    onImportFiltered: @escaping (GmailReviewMessage) -> Void,
+    onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
     onTestClassifier: @escaping () -> Void,
     onTestCustomClassifier: @escaping (String, String, String) -> Void,
     onRunClassifierSuite: @escaping () -> Void,
@@ -1350,6 +1358,8 @@ struct GmailMailboxConnectionRow: View {
     self.onCreatePlanTask = onCreatePlanTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
+    self.onImportFiltered = onImportFiltered
+    self.onDismissFiltered = onDismissFiltered
     self.onTestClassifier = onTestClassifier
     self.onTestCustomClassifier = onTestCustomClassifier
     self.onRunClassifierSuite = onRunClassifierSuite
@@ -1548,6 +1558,54 @@ struct GmailMailboxConnectionRow: View {
         }
         .padding(10)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if let messages = connection.filteredMessages, !messages.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Review filtered Gmail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+          Text("These previews were treated as non-order Gmail. Import one only when the classifier was too strict; otherwise dismiss it locally to keep review focused.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          ForEach(messages) { message in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(message.subject)
+                    .font(.caption.weight(.semibold))
+                  Text("\(message.sender) • \(message.receivedDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Badge("Filtered", color: .teal)
+              }
+              Text(message.bodyPreview)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text("Reason: \(message.reason)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.teal)
+              CompactActionRow {
+                Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+                  onImportFiltered(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+                  onDismissFiltered(message)
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(8)
+            .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        .padding(10)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
       VStack(alignment: .leading, spacing: 8) {

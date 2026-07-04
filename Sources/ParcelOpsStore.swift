@@ -5625,10 +5625,11 @@ final class ParcelOpsStore {
   private func filteredGmailMessages(
     _ messages: [FetchedMailboxMessage],
     for connection: GmailMailboxConnection
-  ) -> (importMessages: [FetchedMailboxMessage], uncertainMessages: [GmailReviewMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], detail: String) {
+  ) -> (importMessages: [FetchedMailboxMessage], uncertainMessages: [GmailReviewMessage], filteredMessages: [GmailReviewMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], detail: String) {
     guard connection.mailboxMode == .mixedFiltered else {
       return (
         messages,
+        [],
         [],
         0,
         0,
@@ -5640,6 +5641,7 @@ final class ParcelOpsStore {
 
     var importMessages: [FetchedMailboxMessage] = []
     var uncertainMessages: [GmailReviewMessage] = []
+    var filteredMessages: [GmailReviewMessage] = []
     var filteredExamples: [String] = []
     var uncertainExamples: [String] = []
     var importedExamples: [String] = []
@@ -5665,6 +5667,18 @@ final class ParcelOpsStore {
         )
       } else {
         filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+        filteredMessages.append(
+          GmailReviewMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
+            reason: relevance.reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       }
     }
 
@@ -5685,6 +5699,7 @@ final class ParcelOpsStore {
     return (
       importMessages,
       uncertainMessages,
+      filteredMessages,
       filteredExamples.count,
       uncertainExamples.count,
       Array(filteredExamples.prefix(5)),
@@ -11463,6 +11478,7 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
       draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
     }
     logAudit(
@@ -11505,6 +11521,7 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
       draft.lastRefreshSummary = "Real Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
     }
 
@@ -11578,6 +11595,53 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Uncertain Gmail message dismissed locally.",
       afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nThe message was removed from the local Gmail uncertain review list only. No Gmail API call, OAuth token, mailbox item, or full message body was changed."
+    )
+  }
+
+  func importFilteredGmailMessage(_ filteredMessage: GmailReviewMessage, for connection: GmailMailboxConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: filteredMessage.providerMessageID,
+      sender: filteredMessage.sender,
+      subject: filteredMessage.subject,
+      receivedDate: filteredMessage.receivedDate,
+      plainTextBodyPreview: filteredMessage.bodyPreview,
+      sourceMailboxID: filteredMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    updateGmailMailboxConnection(connection) { draft in
+      var current = draft.filteredMessages ?? []
+      current.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      draft.filteredMessages = current
+      draft.lastRefreshFilteredNonOrderCount = current.count
+      draft.lastRefreshFilteredExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Gmail filtered preview imported locally. \(current.count) filtered Gmail previews remain."
+    }
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered Gmail message imported into intake locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nThis was an explicit local operator action from a filtered preview. No Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  func dismissFilteredGmailMessage(_ filteredMessage: GmailReviewMessage, for connection: GmailMailboxConnection) {
+    updateGmailMailboxConnection(connection) { draft in
+      var current = draft.filteredMessages ?? []
+      current.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      draft.filteredMessages = current
+      draft.lastRefreshFilteredNonOrderCount = current.count
+      draft.lastRefreshFilteredExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Gmail filtered preview dismissed locally. \(current.count) filtered Gmail previews remain."
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered Gmail message dismissed locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nThe message was removed from the local Gmail filtered review list only. It was not imported into Inbox, and no Gmail API call, OAuth token, mailbox item, or full message body was changed."
     )
   }
 

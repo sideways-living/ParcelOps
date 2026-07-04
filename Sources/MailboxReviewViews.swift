@@ -251,6 +251,10 @@ struct MailboxView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onImportFiltered: { message in
+              store.importFilteredGmailMessage(message, for: connection)
+            } onDismissFiltered: { message in
+              store.dismissFilteredGmailMessage(message, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1298,6 +1302,11 @@ struct GmailNeedsReviewPreviewRow: View {
   var receivedDate: String
   var bodyPreview: String
   var reason: String
+  var badge: String = "Uncertain"
+  var color: Color = .orange
+  var recommendationTitle: String = "Review needed: possibly order-related"
+  var recommendationDetail: String = "This Gmail preview stayed out of Inbox because the classifier was not confident. Import only true order mail; dismiss local false positives."
+  var symbol: String = "questionmark.folder.fill"
   var onImport: () -> Void
   var onDismiss: () -> Void
 
@@ -1313,7 +1322,7 @@ struct GmailNeedsReviewPreviewRow: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 10) {
         VStack(alignment: .leading, spacing: 3) {
-          Label(displayTitle, systemImage: "questionmark.folder.fill")
+          Label(displayTitle, systemImage: symbol)
             .font(.subheadline.weight(.semibold))
             .fixedSize(horizontal: false, vertical: true)
           Text("\(displaySender) • \(receivedDate)")
@@ -1321,25 +1330,25 @@ struct GmailNeedsReviewPreviewRow: View {
             .foregroundStyle(.secondary)
         }
         Spacer()
-        Badge("Uncertain", color: .orange)
+        Badge(badge, color: color)
       }
 
       HStack(alignment: .top, spacing: 8) {
-        Image(systemName: "questionmark.folder.fill")
-          .foregroundStyle(.orange)
+        Image(systemName: symbol)
+          .foregroundStyle(color)
           .frame(width: 18)
         VStack(alignment: .leading, spacing: 2) {
-          Text("Review needed: possibly order-related")
+          Text(recommendationTitle)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.orange)
-          Text("This Gmail preview stayed out of Inbox because the classifier was not confident. Import only true order mail; dismiss local false positives.")
+            .foregroundStyle(color)
+          Text(recommendationDetail)
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
       .padding(8)
-      .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       Text(bodyPreview)
         .font(.caption)
@@ -1348,7 +1357,7 @@ struct GmailNeedsReviewPreviewRow: View {
         .fixedSize(horizontal: false, vertical: true)
       Text("Reason: \(reason)")
         .font(.caption2.weight(.semibold))
-        .foregroundStyle(.orange)
+        .foregroundStyle(color)
       CompactActionRow {
         Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
         Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
@@ -1356,7 +1365,7 @@ struct GmailNeedsReviewPreviewRow: View {
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -2442,7 +2451,35 @@ struct NeedsReviewView: View {
                     }
                   }
 
-                  if let examples = connection.lastRefreshFilteredExamples, !examples.isEmpty {
+                  let filteredMessages = connection.filteredMessages ?? []
+                  if !filteredMessages.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                      Label("Filtered Gmail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.teal)
+
+                      ForEach(Array(filteredMessages.prefix(5))) { message in
+                        GmailNeedsReviewPreviewRow(
+                          title: message.subject,
+                          sender: message.sender,
+                          receivedDate: message.receivedDate,
+                          bodyPreview: message.bodyPreview,
+                          reason: message.reason,
+                          badge: "Filtered",
+                          color: .teal,
+                          recommendationTitle: "Optional review: likely non-order Gmail",
+                          recommendationDetail: "This Gmail preview was filtered out of Inbox. Import it only if it is a real order or order update; otherwise dismiss the local preview.",
+                          symbol: "line.3.horizontal.decrease.circle.fill"
+                        ) {
+                          store.importFilteredGmailMessage(message, for: connection)
+                        } onDismiss: {
+                          store.dismissFilteredGmailMessage(message, for: connection)
+                        }
+                      }
+                    }
+                  }
+
+                  if filteredMessages.isEmpty, let examples = connection.lastRefreshFilteredExamples, !examples.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                       Label("Filtered Gmail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
                         .font(.caption.weight(.semibold))
