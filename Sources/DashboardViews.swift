@@ -489,9 +489,9 @@ struct DashboardView: View {
         MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
           title: "Daily operator path",
-          detail: "Use these screens in order for the current SpaceMail-first local workflow.",
+          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail and Gmail are the active live intake paths; Microsoft 365 remains an advanced provider path.",
           steps: [
-            "Run or review the latest manual SpaceMail refresh.",
+            "Run or review the latest manual SpaceMail or Gmail refresh.",
             "Triage imported intake and decide on uncertain mixed-mailbox messages.",
             "Create or link an order from confirmed intake.",
             "Clear Workbench, Tasks, and Dispatch follow-up for that order.",

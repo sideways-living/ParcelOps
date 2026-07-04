@@ -93,12 +93,43 @@ struct InboxView: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
   private var uncertainSpaceMailCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
   }
 
+  private var uncertainGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+  }
+
   private var filteredSpaceMailCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+  }
+
+  private var filteredGmailCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var mailboxHealthAttentionCount: Int {
+    store.spaceMailIntakeHealthSummaries.filter {
+      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
+    }.count
+      + store.gmailIntakeHealthSummaries.filter {
+        $0.tone == "warning" || $0.tone == "attention" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
+      }.count
   }
 
   private var blockedIncomingCount: Int {
@@ -118,44 +149,53 @@ struct InboxView: View {
       event.entityType.rawValue.localizedCaseInsensitiveContains("intake")
         || event.summary.localizedCaseInsensitiveContains("Inbox")
         || event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.summary.localizedCaseInsensitiveContains("Gmail")
         || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
     })
   }
 
   private var dailyFlowSteps: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
-    let hasRefreshEvidence = latestSpaceMailSummary != nil
+    let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
+    let hasMailboxAuth = (hasSpaceMailSetup && hasSpaceMailCredentialReference) || (hasGmailSetup && hasGmailConnectedAuth)
+    let hasRefreshEvidence = latestSpaceMailSummary != nil || latestGmailSummary != nil
     let hasMailboxDecisionEvidence = (latestSpaceMailSummary?.importedCount ?? 0) > 0
+      || (latestGmailSummary?.importedCount ?? 0) > 0
       || (latestSpaceMailSummary?.filteredCount ?? 0) > 0
+      || (latestGmailSummary?.filteredCount ?? 0) > 0
       || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
-      || uncertainSpaceMailCount > 0
-      || filteredSpaceMailCount > 0
+      || (latestGmailSummary?.duplicateCount ?? 0) > 0
+      || uncertainSpaceMailCount + uncertainGmailCount > 0
+      || filteredSpaceMailCount + filteredGmailCount > 0
       || !triageItems.isEmpty
 
     return [
       (
         "Setup",
-        hasSpaceMailSetup ? "SpaceMail setup exists." : "Add SpaceMail setup in Mailbox Monitor.",
+        hasMailboxSetup ? "A manual mailbox setup exists." : "Add SpaceMail or Gmail setup in Mailbox Monitor.",
         "server.rack",
-        hasSpaceMailSetup ? .green : .orange,
-        hasSpaceMailSetup
+        hasMailboxSetup ? .green : .orange,
+        hasMailboxSetup
       ),
       (
-        "Credential",
-        hasSpaceMailCredentialReference ? "Keychain credential reference is ready." : "Set or check the SpaceMail Keychain credential.",
+        "Auth",
+        hasMailboxAuth ? "Credential or sign-in is ready." : "Set SpaceMail credential or complete Gmail sign-in.",
         "key.horizontal.fill",
-        hasSpaceMailCredentialReference ? .green : .orange,
-        hasSpaceMailCredentialReference
+        hasMailboxAuth ? .green : .orange,
+        hasMailboxAuth
       ),
       (
         "Refresh",
-        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "Run manual read-only SpaceMail refresh.",
+        latestSpaceMailSummary.map { "\($0.fetchedCount) SpaceMail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
+          ?? latestGmailSummary.map { "\($0.fetchedCount) Gmail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
+          ?? "Run manual read-only SpaceMail or Gmail refresh.",
         "arrow.triangle.2.circlepath",
         hasRefreshEvidence ? .green : .orange,
         hasRefreshEvidence
       ),
       (
         "Review",
-        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount) uncertain, \(filteredSpaceMailCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
+        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount + uncertainGmailCount) uncertain, \(filteredSpaceMailCount + filteredGmailCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
         "tray.full.fill",
         hasMailboxDecisionEvidence ? .teal : .orange,
         hasMailboxDecisionEvidence
@@ -169,7 +209,7 @@ struct InboxView: View {
       ),
       (
         "Audit",
-        hasInboxAuditEvidence ? "Inbox or SpaceMail activity is visible in Audit." : "Confirm local activity appears in Audit.",
+        hasInboxAuditEvidence ? "Inbox or mailbox activity is visible in Audit." : "Confirm local activity appears in Audit.",
         "list.clipboard.fill",
         hasInboxAuditEvidence ? .green : .orange,
         hasInboxAuditEvidence
@@ -183,7 +223,7 @@ struct InboxView: View {
 
   private var inboxSummaryTone: Color {
     if blockedIncomingCount > 0 { return .orange }
-    if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount > 0 { return .teal }
+    if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount + uncertainGmailCount > 0 { return .teal }
     if parserIssueCount > 0 { return .orange }
     return .green
   }
@@ -191,7 +231,7 @@ struct InboxView: View {
   private var inboxSummaryTitle: String {
     if blockedIncomingCount > 0 { return "Clear blocked incoming records" }
     if readyAcceptanceCount > 0 { return "Accept or link ready intake" }
-    if uncertainSpaceMailCount > 0 { return "Review uncertain SpaceMail messages" }
+    if uncertainSpaceMailCount + uncertainGmailCount > 0 { return "Review uncertain mailbox messages" }
     if !triageItems.isEmpty { return "Work the triage queue" }
     if parserIssueCount > 0 { return "Parser diagnostics are available" }
     return "Inbox is clear"
@@ -204,7 +244,7 @@ struct InboxView: View {
     if readyAcceptanceCount > 0 {
       return "Acceptance rows are closest to becoming operational records. Link to an existing order or create a new local order."
     }
-    if uncertainSpaceMailCount > 0 {
+    if uncertainSpaceMailCount + uncertainGmailCount > 0 {
       return "Uncertain mixed-mailbox messages stay out of Inbox until you explicitly import or dismiss them in Mailbox Monitor."
     }
     if !triageItems.isEmpty {
@@ -256,7 +296,7 @@ struct InboxView: View {
           ("Triage rows", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
           ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
           ("Acceptance", "\(readyAcceptanceCount)", readyAcceptanceCount == 0 ? .green : .blue),
-          ("Uncertain", "\(uncertainSpaceMailCount)", uncertainSpaceMailCount == 0 ? .green : .orange),
+          ("Uncertain", "\(uncertainSpaceMailCount + uncertainGmailCount)", uncertainSpaceMailCount + uncertainGmailCount == 0 ? .green : .orange),
           ("Blocked", "\(blockedIncomingCount)", blockedIncomingCount == 0 ? .green : .red)
         ])
 
@@ -379,21 +419,25 @@ struct InboxView: View {
   private var mailboxHealthPanel: some View {
     SettingsPanel(title: "Mailbox intake health", symbol: "server.rack") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("SpaceMail is mixed-use. This summary shows whether the latest manual refresh produced actionable intake or mostly filtered normal mail. Use Mailbox Monitor for setup, classifier tuning, and detailed diagnostics.")
+        Text("Manual mailbox refreshes can come from SpaceMail or Gmail. This summary shows whether recent refreshes produced actionable intake or mostly filtered normal mail. Use Mailbox Monitor for setup, classifier tuning, and detailed diagnostics.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
-        if store.spaceMailIntakeHealthSummaries.isEmpty {
+        if store.spaceMailIntakeHealthSummaries.isEmpty && store.gmailIntakeHealthSummaries.isEmpty {
           MVPEmptyState(
-            title: "No SpaceMail mailbox configured",
-            detail: "Add a SpaceMail setup in Mailbox Monitor or Settings when you are ready to use real IMAP intake.",
+            title: "No manual mailbox refresh history",
+            detail: "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes in Mailbox Monitor or Settings when you are ready to use real intake.",
             symbol: "server.rack"
           )
         } else {
-          CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+          if !store.spaceMailIntakeHealthSummaries.isEmpty {
+            CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+          }
 
-          SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+          if !store.spaceMailIntakeHealthSummaries.isEmpty {
+            SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+          }
 
           Text("Trend rows show recent manual refresh outcomes only. Filtered mixed-mailbox mail stays out of Inbox; imported and uncertain counts are the signals to act on.")
             .font(.caption)
@@ -402,6 +446,10 @@ struct InboxView: View {
 
           ForEach(store.spaceMailIntakeHealthSummaries) { summary in
             InboxMailboxHealthRow(summary: summary)
+          }
+
+          ForEach(store.gmailIntakeHealthSummaries) { summary in
+            InboxGmailHealthRow(summary: summary)
           }
         }
 
@@ -453,7 +501,7 @@ struct InboxView: View {
         ("Triage", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
         ("Emails", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .blue),
         ("Parser", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .secondary),
-        ("Mailbox", "\(store.spaceMailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0 }.count)", .purple),
+        ("Mailbox", "\(mailboxHealthAttentionCount)", .purple),
         ("Imports", "\(store.importQueueItemsNeedingReview.count)", store.importQueueItemsNeedingReview.isEmpty ? .green : .teal),
         ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", store.acceptanceRecordsNeedingReview.isEmpty ? .green : .orange),
         ("All records", "\(store.intakeEmails.count + store.importQueueItems.count)", .gray)
@@ -740,6 +788,56 @@ private struct InboxMailboxHealthRow: View {
           .foregroundStyle(.secondary)
           .lineLimit(3)
       }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
+    }
+  }
+}
+
+private struct InboxGmailHealthRow: View {
+  var summary: GmailIntakeHealthSummary
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(summary.displayName, systemImage: "envelope.badge.shield.half.filled")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Badge(summary.verdict, color: color)
+      }
+      Text(summary.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 110) {
+        Badge("\(summary.fetchedCount) fetched", color: .blue)
+        Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
+        Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
+        Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain", color: summary.pendingUncertainReviewCount + summary.uncertainCount > 0 ? .orange : .secondary)
+      }
+      Text(summary.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Gmail refresh is manual and read-only. Filtered mixed-mailbox mail stays out of Inbox; imported and uncertain counts are the operator signals.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
