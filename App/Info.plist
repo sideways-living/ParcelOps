@@ -26,6 +26,14 @@
 				<string>msauth.app.bitrig.parcelops</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Gmail OAuth callback placeholder</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.parcelops-placeholder</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
@@ -35,7 +43,11 @@
 	<array>
 		<string>msauthv2</string>
 		<string>msauthv3</string>
+		<string>googlechrome</string>
+		<string>comgooglemaps</string>
 	</array>
+	<key>GIDClientID</key>
+	<string>GMAIL_CLIENT_ID_PLACEHOLDER_REPLACE_BEFORE_REAL_SIGN_IN</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>

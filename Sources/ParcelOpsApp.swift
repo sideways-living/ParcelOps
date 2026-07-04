@@ -251,6 +251,7 @@ struct ParcelOpsRootView: View {
     .tint(.teal)
     .onOpenURL { url in
       store.handleMicrosoft365AuthCallback(url)
+      store.handleGmailAuthCallback(url)
     }
   }
 

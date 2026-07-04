@@ -17,6 +17,10 @@
     "MSAL": {
       "url": "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git",
       "exactVersion": "2.12.1"
+    },
+    "GoogleSignIn": {
+      "url": "https://github.com/google/GoogleSignIn-iOS.git",
+      "exactVersion": "9.2.0"
     }
   },
   "targets": {
@@ -43,6 +47,10 @@
           "product": "MSAL"
         },
         {
+          "package": "GoogleSignIn",
+          "product": "GoogleSignIn"
+        },
+        {
           "embed": true,
           "target": "ParcelOps Widget Extension",
           "destinationFilters": [
@@ -65,12 +73,21 @@
               "CFBundleURLSchemes": [
                 "msauth.app.bitrig.parcelops"
               ]
+            },
+            {
+              "CFBundleURLName": "Gmail OAuth callback placeholder",
+              "CFBundleURLSchemes": [
+                "com.googleusercontent.apps.parcelops-placeholder"
+              ]
             }
           ],
           "LSApplicationQueriesSchemes": [
             "msauthv2",
-            "msauthv3"
-          ]
+            "msauthv3",
+            "googlechrome",
+            "comgooglemaps"
+          ],
+          "GIDClientID": "GMAIL_CLIENT_ID_PLACEHOLDER_REPLACE_BEFORE_REAL_SIGN_IN"
         }
       },
       "entitlements": {

@@ -13139,6 +13139,22 @@ final class ParcelOpsStore {
     )
   }
 
+  @MainActor
+  func handleGmailAuthCallback(_ url: URL) {
+    let isGmailCallback = url.scheme == GoogleGmailAuthAdapter.placeholderCallbackScheme
+    guard isGmailCallback else { return }
+    let status = GoogleGmailAuthAdapter().callbackReadinessStatus(for: url)
+    let connection = gmailMailboxConnections.first
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection?.id.uuidString ?? "gmail-auth-callback",
+      entityLabel: connection?.displayName ?? "Gmail auth callback",
+      summary: "Gmail auth callback readiness evaluated.",
+      afterDetail: "\(status)\nThis is placeholder callback readiness only. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+    )
+  }
+
   func simulateMicrosoft365TokenStoreReady(_ connection: Microsoft365MailboxConnection) {
     Task {
       let result = await microsoft365TokenStore.simulateReady(for: connection)

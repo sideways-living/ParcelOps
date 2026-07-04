@@ -1597,6 +1597,11 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
+      Text(GoogleGmailAuthAdapter().setupReadinessDetail(for: connection))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
       if isEditing {
         VStack(alignment: .leading, spacing: 8) {
           TextField("Display name", text: $draft.displayName)

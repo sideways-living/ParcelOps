@@ -43,6 +43,8 @@
 		9E4432914A94BF3FC4BBDD36 /* AcceptanceReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF3076BE8338448EDFD2C3D /* AcceptanceReviewViews.swift */; };
 		A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */; };
 		A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = A6B5C4D3E2F1012345678904 /* MSAL */; };
+		B7C8D9E0F1A2012345678902 /* GoogleGmailAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */; };
+		B7C8D9E0F1A2012345678905 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B7C8D9E0F1A2012345678904 /* GoogleSignIn */; };
 		A1A4593A0BA46C8E111B137D /* CommunicationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91EBD362A0621E5FC6CF3BF /* CommunicationViews.swift */; };
 		A9BBF23BBF56CA7001687BFD /* ShipmentGroupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */; };
 		B19610644621A4CB73F0B7B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A518D638621BEE2F1123A89C /* Assets.xcassets */; };
@@ -132,6 +134,7 @@
 		980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettingsViews.swift; sourceTree = "<group>"; };
 		9BBE20445D49D4AD19F7FBDD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
 		A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSALMicrosoft365AuthAdapter.swift; sourceTree = "<group>"; };
+		B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleGmailAuthAdapter.swift; sourceTree = "<group>"; };
 		A518D638621BEE2F1123A89C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B126E1E735231BE8314F5B87 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		B35131894477ED26462D829A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -162,6 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */,
+				B7C8D9E0F1A2012345678905 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,6 +248,7 @@
 				299E154A43E3EF3BBC55411F /* DispatchReadinessViews.swift */,
 				B6C0F49BA78416BBC6E40B41 /* EvidenceViews.swift */,
 				066C38EC72A5DAD5C5DF392F /* ExceptionPlaybookViews.swift */,
+				B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */,
 				0D5A620540772B3F0294D350 /* HandoffNoteViews.swift */,
 				44B77EED4C77B2EA87964BC3 /* ImportQueueViews.swift */,
 				980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */,
@@ -303,6 +308,7 @@
 			name = ParcelOps;
 			packageProductDependencies = (
 				A6B5C4D3E2F1012345678904 /* MSAL */,
+				B7C8D9E0F1A2012345678904 /* GoogleSignIn */,
 			);
 			productName = ParcelOps;
 			productReference = CAF3A15F042E2C123A948632 /* ParcelOps.app */;
@@ -366,6 +372,7 @@
 			preferredProjectObjectVersion = 77;
 			packageReferences = (
 				A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
+				B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			productRefGroup = 28B4921062D8B256ECDD1F41 /* Products */;
 			projectDirPath = "";
@@ -435,6 +442,7 @@
 				38D4A3363E17870FF8D1E3D5 /* DispatchReadinessViews.swift in Sources */,
 				8696FE9CE574168836A51DC5 /* EvidenceViews.swift in Sources */,
 				13A61F2FD39FA92F418C95DA /* ExceptionPlaybookViews.swift in Sources */,
+				B7C8D9E0F1A2012345678902 /* GoogleGmailAuthAdapter.swift in Sources */,
 				F8F86A180F81AA25A2F4E2D0 /* HandoffNoteViews.swift in Sources */,
 				4AC03575AE7D40901391BBB0 /* ImportQueueViews.swift in Sources */,
 				4D7EA9C386C701B90612713F /* IntegrationsSettingsViews.swift in Sources */,
@@ -757,6 +765,14 @@
 				version = 2.12.1;
 			};
 		};
+		B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = exactVersion;
+				version = 9.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -764,6 +780,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
 			productName = MSAL;
+		};
+		B7C8D9E0F1A2012345678904 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
