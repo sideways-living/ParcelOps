@@ -3163,7 +3163,7 @@ struct SpaceMailOperatorGuidanceStack: View {
 
 struct SpaceMailPrimaryStatusStrip: View {
   var store: ParcelOpsStore
-  var title: String = "SpaceMail intake status"
+  var title: String = "Mailbox intake status"
   var showTitle: Bool = true
 
   private var plan: SpaceMailPostRefreshActionPlan {
@@ -3182,20 +3182,70 @@ struct SpaceMailPrimaryStatusStrip: View {
     store.spaceMailIntakeHealthSummaries
   }
 
+  private var gmailHealthSummaries: [GmailIntakeHealthSummary] {
+    store.gmailIntakeHealthSummaries
+  }
+
   private var fetchedCount: Int {
     healthSummaries.reduce(0) { $0 + $1.fetchedCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
   }
 
   private var importedCount: Int {
     healthSummaries.reduce(0) { $0 + $1.importedCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
   }
 
   private var filteredCount: Int {
     healthSummaries.reduce(0) { $0 + $1.filteredCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
   }
 
   private var uncertainCount: Int {
     healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var gmailFetchedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var gmailImportedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var gmailReviewCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.pendingUncertainReviewCount + $1.filteredCount }
+  }
+
+  private var gmailStatusTone: String {
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) { return "warning" }
+    if gmailHealthSummaries.contains(where: { $0.tone == "attention" || $0.pendingUncertainReviewCount > 0 }) { return "attention" }
+    if gmailHealthSummaries.contains(where: { $0.importedCount > 0 || $0.tone == "success" }) { return "success" }
+    return "default"
+  }
+
+  private var gmailStatusTitle: String {
+    if gmailHealthSummaries.isEmpty { return "Gmail setup not started" }
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) { return "Gmail setup needs attention" }
+    if gmailReviewCount > 0 { return "Gmail review queue available" }
+    if gmailImportedCount > 0 { return "Gmail order intake captured" }
+    if gmailFetchedCount > 0 { return "Gmail filter evidence available" }
+    return "Gmail ready for manual testing"
+  }
+
+  private var gmailStatusDetail: String {
+    guard let latest = gmailHealthSummaries.first else {
+      return "Add or review Gmail setup from Settings or Mailbox Monitor when a mailbox uses Gmail or Google Workspace."
+    }
+    return "\(latest.displayName): \(latest.detail)"
+  }
+
+  private var gmailStatusFooter: String {
+    guard let latest = gmailHealthSummaries.first else {
+      return "Next: add Gmail setup placeholder"
+    }
+    return "\(latest.fetchedCount) fetched, \(latest.importedCount) imported, \(latest.duplicateCount) duplicate, \(latest.filteredCount) filtered, \(latest.pendingUncertainReviewCount + latest.uncertainCount) uncertain. Next: \(latest.nextAction)"
   }
 
   private var classifierImpactPreviews: [SpaceMailClassifierImpactPreview] {
@@ -3224,10 +3274,10 @@ struct SpaceMailPrimaryStatusStrip: View {
     VStack(alignment: .leading, spacing: 10) {
       if showTitle {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-          Label(title, systemImage: "server.rack")
+          Label(title, systemImage: "mail.stack.fill")
             .font(.headline)
           Spacer()
-          Badge(plan.primaryAction, color: color)
+          Badge("\(store.spaceMailIMAPConnections.count + store.gmailMailboxConnections.count) providers", color: color)
         }
       }
 
@@ -3240,11 +3290,19 @@ struct SpaceMailPrimaryStatusStrip: View {
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
         statusTile(
-          title: plan.title,
-          detail: plan.detail,
+          title: "SpaceMail: \(plan.title)",
+          detail: "IMAP: \(plan.detail)",
           footer: "Next: \(plan.primaryAction)",
           symbol: "arrow.triangle.branch",
           tone: plan.tone
+        )
+
+        statusTile(
+          title: gmailStatusTitle,
+          detail: gmailStatusDetail,
+          footer: gmailStatusFooter,
+          symbol: "envelope.badge.shield.half.filled",
+          tone: gmailStatusTone
         )
 
         statusTile(
@@ -3359,6 +3417,10 @@ struct OperatorSupportSnapshotCard: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var activeSpaceMailConnection: SpaceMailIMAPConnection? {
     store.spaceMailIMAPConnections.first
   }
@@ -3389,16 +3451,17 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var supportTone: Color {
-    if store.spaceMailIMAPConnections.isEmpty || !credentialReady { return .orange }
-    if latestSpaceMailSummary?.tone == "warning" { return .red }
+    if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty { return .orange }
+    if !store.spaceMailIMAPConnections.isEmpty && !credentialReady { return .orange }
+    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return .red }
     if readiness.completedCount < readiness.totalCount { return .orange }
     return .green
   }
 
   private var supportBadge: String {
-    if store.spaceMailIMAPConnections.isEmpty { return "Setup needed" }
-    if !credentialReady { return "Credential needed" }
-    if latestSpaceMailSummary?.tone == "warning" { return "Check mailbox" }
+    if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty { return "Setup needed" }
+    if !store.spaceMailIMAPConnections.isEmpty && !credentialReady { return "Credential needed" }
+    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return "Check mailbox" }
     if readiness.completedCount < readiness.totalCount { return "In progress" }
     return "Ready"
   }
@@ -3408,25 +3471,28 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var latestRefreshText: String {
-    guard let latestSpaceMailSummary else {
-      return "No SpaceMail refresh summary yet."
-    }
-    return "\(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.duplicateCount) duplicate, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+    let spaceLine = latestSpaceMailSummary.map {
+      "SpaceMail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain"
+    } ?? "SpaceMail no refresh summary"
+    let gmailLine = latestGmailSummary.map {
+      "Gmail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain"
+    } ?? "Gmail no refresh summary"
+    return "\(spaceLine). \(gmailLine)."
   }
 
   private var supportTiles: [(String, String, String, Color)] {
     [
       (
-        "Readiness",
-        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail MVP checks complete. \(readiness.nextAction)",
+        "Mailbox readiness",
+        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail MVP checks complete. Gmail providers: \(store.gmailMailboxConnections.count). \(latestGmailSummary?.nextAction ?? "Add Gmail setup only when a mailbox uses Gmail or Google Workspace.")",
         "checklist.checked",
-        readiness.completedCount == readiness.totalCount ? .green : .orange
+        readiness.completedCount == readiness.totalCount && latestGmailSummary?.tone != "warning" ? .green : .orange
       ),
       (
-        "Mailbox mode",
-        "\(mailboxModeText). Mixed mailbox mode keeps filtered non-order mail out of Inbox and holds uncertain mail for review.",
+        "Mixed mailbox mode",
+        "\(mailboxModeText). SpaceMail and Gmail mixed mailbox mode keep filtered non-order mail out of Inbox and hold uncertain mail for review.",
         "line.3.horizontal.decrease.circle",
-        latestSpaceMailSummary?.filteredCount ?? 0 > 0 ? .teal : .secondary
+        ((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) > 0 ? .teal : .secondary
       ),
       (
         "Inbox-to-order trail",
@@ -3468,9 +3534,9 @@ struct OperatorSupportSnapshotCard: View {
         ("Readiness", "\(readiness.completedCount)/\(readiness.totalCount)", readiness.completedCount == readiness.totalCount ? .green : .orange),
         ("Daily work", "\(openDailyWorkCount)", openDailyWorkCount == 0 ? .green : .orange),
         ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
-        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", latestSpaceMailSummary == nil ? .secondary : .blue),
-        ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) == 0 ? .secondary : .teal),
-        ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) == 0) ? .secondary : .orange)
+        ("Fetched", "\((latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", latestSpaceMailSummary == nil && latestGmailSummary == nil ? .secondary : .blue),
+        ("Filtered", "\((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0))", ((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) == 0 ? .secondary : .teal),
+        ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) == 0 ? .secondary : .orange)
       ])
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -3503,7 +3569,7 @@ struct OperatorSupportSnapshotCard: View {
           .buttonStyle(.bordered)
       }
 
-      Text("Support boundary: this snapshot reads existing local records only. It does not run IMAP refresh, change Keychain credentials, mutate mailbox messages, call external services, or alter JSON persistence.")
+      Text("Support boundary: this snapshot reads existing local records only. It does not run IMAP or Gmail refresh, change Keychain credentials, mutate mailbox messages, call external services, or alter JSON persistence.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -3527,6 +3593,10 @@ struct OperatorTestSessionChecklistCard: View {
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
   }
 
   private var inboxLinkedOrderCount: Int {
@@ -3560,6 +3630,8 @@ struct OperatorTestSessionChecklistCard: View {
     let hasParserEvidence = qa.checks.contains { $0.title == "Parser evidence" && $0.isComplete }
     let hasOrderHandoff = qa.checks.contains { $0.title == "Order handoff evidence" && $0.isComplete }
     let hasAuditTrail = qa.checks.contains { $0.title == "Audit trail evidence" && $0.isComplete }
+    let hasGmailRefresh = latestGmailSummary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never" } ?? false
+    let hasGmailFiltering = latestGmailSummary.map { $0.filteredCount > 0 || $0.pendingUncertainReviewCount > 0 || $0.uncertainCount > 0 } ?? false
     let dispatchWorkCount = store.blockedShipmentManifests.count
       + store.undispatchedShipmentManifests.count
       + store.blockedDispatchChecklists.count
@@ -3577,19 +3649,25 @@ struct OperatorTestSessionChecklistCard: View {
       ),
       (
         "2. Run read-only refresh",
-        "Manual SpaceMail refresh has completed or returned a clear safe result.",
-        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "No refresh summary yet.",
-        "server.rack",
-        hasRefresh,
-        hasRefresh ? .green : .orange
+        "Manual SpaceMail or Gmail refresh has completed or returned a clear safe result.",
+        [
+          latestSpaceMailSummary.map { "SpaceMail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "SpaceMail no refresh summary.",
+          latestGmailSummary.map { "Gmail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "Gmail no refresh summary."
+        ].joined(separator: " "),
+        "mail.stack.fill",
+        hasRefresh || hasGmailRefresh,
+        hasRefresh || hasGmailRefresh ? .green : .orange
       ),
       (
         "3. Review mixed mailbox decisions",
         "Filtered non-order mail stays out of Inbox, while uncertain mail is held in Mailbox Monitor.",
-        latestSpaceMailSummary.map { "\($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "Run refresh or classifier tests to create evidence.",
+        [
+          latestSpaceMailSummary.map { "SpaceMail \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "SpaceMail no classifier evidence.",
+          latestGmailSummary.map { "Gmail \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "Gmail no classifier evidence."
+        ].joined(separator: " "),
         "line.3.horizontal.decrease.circle",
-        hasFiltering,
-        hasFiltering ? .green : .orange
+        hasFiltering || hasGmailFiltering,
+        hasFiltering || hasGmailFiltering ? .green : .orange
       ),
       (
         "4. Validate parser output",
@@ -3735,6 +3813,10 @@ struct OperatorHandoffBriefCard: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var inboxLinkedOrderCount: Int {
     Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
   }
@@ -3753,10 +3835,13 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var mailboxLine: String {
-    guard let summary = latestSpaceMailSummary else {
-      return "SpaceMail: no refresh summary yet."
-    }
-    return "SpaceMail: \(summary.displayName), \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. Next: \(summary.nextAction)"
+    let spaceLine = latestSpaceMailSummary.map {
+      "SpaceMail: \($0.displayName), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. Next: \($0.nextAction)"
+    } ?? "SpaceMail: no refresh summary yet."
+    let gmailLine = latestGmailSummary.map {
+      "Gmail: \($0.displayName), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. Next: \($0.nextAction)"
+    } ?? "Gmail: no refresh summary yet."
+    return "\(spaceLine) \(gmailLine)"
   }
 
   private var handoffLines: [(String, String, String, Color)] {
@@ -3764,8 +3849,8 @@ struct OperatorHandoffBriefCard: View {
       (
         "Mailbox intake",
         mailboxLine,
-        "server.rack",
-        latestSpaceMailSummary == nil ? .orange : (latestSpaceMailSummary?.tone == "warning" ? .red : .teal)
+        "mail.stack.fill",
+        latestSpaceMailSummary == nil && latestGmailSummary == nil ? .orange : (latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" ? .red : .teal)
       ),
       (
         "Inbox and orders",
@@ -3807,10 +3892,11 @@ struct OperatorHandoffBriefCard: View {
       + dispatchFollowUpCount
       + (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
       + (latestSpaceMailSummary?.parserIssueCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
   }
 
   private var tone: Color {
-    if latestSpaceMailSummary == nil { return .orange }
+    if latestSpaceMailSummary == nil && latestGmailSummary == nil { return .orange }
     if attentionCount == 0 { return .green }
     if attentionCount <= 5 { return .orange }
     return .red
@@ -3826,7 +3912,7 @@ struct OperatorHandoffBriefCard: View {
       "Tasks/handoffs/drafts: \(taskFollowUpCount) attention item\(taskFollowUpCount == 1 ? "" : "s").",
       "Dispatch: \(dispatchFollowUpCount) attention item\(dispatchFollowUpCount == 1 ? "" : "s").",
       "Audit: \(store.auditEvents.count) local event\(store.auditEvents.count == 1 ? "" : "s").",
-      "Boundary: SpaceMail refresh is manual/read-only. Do not commit xcuserdata, DerivedData, local signing/team changes, or generated project noise."
+      "Boundary: mailbox refresh is manual/read-only. Do not commit xcuserdata, DerivedData, local signing/team changes, or generated project noise."
     ].joined(separator: "\n")
   }
 
