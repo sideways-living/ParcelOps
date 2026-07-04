@@ -296,6 +296,22 @@ struct MockGmailMailboxClient: GmailMailboxClient {
         receivedDate: "Mock Gmail refresh",
         plainTextBodyPreview: "Refund update for order GMAIL-1002. Please review whether a return claim is needed. Labels: \(labels).",
         sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1003",
+        sender: "newsletter@example-merchant.test",
+        subject: "Final days for winter offers",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Final days to view new offers and delivery deals. No order or tracking reference is included.",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1004",
+        sender: "security@example.test",
+        subject: "Security notification",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "A sign-in notification was generated for this account. This is not an order update.",
+        sourceMailboxID: sourceMailboxID
       )
     ]
 

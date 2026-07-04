@@ -5495,6 +5495,90 @@ final class ParcelOpsStore {
     )
   }
 
+  private func filteredGmailMessages(
+    _ messages: [FetchedMailboxMessage],
+    for connection: GmailMailboxConnection
+  ) -> (importMessages: [FetchedMailboxMessage], filteredCount: Int, filteredExamples: [String], detail: String) {
+    guard connection.mailboxMode == .mixedFiltered else {
+      return (
+        messages,
+        0,
+        [],
+        "Gmail mailbox mode is dedicated order mailbox, so all fetched messages were passed to intake duplicate/import handling."
+      )
+    }
+
+    var importMessages: [FetchedMailboxMessage] = []
+    var filteredExamples: [String] = []
+    var importedExamples: [String] = []
+
+    for message in messages {
+      let subject = message.subject.lowercased()
+      let preview = message.plainTextBodyPreview.lowercased()
+      let combined = "\(subject) \(preview)"
+      let orderNumber = detectedOrderNumber(in: combined)
+      let trackingNumber = detectedTrackingNumber(in: combined, excluding: orderNumber)
+      let hasOrderID = !orderNumber.localizedCaseInsensitiveContains("needs review")
+      let hasTrackingID = !trackingNumber.localizedCaseInsensitiveContains("needs review")
+      let hasStrongSignal = [
+        "order",
+        "tracking",
+        "shipped",
+        "shipment",
+        "dispatch",
+        "delivered",
+        "delivery update",
+        "refund",
+        "return"
+      ].contains { combined.contains($0) }
+      let hasMarketingOrAccountSignal = [
+        "newsletter",
+        "unsubscribe",
+        "offer",
+        "final days",
+        "sale",
+        "security notification",
+        "sign-in",
+        "password",
+        "calendar",
+        "social"
+      ].contains { combined.contains($0) }
+
+      if hasStrongSignal && (hasOrderID || hasTrackingID) && !hasMarketingOrAccountSignal {
+        importMessages.append(message)
+        importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (strong order signal)")
+      } else {
+        let reason: String
+        if hasMarketingOrAccountSignal {
+          reason = "marketing/account signal"
+        } else if !hasOrderID && !hasTrackingID {
+          reason = "missing order/tracking id"
+        } else {
+          reason = "weak order signal"
+        }
+        filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(reason))")
+      }
+    }
+
+    var detailLines = [
+      "Mixed Gmail filtering is enabled. Only likely order/order update messages were passed into primary Inbox intake.",
+      "Filtered Gmail messages are counted locally and not imported into ForwardedEmailIntake."
+    ]
+    if !importedExamples.isEmpty {
+      detailLines.append("Imported examples: \(importedExamples.prefix(3).joined(separator: "; ")).")
+    }
+    if !filteredExamples.isEmpty {
+      detailLines.append("Filtered examples: \(filteredExamples.prefix(3).joined(separator: "; ")).")
+    }
+
+    return (
+      importMessages,
+      filteredExamples.count,
+      Array(filteredExamples.prefix(5)),
+      detailLines.joined(separator: "\n")
+    )
+  }
+
   private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage, for connection: SpaceMailIMAPConnection) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
     let result = SpaceMailMailboxRelevanceClassifier.classify(message: message, connection: connection)
     let decision: MailboxRelevanceDecision
@@ -11134,15 +11218,17 @@ final class ParcelOpsStore {
     )
 
     let fetchResult = await gmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
-    let result = importFetchedMailboxMessages(fetchResult.messages)
+    let filterResult = filteredGmailMessages(fetchResult.messages, for: connection)
+    let result = importFetchedMailboxMessages(filterResult.importMessages)
+    let filteredExamples = filterResult.filteredExamples.joined(separator: "; ")
     updateGmailMailboxConnection(connection) { draft in
       draft.connectionStatus = "Mock Gmail: \(fetchResult.status.rawValue)"
       draft.lastManualRefreshDate = timestamp
       draft.lastRefreshFetchedCount = fetchResult.messages.count
       draft.lastRefreshImportedCount = result.imported
       draft.lastRefreshDuplicateCount = result.duplicates
-      draft.lastRefreshFilteredNonOrderCount = 0
-      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates. \(fetchResult.detail)"
+      draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered. \(fetchResult.detail)"
     }
     logAudit(
       action: .evaluated,
@@ -11150,7 +11236,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Gmail refresh completed.",
-      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nLabels: \(connection.monitoredLabelNames)\nMode: Local mock client boundary through provider-neutral intake.\nDetail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
     )
   }
 
