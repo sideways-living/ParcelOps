@@ -98,8 +98,24 @@ struct DashboardView: View {
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
   }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
   private var latestSpaceMailTone: Color {
     guard let summary = latestSpaceMailSummary else { return hasSpaceMailSetup ? .orange : .secondary }
+    switch summary.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
+  }
+  private var latestGmailTone: Color {
+    guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.isEmpty ? .secondary : .orange }
     switch summary.tone {
     case "success":
       return .green
@@ -132,6 +148,22 @@ struct DashboardView: View {
         return "Set or check the Keychain credential, then run an explicit read-only refresh."
       }
       return "No real SpaceMail refresh summary is available yet. Run manual refresh from Mailbox Monitor."
+    }
+    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+  }
+  private var latestGmailTitle: String {
+    guard let summary = latestGmailSummary else {
+      if store.gmailMailboxConnections.isEmpty { return "Gmail setup not started" }
+      return "Run a Gmail readiness check"
+    }
+    return summary.verdict
+  }
+  private var latestGmailDetail: String {
+    guard let summary = latestGmailSummary else {
+      if store.gmailMailboxConnections.isEmpty {
+        return "Add a Gmail setup in Mailbox Monitor or Settings when a mailbox is hosted by Gmail or Google Workspace."
+      }
+      return "No Gmail readiness or refresh summary is available yet. Use Mailbox Monitor to check setup."
     }
     return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
   }
@@ -1114,6 +1146,36 @@ struct DashboardView: View {
           ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary),
           ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
         ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "envelope.badge.shield.half.filled")
+              .font(.title3)
+              .foregroundStyle(latestGmailTone)
+              .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+              Text(latestGmailTitle)
+                .font(.subheadline.weight(.semibold))
+              Text(latestGmailDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+            Badge(latestGmailSummary?.lastRefreshDate ?? "No Gmail refresh", color: latestGmailTone)
+          }
+
+          MetricStrip(items: [
+            ("Gmail fetched", "\(latestGmailSummary?.fetchedCount ?? 0)", (latestGmailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
+            ("Gmail imported", "\(latestGmailSummary?.importedCount ?? 0)", (latestGmailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+            ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+            ("Gmail uncertain", "\((latestGmailSummary?.pendingUncertainReviewCount ?? 0) + (latestGmailSummary?.uncertainCount ?? 0))", ((latestGmailSummary?.pendingUncertainReviewCount ?? 0) + (latestGmailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary)
+          ])
+        }
+        .padding(10)
+        .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
 

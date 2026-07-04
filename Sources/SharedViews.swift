@@ -248,6 +248,7 @@ extension WorkbenchSource {
     case .intakeEmail: "envelope.open.fill"
     case .intakeParser: "text.magnifyingglass"
     case .spaceMailIntake: "server.rack"
+    case .gmailIntake: "envelope.badge.shield.half.filled"
     case .importQueue: "tray.and.arrow.down.fill"
     case .acceptanceReview: "checkmark.rectangle.stack.fill"
     case .reconciliation: "arrow.triangle.2.circlepath.circle.fill"
@@ -317,6 +318,7 @@ extension WorkbenchItem {
       || source == .validation
       || source == .intakeParser
       || source == .spaceMailIntake
+      || source == .gmailIntake
       || source == .exceptionPlaybook
       || source == .tracking
       || prioritySeverity.localizedCaseInsensitiveContains("critical")
@@ -324,7 +326,7 @@ extension WorkbenchItem {
 
   var supportsReviewAction: Bool {
     switch source {
-    case .reviewTask, .handoffNote, .intakeEmail, .intakeParser, .spaceMailIntake, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile, .setupPlaceholder:
+    case .reviewTask, .handoffNote, .intakeEmail, .intakeParser, .spaceMailIntake, .gmailIntake, .reconciliation, .shipmentGroup, .tracking, .evidence, .slaPolicy, .exceptionPlaybook, .draftMessage, .contact, .customerProfile, .destinationAddress, .deliveryInstruction, .packageContent, .costRecord, .returnClaim, .procurementRequest, .receivingInspection, .inventoryReceipt, .storageLocation, .custodyRecord, .labelReference, .scanSession, .shipmentManifest, .dispatchChecklist, .account, .vendorProfile, .setupPlaceholder:
       true
     case .importQueue, .acceptanceReview, .validation:
       false

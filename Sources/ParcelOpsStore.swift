@@ -311,6 +311,10 @@ final class ParcelOpsStore {
     spaceMailIMAPConnections.map(spaceMailIntakeHealthSummary(for:))
   }
 
+  var gmailIntakeHealthSummaries: [GmailIntakeHealthSummary] {
+    gmailMailboxConnections.map(gmailIntakeHealthSummary(for:))
+  }
+
   var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
     let historyPairs = spaceMailIMAPConnections.flatMap { connection in
       connection.refreshHistory.map { entry in
@@ -1072,6 +1076,85 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailIntakeHealthSummary(for connection: GmailMailboxConnection) -> GmailIntakeHealthSummary {
+    let mailboxID = connection.id
+    let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }
+    let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
+    let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
+    let status = connection.connectionStatus
+    let uncertainCount = connection.lastRefreshUncertainCount ?? 0
+    let pendingUncertainCount = connection.uncertainMessages?.count ?? 0
+
+    let verdict: String
+    let detail: String
+    let nextAction: String
+    let tone: String
+
+    if status.localizedCaseInsensitiveContains("Auth required") ||
+      status.localizedCaseInsensitiveContains("Consent required") ||
+      status.localizedCaseInsensitiveContains("API rejected") ||
+      status.localizedCaseInsensitiveContains("Network failed") ||
+      status.localizedCaseInsensitiveContains("not configured") {
+      verdict = "Gmail setup needs attention"
+      detail = "The latest Gmail state did not reach a clean read-only refresh."
+      nextAction = "Check OAuth client, URL scheme, read-only Gmail scope, consent screen, then test Google sign-in."
+      tone = "warning"
+    } else if connection.lastRefreshFetchedCount == 0 && connection.lastManualRefreshDate == "Never" {
+      verdict = "Ready for Gmail setup"
+      detail = "Gmail setup exists, but no readiness check or refresh has been recorded yet."
+      nextAction = "Save setup, run Test real Google sign-in, then use manual read-only Gmail refresh."
+      tone = "neutral"
+    } else if pendingUncertainCount > 0 || uncertainCount > 0 {
+      verdict = "Gmail uncertain mail needs review"
+      detail = "Some mixed Gmail messages looked order-related but not strong enough for automatic Inbox import."
+      nextAction = "Review uncertain Gmail previews in Mailbox Monitor, import true order mail, or dismiss non-order mail locally."
+      tone = "attention"
+    } else if connection.lastRefreshImportedCount > 0 {
+      verdict = "Gmail order intake captured"
+      detail = "The latest Gmail refresh imported likely order-related messages into Inbox without mailbox mutation."
+      nextAction = "Review imported Inbox rows and create or link orders where appropriate."
+      tone = "success"
+    } else if connection.lastRefreshFilteredNonOrderCount > 0 && connection.lastRefreshDuplicateCount == 0 {
+      verdict = "Gmail filter working"
+      detail = "The mixed mailbox filter kept fetched non-order Gmail messages out of Inbox."
+      nextAction = "No action needed unless filtered examples look order-related."
+      tone = "success"
+    } else if connection.lastRefreshDuplicateCount > 0 {
+      verdict = "No new Gmail order mail"
+      detail = "The latest Gmail refresh found messages ParcelOps had already captured or reviewed."
+      nextAction = "Wait for new mail or review filtered/uncertain examples if something looks wrong."
+      tone = "neutral"
+    } else if status.localizedCaseInsensitiveContains("Ready") || status.localizedCaseInsensitiveContains("sign-in") {
+      verdict = "Gmail ready for manual refresh"
+      detail = "Gmail setup has readiness or sign-in evidence, but no actionable intake is pending."
+      nextAction = "Run manual read-only Gmail refresh when you want to check the mailbox."
+      tone = "neutral"
+    } else {
+      verdict = "Monitor Gmail mailbox"
+      detail = "Gmail is configured, but the latest state did not produce actionable intake."
+      nextAction = "Run a readiness check or manual refresh after confirming Google setup."
+      tone = "neutral"
+    }
+
+    return GmailIntakeHealthSummary(
+      connectionID: connection.id,
+      displayName: connection.displayName,
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      fetchedCount: connection.lastRefreshFetchedCount,
+      importedCount: connection.lastRefreshImportedCount,
+      duplicateCount: connection.lastRefreshDuplicateCount,
+      filteredCount: connection.lastRefreshFilteredNonOrderCount,
+      uncertainCount: uncertainCount,
+      linkedIntakeCount: linkedIntakeCount,
+      pendingUncertainReviewCount: pendingUncertainCount,
+      lastRefreshDate: connection.lastManualRefreshDate,
+      lastRefreshSummary: connection.lastRefreshSummary
+    )
+  }
+
   func spaceMailAssignedFollowUpSummaries(for connection: SpaceMailIMAPConnection) -> [String] {
     let connectionID = connection.id.uuidString
     let taskSummaries = reviewTasks
@@ -1798,6 +1881,7 @@ final class ParcelOpsStore {
       + intakeWorkbenchItems()
       + intakeParserWorkbenchItems()
       + spaceMailIntakeWorkbenchItems()
+      + gmailIntakeWorkbenchItems()
       + importQueueWorkbenchItems()
       + acceptanceWorkbenchItems()
       + reconciliationWorkbenchItems()
@@ -3337,6 +3421,43 @@ final class ParcelOpsStore {
         dueDateText: summary.lastRefreshDate,
         reviewState: reviewState,
         source: .spaceMailIntake,
+        suggestedNextAction: summary.nextAction
+      )
+    }
+  }
+
+  private func gmailIntakeWorkbenchItems() -> [WorkbenchItem] {
+    gmailIntakeHealthSummaries.compactMap { summary in
+      guard summary.tone != "success"
+        || summary.importedCount > 0
+        || summary.pendingUncertainReviewCount > 0
+      else { return nil }
+
+      let priority: String
+      let reviewState: ReviewState?
+      if summary.tone == "warning" {
+        priority = "High"
+        reviewState = .needsReview
+      } else if summary.pendingUncertainReviewCount > 0 || summary.uncertainCount > 0 {
+        priority = "Medium"
+        reviewState = .needsReview
+      } else {
+        priority = "Normal"
+        reviewState = .monitor
+      }
+
+      return WorkbenchItem(
+        id: "gmail-health-\(summary.connectionID.uuidString)",
+        title: summary.verdict,
+        summary: "\(summary.displayName): \(summary.detail)",
+        linkedEntityType: .intakeEmail,
+        linkedEntityID: summary.connectionID.uuidString,
+        prioritySeverity: priority,
+        status: summary.verdict,
+        assignee: "Mailbox team",
+        dueDateText: summary.lastRefreshDate,
+        reviewState: reviewState,
+        source: .gmailIntake,
         suggestedNextAction: summary.nextAction
       )
     }
@@ -10744,6 +10865,10 @@ final class ParcelOpsStore {
     case .spaceMailIntake:
       if let connection = spaceMailIMAPConnections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markSpaceMailIMAPConnectionReviewed(connection)
+      }
+    case .gmailIntake:
+      if let connection = gmailMailboxConnections.first(where: { $0.id.uuidString == item.linkedEntityID }) {
+        markGmailMailboxConnectionReviewed(connection)
       }
     case .reconciliation:
       if let issue = reconciliationIssues.first(where: { $0.id == item.linkedEntityID }) {

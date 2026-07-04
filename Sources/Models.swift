@@ -1868,6 +1868,25 @@ struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
   var topReasonLabels: [String]
 }
 
+struct GmailIntakeHealthSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var displayName: String
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var filteredCount: Int
+  var uncertainCount: Int
+  var linkedIntakeCount: Int
+  var pendingUncertainReviewCount: Int
+  var lastRefreshDate: String
+  var lastRefreshSummary: String
+}
+
 struct SpaceMailMVPReadinessSummary: Hashable {
   var verdict: String
   var detail: String
@@ -2775,6 +2794,7 @@ enum WorkbenchSource: String, CaseIterable, Identifiable, Hashable {
   case intakeEmail = "Forwarded email"
   case intakeParser = "Intake parser"
   case spaceMailIntake = "SpaceMail intake"
+  case gmailIntake = "Gmail intake"
   case importQueue = "Import queue"
   case acceptanceReview = "Acceptance review"
   case reconciliation = "Reconciliation"

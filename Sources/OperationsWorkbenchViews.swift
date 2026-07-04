@@ -132,6 +132,30 @@ struct OperationsWorkbenchView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
   }
 
+  private var gmailHealthSummaries: [GmailIntakeHealthSummary] {
+    store.gmailIntakeHealthSummaries
+  }
+
+  private var gmailFetchedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var gmailImportedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var gmailFilteredCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var gmailUncertainCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var gmailWarningCount: Int {
+    gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+  }
+
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -350,6 +374,7 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         spaceMailWorkbenchBoundary
+        gmailWorkbenchBoundary
         inboxParserQualityHandoff
         spaceMailAssignedFollowUpPanel
         workbenchDiagnosticsBoundary
@@ -677,6 +702,128 @@ struct OperationsWorkbenchView: View {
       return "The latest refresh fetched mail but did not produce imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
     }
     return spaceMailPostRefreshPlan.detail
+  }
+
+  private var gmailWorkbenchBoundary: some View {
+    SettingsPanel(title: "Gmail-to-Workbench handoff", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailWorkbenchTone == .green ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .foregroundStyle(gmailWorkbenchTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailWorkbenchTitle)
+              .font(.headline)
+            Text(gmailWorkbenchDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(gmailFetchedCount)", gmailFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(gmailImportedCount)", gmailImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount == 0 ? .secondary : .teal),
+          ("Warnings", "\(gmailWarningCount)", gmailWarningCount == 0 ? .green : .orange)
+        ])
+
+        if !gmailHealthSummaries.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(gmailHealthSummaries.prefix(3)) { summary in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Text(summary.displayName)
+                    .font(.caption.weight(.semibold))
+                  Spacer()
+                  Badge(summary.verdict, color: gmailToneColor(summary.tone))
+                }
+                Text(summary.nextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(gmailToneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Gmail becomes Workbench work only after it creates actionable local state: imported Inbox intake, uncertain previews needing review, setup failures, or assigned follow-up. Filtered non-order Gmail stays out of the operator exception queue.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailWorkbenchTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Gmail setup", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Review Inbox intake", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Check Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var gmailWorkbenchTone: Color {
+    if gmailWarningCount > 0 || gmailUncertainCount > 0 { return .orange }
+    if gmailImportedCount > 0 { return .teal }
+    if gmailFilteredCount > 0 { return .green }
+    return .secondary
+  }
+
+  private var gmailWorkbenchTitle: String {
+    if gmailWarningCount > 0 { return "Gmail setup or refresh needs review" }
+    if gmailUncertainCount > 0 { return "Gmail needs Mailbox Monitor review" }
+    if gmailImportedCount > 0 { return "Gmail created Inbox work" }
+    if gmailFilteredCount > 0 { return "Gmail mixed-mailbox filter is working" }
+    if gmailHealthSummaries.isEmpty { return "Gmail setup is optional" }
+    return "Latest Gmail state created no Workbench work"
+  }
+
+  private var gmailWorkbenchDetail: String {
+    if gmailWarningCount > 0 {
+      return "\(gmailWarningCount) Gmail connection or refresh result needs setup review before it should become order work."
+    }
+    if gmailUncertainCount > 0 {
+      return "\(gmailUncertainCount) ambiguous Gmail preview is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
+    }
+    if gmailImportedCount > 0 {
+      return "\(gmailImportedCount) likely Gmail order message reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
+    }
+    if gmailFilteredCount > 0 {
+      return "\(gmailFilteredCount) mixed-mailbox Gmail message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
+    }
+    if gmailHealthSummaries.isEmpty {
+      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the primary path."
+    }
+    return "Gmail setup exists, but the latest state did not produce imported or uncertain order work."
+  }
+
+  private func gmailToneColor(_ tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
   }
 
   private var inboxParserQualityHandoff: some View {
@@ -1153,7 +1300,7 @@ struct OperationsWorkbenchView: View {
     switch item.source {
     case .reviewTask, .handoffNote:
       TasksView(store: store)
-    case .intakeEmail, .intakeParser, .spaceMailIntake, .importQueue, .acceptanceReview:
+    case .intakeEmail, .intakeParser, .spaceMailIntake, .gmailIntake, .importQueue, .acceptanceReview:
       InboxView(store: store)
     case .reconciliation:
       ReconciliationView(store: store)

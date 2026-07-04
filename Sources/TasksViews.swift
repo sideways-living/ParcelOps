@@ -59,6 +59,30 @@ struct TasksView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
   }
 
+  private var gmailHealthSummaries: [GmailIntakeHealthSummary] {
+    store.gmailIntakeHealthSummaries
+  }
+
+  private var gmailFetchedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var gmailImportedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var gmailFilteredCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var gmailUncertainCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  private var gmailWarningCount: Int {
+    gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+  }
+
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -215,6 +239,7 @@ struct TasksView: View {
         taskResolutionLadderPanel
         taskScopePanel
         inboxParserTaskContextPanel
+        gmailTaskContextPanel
         mvpValidationPanel
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
@@ -632,6 +657,110 @@ struct TasksView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var gmailTaskContextPanel: some View {
+    SettingsPanel(title: "Gmail task context", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: gmailWarningCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(gmailWarningCount > 0 ? .orange : .green)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailWarningCount > 0 ? "Gmail setup or intake needs review" : "Gmail has no assigned task pressure")
+              .font(.headline)
+            Text(gmailTaskContextDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(gmailFetchedCount)", gmailFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(gmailImportedCount)", gmailImportedCount > 0 ? .green : .secondary),
+          ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount > 0 ? .orange : .secondary),
+          ("Warnings", "\(gmailWarningCount)", gmailWarningCount > 0 ? .orange : .green)
+        ])
+
+        if !gmailHealthSummaries.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(gmailHealthSummaries.prefix(3)) { summary in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Text(summary.displayName)
+                    .font(.caption.weight(.semibold))
+                  Spacer()
+                  Badge(summary.verdict, color: gmailToneColor(summary.tone))
+                }
+                Text(summary.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text(summary.nextAction)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(gmailToneColor(summary.tone))
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(gmailToneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Gmail refresh and sign-in are explicit Mailbox Monitor actions. Tasks should only be used when a person needs ownership after a Gmail result is reviewed.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Gmail setup", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var gmailTaskContextDetail: String {
+    if gmailHealthSummaries.isEmpty {
+      return "No Gmail setup exists yet. Add one only for mailboxes hosted by Gmail or Google Workspace."
+    }
+    if gmailWarningCount > 0 {
+      return "\(gmailWarningCount) Gmail setup or refresh result needs mailbox review before it should become assigned task work."
+    }
+    if gmailImportedCount > 0 {
+      return "\(gmailImportedCount) Gmail message\(gmailImportedCount == 1 ? "" : "s") reached Inbox. Review triage there before creating task backlog."
+    }
+    if gmailFilteredCount > 0 {
+      return "The mixed Gmail filter kept \(gmailFilteredCount) non-order message\(gmailFilteredCount == 1 ? "" : "s") out of Inbox."
+    }
+    return "Use Mailbox Monitor for Gmail setup/readiness; no Gmail result currently requires assigned follow-up."
+  }
+
+  private func gmailToneColor(_ tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
     }
   }
 
