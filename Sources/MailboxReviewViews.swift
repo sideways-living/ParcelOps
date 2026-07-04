@@ -78,6 +78,8 @@ struct MailboxView: View {
 
         MailboxSpaceMailRunbookPanel(store: store)
 
+        MailboxGmailReadinessPanel(store: store)
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
@@ -474,6 +476,10 @@ private struct MailboxReviewStartPanel: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var reviewEmailCount: Int {
     store.reviewIntakeEmails.count
   }
@@ -486,18 +492,32 @@ private struct MailboxReviewStartPanel: View {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
   }
 
+  private var gmailUncertainCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+  }
+
+  private var gmailWarningCount: Int {
+    store.gmailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+  }
+
+  private var providerReviewCount: Int {
+    uncertainCount + gmailUncertainCount + gmailWarningCount
+  }
+
   private var tone: Color {
-    if parserIssueCount > 0 || uncertainCount > 0 { return .orange }
+    if parserIssueCount > 0 || providerReviewCount > 0 { return .orange }
     if reviewEmailCount > 0 { return .teal }
-    if latestSummary == nil { return .orange }
+    if latestSummary == nil && latestGmailSummary == nil { return .orange }
     return .green
   }
 
   private var title: String {
     if parserIssueCount > 0 { return "Start with parser checks" }
     if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
+    if gmailUncertainCount > 0 { return "Review uncertain Gmail messages" }
+    if gmailWarningCount > 0 { return "Review Gmail setup or refresh state" }
     if reviewEmailCount > 0 { return "Review imported order emails" }
-    if latestSummary == nil { return "Set up SpaceMail before real intake" }
+    if latestSummary == nil && latestGmailSummary == nil { return "Set up a mailbox before real intake" }
     return "Mailbox review is clear"
   }
 
@@ -508,11 +528,17 @@ private struct MailboxReviewStartPanel: View {
     if uncertainCount > 0 {
       return "Uncertain messages are held out of Inbox. Import only if the subject and preview look order-related; otherwise dismiss or add classifier hints."
     }
+    if gmailUncertainCount > 0 {
+      return "Gmail uncertain previews are also held out of Inbox. Review them in the Gmail setup row before importing any mixed-mailbox message."
+    }
+    if gmailWarningCount > 0 {
+      return "At least one Gmail setup has a sign-in, consent, label, API, or readiness state that needs review before it should create Inbox work."
+    }
     if reviewEmailCount > 0 {
       return "Work the detected order emails below. Confirm fields, then create/link orders, mark reviewed, ignore, task, or draft."
     }
-    if latestSummary == nil {
-      return "Add SpaceMail setup, confirm host/folder, save the Keychain credential, then run one manual read-only refresh."
+    if latestSummary == nil && latestGmailSummary == nil {
+      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Both paths feed the same local Inbox intake queue."
     }
     return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning SpaceMail or investigating Audit evidence."
   }
@@ -536,15 +562,15 @@ private struct MailboxReviewStartPanel: View {
       }
 
       MetricStrip(items: [
-        ("Fetched", "\(latestSummary?.fetchedCount ?? 0)", .blue),
-        ("Imported", "\(latestSummary?.importedCount ?? 0)", (latestSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
-        ("Filtered", "\(latestSummary?.filteredCount ?? 0)", (latestSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-        ("Uncertain", "\(uncertainCount)", uncertainCount == 0 ? .green : .orange),
+        ("Fetched", "\((latestSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", .blue),
+        ("Imported", "\((latestSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
+        ("Filtered", "\((latestSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0))", ((latestSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) > 0 ? .teal : .secondary),
+        ("Uncertain", "\(uncertainCount + gmailUncertainCount)", uncertainCount + gmailUncertainCount == 0 ? .green : .orange),
         ("Parser", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
         ("Review rows", "\(reviewEmailCount)", reviewEmailCount == 0 ? .green : .teal)
       ])
 
-      Text("Filtered mixed-mailbox messages are not imported into Inbox. Setup controls below are for configuration and diagnostics; the review queue is the operational work.")
+      Text("Filtered mixed-mailbox messages are not imported into Inbox. SpaceMail and Gmail setup controls below are for configuration and diagnostics; the review queue is the operational work.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -852,6 +878,202 @@ private struct MailboxSpaceMailRunbookPanel: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+}
+
+private struct MailboxGmailReadinessPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var primaryConnection: GmailMailboxConnection? {
+    store.gmailMailboxConnections.first
+  }
+
+  private var primaryAuthState: GmailAuthSessionState? {
+    guard let connection = primaryConnection else { return nil }
+    return store.gmailAuthSessionState(for: connection)
+  }
+
+  private var hasSetup: Bool {
+    primaryConnection != nil
+  }
+
+  private var hasCoreSetup: Bool {
+    guard let connection = primaryConnection else { return false }
+    return !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var hasConnectedAuth: Bool {
+    primaryAuthState?.status == .connected
+  }
+
+  private var hasManualRefresh: Bool {
+    store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var pendingUncertainCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+  }
+
+  private var warningCount: Int {
+    store.gmailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+  }
+
+  private var importedCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var filteredCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var fetchedCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var readinessTone: Color {
+    if !hasSetup || !hasCoreSetup || !hasConnectedAuth || warningCount > 0 || pendingUncertainCount > 0 { return .orange }
+    if importedCount > 0 { return .green }
+    if filteredCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var readinessTitle: String {
+    if !hasSetup { return "Gmail setup is optional" }
+    if !hasCoreSetup { return "Finish Gmail setup details" }
+    if !hasConnectedAuth { return "Test Google sign-in before Gmail refresh" }
+    if warningCount > 0 { return "Gmail setup or refresh needs review" }
+    if pendingUncertainCount > 0 { return "Review uncertain Gmail previews" }
+    if importedCount > 0 { return "Gmail imported order intake" }
+    if filteredCount > 0 { return "Gmail mixed-mailbox filtering is working" }
+    if !hasManualRefresh { return "Run the first Gmail refresh when needed" }
+    return "Gmail intake path is quiet"
+  }
+
+  private var readinessDetail: String {
+    if !hasSetup {
+      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the main provider path."
+    }
+    if !hasCoreSetup {
+      return "Add mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not add secrets or token values."
+    }
+    if !hasConnectedAuth {
+      return "Use the explicit Google sign-in test in the Gmail setup row. ParcelOps records only non-secret status and keeps refresh manual."
+    }
+    if warningCount > 0 {
+      return "Check the Gmail setup row for auth, consent, label, API, or readiness diagnostics before relying on live Gmail intake."
+    }
+    if pendingUncertainCount > 0 {
+      return "\(pendingUncertainCount) uncertain Gmail preview\(pendingUncertainCount == 1 ? "" : "s") are held out of Inbox. Import true order mail or dismiss non-order mail locally."
+    }
+    if importedCount > 0 {
+      return "\(importedCount) Gmail message\(importedCount == 1 ? "" : "s") reached Inbox intake. Review or create/link orders from Inbox."
+    }
+    if filteredCount > 0 {
+      return "\(filteredCount) mixed-mailbox Gmail message\(filteredCount == 1 ? "" : "s") were filtered out of Inbox. Check examples only when an expected order email is missing."
+    }
+    if !hasManualRefresh {
+      return "Gmail setup is present but no manual refresh has run. Use mock refresh for local tests or real refresh after sign-in."
+    }
+    return "The latest Gmail state has no imported or uncertain order work. Run manual refresh again only when you want to check for new mail."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Gmail readiness", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: readinessTone == .green || readinessTone == .teal ? "checkmark.seal.fill" : "person.badge.key")
+            .foregroundStyle(readinessTone)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(readinessTitle)
+              .font(.headline)
+            Text(readinessDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(readinessTone == .green || readinessTone == .teal ? "Ready" : "Action", color: readinessTone)
+        }
+
+        MetricStrip(items: [
+          ("Setup", hasCoreSetup ? "Ready" : hasSetup ? "Missing" : "Optional", hasCoreSetup ? .green : hasSetup ? .orange : .secondary),
+          ("Sign-in", primaryAuthState?.status.rawValue ?? "Not configured", hasConnectedAuth ? .green : .orange),
+          ("Fetched", "\(fetchedCount)", fetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
+          ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount == 0 ? .green : .orange)
+        ])
+
+        if let summary = latestSummary {
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+              Text(summary.displayName)
+                .font(.caption.weight(.semibold))
+              Spacer()
+              Badge(summary.verdict, color: toneColor(summary.tone))
+            }
+            Text(summary.nextAction)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text("Latest refresh: \(summary.lastRefreshDate). \(summary.lastRefreshSummary)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(3)
+          }
+          .padding(10)
+          .background(toneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        Text("Gmail remains manual and read-only. No background sync, mailbox mutation, token logging, or external classification is added by this readiness panel.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(readinessTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func toneColor(_ tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
     }
   }
 }
