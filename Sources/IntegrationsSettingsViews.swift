@@ -376,6 +376,7 @@ struct IntegrationsView: View {
             SpaceMailPrimaryStatusStrip(store: store, title: "Current SpaceMail intake", showTitle: true)
 
             SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
+            SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)
 
             Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail/Gmail mailbox intake.")
               .font(.caption)

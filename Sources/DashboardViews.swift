@@ -1754,6 +1754,7 @@ struct MVPReadinessCallout: View {
       ])
 
       SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
+      SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)
     }
     .padding(16)
     .background(.background)

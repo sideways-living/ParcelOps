@@ -1142,6 +1142,145 @@ final class ParcelOpsStore {
     )
   }
 
+  var liveMailboxQACheckSummary: SpaceMailQACheckSummary {
+    let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
+    let hasGmailSetup = !gmailMailboxConnections.isEmpty
+    let providerLabel: String
+    if hasSpaceMailSetup && hasGmailSetup {
+      providerLabel = "SpaceMail and Gmail"
+    } else if hasGmailSetup {
+      providerLabel = "Gmail"
+    } else if hasSpaceMailSetup {
+      providerLabel = "SpaceMail"
+    } else {
+      providerLabel = "No live mailbox provider"
+    }
+
+    let hasSpaceMailCredentialEvidence = auditEvents.contains { event in
+      event.entityType == .spaceMailIMAPConnection
+        && (event.summary.localizedCaseInsensitiveContains("credential check succeeded")
+          || event.summary.localizedCaseInsensitiveContains("credential saved"))
+    }
+    let hasGmailAuthEvidence = gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected }
+      || auditEvents.contains { event in
+        event.entityType == .gmailMailboxConnection
+          && (event.summary.localizedCaseInsensitiveContains("real gmail sign-in succeeded")
+            || event.summary.localizedCaseInsensitiveContains("mock gmail auth succeeded"))
+      }
+    let hasCredentialOrAuthEvidence = hasSpaceMailCredentialEvidence || hasGmailAuthEvidence
+
+    let successfulSpaceMailRefresh = auditEvents.contains { event in
+      event.entityType == .spaceMailIMAPConnection
+        && event.summary.localizedCaseInsensitiveContains("real spacemail imap refresh")
+        && (event.summary.localizedCaseInsensitiveContains("completed")
+          || (event.afterDetail ?? "").localizedCaseInsensitiveContains("Fetch result: Fetch success"))
+    }
+    let successfulGmailRefresh = auditEvents.contains { event in
+      event.entityType == .gmailMailboxConnection
+        && event.summary.localizedCaseInsensitiveContains("gmail refresh")
+        && (event.summary.localizedCaseInsensitiveContains("completed")
+          || (event.afterDetail ?? "").localizedCaseInsensitiveContains("Fetch result: Fetch success"))
+    } || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasRefreshEvidence = successfulSpaceMailRefresh || successfulGmailRefresh
+
+    let spaceMailFilteringEvidence = spaceMailIMAPConnections.contains {
+      $0.mailboxMode == .mixedFiltered
+        && ($0.lastRefreshFilteredNonOrderCount > 0 || !$0.lastRefreshReasonBreakdown.isEmpty || !$0.filteredMessages.isEmpty || !$0.uncertainMessages.isEmpty)
+    }
+    let gmailFilteringEvidence = gmailMailboxConnections.contains {
+      $0.mailboxMode == .mixedFiltered
+        && ($0.lastRefreshFilteredNonOrderCount > 0 || ($0.filteredMessages?.isEmpty == false) || ($0.uncertainMessages?.isEmpty == false) || ($0.lastRefreshFilteredExamples?.isEmpty == false) || ($0.lastRefreshUncertainExamples?.isEmpty == false))
+    }
+    let hasFilteringEvidence = spaceMailFilteringEvidence || gmailFilteringEvidence
+
+    let parserEvidence = !intakeParserDiagnostics.isEmpty || intakeEmails.contains { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue || !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }
+    let inboxOrderHandoffEvidence = orders.contains {
+      $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder
+    }
+    let liveMailboxAuditEvidence = auditEvents.contains { event in
+      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order].contains(event.entityType)
+        || event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.summary.localizedCaseInsensitiveContains("Gmail")
+    }
+
+    let checks = [
+      SpaceMailQACheck(
+        title: "Provider setup evidence",
+        detail: "At least one live mailbox provider is configured for manual intake testing.",
+        evidence: hasSpaceMailSetup || hasGmailSetup ? "\(providerLabel) setup exists." : "No SpaceMail or Gmail setup exists yet.",
+        isComplete: hasSpaceMailSetup || hasGmailSetup,
+        tone: hasSpaceMailSetup || hasGmailSetup ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Credential or sign-in evidence",
+        detail: "SpaceMail has Keychain credential evidence or Gmail has sign-in evidence.",
+        evidence: hasCredentialOrAuthEvidence ? "Credential/sign-in evidence exists without storing secrets in JSON." : "No SpaceMail credential check/save or Gmail sign-in evidence yet.",
+        isComplete: hasCredentialOrAuthEvidence,
+        tone: hasCredentialOrAuthEvidence ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Read-only refresh evidence",
+        detail: "A manual SpaceMail or Gmail refresh completed or produced a clear safe result.",
+        evidence: hasRefreshEvidence ? "Manual read-only refresh evidence exists." : "Run one real or mock manual refresh to collect evidence.",
+        isComplete: hasRefreshEvidence,
+        tone: hasRefreshEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Mixed-mailbox decision evidence",
+        detail: "Filtering, uncertain, duplicate, or reason evidence exists for mixed-use mailbox review.",
+        evidence: hasFilteringEvidence ? "Mixed-mailbox decision evidence is visible for operator review." : "Run refresh/classifier checks until filtered or uncertain decisions are visible.",
+        isComplete: hasFilteringEvidence,
+        tone: hasFilteringEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Parser evidence",
+        detail: "Imported intake has parser output or diagnostics for order/tracking review.",
+        evidence: parserEvidence ? "\(intakeParserDiagnostics.count) parser checks and \(intakeEmails.count) intake emails are available." : "No parser or extracted order/tracking evidence yet.",
+        isComplete: parserEvidence,
+        tone: parserEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Inbox-to-order handoff evidence",
+        detail: "At least one order has been created or linked from Inbox/import work.",
+        evidence: inboxOrderHandoffEvidence ? "Inbox/import-created order evidence exists." : "Create or link one order from Inbox before RC testing.",
+        isComplete: inboxOrderHandoffEvidence,
+        tone: inboxOrderHandoffEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Audit trail evidence",
+        detail: "Audit contains mailbox, intake, or order events for traceability.",
+        evidence: liveMailboxAuditEvidence ? "\(auditEvents.count) audit events available." : "No live mailbox/intake/order audit evidence yet.",
+        isComplete: liveMailboxAuditEvidence,
+        tone: liveMailboxAuditEvidence ? "success" : "warning"
+      )
+    ]
+
+    let completedCount = checks.filter(\.isComplete).count
+    let tone: String
+    let verdict: String
+    if completedCount == checks.count {
+      tone = "success"
+      verdict = "Live mailbox QA evidence complete"
+    } else if completedCount >= 5 {
+      tone = "attention"
+      verdict = "Live mailbox QA evidence mostly ready"
+    } else {
+      tone = "warning"
+      verdict = "Live mailbox QA evidence incomplete"
+    }
+
+    return SpaceMailQACheckSummary(
+      verdict: verdict,
+      detail: "\(completedCount) of \(checks.count) live mailbox QA checks are complete across SpaceMail/Gmail.",
+      completedCount: completedCount,
+      totalCount: checks.count,
+      tone: tone,
+      checks: checks
+    )
+  }
+
   var spaceMailQACheckSummary: SpaceMailQACheckSummary {
     let hasCredentialEvidence = auditEvents.contains { event in
       event.entityType == .spaceMailIMAPConnection
