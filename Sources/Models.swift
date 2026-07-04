@@ -1688,6 +1688,31 @@ enum GmailAuthStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   }
 }
 
+struct GmailTokenStoreResult: Hashable {
+  var status: GmailTokenStoreStatus
+  var detailText: String
+}
+
+enum GmailTokenStoreStatus: String, CaseIterable, Identifiable, Hashable, Codable {
+  case keychainNotConfigured = "Keychain not configured"
+  case mockTokenReferenceAvailable = "Mock token reference available"
+  case tokenMissing = "Token missing"
+  case tokenClearSimulated = "Token clear simulated"
+  case storageErrorSimulated = "Storage error simulated"
+
+  var id: String { rawValue }
+
+  var symbol: String {
+    switch self {
+    case .keychainNotConfigured: "key.slash"
+    case .mockTokenReferenceAvailable: "checkmark.seal.fill"
+    case .tokenMissing: "exclamationmark.triangle.fill"
+    case .tokenClearSimulated: "trash.circle.fill"
+    case .storageErrorSimulated: "xmark.octagon.fill"
+    }
+  }
+}
+
 struct Microsoft365AuthSessionState: Identifiable, Hashable {
   var id: UUID { connectionID }
   var connectionID: UUID

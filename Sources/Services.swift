@@ -50,6 +50,13 @@ protocol Microsoft365TokenStore {
   func simulateClear(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
 }
 
+protocol GmailTokenStore {
+  func simulateReady(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateMissing(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateStorageError(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateClear(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+}
+
 protocol OrderMatchingService {
   func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState
 }
@@ -1634,6 +1641,36 @@ struct MockMicrosoft365TokenStore: Microsoft365TokenStore {
     Microsoft365TokenStoreResult(
       status: .tokenClearSimulated,
       detailText: "Mock token reference clear simulated for \(connection.displayName). No Keychain item, access token, or refresh token was deleted."
+    )
+  }
+}
+
+struct MockGmailTokenStore: GmailTokenStore {
+  func simulateReady(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .mockTokenReferenceAvailable,
+      detailText: "Mock Gmail token reference available for \(connection.displayName). No Google access token, refresh token, auth code, client secret, password, or Keychain item was created, read, written, or deleted."
+    )
+  }
+
+  func simulateMissing(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .tokenMissing,
+      detailText: "Mock Gmail token lookup reports no token reference for \(connection.displayName). This is local status only; Keychain was not read."
+    )
+  }
+
+  func simulateStorageError(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock Gmail token storage error for \(connection.displayName). No Keychain API was called and no secret value was handled."
+    )
+  }
+
+  func simulateClear(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .tokenClearSimulated,
+      detailText: "Mock Gmail token reference clear simulated for \(connection.displayName). No Keychain item, Google access token, or Google refresh token was deleted."
     )
   }
 }

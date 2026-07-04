@@ -129,6 +129,7 @@ final class ParcelOpsStore {
   private let realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let gmailMailboxClient: GmailMailboxClient
   private let gmailAuthClient: GmailAuthClient
+  private let gmailTokenStore: GmailTokenStore
   private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
   private let microsoft365AuthClient: Microsoft365AuthClient
   private let microsoft365RealAuthClient: Microsoft365AuthClient
@@ -151,6 +152,7 @@ final class ParcelOpsStore {
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
     gmailAuthClient: GmailAuthClient = MockGmailAuthClient(),
+    gmailTokenStore: GmailTokenStore = MockGmailTokenStore(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
     microsoft365RealAuthClient: Microsoft365AuthClient = MSALMicrosoft365AuthClient(),
@@ -207,6 +209,7 @@ final class ParcelOpsStore {
     self.realMicrosoftGraphMailboxClient = realMicrosoftGraphMailboxClient
     self.gmailMailboxClient = gmailMailboxClient
     self.gmailAuthClient = gmailAuthClient
+    self.gmailTokenStore = gmailTokenStore
     self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
     self.microsoft365AuthClient = microsoft365AuthClient
     self.microsoft365RealAuthClient = microsoft365RealAuthClient
@@ -11306,6 +11309,61 @@ final class ParcelOpsStore {
     )
   }
 
+  func simulateGmailTokenStoreReady(_ connection: GmailMailboxConnection) {
+    Task {
+      let result = await gmailTokenStore.simulateReady(for: connection)
+      applyGmailTokenStoreResult(result, to: connection, summary: "Mock Gmail token store marked ready.")
+    }
+  }
+
+  func simulateGmailTokenMissing(_ connection: GmailMailboxConnection) {
+    Task {
+      let result = await gmailTokenStore.simulateMissing(for: connection)
+      applyGmailTokenStoreResult(result, to: connection, summary: "Mock Gmail token reference marked missing.")
+    }
+  }
+
+  func simulateGmailTokenStorageError(_ connection: GmailMailboxConnection) {
+    Task {
+      let result = await gmailTokenStore.simulateStorageError(for: connection)
+      applyGmailTokenStoreResult(result, to: connection, summary: "Mock Gmail token storage error simulated.")
+    }
+  }
+
+  func simulateGmailTokenClear(_ connection: GmailMailboxConnection) {
+    Task {
+      let result = await gmailTokenStore.simulateClear(for: connection)
+      applyGmailTokenStoreResult(result, to: connection, summary: "Mock Gmail token reference clear simulated.")
+    }
+  }
+
+  private func applyGmailTokenStoreResult(_ result: GmailTokenStoreResult, to connection: GmailMailboxConnection, summary: String) {
+    let previousState = gmailAuthSessionState(for: connection)
+    let state = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: previousState.status,
+      signedInAccount: previousState.signedInAccount,
+      lastAuthAttemptDate: previousState.lastAuthAttemptDate,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: result.status.rawValue,
+      tokenStoreDetail: result.detailText,
+      detailText: previousState.detailText
+    )
+    gmailAuthSessionStates[connection.id] = state
+    updateGmailMailboxConnection(connection) { draft in
+      draft.credentialStorageStatus = result.status.rawValue
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: summary,
+      afterDetail: gmailTokenStoreAuditDetail(state)
+    )
+  }
+
   func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
@@ -13588,6 +13646,10 @@ final class ParcelOpsStore {
 
   private func gmailAuthSessionAuditDetail(_ state: GmailAuthSessionState) -> String {
     "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nToken store status: \(state.tokenStoreStatus)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo Google access token, refresh token, auth code, callback URL, client secret, password, raw Gmail message, or mailbox content is stored in ParcelOps JSON or audit logs."
+  }
+
+  private func gmailTokenStoreAuditDetail(_ state: GmailAuthSessionState) -> String {
+    "Token store status: \(state.tokenStoreStatus)\nDetail: \(state.tokenStoreDetail)\nNo Google access token, refresh token, auth code, callback URL, client secret, password, Keychain item, raw Gmail message, or mailbox content was created, read, written, deleted, stored in JSON, or logged."
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

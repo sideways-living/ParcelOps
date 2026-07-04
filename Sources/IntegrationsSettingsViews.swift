@@ -547,6 +547,14 @@ struct IntegrationsView: View {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
               store.simulateGmailAuthFailure(connection)
+            } onTokenStoreReady: {
+              store.simulateGmailTokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateGmailTokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateGmailTokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateGmailTokenClear(connection)
             } onReviewPlan: {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
@@ -1197,6 +1205,10 @@ struct GmailMailboxConnectionRow: View {
   var onMockRefresh: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
+  var onTokenStoreReady: () -> Void
+  var onTokenMissing: () -> Void
+  var onTokenStorageError: () -> Void
+  var onTokenClear: () -> Void
   var onReviewPlan: () -> Void
   var onCreatePlanTask: () -> Void
   var onRemove: () -> Void
@@ -1214,6 +1226,10 @@ struct GmailMailboxConnectionRow: View {
     onMockRefresh: @escaping () -> Void,
     onMockAuthConnect: @escaping () -> Void,
     onMockAuthFailure: @escaping () -> Void,
+    onTokenStoreReady: @escaping () -> Void,
+    onTokenMissing: @escaping () -> Void,
+    onTokenStorageError: @escaping () -> Void,
+    onTokenClear: @escaping () -> Void,
     onReviewPlan: @escaping () -> Void,
     onCreatePlanTask: @escaping () -> Void,
     onRemove: @escaping () -> Void
@@ -1227,6 +1243,10 @@ struct GmailMailboxConnectionRow: View {
     self.onMockRefresh = onMockRefresh
     self.onMockAuthConnect = onMockAuthConnect
     self.onMockAuthFailure = onMockAuthFailure
+    self.onTokenStoreReady = onTokenStoreReady
+    self.onTokenMissing = onTokenMissing
+    self.onTokenStorageError = onTokenStorageError
+    self.onTokenClear = onTokenClear
     self.onReviewPlan = onReviewPlan
     self.onCreatePlanTask = onCreatePlanTask
     self.onRemove = onRemove
@@ -1285,6 +1305,26 @@ struct GmailMailboxConnectionRow: View {
             .foregroundStyle(.secondary)
           Text(authState.detailText)
             .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "key.slash")
+          .foregroundStyle(authState.tokenStoreStatus.localizedCaseInsensitiveContains("available") ? .green : .orange)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Gmail token storage: \(authState.tokenStoreStatus)")
+            .font(.caption.weight(.semibold))
+          Text(authState.tokenStoreDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Planning only. No Google token value or Keychain item is created, read, written, deleted, stored in JSON, or logged.")
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -1386,6 +1426,14 @@ struct GmailMailboxConnectionRow: View {
         Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
           .buttonStyle(.bordered)
         Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+          .buttonStyle(.bordered)
+        Button("Token ready", systemImage: "key.fill", action: onTokenStoreReady)
+          .buttonStyle(.bordered)
+        Button("Token missing", systemImage: "key.slash", action: onTokenMissing)
+          .buttonStyle(.bordered)
+        Button("Token error", systemImage: "exclamationmark.triangle", action: onTokenStorageError)
+          .buttonStyle(.bordered)
+        Button("Clear token ref", systemImage: "trash.circle", action: onTokenClear)
           .buttonStyle(.bordered)
         Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
           .buttonStyle(.bordered)

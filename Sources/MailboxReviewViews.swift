@@ -201,6 +201,14 @@ struct MailboxView: View {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
               store.simulateGmailAuthFailure(connection)
+            } onTokenStoreReady: {
+              store.simulateGmailTokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateGmailTokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateGmailTokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateGmailTokenClear(connection)
             } onReviewPlan: {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
