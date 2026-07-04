@@ -59,6 +59,62 @@ struct TasksView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
   }
 
+  private var weakInboxParseCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.detectedOrderNumber.isPlaceholderValidationValue
+        || email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var readyInboxLinkCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.linkedOrderID == nil
+        && !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var linkedInboxIntakeCount: Int {
+    store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
+  }
+
+  private var intakeLinkedTaskItems: [TaskQueueItem] {
+    queueItems.filter { item in
+      item.linkedEntityType == .intakeEmail
+        || item.title.localizedCaseInsensitiveContains("parser")
+        || item.summary.localizedCaseInsensitiveContains("parser")
+        || item.title.localizedCaseInsensitiveContains("intake")
+        || item.summary.localizedCaseInsensitiveContains("intake")
+    }
+  }
+
+  private var intakeParserTaskTone: Color {
+    if intakeLinkedTaskItems.contains(where: \.isOverdue) || intakeLinkedTaskItems.contains(where: { $0.status == .blocked }) { return .red }
+    if !intakeLinkedTaskItems.isEmpty { return .orange }
+    if weakInboxParseCount > 0 || spaceMailParserIssueCount > 0 || !store.intakeParserDiagnostics.isEmpty { return .purple }
+    return .green
+  }
+
+  private var intakeParserTaskTitle: String {
+    if !intakeLinkedTaskItems.isEmpty { return "Inbox parser follow-up is assigned" }
+    if weakInboxParseCount > 0 { return "Weak Inbox parses are not assigned yet" }
+    if readyInboxLinkCount > 0 { return "Ready Inbox rows do not need tasks yet" }
+    return "No Inbox parser task handoff is active"
+  }
+
+  private var intakeParserTaskDetail: String {
+    if !intakeLinkedTaskItems.isEmpty {
+      return "\(intakeLinkedTaskItems.count) task or handoff references intake/parser context. Work those assigned rows here, then use Inbox or Mailbox Monitor for source details."
+    }
+    if weakInboxParseCount > 0 {
+      return "\(weakInboxParseCount) intake row\(weakInboxParseCount == 1 ? "" : "s") need parser correction in Inbox. Create a task only if someone must own the follow-up."
+    }
+    if readyInboxLinkCount > 0 {
+      return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") are ready to create or link orders. That is Inbox work, not task backlog unless ownership is needed."
+    }
+    return "Parser diagnostics and intake rows are either clear or remain as review context outside the assigned task queue."
+  }
+
   private var spaceMailFilteredOnlyOutcome: Bool {
     spaceMailFetchedCount > 0
       && spaceMailImportedCount == 0
@@ -158,6 +214,7 @@ struct TasksView: View {
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel
+        inboxParserTaskContextPanel
         mvpValidationPanel
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
@@ -490,6 +547,87 @@ struct TasksView: View {
             MailboxView(store: store)
           } label: {
             Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var inboxParserTaskContextPanel: some View {
+    SettingsPanel(title: "Inbox parser task context", symbol: "text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: intakeParserTaskTone == .green ? "checkmark.circle.fill" : "checklist")
+            .font(.title3)
+            .foregroundStyle(intakeParserTaskTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(intakeParserTaskTitle)
+              .font(.headline)
+            Text(intakeParserTaskDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Assigned", "\(intakeLinkedTaskItems.count)", intakeLinkedTaskItems.isEmpty ? .green : .orange),
+          ("Overdue", "\(intakeLinkedTaskItems.filter(\.isOverdue).count)", intakeLinkedTaskItems.contains(where: \.isOverdue) ? .red : .green),
+          ("Weak parse", "\(weakInboxParseCount)", weakInboxParseCount == 0 ? .green : .purple),
+          ("Ready link", "\(readyInboxLinkCount)", readyInboxLinkCount == 0 ? .secondary : .teal),
+          ("Linked", "\(linkedInboxIntakeCount)", linkedInboxIntakeCount == 0 ? .secondary : .green),
+          ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .purple)
+        ])
+
+        Text("This panel does not create tasks automatically. It separates parser context from assigned ownership so Tasks stays focused on work a person must complete.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if !intakeLinkedTaskItems.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(intakeLinkedTaskItems.prefix(4)) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(item.sourceLabel, systemImage: item.source.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.decisionColor)
+                  Spacer()
+                  Badge(item.decisionBadge, color: item.decisionColor)
+                }
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(item.nextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(item.decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox diagnostics", systemImage: "server.rack")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
           }
         }
         .buttonStyle(.bordered)
