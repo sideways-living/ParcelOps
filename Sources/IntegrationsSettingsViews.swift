@@ -1333,6 +1333,53 @@ struct GmailMailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailOperatorNextSymbol)
+            .foregroundStyle(gmailOperatorNextColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailOperatorNextTitle)
+              .font(.subheadline.weight(.semibold))
+            Text(gmailOperatorNextDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        MetricStrip(items: [
+          ("Setup", readiness.isReady ? "Ready" : "Missing", readiness.isReady ? .green : .orange),
+          ("Sign-in", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", gmailRefreshModeLabel, gmailRefreshGuidanceColor),
+          ("Inbox", connection.lastRefreshImportedCount > 0 ? "\(connection.lastRefreshImportedCount)" : "0", connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        ])
+        CompactActionRow {
+          if hasMissingCoreGmailSetup {
+            Button("Edit setup", systemImage: "pencil") {
+              draft = connection
+              isEditing = true
+            }
+          } else if authState.status != .connected {
+            Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+          } else if connection.lastRefreshUncertainCount ?? 0 > 0 || !(connection.uncertainMessages ?? []).isEmpty {
+            Label("Review uncertain section below", systemImage: "arrow.down.circle")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.orange)
+          } else {
+            Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
+          }
+          Button("Run mock refresh", systemImage: "envelope.badge", action: onMockRefresh)
+          Button("Run classifier suite", systemImage: "checklist", action: onRunClassifierSuite)
+        }
+        .buttonStyle(.bordered)
+        Text("This card is the operator path. The detailed setup, OAuth, token, and classifier sections below remain available for diagnostics.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailOperatorNextColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailOperatorNextColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       VStack(alignment: .leading, spacing: 8) {
         Label("Latest Gmail refresh", systemImage: "tray.and.arrow.down")
           .font(.caption.weight(.semibold))
@@ -1690,46 +1737,139 @@ struct GmailMailboxConnectionRow: View {
         .textFieldStyle(.roundedBorder)
       }
 
-      CompactActionRow {
-        Button(isEditing ? "Close editor" : "Edit setup", systemImage: "pencil") {
-          draft = connection
-          isEditing.toggle()
+      VStack(alignment: .leading, spacing: 10) {
+        Label("Gmail actions", systemImage: "slider.horizontal.3")
+          .font(.caption.weight(.semibold))
+        Text("Primary actions are first. Mock and token-state actions are kept separate so they do not look like the normal operator path.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Primary")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button(isEditing ? "Close editor" : "Edit setup", systemImage: "pencil") {
+              draft = connection
+              isEditing.toggle()
+            }
+            Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+            Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+            Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+            Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
+          }
         }
-        .buttonStyle(.bordered)
-        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
-          .buttonStyle(.bordered)
-        Button("Run Mock Gmail refresh", systemImage: "envelope.badge") {
-          onMockRefresh()
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Local testing and planning")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Run mock refresh", systemImage: "envelope.badge", action: onMockRefresh)
+            Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+            Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+            Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
+            Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
+          }
         }
-        .buttonStyle(.bordered)
-        Button("Check real Gmail readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
-          .buttonStyle(.bordered)
-        Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
-          .buttonStyle(.bordered)
-        Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
-          .buttonStyle(.bordered)
-        Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
-          .buttonStyle(.bordered)
-        Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
-          .buttonStyle(.bordered)
-        Button("Token ready", systemImage: "key.fill", action: onTokenStoreReady)
-          .buttonStyle(.bordered)
-        Button("Token missing", systemImage: "key.slash", action: onTokenMissing)
-          .buttonStyle(.bordered)
-        Button("Token error", systemImage: "exclamationmark.triangle", action: onTokenStorageError)
-          .buttonStyle(.bordered)
-        Button("Clear token ref", systemImage: "trash.circle", action: onTokenClear)
-          .buttonStyle(.bordered)
-        Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
-          .buttonStyle(.bordered)
-        Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
-          .buttonStyle(.bordered)
-        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
-          .buttonStyle(.bordered)
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Token simulation and maintenance")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Token ready", systemImage: "key.fill", action: onTokenStoreReady)
+            Button("Token missing", systemImage: "key.slash", action: onTokenMissing)
+            Button("Token error", systemImage: "exclamationmark.triangle", action: onTokenStorageError)
+            Button("Clear token ref", systemImage: "trash.circle", action: onTokenClear)
+            Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          }
+        }
       }
+      .buttonStyle(.bordered)
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
     }
     .padding()
     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var hasMissingCoreGmailSetup: Bool {
+    connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var gmailOperatorNextTitle: String {
+    if hasMissingCoreGmailSetup { return "Finish Gmail setup details" }
+    if authState.status != .connected { return "Test Google sign-in before real refresh" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") { return "Gmail auth needs a fresh sign-in" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") { return "Gmail consent needs review" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "Fix the Gmail label before refreshing" }
+    if (connection.uncertainMessages ?? []).isEmpty == false { return "Review uncertain Gmail messages" }
+    if connection.lastRefreshImportedCount > 0 { return "Review imported Gmail intake in Inbox" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Gmail filter is holding non-order mail out of Inbox" }
+    if connection.lastManualRefreshDate == "Never" { return "Run the first manual Gmail refresh" }
+    return "Gmail is ready for the next manual check"
+  }
+
+  private var gmailOperatorNextDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Add the mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not enter client secrets or token values."
+    }
+    if authState.status != .connected {
+      return "Use the explicit sign-in test. ParcelOps should only keep non-secret session status in JSON; token values remain outside app persistence."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "The latest real refresh could not use the current Google session. Sign in again, then retry the manual read-only refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Confirm Gmail API is enabled and that the signed-in account has consent for the read-only Gmail scope before retrying."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Use INBOX or an existing Gmail label. The refresh will stay read-only and will not mark, move, or delete mail."
+    }
+    if (connection.uncertainMessages ?? []).isEmpty == false {
+      return "Uncertain previews are deliberately held out of Inbox. Import only genuine order mail or dismiss non-order messages locally."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) likely order message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Review, create, or link orders from Inbox."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered and not imported. Check examples only if an order email was missed."
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run real Gmail refresh when sign-in is ready, or use mock refresh to test the local intake path without Google access."
+    }
+    return "Run manual refresh when you want to check Gmail again. Background sync and mailbox mutation are still not enabled."
+  }
+
+  private var gmailOperatorNextSymbol: String {
+    if hasMissingCoreGmailSetup { return "gearshape.2.fill" }
+    if authState.status != .connected ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "person.badge.key"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "tag.slash" }
+    if (connection.uncertainMessages ?? []).isEmpty == false { return "questionmark.folder.fill" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailOperatorNextColor: Color {
+    if hasMissingCoreGmailSetup ||
+      authState.status != .connected ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") ||
+      (connection.uncertainMessages ?? []).isEmpty == false {
+      return .orange
+    }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
   }
 
   private var gmailClassifierColor: Color {
