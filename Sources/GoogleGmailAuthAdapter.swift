@@ -26,25 +26,9 @@ struct GoogleGmailAuthAdapter {
   }
 
   func setupReadinessDetail(for connection: GmailMailboxConnection) -> String {
-    var missing: [String] = []
-    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missing.append("Gmail address")
-    }
-    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    if clientID.isEmpty {
-      missing.append("Google OAuth iOS client ID")
-    }
-    let redirect = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    if redirect.isEmpty {
-      missing.append("reversed client ID URL scheme")
-    }
-    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
-      missing.append("read-only Gmail scope")
-    }
-
-    let missingText = missing.isEmpty ? "No missing setup values detected." : "Missing: \(missing.joined(separator: ", "))."
-    return "\(dependencyStatus) \(missingText) Real Gmail sign-in is opt-in from the explicit test action. Replace the placeholder GIDClientID and callback URL scheme with the Google Cloud iOS OAuth client values before relying on browser sign-in."
+    let problems = GmailReadinessValidator.problems(for: connection, checkBundle: true)
+    let missingText = problems.isEmpty ? "No missing setup values detected." : "Missing or blocked: \(problems.joined(separator: ", "))."
+    return "\(dependencyStatus) \(missingText) Real Gmail sign-in is opt-in from the explicit test action. Use a Google Cloud iOS OAuth client ID ending in .apps.googleusercontent.com, set the reversed client ID URL scheme in ParcelOps, and make sure the compiled App Info.plist GIDClientID and URL scheme match before opening browser sign-in."
   }
 
   @MainActor
@@ -95,21 +79,7 @@ struct GoogleGmailAuthClient: GmailAuthClient {
   }
 
   private func missingReadinessFields(for connection: GmailMailboxConnection) -> [String] {
-    var missingFields: [String] = []
-    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missingFields.append("Gmail address")
-    }
-    if (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missingFields.append("Google OAuth iOS client ID")
-    }
-    if (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missingFields.append("reversed client ID URL scheme")
-    }
-    let scopes = readOnlyScopes(from: connection)
-    if scopes.isEmpty {
-      missingFields.append("read-only Gmail scope")
-    }
-    return missingFields
+    GmailReadinessValidator.problems(for: connection, checkBundle: true)
   }
 
   private func readOnlyScopes(from connection: GmailMailboxConnection) -> [String] {
@@ -279,6 +249,126 @@ struct GoogleGmailAuthClient: GmailAuthClient {
   }
   #endif
   #endif
+}
+
+private enum GmailReadinessValidator {
+  static func problems(for connection: GmailMailboxConnection, checkBundle: Bool) -> [String] {
+    var problems: [String] = []
+    let email = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = normalized((connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+    let redirectScheme = urlScheme(from: (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if email.isEmpty {
+      problems.append("Gmail address")
+    }
+
+    if clientID.isEmpty {
+      problems.append("Google OAuth iOS client ID")
+    } else if isPlaceholderClientID(clientID) {
+      problems.append("placeholder Google OAuth iOS client ID")
+    } else if expectedReversedClientID(for: clientID) == nil {
+      problems.append("Google OAuth iOS client ID must end in .apps.googleusercontent.com")
+    }
+
+    if redirectScheme.isEmpty {
+      problems.append("reversed client ID URL scheme")
+    } else if isPlaceholderCallbackScheme(redirectScheme) {
+      problems.append("placeholder Gmail callback URL scheme")
+    } else if !redirectScheme.hasPrefix("com.googleusercontent.apps.") {
+      problems.append("Gmail callback URL scheme must start with com.googleusercontent.apps.")
+    }
+
+    if let expectedScheme = expectedReversedClientID(for: clientID),
+       !redirectScheme.isEmpty,
+       !isPlaceholderCallbackScheme(redirectScheme),
+       redirectScheme != expectedScheme {
+      problems.append("callback URL scheme does not match the reversed Google OAuth client ID")
+    }
+
+    if !scopes.localizedCaseInsensitiveContains("gmail.readonly")
+      && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
+      problems.append("read-only Gmail scope")
+    }
+
+    guard checkBundle else {
+      return problems
+    }
+
+    let bundleClientID = normalized(Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String ?? "")
+    if bundleClientID.isEmpty {
+      problems.append("compiled App Info.plist GIDClientID")
+    } else if isPlaceholderClientID(bundleClientID) {
+      problems.append("compiled App Info.plist GIDClientID is still the placeholder")
+    } else if !clientID.isEmpty, !isPlaceholderClientID(clientID), bundleClientID != clientID {
+      problems.append("compiled App Info.plist GIDClientID does not match this Gmail setup")
+    }
+
+    let bundleSchemes = bundleURLSchemes()
+    if !redirectScheme.isEmpty,
+       !isPlaceholderCallbackScheme(redirectScheme),
+       !bundleSchemes.contains(redirectScheme) {
+      problems.append("compiled App Info.plist does not register this Gmail callback URL scheme")
+    }
+    if bundleSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme),
+       !bundleSchemes.contains(redirectScheme) {
+      problems.append("compiled App Info.plist still contains only the placeholder Gmail callback scheme")
+    }
+
+    return Array(NSOrderedSet(array: problems).compactMap { $0 as? String })
+  }
+
+  private static func normalized(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func urlScheme(from value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      return ""
+    }
+    if let url = URL(string: trimmed), let scheme = url.scheme, !scheme.isEmpty {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: "://").first, scheme != trimmed {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: ":").first, scheme != trimmed {
+      return scheme
+    }
+    return trimmed
+  }
+
+  private static func expectedReversedClientID(for clientID: String) -> String? {
+    let suffix = ".apps.googleusercontent.com"
+    guard clientID.hasSuffix(suffix), clientID.count > suffix.count else {
+      return nil
+    }
+    return "com.googleusercontent.apps.\(clientID.dropLast(suffix.count))"
+  }
+
+  private static func isPlaceholderClientID(_ value: String) -> Bool {
+    value.isEmpty
+      || value == GoogleGmailAuthAdapter.placeholderClientID
+      || value.localizedCaseInsensitiveContains("placeholder")
+      || value.localizedCaseInsensitiveContains("replace_before_real")
+  }
+
+  private static func isPlaceholderCallbackScheme(_ value: String) -> Bool {
+    value.isEmpty
+      || value == GoogleGmailAuthAdapter.placeholderCallbackScheme
+      || value.localizedCaseInsensitiveContains("parcelops-placeholder")
+      || value.localizedCaseInsensitiveContains("placeholder")
+  }
+
+  private static func bundleURLSchemes() -> [String] {
+    guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
+      return []
+    }
+    return urlTypes.flatMap { entry -> [String] in
+      (entry["CFBundleURLSchemes"] as? [String]) ?? []
+    }
+  }
 }
 
 enum GoogleGmailAuthError: Error {
