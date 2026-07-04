@@ -19,6 +19,65 @@ struct DashboardView: View {
   private var incomingAttentionCount: Int {
     store.reviewIntakeEmails.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
   }
+  private var weakInboxParseCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.detectedOrderNumber.isPlaceholderValidationValue
+        || email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+  private var partialInboxParseCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+        && (
+          email.detectedMerchant.isPlaceholderValidationValue
+            || email.detectedDestinationAddress.isPlaceholderValidationValue
+        )
+    }.count
+  }
+  private var readyInboxLinkCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.linkedOrderID == nil
+        && !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+  private var linkedInboxIntakeCount: Int {
+    store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
+  }
+  private var blockedInboxSourceCount: Int {
+    store.blockedImportQueueItems.count
+      + store.lowConfidenceImportQueueItems.count
+      + store.intakeParserDiagnostics.filter { $0.severity == .critical || $0.severity == .high }.count
+  }
+  private var readyAcceptanceOrImportCount: Int {
+    store.importQueueItemsNeedingReview.count
+      + store.acceptanceRecordsNeedingReview.count
+  }
+  private var inboxTriageQualityTone: Color {
+    if blockedInboxSourceCount > 0 || weakInboxParseCount > 0 { return .orange }
+    if readyInboxLinkCount > 0 || readyAcceptanceOrImportCount > 0 { return .teal }
+    return .green
+  }
+  private var inboxTriageQualityTitle: String {
+    if blockedInboxSourceCount > 0 || weakInboxParseCount > 0 { return "Fix weak Inbox parses first" }
+    if readyInboxLinkCount > 0 { return "Create or link ready Inbox records" }
+    if readyAcceptanceOrImportCount > 0 { return "Accept staged Inbox records" }
+    if linkedInboxIntakeCount > 0 { return "Review linked Inbox handoffs" }
+    return "Inbox triage quality is clear"
+  }
+  private var inboxTriageQualityDetail: String {
+    if blockedInboxSourceCount > 0 || weakInboxParseCount > 0 {
+      return "\(weakInboxParseCount) mailbox row\(weakInboxParseCount == 1 ? "" : "s") need order/tracking correction and \(blockedInboxSourceCount) import/parser source\(blockedInboxSourceCount == 1 ? "" : "s") need attention before order creation."
+    }
+    if readyInboxLinkCount > 0 || readyAcceptanceOrImportCount > 0 {
+      return "\(readyInboxLinkCount) mailbox row\(readyInboxLinkCount == 1 ? "" : "s") look ready to create/link and \(readyAcceptanceOrImportCount) import or acceptance row\(readyAcceptanceOrImportCount == 1 ? "" : "s") can be reviewed."
+    }
+    if linkedInboxIntakeCount > 0 {
+      return "\(linkedInboxIntakeCount) intake row\(linkedInboxIntakeCount == 1 ? "" : "s") already link to orders. Confirm the source trail and close review when done."
+    }
+    return "No current intake row is asking for parser correction, order creation, import acceptance, or linked-order review."
+  }
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -392,6 +451,7 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        inboxTriageQualityPanel
         dailyFlowCheckpointPanel
         liveMailboxStatusPanel
         MVPDevelopmentStatusPanel(store: store)
@@ -967,6 +1027,56 @@ struct DashboardView: View {
             DispatchView(store: store)
           } label: {
             Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var inboxTriageQualityPanel: some View {
+    SettingsPanel(title: "Inbox triage quality", symbol: "text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: inboxTriageQualityTone == .green ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            .font(.title3)
+            .foregroundStyle(inboxTriageQualityTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(inboxTriageQualityTitle)
+              .font(.headline)
+            Text(inboxTriageQualityDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Weak parse", "\(weakInboxParseCount)", weakInboxParseCount == 0 ? .green : .orange),
+          ("Partial", "\(partialInboxParseCount)", partialInboxParseCount == 0 ? .green : .orange),
+          ("Ready link", "\(readyInboxLinkCount)", readyInboxLinkCount == 0 ? .secondary : .teal),
+          ("Linked", "\(linkedInboxIntakeCount)", linkedInboxIntakeCount == 0 ? .secondary : .green),
+          ("Import/accept", "\(readyAcceptanceOrImportCount)", readyAcceptanceOrImportCount == 0 ? .secondary : .blue),
+          ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .purple)
+        ])
+
+        Text("This is a local summary only. It does not fetch mail or change records; it mirrors the grouped Inbox queue so weak parser results do not look equally ready as clean intake.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
           }
         }
         .buttonStyle(.bordered)
