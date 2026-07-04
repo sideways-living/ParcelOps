@@ -5,6 +5,9 @@ struct InboxView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var triageSearchText = ""
   @State private var showParserDiagnosticsInTriage = false
+  @State private var triageGroupFilter: InboxTriageGroupFilter = .all
+  @State private var triageSourceFilter: InboxTriageSourceFilter = .all
+  @State private var triageQualityFilter: InboxTriageQualityFilter = .all
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -35,8 +38,13 @@ struct InboxView: View {
 
   private var visibleTriageItems: [InboxTriageItem] {
     let query = triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
-    guard !query.isEmpty else { return triageItems }
-    return triageItems.filter { item in
+    let filteredItems = triageItems.filter { item in
+      triageGroupFilter.matches(item)
+        && triageSourceFilter.matches(item)
+        && triageQualityFilter.matches(item)
+    }
+    guard !query.isEmpty else { return filteredItems }
+    return filteredItems.filter { item in
       [
         item.sourceLabel,
         item.title,
@@ -52,6 +60,10 @@ struct InboxView: View {
         item.triageGroup.rawValue
       ].joined(separator: " ").localizedLowercase.contains(query)
     }
+  }
+
+  private var hasActiveTriageFilters: Bool {
+    triageGroupFilter != .all || triageSourceFilter != .all || triageQualityFilter != .all
   }
 
   private var visibleTriageGroups: [InboxTriageGroupBucket] {
@@ -311,12 +323,33 @@ struct InboxView: View {
         FilterControlGrid {
           TextField("Search inbox triage", text: $triageSearchText)
             .textFieldStyle(.roundedBorder)
+          Picker("Group", selection: $triageGroupFilter) {
+            ForEach(InboxTriageGroupFilter.allCases) { filter in
+              Text(filter.label).tag(filter)
+            }
+          }
+          .pickerStyle(.menu)
+          Picker("Source", selection: $triageSourceFilter) {
+            ForEach(InboxTriageSourceFilter.allCases) { filter in
+              Text(filter.label).tag(filter)
+            }
+          }
+          .pickerStyle(.menu)
+          Picker("Parse", selection: $triageQualityFilter) {
+            ForEach(InboxTriageQualityFilter.allCases) { filter in
+              Text(filter.label).tag(filter)
+            }
+          }
+          .pickerStyle(.menu)
           Toggle("Show parser diagnostics", isOn: $showParserDiagnosticsInTriage)
             .toggleStyle(.switch)
             .disabled(parserIssueCount == 0)
-          if !triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Button("Clear search", systemImage: "xmark.circle") {
+          if !triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasActiveTriageFilters {
+            Button("Reset filters", systemImage: "xmark.circle") {
               triageSearchText = ""
+              triageGroupFilter = .all
+              triageSourceFilter = .all
+              triageQualityFilter = .all
             }
             .buttonStyle(.bordered)
           }
@@ -325,7 +358,7 @@ struct InboxView: View {
         if visibleTriageItems.isEmpty {
           MVPEmptyState(
             title: triageItems.isEmpty ? "Inbox triage is clear" : "No matching triage rows",
-            detail: triageItems.isEmpty ? "Forwarded emails, staged imports, and acceptance decisions that need action will appear here. Turn on parser diagnostics when you want to inspect parsing issues." : "Clear the search to return to the full Inbox triage queue.",
+            detail: triageItems.isEmpty ? "Forwarded emails, staged imports, and acceptance decisions that need action will appear here. Turn on parser diagnostics when you want to inspect parsing issues." : "Reset filters or clear the search to return to the full Inbox triage queue.",
             symbol: "checkmark.seal.fill"
           )
         } else {
@@ -810,6 +843,124 @@ private struct InboxTriageGroupSection: View {
       }
     }
     .padding(.top, 4)
+  }
+}
+
+private enum InboxTriageGroupFilter: String, CaseIterable, Identifiable {
+  case all
+  case needsCorrection
+  case readyToLink
+  case readyToProcess
+  case parserChecks
+
+  var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .all:
+      return "All groups"
+    case .needsCorrection:
+      return "Needs correction"
+    case .readyToLink:
+      return "Ready to link"
+    case .readyToProcess:
+      return "Ready to process"
+    case .parserChecks:
+      return "Parser checks"
+    }
+  }
+
+  func matches(_ item: InboxTriageItem) -> Bool {
+    switch self {
+    case .all:
+      return true
+    case .needsCorrection:
+      return item.triageGroup == .needsCorrection
+    case .readyToLink:
+      return item.triageGroup == .readyToLink
+    case .readyToProcess:
+      return item.triageGroup == .readyToProcess
+    case .parserChecks:
+      return item.triageGroup == .parserChecks
+    }
+  }
+}
+
+private enum InboxTriageSourceFilter: String, CaseIterable, Identifiable {
+  case all
+  case mailbox
+  case imports
+  case acceptance
+  case parser
+
+  var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .all:
+      return "All sources"
+    case .mailbox:
+      return "Mailbox"
+    case .imports:
+      return "Imports"
+    case .acceptance:
+      return "Acceptance"
+    case .parser:
+      return "Parser"
+    }
+  }
+
+  func matches(_ item: InboxTriageItem) -> Bool {
+    switch (self, item.source) {
+    case (.all, _):
+      return true
+    case (.mailbox, .email):
+      return true
+    case (.imports, .importQueue):
+      return true
+    case (.acceptance, .acceptance):
+      return true
+    case (.parser, .parserDiagnostic):
+      return true
+    default:
+      return false
+    }
+  }
+}
+
+private enum InboxTriageQualityFilter: String, CaseIterable, Identifiable {
+  case all
+  case weakOrPartial
+  case cleanOrLinked
+  case ignored
+
+  var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .all:
+      return "All parse states"
+    case .weakOrPartial:
+      return "Weak or partial"
+    case .cleanOrLinked:
+      return "Clean or linked"
+    case .ignored:
+      return "Ignored"
+    }
+  }
+
+  func matches(_ item: InboxTriageItem) -> Bool {
+    let label = item.parserQualityLabel.localizedLowercase
+    switch self {
+    case .all:
+      return true
+    case .weakOrPartial:
+      return label.contains("weak") || label.contains("partial") || label.contains("check")
+    case .cleanOrLinked:
+      return label.contains("clean") || label.contains("linked")
+    case .ignored:
+      return label.contains("ignored")
+    }
   }
 }
 
