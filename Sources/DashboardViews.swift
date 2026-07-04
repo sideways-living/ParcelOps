@@ -1753,7 +1753,7 @@ struct MVPReadinessCallout: View {
         ("Readiness", "\(store.dispatchReadinessChecklists.count)", .teal)
       ])
 
-      SpaceMailMVPReadinessCard(summary: store.spaceMailMVPReadinessSummary, showChecklist: false)
+      SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
     }
     .padding(16)
     .background(.background)

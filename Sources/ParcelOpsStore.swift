@@ -1027,6 +1027,121 @@ final class ParcelOpsStore {
     )
   }
 
+  var liveMailboxMVPReadinessSummary: SpaceMailMVPReadinessSummary {
+    let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
+    let hasGmailSetup = !gmailMailboxConnections.isEmpty
+    let providerCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    let hasMailboxSetup = providerCount > 0
+    let hasSpaceMailCredential = spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+    let hasGmailAuth = gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected }
+    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailAuth
+    let hasRealRefresh = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let mixedFilteringReady = spaceMailIMAPConnections.contains {
+      $0.mailboxMode == .mixedFiltered && ($0.lastRefreshFilteredNonOrderCount > 0 || !$0.filteredMessages.isEmpty || !$0.uncertainMessages.isEmpty || !$0.lastRefreshReasonBreakdown.isEmpty)
+    } || gmailMailboxConnections.contains {
+      $0.mailboxMode == .mixedFiltered && ($0.lastRefreshFilteredNonOrderCount > 0 || ($0.filteredMessages?.isEmpty == false) || ($0.uncertainMessages?.isEmpty == false))
+    }
+    let parserQueueClear = intakeParserDiagnostics.isEmpty
+    let inboxOrderHandoffReady = orders.contains {
+      $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder
+    }
+    let providerLabel: String
+    if hasSpaceMailSetup && hasGmailSetup {
+      providerLabel = "SpaceMail and Gmail"
+    } else if hasGmailSetup {
+      providerLabel = "Gmail"
+    } else if hasSpaceMailSetup {
+      providerLabel = "SpaceMail"
+    } else {
+      providerLabel = "No live mailbox provider"
+    }
+
+    let items = [
+      SpaceMailMVPReadinessItem(
+        title: "Mailbox provider configured",
+        detail: hasMailboxSetup
+          ? "\(providerLabel) setup exists for manual read-only intake."
+          : "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before testing real intake.",
+        isComplete: hasMailboxSetup,
+        tone: hasMailboxSetup ? "success" : "warning"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Credential or sign-in ready",
+        detail: hasCredentialOrAuth
+          ? "SpaceMail Keychain credential or Gmail Google sign-in evidence is available."
+          : "Set/check the SpaceMail Keychain credential or complete Gmail Google sign-in.",
+        isComplete: hasCredentialOrAuth,
+        tone: hasCredentialOrAuth ? "success" : "warning"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Read-only refresh tested",
+        detail: hasRealRefresh
+          ? "At least one manual SpaceMail or Gmail refresh has produced local result evidence."
+          : "Run one explicit manual read-only refresh after setup and credential/sign-in are ready.",
+        isComplete: hasRealRefresh,
+        tone: hasRealRefresh ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Mixed mailbox filtering visible",
+        detail: mixedFilteringReady
+          ? "Latest refresh results include filtered, uncertain, or reason evidence for mixed-mailbox review."
+          : "Run refresh or classifier tests until imported, filtered, or uncertain outcomes are visible.",
+        isComplete: mixedFilteringReady,
+        tone: mixedFilteringReady ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Parser queue controlled",
+        detail: parserQueueClear ? "No parser diagnostics currently need attention." : "\(intakeParserDiagnostics.count) parser check\(intakeParserDiagnostics.count == 1 ? "" : "s") still need review.",
+        isComplete: parserQueueClear,
+        tone: parserQueueClear ? "success" : "attention"
+      ),
+      SpaceMailMVPReadinessItem(
+        title: "Inbox-to-order handoff tested",
+        detail: inboxOrderHandoffReady ? "At least one order exists from Inbox/import handoff." : "Create or link one order from confirmed intake before calling the workflow tested.",
+        isComplete: inboxOrderHandoffReady,
+        tone: inboxOrderHandoffReady ? "success" : "attention"
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    let tone: String
+    let verdict: String
+    let detail: String
+    let nextAction: String
+
+    if completedCount == items.count {
+      tone = "success"
+      verdict = "Live mailbox MVP ready for hands-on testing"
+      detail = "\(providerLabel) read-only intake, filtering, parser review, and order handoff have enough local evidence for supervised use."
+      nextAction = "Run a short hands-on test: refresh, review Inbox, create/link an order, then confirm Audit."
+    } else if completedCount >= 4 {
+      tone = "attention"
+      verdict = "Live mailbox MVP nearly ready"
+      detail = "\(completedCount) of \(items.count) readiness checks are complete across SpaceMail/Gmail intake."
+      nextAction = items.first { !$0.isComplete }?.detail ?? "Review remaining checks."
+    } else {
+      tone = "warning"
+      verdict = "Live mailbox MVP needs setup checks"
+      detail = "\(completedCount) of \(items.count) readiness checks are complete across SpaceMail/Gmail intake."
+      nextAction = items.first { !$0.isComplete }?.detail ?? "Complete mailbox setup first."
+    }
+
+    return SpaceMailMVPReadinessSummary(
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   var spaceMailQACheckSummary: SpaceMailQACheckSummary {
     let hasCredentialEvidence = auditEvents.contains { event in
       event.entityType == .spaceMailIMAPConnection
