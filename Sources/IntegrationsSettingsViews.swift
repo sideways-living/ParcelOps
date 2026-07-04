@@ -3931,6 +3931,22 @@ struct SettingsReleaseCandidateCard: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasMailboxSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var latestManualFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestManualImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
   private var inboxCreatedOrdersCount: Int {
     store.orders.filter { order in
       order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
@@ -3939,6 +3955,7 @@ struct SettingsReleaseCandidateCard: View {
 
   private var manualRefreshCount: Int {
     store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
   }
 
   private var unresolvedOperatorCount: Int {
@@ -3951,22 +3968,26 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var tone: Color {
-    if manualRefreshCount == 0 { return .orange }
+    if !hasMailboxSetup || manualRefreshCount == 0 { return .orange }
     if inboxCreatedOrdersCount == 0 { return .orange }
     if unresolvedOperatorCount > 0 { return .teal }
     return .green
   }
 
   private var title: String {
-    if manualRefreshCount == 0 { return "SpaceMail refresh needed" }
+    if !hasMailboxSetup { return "Mailbox setup needed" }
+    if manualRefreshCount == 0 { return "Manual mailbox refresh needed" }
     if inboxCreatedOrdersCount == 0 { return "Inbox-created order needed" }
     if unresolvedOperatorCount > 0 { return "Open operator work remains" }
     return "Daily workflow is clean"
   }
 
   private var detail: String {
+    if !hasMailboxSetup {
+      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before judging the daily operator flow."
+    }
     if manualRefreshCount == 0 {
-      return "Run a manual SpaceMail refresh from Mailbox Monitor before judging the daily operator flow."
+      return "Run one explicit manual mailbox refresh from Mailbox Monitor. SpaceMail and Gmail both feed the same local Inbox intake path."
     }
     if inboxCreatedOrdersCount == 0 {
       return "Create or link one order from Inbox so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
@@ -3997,13 +4018,13 @@ struct SettingsReleaseCandidateCard: View {
 
       MetricStrip(items: [
         ("Refreshes", "\(manualRefreshCount)", manualRefreshCount == 0 ? .orange : .green),
-        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
-        ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+        ("Fetched", "\(latestManualFetchedCount)", .blue),
+        ("Imported", "\(latestManualImportedCount)", latestManualImportedCount > 0 ? .green : .secondary),
         ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
         ("Open work", "\(unresolvedOperatorCount)", unresolvedOperatorCount == 0 ? .green : .teal)
       ])
 
-      Text("Local boundary: manual read-only intake, local JSON records, SpaceMail credential in Keychain, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
+      Text("Local boundary: manual read-only mailbox intake, local JSON records, provider credentials kept out of JSON, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -4028,13 +4049,44 @@ struct SettingsView: View {
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
   }
+  private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+  private var hasGmailCoreSetup: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    }
+  }
+  private var hasLiveMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+  private var hasLiveMailboxCredentialOrAuth: Bool {
+    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+  }
 
   private var mailboxStatus: (String, Color) {
-    hasSpaceMailSetup ? ("SpaceMail manual", .green) : ("Not connected", .orange)
+    if hasSpaceMailSetup && hasGmailSetup { return ("SpaceMail + Gmail", .green) }
+    if hasSpaceMailSetup { return ("SpaceMail manual", .green) }
+    if hasGmailSetup { return ("Gmail manual", hasGmailConnectedAuth ? .green : .orange) }
+    return ("Not connected", .orange)
   }
 
   private var credentialStatus: (String, Color) {
-    hasSpaceMailCredentialReference ? ("SpaceMail Keychain", .green) : ("SpaceMail Keychain ready", .orange)
+    if hasSpaceMailCredentialReference && hasGmailConnectedAuth { return ("Keychain + Google", .green) }
+    if hasSpaceMailCredentialReference { return ("SpaceMail Keychain", .green) }
+    if hasGmailConnectedAuth { return ("Google signed in", .green) }
+    if hasGmailSetup { return ("Google sign-in needed", .orange) }
+    return ("Credential needed", .orange)
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
@@ -4043,6 +4095,26 @@ struct SettingsView: View {
 
   private var settingsManualRefreshCount: Int {
     store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+  }
+
+  private var latestManualMailboxFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestManualMailboxImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var latestManualMailboxFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var latestManualMailboxUncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestGmailSummary?.uncertainCount ?? 0)
   }
 
   private var settingsInboxCreatedOrdersCount: Int {
@@ -4069,29 +4141,40 @@ struct SettingsView: View {
     store.spaceMailIMAPConnections.reduce(0) { total, connection in
       total + connection.uncertainMessages.count
     }
+      + store.gmailMailboxConnections.reduce(0) { total, connection in
+        total + (connection.uncertainMessages?.count ?? 0) + (connection.lastRefreshUncertainCount ?? 0)
+      }
   }
 
   private var setupCompletionItems: [(title: String, detail: String, blockers: Int, destination: String, symbol: String, color: Color)] {
     [
       (
-        "SpaceMail setup",
-        "A non-secret SpaceMail IMAP setup must exist before live mailbox intake is the primary path.",
-        hasSpaceMailSetup ? 0 : 1,
+        "Mailbox provider setup",
+        "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before treating live intake as the primary path.",
+        hasLiveMailboxSetup ? 0 : 1,
         "Mailbox Monitor",
-        "server.rack",
-        hasSpaceMailSetup ? .green : .orange
+        "envelope.badge.fill",
+        hasLiveMailboxSetup ? .green : .orange
       ),
       (
-        "Keychain credential",
-        "The SpaceMail password/app-password must be set through the secure Keychain action, not setup notes or JSON.",
-        hasSpaceMailCredentialReference ? 0 : 1,
-        "SpaceMail row",
+        "Credential or sign-in",
+        "SpaceMail uses the secure Keychain action; Gmail uses explicit Google sign-in. Do not put credentials or tokens into setup notes or JSON.",
+        hasLiveMailboxCredentialOrAuth ? 0 : 1,
+        "Mailbox provider row",
         "lock.shield.fill",
-        hasSpaceMailCredentialReference ? .green : .orange
+        hasLiveMailboxCredentialOrAuth ? .green : .orange
+      ),
+      (
+        "Gmail setup details",
+        "When Gmail is configured, confirm address, labels, OAuth app placeholders, redirect/scheme, and read-only Gmail scope notes before real refresh.",
+        hasGmailSetup && !hasGmailCoreSetup ? 1 : 0,
+        "Gmail row",
+        "envelope.badge.shield.half.filled",
+        hasGmailSetup && !hasGmailCoreSetup ? .orange : .green
       ),
       (
         "Manual refresh proof",
-        "Run at least one explicit read-only SpaceMail refresh so setup has real fetched/imported/filtered evidence.",
+        "Run at least one explicit read-only mailbox refresh so setup has fetched/imported/filtered evidence.",
         settingsManualRefreshCount == 0 ? 1 : 0,
         "Mailbox Monitor",
         "tray.and.arrow.down.fill",
@@ -4145,7 +4228,8 @@ struct SettingsView: View {
   }
 
   private var settingsReadinessTone: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference { return .orange }
+    if !hasLiveMailboxSetup || !hasLiveMailboxCredentialOrAuth { return .orange }
+    if hasGmailSetup && !hasGmailCoreSetup { return .orange }
     if settingsManualRefreshCount == 0 { return .orange }
     if settingsInboxCreatedOrdersCount == 0 { return .teal }
     if settingsOpenOperatorWorkCount > 0 { return .blue }
@@ -4153,23 +4237,27 @@ struct SettingsView: View {
   }
 
   private var settingsReadinessTitle: String {
-    if !hasSpaceMailSetup { return "Set up SpaceMail before live intake testing" }
-    if !hasSpaceMailCredentialReference { return "Add the SpaceMail Keychain credential" }
-    if settingsManualRefreshCount == 0 { return "Run one manual SpaceMail refresh" }
+    if !hasLiveMailboxSetup { return "Set up a mailbox provider before live intake testing" }
+    if !hasLiveMailboxCredentialOrAuth { return "Add SpaceMail credential or complete Gmail sign-in" }
+    if hasGmailSetup && !hasGmailCoreSetup { return "Finish Gmail setup details" }
+    if settingsManualRefreshCount == 0 { return "Run one manual mailbox refresh" }
     if settingsInboxCreatedOrdersCount == 0 { return "Create or link one Inbox order" }
     if settingsOpenOperatorWorkCount > 0 { return "Operator workflow has open follow-up" }
     return "Daily operator setup is ready"
   }
 
   private var settingsReadinessDetail: String {
-    if !hasSpaceMailSetup {
-      return "Use Mailbox Monitor or Integrations to add the non-secret SpaceMail IMAP setup. Keep passwords out of setup notes and JSON fields."
+    if !hasLiveMailboxSetup {
+      return "Use Mailbox Monitor or Integrations to add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep secrets out of setup notes and JSON fields."
     }
-    if !hasSpaceMailCredentialReference {
-      return "Use the secure SpaceMail credential action. The password/app-password should be stored through Keychain, not in JSON."
+    if !hasLiveMailboxCredentialOrAuth {
+      return "Use the secure SpaceMail credential action or the explicit Google sign-in test for Gmail. Passwords, tokens, and app secrets must stay out of JSON."
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Complete the Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes before real Gmail refresh."
     }
     if settingsManualRefreshCount == 0 {
-      return "Run the explicit read-only SpaceMail refresh so the app has a real refresh result before hands-on testing."
+      return "Run an explicit read-only SpaceMail or Gmail refresh so the app has a real refresh result before hands-on testing."
     }
     if settingsInboxCreatedOrdersCount == 0 {
       return "Review imported intake in Inbox, then create or link one order so Orders, Workbench, Tasks, Dashboard, and Audit show the handoff."
@@ -4177,10 +4265,22 @@ struct SettingsView: View {
     if settingsOpenOperatorWorkCount > 0 {
       return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
     }
-    return "SpaceMail setup, manual refresh, Inbox-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
+    return "Mailbox setup, manual refresh, Inbox-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
   }
 
   private var activeSetupTitle: String {
+    if let latestGmailSummary, !hasSpaceMailSetup {
+      if latestGmailSummary.importedCount > 0 {
+        return "Gmail imported order mail"
+      }
+      if latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
+        return "Gmail has uncertain mail to review"
+      }
+      if latestGmailSummary.filteredCount > 0 {
+        return "Gmail filtered mixed mailbox mail"
+      }
+      return "Gmail is ready for manual intake"
+    }
     if let latestSpaceMailSummary {
       if latestSpaceMailSummary.importedCount > 0 {
         return "SpaceMail imported order mail"
@@ -4193,17 +4293,34 @@ struct SettingsView: View {
       }
       return "SpaceMail is ready for manual intake"
     }
-    return "Set up SpaceMail to start real intake"
+    if hasGmailSetup {
+      return "Finish Gmail setup to start real intake"
+    }
+    return "Set up a mailbox provider to start real intake"
   }
 
   private var activeSetupDetail: String {
+    if let latestGmailSummary, !hasSpaceMailSetup {
+      return "\(latestGmailSummary.displayName): \(latestGmailSummary.detail) \(latestGmailSummary.nextAction)"
+    }
     guard let latestSpaceMailSummary else {
-      return "No SpaceMail mailbox is configured yet. Add a setup in Integrations or Mailbox Monitor, then save the password/app-password through the secure Keychain prompt."
+      if hasGmailSetup {
+        return "Gmail setup exists. Finish required setup values, test Google sign-in, then use the explicit manual read-only Gmail refresh."
+      }
+      return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes."
     }
     return "\(latestSpaceMailSummary.displayName): \(latestSpaceMailSummary.detail) \(latestSpaceMailSummary.nextAction)"
   }
 
   private var activeSetupTone: Color {
+    if let latestGmailSummary, !hasSpaceMailSetup {
+      switch latestGmailSummary.tone {
+      case "success": return .green
+      case "attention": return .orange
+      case "warning": return .red
+      default: return .teal
+      }
+    }
     guard let latestSpaceMailSummary else { return .orange }
     switch latestSpaceMailSummary.tone {
     case "success": return .green
@@ -4224,7 +4341,7 @@ struct SettingsView: View {
   }
 
   private var showsActiveSetup: Bool {
-    matchesSettingsSection("active", "setup", "SpaceMail", "mailbox", "credential", "Keychain", "manual", "refresh")
+    matchesSettingsSection("active", "setup", "SpaceMail", "Gmail", "Google", "mailbox", "credential", "Keychain", "manual", "refresh")
   }
 
   private var showsLocalOnlyStatus: Bool {
@@ -4291,14 +4408,14 @@ struct SettingsView: View {
         }
 
         MetricStrip(items: [
-          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
-          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
+          ("Mailbox", mailboxStatus.0, mailboxStatus.1),
+          ("Credential", credentialStatus.0, credentialStatus.1),
           ("Refreshes", "\(settingsManualRefreshCount)", settingsManualRefreshCount == 0 ? .orange : .green),
           ("Inbox orders", "\(settingsInboxCreatedOrdersCount)", settingsInboxCreatedOrdersCount == 0 ? .teal : .green),
           ("Open work", "\(settingsOpenOperatorWorkCount)", settingsOpenOperatorWorkCount == 0 ? .green : .blue)
         ])
 
-        Text("Local boundary: SpaceMail refresh is manual and read-only; passwords stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
+        Text("Local boundary: SpaceMail and Gmail refreshes are manual and read-only; credentials and tokens stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -4342,7 +4459,7 @@ struct SettingsView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(setupCompletionBlockerCount == 0 ? "Setup path is ready for hands-on use" : "Clear setup blockers before relying on daily intake")
               .font(.headline)
-            Text("This breaks Settings into the daily operator sequence: configure SpaceMail, protect the credential, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
+            Text("This breaks Settings into the daily operator sequence: configure SpaceMail or Gmail, protect the credential or sign-in, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -4400,7 +4517,7 @@ struct SettingsView: View {
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
-              TextField("Search settings, mailbox, SpaceMail, Shopify, folders, review, carrier", text: $settingsSearchText)
+              TextField("Search settings, mailbox, SpaceMail, Gmail, Shopify, folders, review, carrier", text: $settingsSearchText)
                 .textFieldStyle(.roundedBorder)
 
               Button("Clear", systemImage: "xmark.circle") {
@@ -4419,14 +4536,14 @@ struct SettingsView: View {
         }
 
         if visibleSettingsSectionCount == 0 {
-          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, SpaceMail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, SpaceMail, Gmail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
         }
 
         if showsActiveSetup {
           SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
           VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-              Image(systemName: hasSpaceMailSetup ? "server.rack" : "server.rack.fill")
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : "server.rack.fill")
                 .font(.title3)
                 .foregroundStyle(activeSetupTone)
                 .frame(width: 28)
@@ -4442,14 +4559,14 @@ struct SettingsView: View {
             }
 
             MetricStrip(items: [
-              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .orange),
-              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
-              ("Last fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
-              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
-              ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary)
+              ("Mailbox", mailboxStatus.0, mailboxStatus.1),
+              ("Credential", credentialStatus.0, credentialStatus.1),
+              ("Last fetched", "\(latestManualMailboxFetchedCount)", .blue),
+              ("Imported", "\(latestManualMailboxImportedCount)", latestManualMailboxImportedCount > 0 ? .green : .secondary),
+              ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount > 0 ? .teal : .secondary)
             ])
 
-            Text("Current live path: SpaceMail manual read-only IMAP refresh. Microsoft 365, Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
+            Text("Current live paths: SpaceMail manual read-only IMAP refresh and Gmail manual read-only API refresh. Microsoft 365, Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -4486,10 +4603,10 @@ struct SettingsView: View {
         if showsLocalOnlyStatus {
           MVPWorkflowGuide(
             title: "Before connecting live systems",
-            detail: "Most integrations remain local planning surfaces. SpaceMail is the exception: it can run a manual, read-only IMAP refresh when a Keychain password is configured.",
+            detail: "Most integrations remain local planning surfaces. SpaceMail and Gmail are the current manual, read-only mailbox intake paths when their credential/sign-in setup is ready.",
             steps: [
-              "Use SpaceMail only through the explicit manual refresh action.",
-              "Enter a SpaceMail password only in the secure Keychain prompt, not in setup notes or JSON fields.",
+              "Use SpaceMail and Gmail only through explicit manual refresh actions.",
+              "Enter SpaceMail passwords only in the secure Keychain prompt; use Google sign-in for Gmail. Do not put secrets in setup notes or JSON fields.",
               "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
               "Use Audit to confirm that local actions are being recorded."
             ],
@@ -4497,7 +4614,7 @@ struct SettingsView: View {
           )
 
           SettingsPanel(title: "Local-only status", symbol: "checklist") {
-          Text("ParcelOps stores operational records in local JSON. SpaceMail password/app-password values use Keychain and manual read-only refresh; the rest of the integration surface remains planning-only.")
+          Text("ParcelOps stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
             .foregroundStyle(.secondary)
 
           LocalDataSafetyCard(store: store, compact: isCompact)
