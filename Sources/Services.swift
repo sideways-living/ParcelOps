@@ -331,6 +331,48 @@ struct MockGmailMailboxClient: GmailMailboxClient {
   }
 }
 
+struct RealGmailMailboxClient: GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult {
+    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectURI = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    var missing: [String] = []
+    if emailAddress.isEmpty { missing.append("Gmail address") }
+    if labels.isEmpty { missing.append("labels") }
+    if clientID.isEmpty { missing.append("OAuth client ID placeholder") }
+    if redirectURI.isEmpty { missing.append("redirect URI or URL scheme placeholder") }
+    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
+      missing.append("read-only Gmail scope")
+    }
+
+    guard missing.isEmpty else {
+      return GmailMailboxFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real Gmail readiness check stopped before network access. Missing: \(missing.joined(separator: ", ")). No Google OAuth flow, token request, Gmail API call, or mailbox access occurred."
+      )
+    }
+
+    guard connection.credentialStorageStatus.localizedCaseInsensitiveContains("available") ||
+            connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready") else {
+      return GmailMailboxFetchResult(
+        status: .tokenMissing,
+        messages: [],
+        detail: "Real Gmail readiness check found no token reference. Future Gmail refresh will need Google OAuth and secure token cache/Keychain planning before any API call can run. No Google OAuth flow, token request, Gmail API call, or mailbox access occurred."
+      )
+    }
+
+    return GmailMailboxFetchResult(
+      status: .apiNotImplemented,
+      messages: [],
+      detail: "Real Gmail client boundary is configured but network fetching is intentionally not implemented yet. The future endpoint will be Gmail API read-only message listing for labels '\(labels)' with a small manual page size. No Gmail API request was made and no mailbox item was deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
 struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
   func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String? = nil) async -> SpaceMailIMAPFetchResult {
     let emailAddress = connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines)

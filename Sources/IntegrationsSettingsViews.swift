@@ -543,6 +543,8 @@ struct IntegrationsView: View {
               store.markGmailMailboxConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
+            } onRealReadinessCheck: {
+              store.checkRealGmailReadiness(for: connection)
             } onMockAuthConnect: {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
@@ -1213,6 +1215,7 @@ struct GmailMailboxConnectionRow: View {
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
+  var onRealReadinessCheck: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
   var onTokenStoreReady: () -> Void
@@ -1242,6 +1245,7 @@ struct GmailMailboxConnectionRow: View {
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
+    onRealReadinessCheck: @escaping () -> Void,
     onMockAuthConnect: @escaping () -> Void,
     onMockAuthFailure: @escaping () -> Void,
     onTokenStoreReady: @escaping () -> Void,
@@ -1264,6 +1268,7 @@ struct GmailMailboxConnectionRow: View {
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
+    self.onRealReadinessCheck = onRealReadinessCheck
     self.onMockAuthConnect = onMockAuthConnect
     self.onMockAuthFailure = onMockAuthFailure
     self.onTokenStoreReady = onTokenStoreReady
@@ -1631,6 +1636,8 @@ struct GmailMailboxConnectionRow: View {
           onMockRefresh()
         }
         .buttonStyle(.bordered)
+        Button("Check real Gmail readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          .buttonStyle(.bordered)
         Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
           .buttonStyle(.bordered)
         Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)

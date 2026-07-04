@@ -666,6 +666,8 @@ enum GmailMailboxFetchStatus: String, CaseIterable, Identifiable, Hashable {
   case noMessages = "No messages"
   case notConfigured = "Not configured"
   case oauthPlaceholder = "OAuth placeholder"
+  case tokenMissing = "Token missing"
+  case apiNotImplemented = "Gmail API not implemented"
   case labelNotFoundSimulated = "Label not found simulated"
   case parseFailedSimulated = "Parse failed simulated"
 

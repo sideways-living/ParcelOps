@@ -128,6 +128,7 @@ final class ParcelOpsStore {
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let gmailMailboxClient: GmailMailboxClient
+  private let realGmailMailboxClient: GmailMailboxClient
   private let gmailAuthClient: GmailAuthClient
   private let gmailTokenStore: GmailTokenStore
   private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
@@ -151,6 +152,7 @@ final class ParcelOpsStore {
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
+    realGmailMailboxClient: GmailMailboxClient = RealGmailMailboxClient(),
     gmailAuthClient: GmailAuthClient = MockGmailAuthClient(),
     gmailTokenStore: GmailTokenStore = MockGmailTokenStore(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
@@ -208,6 +210,7 @@ final class ParcelOpsStore {
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
     self.realMicrosoftGraphMailboxClient = realMicrosoftGraphMailboxClient
     self.gmailMailboxClient = gmailMailboxClient
+    self.realGmailMailboxClient = realGmailMailboxClient
     self.gmailAuthClient = gmailAuthClient
     self.gmailTokenStore = gmailTokenStore
     self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
@@ -11241,6 +11244,46 @@ final class ParcelOpsStore {
 
   func importMockGmailMessages(for connection: GmailMailboxConnection) {
     Task { await refreshMockGmailMessages(for: connection) }
+  }
+
+  func checkRealGmailReadiness(for connection: GmailMailboxConnection) {
+    Task { await refreshRealGmailReadiness(for: connection) }
+  }
+
+  private func refreshRealGmailReadiness(for connection: GmailMailboxConnection) async {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    let timestamp = Self.auditTimestamp()
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail readiness check started.",
+      afterDetail: "Labels: \(connection.monitoredLabelNames)\nOAuth client placeholder: \((connection.oauthClientIDPlaceholder ?? "").isEmpty ? "missing" : "present")\nRedirect placeholder: \((connection.redirectURIPlaceholder ?? "").isEmpty ? "missing" : "present")\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, or mailbox mutation occurred."
+    )
+
+    let fetchResult = await realGmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Real Gmail readiness: \(fetchResult.status.rawValue)"
+      draft.lastManualRefreshDate = timestamp
+      draft.lastRefreshFetchedCount = 0
+      draft.lastRefreshImportedCount = 0
+      draft.lastRefreshDuplicateCount = 0
+      draft.lastRefreshFilteredNonOrderCount = 0
+      draft.lastRefreshUncertainCount = 0
+      draft.lastRefreshFilteredExamples = []
+      draft.lastRefreshUncertainExamples = []
+      draft.lastRefreshSummary = "Real Gmail readiness check: \(fetchResult.status.rawValue). \(fetchResult.detail)"
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail readiness check completed.",
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nDetail: \(fetchResult.detail)\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, Gmail API response, raw Gmail message, or mailbox mutation occurred."
+    )
   }
 
   private func refreshMockGmailMessages(for connection: GmailMailboxConnection) async {
