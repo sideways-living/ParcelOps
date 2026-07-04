@@ -1976,6 +1976,24 @@ struct SpaceMailPostRefreshActionItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct GmailPostRefreshActionPlan: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var primaryAction: String
+  var items: [GmailPostRefreshActionItem]
+}
+
+struct GmailPostRefreshActionItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var count: Int
+  var detail: String
+  var actionLabel: String
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

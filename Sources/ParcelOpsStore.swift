@@ -595,6 +595,132 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailPostRefreshActionPlan: GmailPostRefreshActionPlan {
+    let gmailMailboxIDs = Set(gmailMailboxConnections.map(\.id))
+    let gmailIngestRecords = mailboxIngestRecords.filter { gmailMailboxIDs.contains($0.sourceMailboxID) }
+    let linkedIntakeIDs = Set(gmailIngestRecords.compactMap(\.intakeEmailID))
+    let linkedGmailIntake = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }
+    let reviewGmailIntake = linkedGmailIntake.filter { $0.reviewState == .needsReview }
+    let parserDiagnostics = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }
+    let readyForOrder = reviewGmailIntake.filter { email in
+      email.linkedOrderID == nil
+        && (!email.detectedOrderNumber.isPlaceholderValidationValue || !email.detectedTrackingNumber.isPlaceholderValidationValue)
+    }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+    let filteredReviewCount = gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    let latestFetchedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let latestImportedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let latestFilteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let latestUncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
+    let connectedAuthCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let setupIssueCount = gmailMailboxConnections.filter { connection in
+      connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || (!connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly")
+          && !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata"))
+    }.count
+
+    let items = [
+      GmailPostRefreshActionItem(
+        title: "Finish setup and sign-in",
+        count: setupIssueCount + max(0, gmailMailboxConnections.count - connectedAuthCount),
+        detail: setupIssueCount == 0 && connectedAuthCount > 0
+          ? "Gmail setup values and sign-in state are ready for manual refresh."
+          : "Confirm address, labels, OAuth client, redirect/scheme, read-only scope, and Google sign-in before real refresh.",
+        actionLabel: setupIssueCount == 0 && connectedAuthCount > 0 ? "Setup ready" : "Review Gmail setup",
+        tone: setupIssueCount == 0 && connectedAuthCount > 0 ? "success" : "warning",
+        symbol: "person.badge.key.fill"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Review imported Inbox rows",
+        count: reviewGmailIntake.count,
+        detail: reviewGmailIntake.isEmpty
+          ? "No Gmail intake rows currently need primary Inbox review."
+          : "Confirm merchant, order, tracking, and destination before creating or linking orders.",
+        actionLabel: reviewGmailIntake.isEmpty ? "No Inbox review needed" : "Open detected order emails",
+        tone: reviewGmailIntake.isEmpty ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Fix parser diagnostics",
+        count: parserDiagnostics.count,
+        detail: parserDiagnostics.isEmpty
+          ? "No Gmail-linked parser diagnostics are currently blocking the flow."
+          : "Reprocess or edit Gmail intake rows where order, tracking, sender, or destination is weak.",
+        actionLabel: parserDiagnostics.isEmpty ? "Parser clear" : "Use parser review queue",
+        tone: parserDiagnostics.isEmpty ? "success" : "warning",
+        symbol: "text.magnifyingglass"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Create or link orders",
+        count: readyForOrder.count,
+        detail: readyForOrder.isEmpty
+          ? "No Gmail intake rows look ready for a new linked order right now."
+          : "Rows with usable order or tracking details still need an order handoff.",
+        actionLabel: readyForOrder.isEmpty ? "No order handoff waiting" : "Create or link orders",
+        tone: readyForOrder.isEmpty ? "success" : "attention",
+        symbol: "shippingbox.fill"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Review uncertain messages",
+        count: uncertainCount,
+        detail: uncertainCount == 0
+          ? "No ambiguous Gmail messages are waiting outside Inbox."
+          : "Import true order mail or dismiss messages that should stay out of Inbox.",
+        actionLabel: uncertainCount == 0 ? "No uncertain review" : "Review uncertain previews",
+        tone: uncertainCount == 0 ? "success" : "attention",
+        symbol: "questionmark.folder.fill"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Check filtered examples",
+        count: filteredReviewCount,
+        detail: filteredReviewCount == 0
+          ? "No filtered Gmail examples are waiting for manual review."
+          : "Spot-check filtered previews if a real order email appears to be missing.",
+        actionLabel: filteredReviewCount == 0 ? "No filtered review queued" : "Spot-check filtered previews",
+        tone: filteredReviewCount == 0 ? "success" : "neutral",
+        symbol: "line.3.horizontal.decrease.circle.fill"
+      )
+    ]
+
+    let blockingItems = items.filter { $0.tone == "warning" || $0.tone == "attention" }
+    let title: String
+    let detail: String
+    let primaryAction: String
+    let tone: String
+    if gmailMailboxConnections.isEmpty {
+      title = "Gmail post-refresh actions unavailable"
+      detail = "Add a Gmail setup only when a mailbox is hosted by Gmail or Google Workspace."
+      primaryAction = "Add Gmail setup"
+      tone = "neutral"
+    } else if latestFetchedCount == 0 && !gmailMailboxConnections.contains(where: { $0.lastManualRefreshDate != "Never" }) {
+      title = "Gmail ready for setup checks"
+      detail = "No real refresh evidence is recorded yet. Finish setup, test Google sign-in, then run manual read-only refresh."
+      primaryAction = blockingItems.first?.actionLabel ?? "Run real Gmail refresh"
+      tone = "attention"
+    } else if blockingItems.isEmpty {
+      title = "Gmail post-refresh queue is clear"
+      detail = "Latest refresh: \(latestFetchedCount) fetched, \(latestImportedCount) imported, \(latestFilteredCount) filtered, \(latestUncertainCount) uncertain."
+      primaryAction = "Wait for new order mail or run another manual refresh"
+      tone = "success"
+    } else {
+      title = "Gmail post-refresh actions need review"
+      detail = "Latest refresh: \(latestFetchedCount) fetched, \(latestImportedCount) imported, \(latestFilteredCount) filtered, \(latestUncertainCount) uncertain."
+      primaryAction = blockingItems.first?.actionLabel ?? "Review Mailbox Monitor"
+      tone = blockingItems.contains(where: { $0.tone == "warning" }) ? "warning" : "attention"
+    }
+
+    return GmailPostRefreshActionPlan(
+      title: title,
+      detail: detail,
+      tone: tone,
+      primaryAction: primaryAction,
+      items: items
+    )
+  }
+
   var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

@@ -2870,6 +2870,128 @@ struct SpaceMailPostRefreshActionCard: View {
   }
 }
 
+struct GmailPostRefreshActionCard: View {
+  var plan: GmailPostRefreshActionPlan
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  private var color: Color {
+    color(for: plan.tone)
+  }
+
+  private var sortedItems: [GmailPostRefreshActionItem] {
+    plan.items.sorted { left, right in
+      if priority(for: left) != priority(for: right) {
+        return priority(for: left) < priority(for: right)
+      }
+      if left.count != right.count {
+        return left.count > right.count
+      }
+      return left.title < right.title
+    }
+  }
+
+  private var visibleItems: [GmailPostRefreshActionItem] {
+    Array(sortedItems.prefix(isCompact ? 3 : 5))
+  }
+
+  private var hiddenItemCount: Int {
+    max(0, sortedItems.count - visibleItems.count)
+  }
+
+  private var actionColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(plan.title)
+            .font(.headline)
+          Text(plan.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Next: \(plan.primaryAction)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+        }
+        Spacer()
+        Badge("Gmail", color: color)
+      }
+
+      LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+        ForEach(visibleItems) { item in
+          VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: 8) {
+              Label(item.title, systemImage: item.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(for: item.tone))
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer()
+              Badge("\(item.count)", color: color(for: item.tone))
+            }
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(item.actionLabel)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: item.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if hiddenItemCount > 0 {
+        Text("\(hiddenItemCount) lower-priority Gmail action\(hiddenItemCount == 1 ? "" : "s") hidden here. Open Mailbox Monitor for the full review list.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Gmail refresh remains explicit, manual, and read-only. Use Inbox for imported order mail and Mailbox Monitor for uncertain or filtered previews.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func priority(for item: GmailPostRefreshActionItem) -> Int {
+    if item.tone == "warning" { return 0 }
+    if item.tone == "attention" { return 1 }
+    if item.count > 0 { return 2 }
+    if item.tone == "success" { return 4 }
+    return 3
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailOperationsRunbook: View {
   private let normalSteps = [
     ("Confirm setup", "Check host, port, SSL/TLS, folder, mixed mailbox mode, and Keychain credential status before refreshing."),
