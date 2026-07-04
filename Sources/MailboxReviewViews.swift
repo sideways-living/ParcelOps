@@ -31,6 +31,31 @@ struct MailboxView: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var latestMailboxFetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestMailboxImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var latestMailboxDuplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+  }
+
+  private var latestMailboxFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var latestMailboxUncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+  }
+
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
     let query = normalizedIntakeSearch
     guard !query.isEmpty else { return true }
@@ -83,7 +108,7 @@ struct MailboxView: View {
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("SpaceMail is the current mailbox provider path. Capture non-secret IMAP settings here, manage the password/app-password in Keychain, and keep mock refresh separate from the real manual refresh boundary.")
+          Text("Use SpaceMail for IMAP mailboxes. Gmail setup below covers Google-hosted mailboxes; both feed the same local Inbox intake path.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
@@ -246,11 +271,11 @@ struct MailboxView: View {
               .fixedSize(horizontal: false, vertical: true)
 
             MetricStrip(items: [
-              ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
-              ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
-              ("Duplicates", "\(latestSpaceMailSummary?.duplicateCount ?? 0)", (latestSpaceMailSummary?.duplicateCount ?? 0) > 0 ? .orange : .secondary),
-              ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-              ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary)
+              ("Fetched", "\(latestMailboxFetchedCount)", .blue),
+              ("Imported", "\(latestMailboxImportedCount)", latestMailboxImportedCount > 0 ? .green : .secondary),
+              ("Duplicates", "\(latestMailboxDuplicateCount)", latestMailboxDuplicateCount > 0 ? .orange : .secondary),
+              ("Filtered", "\(latestMailboxFilteredCount)", latestMailboxFilteredCount > 0 ? .teal : .secondary),
+              ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary)
             ])
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
@@ -279,7 +304,7 @@ struct MailboxView: View {
         }
 
         SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
-          Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
+          Text("Microsoft 365 remains available as an advanced option. SpaceMail and Gmail are the current manual mailbox intake paths for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -376,7 +401,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
-            MVPEmptyState(title: "No forwarded emails yet", detail: "Run a SpaceMail refresh or import sample messages to populate the mailbox review flow.", symbol: "envelope.badge")
+            MVPEmptyState(title: "No forwarded emails yet", detail: "Run a SpaceMail or Gmail refresh, or import sample messages, to populate the mailbox review flow.", symbol: "envelope.badge")
           } else {
             Text("Default view shows actionable intake only. Reviewed and ignored rows are preserved locally, but hidden unless you search or show resolved rows.")
               .font(.caption)
@@ -1267,6 +1292,74 @@ struct SpaceMailNeedsReviewPreviewRow: View {
   }
 }
 
+struct GmailNeedsReviewPreviewRow: View {
+  var title: String
+  var sender: String
+  var receivedDate: String
+  var bodyPreview: String
+  var reason: String
+  var onImport: () -> Void
+  var onDismiss: () -> Void
+
+  private var displayTitle: String {
+    title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No subject" : title
+  }
+
+  private var displaySender: String {
+    sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown sender" : sender
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 3) {
+          Label(displayTitle, systemImage: "questionmark.folder.fill")
+            .font(.subheadline.weight(.semibold))
+            .fixedSize(horizontal: false, vertical: true)
+          Text("\(displaySender) • \(receivedDate)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge("Uncertain", color: .orange)
+      }
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "questionmark.folder.fill")
+          .foregroundStyle(.orange)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Review needed: possibly order-related")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          Text("This Gmail preview stayed out of Inbox because the classifier was not confident. Import only true order mail; dismiss local false positives.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      Text(bodyPreview)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Reason: \(reason)")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+      CompactActionRow {
+        Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
+        Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct IntakeEmailRow: View {
   var email: ForwardedEmailIntake
   var store: ParcelOpsStore
@@ -1769,7 +1862,7 @@ struct NeedsReviewView: View {
   private var showsMailboxEvents: Bool { matchesReviewSection("mailbox", "events", "mail", "email") }
   private var showsParserChecks: Bool { matchesReviewSection("parser", "intake", "diagnostics", "merchant", "tracking", "order number") }
   private var showsParserChecksInPrimary: Bool { !normalizedReviewSearch.isEmpty && showsParserChecks }
-  private var showsMixedMailboxReview: Bool { matchesReviewSection("spacemail", "mixed", "mailbox", "uncertain", "filtered") }
+  private var showsMixedMailboxReview: Bool { matchesReviewSection("spacemail", "gmail", "mixed", "mailbox", "uncertain", "filtered") }
   private var showsForwardedEmails: Bool { matchesReviewSection("forwarded", "emails", "intake", "mailbox", "order") }
   private var showsEvidence: Bool { matchesReviewSection("evidence", "attachments", "paperclip") }
   private var showsTrackingEvents: Bool { matchesReviewSection("tracking", "carrier", "events", "shipment") }
@@ -1828,6 +1921,7 @@ struct NeedsReviewView: View {
       + store.reviewOrders.count
       + store.reviewMailEvents.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count
       + store.reviewCarrierTrackingEvents.count
@@ -1894,7 +1988,7 @@ struct NeedsReviewView: View {
         }
 
         if visiblePrimaryReviewSectionCount == 0 {
-          MVPEmptyState(title: "No review sections match", detail: "Clear the review search or try Inbox, Workbench, validation, tracking, tasks, handoff, SpaceMail, import, acceptance, evidence, or dispatch.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No review sections match", detail: "Clear the review search or try Inbox, Workbench, validation, tracking, tasks, handoff, SpaceMail, Gmail, import, acceptance, evidence, or dispatch.", symbol: "magnifyingglass")
         }
 
         NeedsReviewSectionHeader(
@@ -2192,16 +2286,16 @@ struct NeedsReviewView: View {
         }
 
         if showsMixedMailboxReview {
-          SettingsPanel(title: "SpaceMail mixed-mailbox review", symbol: "questionmark.folder.fill") {
-            Text("These previews were held out of the primary Inbox by the mixed-mailbox filter. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
+          SettingsPanel(title: "Mixed-mailbox review", symbol: "questionmark.folder.fill") {
+            Text("These previews were held out of the primary Inbox by SpaceMail or Gmail mixed-mailbox filtering. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
               .font(.caption)
               .foregroundStyle(.secondary)
 
-            if store.spaceMailIMAPConnections.isEmpty {
+            if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty {
               MVPEmptyState(
-                title: "No SpaceMail setup exists",
-                detail: "Add a SpaceMail IMAP setup before mixed-mailbox review can show uncertain or filtered examples.",
-                symbol: "server.rack"
+                title: "No mailbox setup exists",
+                detail: "Add a SpaceMail IMAP or Gmail setup before mixed-mailbox review can show uncertain or filtered examples.",
+                symbol: "envelope.badge.fill"
               )
             } else {
               ForEach(store.spaceMailIMAPConnections) { connection in
@@ -2304,6 +2398,67 @@ struct NeedsReviewView: View {
                 .background(.background, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
               }
+              ForEach(store.gmailMailboxConnections) { connection in
+                VStack(alignment: .leading, spacing: 12) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(connection.displayName, systemImage: "envelope.badge.shield.half.filled")
+                      .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Badge("\((connection.uncertainMessages ?? []).count) uncertain", color: (connection.uncertainMessages ?? []).isEmpty ? .secondary : .orange)
+                    Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount == 0 ? .secondary : .teal)
+                  }
+
+                  Text("Latest refresh: \(connection.lastRefreshSummary)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                  VStack(alignment: .leading, spacing: 8) {
+                    Label("Uncertain Gmail messages", systemImage: "questionmark.diamond.fill")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(.orange)
+
+                    let messages = connection.uncertainMessages ?? []
+                    if messages.isEmpty {
+                      MVPEmptyState(
+                        title: "No uncertain Gmail messages waiting",
+                        detail: "Order-ish Gmail previews without enough evidence will appear here. A zero count means Gmail imported likely order mail or filtered likely non-order mail.",
+                        symbol: "checkmark.seal.fill"
+                      )
+                    } else {
+                      ForEach(Array(messages.prefix(5))) { message in
+                        GmailNeedsReviewPreviewRow(
+                          title: message.subject,
+                          sender: message.sender,
+                          receivedDate: message.receivedDate,
+                          bodyPreview: message.bodyPreview,
+                          reason: message.reason
+                        ) {
+                          store.importUncertainGmailMessage(message, for: connection)
+                        } onDismiss: {
+                          store.dismissUncertainGmailMessage(message, for: connection)
+                        }
+                      }
+                    }
+                  }
+
+                  if let examples = connection.lastRefreshFilteredExamples, !examples.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                      Label("Filtered Gmail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.teal)
+                      Text(examples.prefix(5).joined(separator: "; "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                  }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+              }
             }
           }
         }
@@ -2311,7 +2466,7 @@ struct NeedsReviewView: View {
         if showsForwardedEmails {
           SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
             if store.reviewIntakeEmails.isEmpty {
-              MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
+              MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail, Gmail, or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
             } else {
               ForEach(store.reviewIntakeEmails) { email in
                 IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
