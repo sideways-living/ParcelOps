@@ -1121,8 +1121,8 @@ final class ParcelOpsStore {
       tone = "success"
     } else if connection.lastRefreshDuplicateCount > 0 {
       verdict = "No new Gmail order mail"
-      detail = "The latest Gmail refresh found messages ParcelOps had already captured or reviewed."
-      nextAction = "Wait for new mail or review filtered/uncertain examples if something looks wrong."
+      detail = "The latest Gmail refresh found messages ParcelOps had already captured or reviewed. Duplicate-safe handling can refresh existing Inbox rows from newly parsed previews where fields change."
+      nextAction = "Wait for new mail, review refreshed Inbox rows, or check filtered/uncertain examples if something looks wrong."
       tone = "neutral"
     } else if status.localizedCaseInsensitiveContains("Ready") || status.localizedCaseInsensitiveContains("sign-in") {
       verdict = "Gmail ready for manual refresh"
@@ -4952,7 +4952,7 @@ final class ParcelOpsStore {
         isMock ? "Mock Gmail" : "Gmail",
         isMock
           ? "Captured from \(connection.displayName) using deterministic mock Gmail refresh."
-          : "Captured from \(connection.displayName) using future manual read-only Gmail refresh.",
+          : "Captured from \(connection.displayName) using manual read-only Gmail refresh.",
         isMock ? "mock" : "gmail"
       )
     }
@@ -11463,7 +11463,7 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
-      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(fetchResult.detail)"
+      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
     }
     logAudit(
       action: .evaluated,
@@ -11471,7 +11471,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Gmail refresh completed.",
-      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nDuplicate handling: duplicate provider message IDs do not create new Inbox rows; existing linked intake rows may be refreshed from newly parsed previews when fields change.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
     )
   }
 
@@ -11505,7 +11505,7 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
-      draft.lastRefreshSummary = "Real Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(fetchResult.detail)"
+      draft.lastRefreshSummary = "Real Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
     }
 
     logAudit(
@@ -11514,7 +11514,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real Gmail refresh completed.",
-      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Manual read-only Gmail API refresh through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo Google access token, refresh token, auth code, authorization header, full request URL, raw Gmail body, password, client secret, or mailbox credential was logged or stored. No Gmail message was deleted, moved, marked read, sent, or modified."
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Manual read-only Gmail API refresh through provider-neutral intake.\nDuplicate handling: duplicate Gmail message IDs do not create new Inbox rows; existing linked intake rows may be refreshed from newly parsed previews when fields change.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo Google access token, refresh token, auth code, authorization header, full request URL, raw Gmail body, password, client secret, or mailbox credential was logged or stored. No Gmail message was deleted, moved, marked read, sent, or modified."
     )
   }
 

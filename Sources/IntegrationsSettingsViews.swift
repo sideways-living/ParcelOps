@@ -1452,6 +1452,12 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        if connection.lastRefreshDuplicateCount > 0 {
+          Label("Duplicate Gmail messages were not imported again. Existing linked Inbox rows can still be refreshed locally when newly parsed fields change.", systemImage: "arrow.triangle.2.circlepath")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         VStack(alignment: .leading, spacing: 6) {
           Label(gmailRefreshGuidanceTitle, systemImage: gmailRefreshGuidanceSymbol)
             .font(.caption.weight(.semibold))
