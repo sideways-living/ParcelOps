@@ -199,6 +199,8 @@ struct MailboxView: View {
               store.importMockGmailMessages(for: connection)
             } onRealReadinessCheck: {
               store.checkRealGmailReadiness(for: connection)
+            } onRealRefresh: {
+              store.importRealGmailMessages(for: connection)
             } onRealAuthReadinessCheck: {
               store.testRealGmailSignIn(connection)
             } onMockAuthConnect: {

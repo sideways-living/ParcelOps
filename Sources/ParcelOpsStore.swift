@@ -11253,6 +11253,10 @@ final class ParcelOpsStore {
     Task { await refreshRealGmailReadiness(for: connection) }
   }
 
+  func importRealGmailMessages(for connection: GmailMailboxConnection) {
+    Task { await refreshRealGmailMessages(for: connection) }
+  }
+
   private func refreshRealGmailReadiness(for connection: GmailMailboxConnection) async {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
@@ -11266,9 +11270,25 @@ final class ParcelOpsStore {
       afterDetail: "Labels: \(connection.monitoredLabelNames)\nOAuth client placeholder: \((connection.oauthClientIDPlaceholder ?? "").isEmpty ? "missing" : "present")\nRedirect placeholder: \((connection.redirectURIPlaceholder ?? "").isEmpty ? "missing" : "present")\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, or mailbox mutation occurred."
     )
 
-    let fetchResult = await realGmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectURI = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    var missing: [String] = []
+    if emailAddress.isEmpty { missing.append("Gmail address") }
+    if labels.isEmpty { missing.append("labels") }
+    if clientID.isEmpty { missing.append("OAuth client ID placeholder") }
+    if redirectURI.isEmpty { missing.append("redirect URI or URL scheme placeholder") }
+    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
+      missing.append("read-only Gmail scope")
+    }
+    let status: GmailMailboxFetchStatus = missing.isEmpty ? .ready : .notConfigured
+    let detail = missing.isEmpty
+      ? "Real Gmail setup fields are present. Use Test real Google sign-in, then Run real Gmail refresh for the manual read-only API path. This readiness check did not request a token, call Gmail, or access mailbox messages."
+      : "Real Gmail setup is incomplete. Missing: \(missing.joined(separator: ", ")). This readiness check did not request a token, call Gmail, or access mailbox messages."
     updateGmailMailboxConnection(connection) { draft in
-      draft.connectionStatus = "Real Gmail readiness: \(fetchResult.status.rawValue)"
+      draft.connectionStatus = "Real Gmail readiness: \(status.rawValue)"
       draft.lastManualRefreshDate = timestamp
       draft.lastRefreshFetchedCount = 0
       draft.lastRefreshImportedCount = 0
@@ -11277,7 +11297,7 @@ final class ParcelOpsStore {
       draft.lastRefreshUncertainCount = 0
       draft.lastRefreshFilteredExamples = []
       draft.lastRefreshUncertainExamples = []
-      draft.lastRefreshSummary = "Real Gmail readiness check: \(fetchResult.status.rawValue). \(fetchResult.detail)"
+      draft.lastRefreshSummary = "Real Gmail readiness check: \(status.rawValue). \(detail)"
     }
     logAudit(
       action: .evaluated,
@@ -11285,7 +11305,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real Gmail readiness check completed.",
-      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nDetail: \(fetchResult.detail)\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, Gmail API response, raw Gmail message, or mailbox mutation occurred."
+      afterDetail: "Status: \(status.rawValue)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMissing fields: \(missing.isEmpty ? "none" : missing.joined(separator: ", "))\nDetail: \(detail)\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, Gmail API response, raw Gmail message, or mailbox mutation occurred."
     )
   }
 
@@ -11327,6 +11347,49 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Mock Gmail refresh completed.",
       afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+    )
+  }
+
+  private func refreshRealGmailMessages(for connection: GmailMailboxConnection) async {
+    let mailbox = trackedMailbox(for: connection)
+    upsertTrackedMailbox(mailbox)
+    let timestamp = Self.auditTimestamp()
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail refresh started.",
+      afterDetail: "Labels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Manual read-only Gmail API refresh. ParcelOps may request an in-memory Google access token from the current GoogleSignIn session, but no token value, authorization header, raw Gmail body, full request URL, or mailbox credential is logged or stored. No Gmail message is deleted, moved, marked read, sent, or modified."
+    )
+
+    let fetchResult = await realGmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
+    let filterResult = filteredGmailMessages(fetchResult.messages, for: connection)
+    let result = importFetchedMailboxMessages(filterResult.importMessages)
+    let filteredExamples = filterResult.filteredExamples.joined(separator: "; ")
+    let uncertainExamples = filterResult.uncertainExamples.joined(separator: "; ")
+
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Real Gmail: \(fetchResult.status.rawValue)"
+      draft.lastManualRefreshDate = timestamp
+      draft.lastRefreshFetchedCount = fetchResult.messages.count
+      draft.lastRefreshImportedCount = result.imported
+      draft.lastRefreshDuplicateCount = result.duplicates
+      draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+      draft.lastRefreshUncertainCount = filterResult.uncertainCount
+      draft.lastRefreshFilteredExamples = filterResult.filteredExamples
+      draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
+      draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.lastRefreshSummary = "Real Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(fetchResult.detail)"
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail refresh completed.",
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Manual read-only Gmail API refresh through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo Google access token, refresh token, auth code, authorization header, full request URL, raw Gmail body, password, client secret, or mailbox credential was logged or stored. No Gmail message was deleted, moved, marked read, sent, or modified."
     )
   }
 

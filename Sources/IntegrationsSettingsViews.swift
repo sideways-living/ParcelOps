@@ -545,6 +545,8 @@ struct IntegrationsView: View {
               store.importMockGmailMessages(for: connection)
             } onRealReadinessCheck: {
               store.checkRealGmailReadiness(for: connection)
+            } onRealRefresh: {
+              store.importRealGmailMessages(for: connection)
             } onRealAuthReadinessCheck: {
               store.testRealGmailSignIn(connection)
             } onMockAuthConnect: {
@@ -1218,6 +1220,7 @@ struct GmailMailboxConnectionRow: View {
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
   var onRealReadinessCheck: () -> Void
+  var onRealRefresh: () -> Void
   var onRealAuthReadinessCheck: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
@@ -1249,6 +1252,7 @@ struct GmailMailboxConnectionRow: View {
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
     onRealReadinessCheck: @escaping () -> Void,
+    onRealRefresh: @escaping () -> Void,
     onRealAuthReadinessCheck: @escaping () -> Void,
     onMockAuthConnect: @escaping () -> Void,
     onMockAuthFailure: @escaping () -> Void,
@@ -1273,6 +1277,7 @@ struct GmailMailboxConnectionRow: View {
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
     self.onRealReadinessCheck = onRealReadinessCheck
+    self.onRealRefresh = onRealRefresh
     self.onRealAuthReadinessCheck = onRealAuthReadinessCheck
     self.onMockAuthConnect = onMockAuthConnect
     self.onMockAuthFailure = onMockAuthFailure
@@ -1325,7 +1330,7 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.secondary)
 
       VStack(alignment: .leading, spacing: 8) {
-        Label("Latest Gmail mock refresh", systemImage: "tray.and.arrow.down")
+        Label("Latest Gmail refresh", systemImage: "tray.and.arrow.down")
           .font(.caption.weight(.semibold))
           .foregroundStyle(connection.lastRefreshImportedCount > 0 ? .green : connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
         MetricStrip(items: [
@@ -1340,12 +1345,12 @@ struct GmailMailboxConnectionRow: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         if connection.mailboxMode == .mixedFiltered {
-          Text("Mixed Gmail mode keeps filtered non-order mock messages out of Inbox. Real Gmail API access is still not connected.")
+          Text("Mixed Gmail mode keeps filtered non-order messages out of Inbox. Use real refresh only after Google sign-in and read-only Gmail consent are ready.")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.teal)
             .fixedSize(horizontal: false, vertical: true)
         } else {
-          Text("Dedicated Gmail mode passes fetched mock messages straight to intake duplicate/import handling.")
+          Text("Dedicated Gmail mode passes fetched messages straight to intake duplicate/import handling.")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1368,10 +1373,10 @@ struct GmailMailboxConnectionRow: View {
 
       if let messages = connection.uncertainMessages, !messages.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
-          Label("Review uncertain Gmail mock messages", systemImage: "questionmark.folder.fill")
+          Label("Review uncertain Gmail messages", systemImage: "questionmark.folder.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.orange)
-          Text("These local mock previews looked order-related but were missing a strong order or tracking ID. They stay out of Inbox until imported locally.")
+          Text("These previews looked order-related but were missing a strong order or tracking ID. They stay out of Inbox until imported locally.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1418,7 +1423,7 @@ struct GmailMailboxConnectionRow: View {
         Label("Gmail classifier test", systemImage: "text.magnifyingglass")
           .font(.caption.weight(.semibold))
           .foregroundStyle(gmailClassifierColor)
-        Text("Local tests only. Use this to check how mixed Gmail mock messages would be imported, held as uncertain, or filtered before any real Gmail API work exists.")
+        Text("Local tests only. Use this to check how mixed Gmail messages would be imported, held as uncertain, or filtered before running a real refresh.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1426,7 +1431,7 @@ struct GmailMailboxConnectionRow: View {
           Badge("Import: signal + ID", color: .green)
           Badge("Uncertain: order-ish, no ID", color: .orange)
           Badge("Filter: marketing/security", color: .teal)
-          Badge("No Gmail API", color: .secondary)
+          Badge("No mailbox fetch", color: .secondary)
         }
         Text(connection.classifierTestSummary ?? "No Gmail classifier test has run yet.")
           .font(.caption2.weight(.semibold))
@@ -1562,7 +1567,7 @@ struct GmailMailboxConnectionRow: View {
           ("Plan", "\(implementationPlan.completedCount)/\(implementationPlan.totalCount)", implementationPlan.completedCount == implementationPlan.totalCount ? .green : .orange),
           ("Readiness", readiness.isReady ? "Ready" : "Missing", readiness.isReady ? .green : .orange),
           ("Mode", connection.mailboxMode == .mixedFiltered ? "Mixed" : "Dedicated", .teal),
-          ("Real Gmail", "Not live", .secondary)
+          ("Real Gmail", "Manual only", .teal)
         ])
         ForEach(implementationPlan.items) { item in
           HStack(alignment: .top, spacing: 8) {
@@ -1579,7 +1584,7 @@ struct GmailMailboxConnectionRow: View {
             }
           }
         }
-        Text("This checklist is local planning only. It does not open Google sign-in, request tokens, store tokens, call Gmail APIs, or change mailbox messages.")
+        Text("This checklist is local planning only. It does not store tokens or change mailbox messages. Real refresh remains manual and read-only.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1587,12 +1592,12 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
-      Text("Gmail is not connected yet. Mock Gmail refresh only creates deterministic local test messages through the provider-neutral intake path.")
+      Text("Mock Gmail refresh creates deterministic local test messages. Real Gmail refresh is a separate manual read-only action.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
 
-      Text("Real Gmail sign-in is opt-in. It may open Google sign-in, but Gmail mailbox reading remains separate and no token values are stored in ParcelOps JSON.")
+      Text("Real Gmail sign-in is opt-in. Real refresh may use the current GoogleSignIn session in memory; no token values are stored in ParcelOps JSON.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1652,6 +1657,8 @@ struct GmailMailboxConnectionRow: View {
         }
         .buttonStyle(.bordered)
         Button("Check real Gmail readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          .buttonStyle(.bordered)
+        Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
           .buttonStyle(.bordered)
         Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
           .buttonStyle(.bordered)

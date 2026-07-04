@@ -2,6 +2,10 @@ import Foundation
 import Network
 import Security
 
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
+
 protocol MailboxIngestionService {
   func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage]
 }
@@ -356,21 +360,297 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
     }
 
-    guard connection.credentialStorageStatus.localizedCaseInsensitiveContains("available") ||
-            connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready") else {
+    #if canImport(GoogleSignIn)
+    let tokenResult = await acquireAccessToken()
+    guard let accessToken = tokenResult.accessToken else {
       return GmailMailboxFetchResult(
-        status: .tokenMissing,
+        status: tokenResult.status,
         messages: [],
-        detail: "Real Gmail readiness check found no token reference. Future Gmail refresh will need Google OAuth and secure token cache/Keychain planning before any API call can run. No Google OAuth flow, token request, Gmail API call, or mailbox access occurred."
+        detail: tokenResult.detail
       )
     }
 
+    do {
+      let messages = try await fetchReadOnlyMessages(
+        accessToken: accessToken,
+        connection: connection,
+        sourceMailboxID: sourceMailboxID
+      )
+      if messages.isEmpty {
+        return GmailMailboxFetchResult(
+          status: .noMessages,
+          messages: [],
+          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+        )
+      }
+      return GmailMailboxFetchResult(
+        status: .success,
+        messages: messages,
+        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+      )
+    } catch let error as RealGmailMailboxError {
+      return GmailMailboxFetchResult(status: error.status, messages: [], detail: error.safeDetail)
+    } catch {
+      return GmailMailboxFetchResult(
+        status: .networkFailed,
+        messages: [],
+        detail: "Real Gmail API manual refresh failed: \(Self.safeErrorSummary(error)). No token value, authorization header, full URL, Gmail raw body, or mailbox mutation was logged or stored."
+      )
+    }
+    #else
     return GmailMailboxFetchResult(
-      status: .apiNotImplemented,
+      status: .notConfigured,
       messages: [],
-      detail: "Real Gmail client boundary is configured but network fetching is intentionally not implemented yet. The future endpoint will be Gmail API read-only message listing for labels '\(labels)' with a small manual page size. No Gmail API request was made and no mailbox item was deleted, moved, marked read, sent, or modified."
+      detail: "Real Gmail API refresh is unavailable because GoogleSignIn is not linked in this build."
+    )
+    #endif
+  }
+
+  #if canImport(GoogleSignIn)
+  private struct TokenResult {
+    var status: GmailMailboxFetchStatus
+    var accessToken: String?
+    var detail: String
+  }
+
+  @MainActor
+  private func acquireAccessToken() async -> TokenResult {
+    guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
+      return TokenResult(
+        status: .authRequired,
+        accessToken: nil,
+        detail: "Real Gmail refresh requires a signed-in Google account. Run Test real Google sign-in first. No Gmail API request was made and no mailbox item was changed."
+      )
+    }
+
+    return await withCheckedContinuation { continuation in
+      currentUser.refreshTokensIfNeeded { user, error in
+        if let error {
+          continuation.resume(returning: TokenResult(
+            status: .authRequired,
+            accessToken: nil,
+            detail: "GoogleSignIn could not refresh an in-memory access token: \(Self.safeErrorSummary(error)). Run Test real Google sign-in again and confirm read-only Gmail consent. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
+        guard let token = user?.accessToken.tokenString, !token.isEmpty else {
+          continuation.resume(returning: TokenResult(
+            status: .tokenMissing,
+            accessToken: nil,
+            detail: "GoogleSignIn did not provide an in-memory access token. Run Test real Google sign-in again. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
+        continuation.resume(returning: TokenResult(
+          status: .success,
+          accessToken: token,
+          detail: "GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value."
+        ))
+      }
+    }
+  }
+
+  private func fetchReadOnlyMessages(
+    accessToken: String,
+    connection: GmailMailboxConnection,
+    sourceMailboxID: UUID
+  ) async throws -> [FetchedMailboxMessage] {
+    let messageIDs = try await listMessageIDs(accessToken: accessToken, connection: connection)
+    var messages: [FetchedMailboxMessage] = []
+    for id in messageIDs.prefix(10) {
+      let message = try await fetchMessageMetadata(
+        id: id,
+        accessToken: accessToken,
+        connection: connection,
+        sourceMailboxID: sourceMailboxID
+      )
+      messages.append(message)
+    }
+    return messages
+  }
+
+  private func listMessageIDs(accessToken: String, connection: GmailMailboxConnection) async throws -> [String] {
+    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages")!
+    var queryItems = [
+      URLQueryItem(name: "maxResults", value: "10"),
+      URLQueryItem(name: "includeSpamTrash", value: "false")
+    ]
+    let label = firstLabel(from: connection)
+    if let systemLabel = systemLabelID(from: label) {
+      queryItems.append(URLQueryItem(name: "labelIds", value: systemLabel))
+    } else if !label.isEmpty {
+      queryItems.append(URLQueryItem(name: "q", value: "label:\(label)"))
+    }
+    components.queryItems = queryItems
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail list request. No Gmail API call was made.")
+    }
+
+    let response: GmailListResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "messages.list")
+    return response.messages?.map(\.id) ?? []
+  }
+
+  private func fetchMessageMetadata(
+    id: String,
+    accessToken: String,
+    connection: GmailMailboxConnection,
+    sourceMailboxID: UUID
+  ) async throws -> FetchedMailboxMessage {
+    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)")!
+    components.queryItems = [
+      URLQueryItem(name: "format", value: "metadata"),
+      URLQueryItem(name: "metadataHeaders", value: "From"),
+      URLQueryItem(name: "metadataHeaders", value: "Subject"),
+      URLQueryItem(name: "metadataHeaders", value: "Date"),
+      URLQueryItem(name: "metadataHeaders", value: "Message-ID")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct a Gmail message metadata request. No Gmail message was fetched.")
+    }
+
+    let response: GmailMessageResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "messages.get")
+    let headers = response.payload?.headers ?? []
+    let subject = header("Subject", in: headers) ?? "(No subject)"
+    let sender = header("From", in: headers) ?? connection.emailAddress
+    let received = header("Date", in: headers) ?? response.safeInternalDateText
+    let messageID = header("Message-ID", in: headers)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let providerID = messageID?.isEmpty == false
+      ? "gmail-message-id-\(stableProviderComponent(messageID!))"
+      : "gmail-\(connection.id.uuidString)-\(id)"
+    let preview = [subject, response.snippet ?? ""]
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return FetchedMailboxMessage(
+      providerMessageID: providerID,
+      sender: sender,
+      subject: subject,
+      receivedDate: received,
+      plainTextBodyPreview: String(preview.prefix(600)),
+      sourceMailboxID: sourceMailboxID
     )
   }
+
+  private func performGmailRequest<Response: Decodable>(
+    url: URL,
+    accessToken: String,
+    requestLabel: String
+  ) async throws -> Response {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw RealGmailMailboxError(status: .networkFailed, safeDetail: "Gmail \(requestLabel) did not return an HTTP response.")
+    }
+
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let errorBody = try? JSONDecoder().decode(GmailErrorEnvelope.self, from: data)
+      let status = statusForHTTP(httpResponse.statusCode, error: errorBody)
+      let reason = errorBody?.error.message ?? "No safe Gmail API error message returned."
+      throw RealGmailMailboxError(
+        status: status,
+        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Message: \(String(reason.prefix(240))). Response bytes: \(data.count). No authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
+      )
+    }
+
+    do {
+      return try JSONDecoder().decode(Response.self, from: data)
+    } catch {
+      throw RealGmailMailboxError(
+        status: .parseFailed,
+        safeDetail: "Gmail \(requestLabel) returned data but ParcelOps could not parse the safe metadata response: \(Self.safeErrorSummary(error)). Response bytes: \(data.count). No raw Gmail body was logged."
+      )
+    }
+  }
+
+  private func firstLabel(from connection: GmailMailboxConnection) -> String {
+    connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first ?? "INBOX"
+  }
+
+  private func systemLabelID(from label: String) -> String? {
+    let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let supported = ["INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "TRASH", "SPAM", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"]
+    return supported.contains(normalized) ? normalized : nil
+  }
+
+  private func header(_ name: String, in headers: [GmailHeader]) -> String? {
+    headers.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.value
+  }
+
+  private func stableProviderComponent(_ value: String) -> String {
+    value
+      .trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+      .replacingOccurrences(of: "@", with: "-at-")
+      .replacingOccurrences(of: "/", with: "-")
+      .replacingOccurrences(of: " ", with: "-")
+  }
+
+  private func statusForHTTP(_ statusCode: Int, error: GmailErrorEnvelope?) -> GmailMailboxFetchStatus {
+    if statusCode == 401 { return .authRequired }
+    if statusCode == 403 { return .consentRequired }
+    if statusCode == 404 { return .labelNotFound }
+    if statusCode >= 500 { return .networkFailed }
+    if error != nil { return .apiRejected }
+    return .networkFailed
+  }
+
+  private static func safeErrorSummary(_ error: Error) -> String {
+    let nsError = error as NSError
+    return "\(nsError.domain) code \(nsError.code): \(nsError.localizedDescription)"
+  }
+
+  private struct GmailListResponse: Decodable {
+    var messages: [GmailMessageID]?
+  }
+
+  private struct GmailMessageID: Decodable {
+    var id: String
+  }
+
+  private struct GmailMessageResponse: Decodable {
+    var id: String
+    var threadId: String?
+    var snippet: String?
+    var internalDate: String?
+    var payload: GmailPayload?
+
+    var safeInternalDateText: String {
+      guard let internalDate, let milliseconds = Double(internalDate) else { return "Gmail date unavailable" }
+      let date = Date(timeIntervalSince1970: milliseconds / 1000)
+      return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short)
+    }
+  }
+
+  private struct GmailPayload: Decodable {
+    var headers: [GmailHeader]?
+  }
+
+  private struct GmailHeader: Decodable {
+    var name: String
+    var value: String
+  }
+
+  private struct GmailErrorEnvelope: Decodable {
+    var error: GmailError
+  }
+
+  private struct GmailError: Decodable {
+    var code: Int?
+    var message: String?
+    var status: String?
+  }
+
+  private struct RealGmailMailboxError: Error {
+    var status: GmailMailboxFetchStatus
+    var safeDetail: String
+  }
+  #endif
 }
 
 struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
