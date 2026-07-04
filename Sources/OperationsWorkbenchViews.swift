@@ -132,6 +132,66 @@ struct OperationsWorkbenchView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
   }
 
+  private var weakInboxParseCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.detectedOrderNumber.isPlaceholderValidationValue
+        || email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var partialInboxParseCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+        && (
+          email.detectedMerchant.isPlaceholderValidationValue
+            || email.detectedDestinationAddress.isPlaceholderValidationValue
+        )
+    }.count
+  }
+
+  private var readyInboxLinkCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.linkedOrderID == nil
+        && !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var linkedInboxIntakeCount: Int {
+    store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
+  }
+
+  private var intakeParserQualityTone: Color {
+    if weakInboxParseCount > 0 || store.intakeParserDiagnostics.contains(where: { $0.severity == .critical || $0.severity == .high }) { return .orange }
+    if readyInboxLinkCount > 0 || partialInboxParseCount > 0 { return .teal }
+    return .green
+  }
+
+  private var intakeParserQualityTitle: String {
+    if weakInboxParseCount > 0 { return "Inbox parser corrections before Workbench" }
+    if readyInboxLinkCount > 0 { return "Inbox rows are ready to become order work" }
+    if partialInboxParseCount > 0 { return "Partial Inbox parses need confirmation" }
+    if linkedInboxIntakeCount > 0 { return "Linked Inbox source trails are ready for review" }
+    return "No Inbox parser handoff is blocking Workbench"
+  }
+
+  private var intakeParserQualityDetail: String {
+    if weakInboxParseCount > 0 {
+      return "\(weakInboxParseCount) intake row\(weakInboxParseCount == 1 ? "" : "s") still lack order or tracking numbers. Fix these in Inbox before creating Workbench exception work."
+    }
+    if readyInboxLinkCount > 0 {
+      return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") have usable order/tracking signals. Create or link orders before dispatch or exception follow-up."
+    }
+    if partialInboxParseCount > 0 {
+      return "\(partialInboxParseCount) intake row\(partialInboxParseCount == 1 ? "" : "s") have order/tracking signals but need merchant or destination confirmation."
+    }
+    if linkedInboxIntakeCount > 0 {
+      return "\(linkedInboxIntakeCount) intake row\(linkedInboxIntakeCount == 1 ? "" : "s") already link to orders. Use Workbench only when the linked order has a real exception or follow-up."
+    }
+    return "Inbox parser, link, and source-trail handoff counts are clear. Workbench can stay focused on real operational exceptions."
+  }
+
   private var pendingFilteredSpaceMailCount: Int {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.pendingFilteredReviewCount }
   }
@@ -290,6 +350,7 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         spaceMailWorkbenchBoundary
+        inboxParserQualityHandoff
         spaceMailAssignedFollowUpPanel
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
@@ -616,6 +677,59 @@ struct OperationsWorkbenchView: View {
       return "The latest refresh fetched mail but did not produce imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
     }
     return spaceMailPostRefreshPlan.detail
+  }
+
+  private var inboxParserQualityHandoff: some View {
+    SettingsPanel(title: "Inbox parser quality handoff", symbol: "text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: intakeParserQualityTone == .green ? "checkmark.circle.fill" : "arrow.triangle.branch")
+            .font(.title3)
+            .foregroundStyle(intakeParserQualityTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(intakeParserQualityTitle)
+              .font(.headline)
+            Text(intakeParserQualityDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Weak parse", "\(weakInboxParseCount)", weakInboxParseCount == 0 ? .green : .orange),
+          ("Partial", "\(partialInboxParseCount)", partialInboxParseCount == 0 ? .green : .orange),
+          ("Ready link", "\(readyInboxLinkCount)", readyInboxLinkCount == 0 ? .secondary : .teal),
+          ("Linked", "\(linkedInboxIntakeCount)", linkedInboxIntakeCount == 0 ? .secondary : .green),
+          ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .purple)
+        ])
+
+        Text("Workbench does not duplicate the Inbox triage queue. Use this handoff to decide whether to fix parsing in Inbox, create/link an order, or keep Workbench focused on exceptions after the order exists.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox diagnostics", systemImage: "server.rack")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
   }
 
   private var spaceMailAssignedWorkbenchItems: [WorkbenchItem] {
