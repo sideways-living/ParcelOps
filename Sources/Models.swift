@@ -1623,6 +1623,31 @@ struct Microsoft365OAuthImplementationChecklistItem: Identifiable, Hashable {
   var detail: String
 }
 
+struct GmailOAuthReadinessSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var isReady: Bool
+  var missingFields: [String]
+  var statusText: String
+  var detailText: String
+}
+
+struct GmailOAuthImplementationPlan: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var statusText: String
+  var completedCount: Int
+  var totalCount: Int
+  var items: [GmailOAuthImplementationChecklistItem]
+}
+
+struct GmailOAuthImplementationChecklistItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var isComplete: Bool
+  var detail: String
+}
+
 struct Microsoft365AuthSessionState: Identifiable, Hashable {
   var id: UUID { connectionID }
   var connectionID: UUID

@@ -11163,6 +11163,42 @@ final class ParcelOpsStore {
     )
   }
 
+  func markGmailOAuthImplementationPlanReviewed(_ connection: GmailMailboxConnection) {
+    let plan = gmailOAuthImplementationPlan(for: connection)
+    updateGmailMailboxConnection(connection) { draft in
+      draft.oauthReadinessStatus = plan.statusText
+      draft.reviewState = plan.completedCount == plan.totalCount ? .monitor : .needsReview
+    }
+    logAudit(
+      action: .reviewed,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail OAuth implementation plan reviewed locally.",
+      afterDetail: gmailOAuthImplementationPlanAuditDetail(plan)
+    )
+  }
+
+  func createReviewTaskFromGmailOAuthPlan(_ connection: GmailMailboxConnection) {
+    let plan = gmailOAuthImplementationPlan(for: connection)
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: "\(connection.displayName) Gmail OAuth plan",
+      summary: "Review Gmail OAuth implementation plan. \(plan.statusText). \(plan.items.filter { !$0.isComplete }.map(\.title).joined(separator: ", "))",
+      priority: plan.completedCount < plan.totalCount ? .high : .normal,
+      assignee: "Operations"
+    )
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from Gmail OAuth implementation plan.",
+      afterDetail: gmailOAuthImplementationPlanAuditDetail(plan)
+    )
+  }
+
   func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
@@ -13266,6 +13302,106 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailOAuthReadinessSummary(for connection: GmailMailboxConnection) -> GmailOAuthReadinessSummary {
+    var missingFields: [String] = []
+    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Gmail address")
+    }
+    if connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Monitored labels")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+    if connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Token storage decision")
+    }
+
+    let lowerScopes = connection.requestedScopesSummary.lowercased()
+    if !lowerScopes.contains("gmail.readonly") && !lowerScopes.contains("gmail.metadata") {
+      missingFields.append("Read-only Gmail scope")
+    }
+
+    let isReady = missingFields.isEmpty
+    let statusText = isReady ? "Ready for future Gmail OAuth implementation" : "Missing \(missingFields.count) Gmail setup item\(missingFields.count == 1 ? "" : "s")"
+    let detailText = isReady
+      ? "Non-secret Gmail OAuth planning fields are complete for future implementation review."
+      : "Missing: \(missingFields.joined(separator: ", "))"
+    return GmailOAuthReadinessSummary(
+      connectionID: connection.id,
+      isReady: isReady,
+      missingFields: missingFields,
+      statusText: statusText,
+      detailText: detailText
+    )
+  }
+
+  func gmailOAuthImplementationPlan(for connection: GmailMailboxConnection) -> GmailOAuthImplementationPlan {
+    let trimmedEmail = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedLabels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedScopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedNotes = connection.setupNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lowerScopes = trimmedScopes.lowercased()
+    let hasEmail = !trimmedEmail.isEmpty
+    let hasLabels = !trimmedLabels.isEmpty
+    let hasReadonlyScope = lowerScopes.contains("gmail.readonly") || lowerScopes.contains("gmail.metadata")
+    let hasCredentialPlan = !connection.credentialStorageStatus.localizedCaseInsensitiveContains("not configured")
+      && !connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let hasSetupNotes = !trimmedNotes.isEmpty && !trimmedNotes.localizedCaseInsensitiveContains("placeholder")
+
+    let items = [
+      GmailOAuthImplementationChecklistItem(
+        title: "Google Cloud project identified",
+        isComplete: hasSetupNotes,
+        detail: hasSetupNotes ? "Setup notes contain local planning context." : "Capture Google Cloud project or setup notes without secrets."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Gmail account captured",
+        isComplete: hasEmail,
+        detail: hasEmail ? connection.emailAddress : "Add the Gmail or Google Workspace mailbox address."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Monitored labels captured",
+        isComplete: hasLabels,
+        detail: hasLabels ? connection.monitoredLabelNames : "Add Gmail labels such as INBOX or Order Updates."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Read-only Gmail scope planned",
+        isComplete: hasReadonlyScope,
+        detail: hasReadonlyScope ? connection.requestedScopesSummary : "Plan a read-only Gmail scope such as gmail.readonly before real API work."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "OAuth consent screen notes captured",
+        isComplete: hasSetupNotes,
+        detail: hasSetupNotes ? "Consent/setup notes are present." : "Capture consent screen notes without client secrets or tokens."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Token storage decision pending",
+        isComplete: hasCredentialPlan,
+        detail: hasCredentialPlan ? connection.credentialStorageStatus : "Pending future decision. No Gmail token storage or Keychain token item is implemented."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Manual refresh strategy selected",
+        isComplete: true,
+        detail: "Manual refresh only. Background sync and notifications remain out of scope."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Mock fallback remains available",
+        isComplete: true,
+        detail: "Mock Gmail refresh remains available for testing local intake without Google access."
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    return GmailOAuthImplementationPlan(
+      connectionID: connection.id,
+      statusText: "\(completedCount)/\(items.count) Gmail OAuth planning items ready",
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
     TrackedMailbox(
       id: connection.id,
@@ -13334,6 +13470,13 @@ final class ParcelOpsStore {
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
     return "\(plan.statusText)\n\(itemText)\nNo OAuth flow ran from this planning action, no browser auth opened, no tokens were requested or stored by ParcelOps, and no custom Keychain token store was used."
+  }
+
+  private func gmailOAuthImplementationPlanAuditDetail(_ plan: GmailOAuthImplementationPlan) -> String {
+    let itemText = plan.items
+      .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
+      .joined(separator: "\n")
+    return "\(plan.statusText)\n\(itemText)\nNo Google OAuth flow ran from this planning action, no browser auth opened, no access token or refresh token was requested or stored, no Gmail API call was made, and no mailbox item was changed."
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

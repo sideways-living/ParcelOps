@@ -186,12 +186,20 @@ struct MailboxView: View {
             MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
           }
           ForEach(store.gmailMailboxConnections) { connection in
-            GmailMailboxConnectionRow(connection: connection) { updatedConnection in
+            GmailMailboxConnectionRow(
+              connection: connection,
+              readiness: store.gmailOAuthReadinessSummary(for: connection),
+              implementationPlan: store.gmailOAuthImplementationPlan(for: connection)
+            ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
+            } onReviewPlan: {
+              store.markGmailOAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromGmailOAuthPlan(connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }

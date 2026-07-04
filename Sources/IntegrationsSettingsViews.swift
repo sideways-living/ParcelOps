@@ -532,12 +532,20 @@ struct IntegrationsView: View {
             MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture email address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
           }
           ForEach(store.gmailMailboxConnections) { connection in
-            GmailMailboxConnectionRow(connection: connection) { updatedConnection in
+            GmailMailboxConnectionRow(
+              connection: connection,
+              readiness: store.gmailOAuthReadinessSummary(for: connection),
+              implementationPlan: store.gmailOAuthImplementationPlan(for: connection)
+            ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
+            } onReviewPlan: {
+              store.markGmailOAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromGmailOAuthPlan(connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }
@@ -1176,9 +1184,13 @@ struct ActionGroupHeader: View {
 
 struct GmailMailboxConnectionRow: View {
   var connection: GmailMailboxConnection
+  var readiness: GmailOAuthReadinessSummary
+  var implementationPlan: GmailOAuthImplementationPlan
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
+  var onReviewPlan: () -> Void
+  var onCreatePlanTask: () -> Void
   var onRemove: () -> Void
 
   @State private var draft: GmailMailboxConnection
@@ -1186,15 +1198,23 @@ struct GmailMailboxConnectionRow: View {
 
   init(
     connection: GmailMailboxConnection,
+    readiness: GmailOAuthReadinessSummary,
+    implementationPlan: GmailOAuthImplementationPlan,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
+    onReviewPlan: @escaping () -> Void,
+    onCreatePlanTask: @escaping () -> Void,
     onRemove: @escaping () -> Void
   ) {
     self.connection = connection
+    self.readiness = readiness
+    self.implementationPlan = implementationPlan
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
+    self.onReviewPlan = onReviewPlan
+    self.onCreatePlanTask = onCreatePlanTask
     self.onRemove = onRemove
     _draft = State(initialValue: connection)
   }
@@ -1238,6 +1258,43 @@ struct GmailMailboxConnectionRow: View {
       Text("Credential storage: \(connection.credentialStorageStatus)")
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail OAuth planning", systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+        Text(readiness.detailText)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        MetricStrip(items: [
+          ("Plan", "\(implementationPlan.completedCount)/\(implementationPlan.totalCount)", implementationPlan.completedCount == implementationPlan.totalCount ? .green : .orange),
+          ("Readiness", readiness.isReady ? "Ready" : "Missing", readiness.isReady ? .green : .orange),
+          ("Mode", connection.mailboxMode == .mixedFiltered ? "Mixed" : "Dedicated", .teal),
+          ("Real Gmail", "Not live", .secondary)
+        ])
+        ForEach(implementationPlan.items) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+              .foregroundStyle(item.isComplete ? .green : .secondary)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+        Text("This checklist is local planning only. It does not open Google sign-in, request tokens, store tokens, call Gmail APIs, or change mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
       Text(connection.lastRefreshSummary)
         .font(.caption)
@@ -1293,6 +1350,10 @@ struct GmailMailboxConnectionRow: View {
           onMockRefresh()
         }
         .buttonStyle(.bordered)
+        Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
+          .buttonStyle(.bordered)
+        Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
+          .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
           .buttonStyle(.bordered)
       }
