@@ -19,6 +19,7 @@ final class ParcelOpsStore {
   var spaceMailIMAPConnections: [SpaceMailIMAPConnection]
   var gmailMailboxConnections: [GmailMailboxConnection]
   var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
+  var gmailAuthSessionStates: [UUID: GmailAuthSessionState] = [:]
   private var activeMicrosoft365AuthAttempts: [UUID: UUID] = [:]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
@@ -127,6 +128,7 @@ final class ParcelOpsStore {
   private let microsoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient
   private let gmailMailboxClient: GmailMailboxClient
+  private let gmailAuthClient: GmailAuthClient
   private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
   private let microsoft365AuthClient: Microsoft365AuthClient
   private let microsoft365RealAuthClient: Microsoft365AuthClient
@@ -148,6 +150,7 @@ final class ParcelOpsStore {
     microsoftGraphMailboxClient: MicrosoftGraphMailboxClient = MockMicrosoftGraphMailboxClient(),
     realMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient = RealMicrosoftGraphMailboxClient(),
     gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
+    gmailAuthClient: GmailAuthClient = MockGmailAuthClient(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
     microsoft365RealAuthClient: Microsoft365AuthClient = MSALMicrosoft365AuthClient(),
@@ -203,6 +206,7 @@ final class ParcelOpsStore {
     self.microsoftGraphMailboxClient = microsoftGraphMailboxClient
     self.realMicrosoftGraphMailboxClient = realMicrosoftGraphMailboxClient
     self.gmailMailboxClient = gmailMailboxClient
+    self.gmailAuthClient = gmailAuthClient
     self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
     self.microsoft365AuthClient = microsoft365AuthClient
     self.microsoft365RealAuthClient = microsoft365RealAuthClient
@@ -11199,6 +11203,109 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailAuthSessionState(for connection: GmailMailboxConnection) -> GmailAuthSessionState {
+    gmailAuthSessionStates[connection.id] ?? GmailAuthSessionState(
+      connectionID: connection.id,
+      status: .notConnected,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: "Never",
+      lastSuccessfulAuthDate: "Never",
+      tokenStoreStatus: "Token storage not configured",
+      tokenStoreDetail: "Gmail token storage is not implemented. ParcelOps does not create, read, write, delete, store, or log Google access tokens or refresh tokens.",
+      detailText: "Gmail is not connected for this setup record. Mock auth can test UI states, but real Google sign-in and Gmail API access are not implemented."
+    )
+  }
+
+  func connectGmailAuthMock(_ connection: GmailMailboxConnection) {
+    let previousState = gmailAuthSessionState(for: connection)
+    let startedState = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: .connecting,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: Self.auditTimestamp(),
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
+      detailText: "Mock Gmail auth started locally. No Google sign-in opened and no token request was made."
+    )
+    gmailAuthSessionStates[connection.id] = startedState
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Gmail auth started.",
+      afterDetail: gmailAuthSessionAuditDetail(startedState)
+    )
+
+    Task {
+      let result = await gmailAuthClient.connect(connection: connection)
+      await MainActor.run {
+        applyGmailAuthResult(result, to: connection)
+      }
+    }
+  }
+
+  func simulateGmailAuthFailure(_ connection: GmailMailboxConnection) {
+    let previousState = gmailAuthSessionState(for: connection)
+    let startedState = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: .connecting,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: Self.auditTimestamp(),
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
+      detailText: "Mock Gmail auth failure test started locally. No Google sign-in opened and no token request was made."
+    )
+    gmailAuthSessionStates[connection.id] = startedState
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Mock Gmail auth started.",
+      afterDetail: gmailAuthSessionAuditDetail(startedState)
+    )
+
+    Task {
+      let result = await gmailAuthClient.simulateFailure(connection: connection)
+      await MainActor.run {
+        applyGmailAuthResult(result, to: connection)
+      }
+    }
+  }
+
+  private func applyGmailAuthResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection) {
+    let timestamp = Self.auditTimestamp()
+    let state = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: result.status,
+      signedInAccount: result.signedInAccount,
+      lastAuthAttemptDate: timestamp,
+      lastSuccessfulAuthDate: result.status == .connected ? timestamp : gmailAuthSessionState(for: connection).lastSuccessfulAuthDate,
+      tokenStoreStatus: result.status == .connected ? "Mock token reference available" : "Token storage not configured",
+      tokenStoreDetail: result.status == .connected
+        ? "Mock Gmail auth completed. No Google token value was requested, returned, stored, or logged."
+        : "Gmail token storage is not configured. No token value was requested, returned, stored, or logged.",
+      detailText: result.detailText
+    )
+    gmailAuthSessionStates[connection.id] = state
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Mock Gmail auth: \(result.status.rawValue)"
+      draft.credentialStorageStatus = state.tokenStoreStatus
+      draft.oauthReadinessStatus = result.status == .connected ? "Mock Gmail auth connected" : result.status.rawValue
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: result.status == .connected ? "Mock Gmail auth succeeded." : "Mock Gmail auth did not connect.",
+      afterDetail: gmailAuthSessionAuditDetail(state)
+    )
+  }
+
   func importMockSpaceMailIMAPMessages(for connection: SpaceMailIMAPConnection) {
     Task { await refreshMockSpaceMailIMAPMessages(for: connection) }
   }
@@ -13477,6 +13584,10 @@ final class ParcelOpsStore {
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
     return "\(plan.statusText)\n\(itemText)\nNo Google OAuth flow ran from this planning action, no browser auth opened, no access token or refresh token was requested or stored, no Gmail API call was made, and no mailbox item was changed."
+  }
+
+  private func gmailAuthSessionAuditDetail(_ state: GmailAuthSessionState) -> String {
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nToken store status: \(state.tokenStoreStatus)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo Google access token, refresh token, auth code, callback URL, client secret, password, raw Gmail message, or mailbox content is stored in ParcelOps JSON or audit logs."
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

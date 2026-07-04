@@ -38,6 +38,11 @@ protocol Microsoft365AuthClient {
   func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
 }
 
+protocol GmailAuthClient {
+  func connect(connection: GmailMailboxConnection) async -> GmailAuthResult
+  func simulateFailure(connection: GmailMailboxConnection) async -> GmailAuthResult
+}
+
 protocol Microsoft365TokenStore {
   func simulateReady(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
   func simulateMissing(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
@@ -1630,6 +1635,47 @@ struct MockMicrosoft365TokenStore: Microsoft365TokenStore {
       status: .tokenClearSimulated,
       detailText: "Mock token reference clear simulated for \(connection.displayName). No Keychain item, access token, or refresh token was deleted."
     )
+  }
+}
+
+struct MockGmailAuthClient: GmailAuthClient {
+  func connect(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    let missingFields = missingReadinessFields(for: connection)
+    if !missingFields.isEmpty {
+      return GmailAuthResult(
+        status: .notConfigured,
+        signedInAccount: "Not signed in",
+        detailText: "Mock Gmail auth did not start because setup placeholders are missing: \(missingFields.joined(separator: ", ")). No Google sign-in opened and no tokens were requested."
+      )
+    }
+
+    return GmailAuthResult(
+      status: .connected,
+      signedInAccount: connection.emailAddress,
+      detailText: "Mock Gmail auth succeeded for local UI testing. No Google OAuth flow ran, no token exchange occurred, Keychain token storage is unused, and no Gmail API call was made by the mock auth action."
+    )
+  }
+
+  func simulateFailure(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    GmailAuthResult(
+      status: .authFailed,
+      signedInAccount: "Not signed in",
+      detailText: "Mock Gmail auth failed locally for error-state testing. No Google sign-in opened, no tokens were requested or stored, and no network call was made."
+    )
+  }
+
+  private func missingReadinessFields(for connection: GmailMailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Gmail address")
+    }
+    if connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Monitored labels")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+    return missingFields
   }
 }
 

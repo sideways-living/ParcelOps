@@ -189,13 +189,18 @@ struct MailboxView: View {
             GmailMailboxConnectionRow(
               connection: connection,
               readiness: store.gmailOAuthReadinessSummary(for: connection),
-              implementationPlan: store.gmailOAuthImplementationPlan(for: connection)
+              implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
+              authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
+            } onMockAuthConnect: {
+              store.connectGmailAuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateGmailAuthFailure(connection)
             } onReviewPlan: {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {

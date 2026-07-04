@@ -535,13 +535,18 @@ struct IntegrationsView: View {
             GmailMailboxConnectionRow(
               connection: connection,
               readiness: store.gmailOAuthReadinessSummary(for: connection),
-              implementationPlan: store.gmailOAuthImplementationPlan(for: connection)
+              implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
+              authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
+            } onMockAuthConnect: {
+              store.connectGmailAuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateGmailAuthFailure(connection)
             } onReviewPlan: {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
@@ -1186,9 +1191,12 @@ struct GmailMailboxConnectionRow: View {
   var connection: GmailMailboxConnection
   var readiness: GmailOAuthReadinessSummary
   var implementationPlan: GmailOAuthImplementationPlan
+  var authState: GmailAuthSessionState
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
+  var onMockAuthConnect: () -> Void
+  var onMockAuthFailure: () -> Void
   var onReviewPlan: () -> Void
   var onCreatePlanTask: () -> Void
   var onRemove: () -> Void
@@ -1200,9 +1208,12 @@ struct GmailMailboxConnectionRow: View {
     connection: GmailMailboxConnection,
     readiness: GmailOAuthReadinessSummary,
     implementationPlan: GmailOAuthImplementationPlan,
+    authState: GmailAuthSessionState,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
+    onMockAuthConnect: @escaping () -> Void,
+    onMockAuthFailure: @escaping () -> Void,
     onReviewPlan: @escaping () -> Void,
     onCreatePlanTask: @escaping () -> Void,
     onRemove: @escaping () -> Void
@@ -1210,9 +1221,12 @@ struct GmailMailboxConnectionRow: View {
     self.connection = connection
     self.readiness = readiness
     self.implementationPlan = implementationPlan
+    self.authState = authState
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
+    self.onMockAuthConnect = onMockAuthConnect
+    self.onMockAuthFailure = onMockAuthFailure
     self.onReviewPlan = onReviewPlan
     self.onCreatePlanTask = onCreatePlanTask
     self.onRemove = onRemove
@@ -1258,6 +1272,25 @@ struct GmailMailboxConnectionRow: View {
       Text("Credential storage: \(connection.credentialStorageStatus)")
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: authState.status.symbol)
+          .foregroundStyle(authState.status == .connected ? .green : authState.status == .authFailed ? .red : .orange)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Gmail auth state: \(authState.status.rawValue)")
+            .font(.caption.weight(.semibold))
+          Text("Account: \(authState.signedInAccount) • Last attempt: \(authState.lastAuthAttemptDate)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(authState.detailText)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 8) {
         Label("Gmail OAuth planning", systemImage: "checklist")
@@ -1350,6 +1383,10 @@ struct GmailMailboxConnectionRow: View {
           onMockRefresh()
         }
         .buttonStyle(.bordered)
+        Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+          .buttonStyle(.bordered)
+        Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+          .buttonStyle(.bordered)
         Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
           .buttonStyle(.bordered)
         Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
