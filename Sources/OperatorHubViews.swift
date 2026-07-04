@@ -112,7 +112,7 @@ struct InboxView: View {
   }
 
   private var uncertainGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
   }
 
   private var filteredSpaceMailCount: Int {
@@ -120,7 +120,11 @@ struct InboxView: View {
   }
 
   private var filteredGmailCount: Int {
-    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
+  }
+
+  private var pendingFilteredGmailReviewCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
 
   private var mailboxHealthAttentionCount: Int {
@@ -195,7 +199,7 @@ struct InboxView: View {
       ),
       (
         "Review",
-        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount + uncertainGmailCount) uncertain, \(filteredSpaceMailCount + filteredGmailCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
+        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount + uncertainGmailCount) uncertain, \(filteredSpaceMailCount + pendingFilteredGmailReviewCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
         "tray.full.fill",
         hasMailboxDecisionEvidence ? .teal : .orange,
         hasMailboxDecisionEvidence
@@ -838,6 +842,12 @@ private struct InboxGmailHealthRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      if summary.filteredCount > 0 {
+        Text("Filtered Gmail examples are reviewable in Mailbox Monitor and Needs Review. Import one only when the classifier was too strict.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.teal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)

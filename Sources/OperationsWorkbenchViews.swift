@@ -145,11 +145,15 @@ struct OperationsWorkbenchView: View {
   }
 
   private var gmailFilteredCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
   }
 
   private var gmailUncertainCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+  }
+
+  private var pendingGmailFilteredReviewCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
 
   private var gmailWarningCount: Int {
@@ -751,7 +755,9 @@ struct OperationsWorkbenchView: View {
           }
         }
 
-        Text("Gmail becomes Workbench work only after it creates actionable local state: imported Inbox intake, uncertain previews needing review, setup failures, or assigned follow-up. Filtered non-order Gmail stays out of the operator exception queue.")
+        Text(pendingGmailFilteredReviewCount > 0
+          ? "Filtered Gmail examples are waiting for optional review, but they stay out of Workbench until an operator imports one into Inbox or creates follow-up."
+          : "Gmail becomes Workbench work only after it creates actionable local state: imported Inbox intake, uncertain previews needing review, setup failures, or assigned follow-up. Filtered non-order Gmail stays out of the operator exception queue.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(gmailWorkbenchTone)
           .fixedSize(horizontal: false, vertical: true)
@@ -805,6 +811,9 @@ struct OperationsWorkbenchView: View {
       return "\(gmailImportedCount) likely Gmail order message reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
     }
     if gmailFilteredCount > 0 {
+      if pendingGmailFilteredReviewCount > 0 {
+        return "\(pendingGmailFilteredReviewCount) filtered Gmail preview is available for optional review. It is not Workbench work unless imported into Inbox."
+      }
       return "\(gmailFilteredCount) mixed-mailbox Gmail message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
     }
     if gmailHealthSummaries.isEmpty {
@@ -978,17 +987,17 @@ struct OperationsWorkbenchView: View {
 
         MetricStrip(items: [
           ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .orange),
-          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .orange : .green),
-          ("Filtered mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count })", .teal),
+          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count } + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } || store.gmailMailboxConnections.contains { ($0.uncertainMessages?.isEmpty == false) } ? .orange : .green),
+          ("Filtered mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count } + pendingGmailFilteredReviewCount)", .teal),
           ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .teal),
           ("Primary work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])
 
-        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty }
+        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false }
           ? "No parser or uncertain-message diagnostics are currently pulling attention away from the operator queue."
-          : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered SpaceMail review. Do not treat filtered non-order mail as Workbench work.")
+          : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered SpaceMail or Gmail review. Do not treat filtered non-order mail as Workbench work.")
           .font(.caption.weight(.semibold))
-          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .green : .orange)
+          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false } ? .green : .orange)
           .fixedSize(horizontal: false, vertical: true)
       }
     }

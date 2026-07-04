@@ -101,6 +101,12 @@ struct DashboardView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.gmailIntakeHealthSummaries.first
   }
+  private var pendingGmailUncertainReviewCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+  }
+  private var pendingGmailFilteredReviewCount: Int {
+    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+  }
   private var latestSpaceMailTone: Color {
     guard let summary = latestSpaceMailSummary else { return hasSpaceMailSetup ? .orange : .secondary }
     switch summary.tone {
@@ -156,6 +162,8 @@ struct DashboardView: View {
       if store.gmailMailboxConnections.isEmpty { return "Gmail setup not started" }
       return "Run a Gmail readiness check"
     }
+    if pendingGmailUncertainReviewCount > 0 { return "Latest Gmail refresh needs uncertain review" }
+    if pendingGmailFilteredReviewCount > 0 && summary.importedCount == 0 { return "Latest Gmail refresh has filtered examples" }
     return summary.verdict
   }
   private var latestGmailDetail: String {
@@ -165,7 +173,8 @@ struct DashboardView: View {
       }
       return "No Gmail readiness or refresh summary is available yet. Use Mailbox Monitor to check setup."
     }
-    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+    let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
+    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
   }
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
@@ -1171,8 +1180,15 @@ struct DashboardView: View {
             ("Gmail fetched", "\(latestGmailSummary?.fetchedCount ?? 0)", (latestGmailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
             ("Gmail imported", "\(latestGmailSummary?.importedCount ?? 0)", (latestGmailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-            ("Gmail uncertain", "\((latestGmailSummary?.pendingUncertainReviewCount ?? 0) + (latestGmailSummary?.uncertainCount ?? 0))", ((latestGmailSummary?.pendingUncertainReviewCount ?? 0) + (latestGmailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary)
+            ("Gmail review", "\(pendingGmailFilteredReviewCount)", pendingGmailFilteredReviewCount > 0 ? .teal : .secondary),
+            ("Gmail uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary)
           ])
+          if pendingGmailFilteredReviewCount > 0 {
+            Label("Filtered Gmail examples are not Inbox work unless an operator imports one from Mailbox Monitor or Needs Review.", systemImage: "line.3.horizontal.decrease.circle.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.teal)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
         .padding(10)
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
