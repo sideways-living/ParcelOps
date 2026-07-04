@@ -546,7 +546,7 @@ struct IntegrationsView: View {
             } onRealReadinessCheck: {
               store.checkRealGmailReadiness(for: connection)
             } onRealAuthReadinessCheck: {
-              store.checkRealGmailAuthReadiness(connection)
+              store.testRealGmailSignIn(connection)
             } onMockAuthConnect: {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
@@ -1592,7 +1592,7 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
 
-      Text("Real Gmail sign-in is still a boundary check only. Use it to find missing Google Cloud OAuth setup before a future browser sign-in slice.")
+      Text("Real Gmail sign-in is opt-in. It may open Google sign-in, but Gmail mailbox reading remains separate and no token values are stored in ParcelOps JSON.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1653,7 +1653,7 @@ struct GmailMailboxConnectionRow: View {
         .buttonStyle(.bordered)
         Button("Check real Gmail readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
           .buttonStyle(.bordered)
-        Button("Check real Gmail sign-in setup", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+        Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
           .buttonStyle(.bordered)
         Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
           .buttonStyle(.bordered)

@@ -155,7 +155,7 @@ final class ParcelOpsStore {
     gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
     realGmailMailboxClient: GmailMailboxClient = RealGmailMailboxClient(),
     gmailAuthClient: GmailAuthClient = MockGmailAuthClient(),
-    realGmailAuthClient: GmailAuthClient = RealGmailAuthClient(),
+    realGmailAuthClient: GmailAuthClient = GoogleGmailAuthClient(),
     gmailTokenStore: GmailTokenStore = MockGmailTokenStore(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
@@ -11620,7 +11620,7 @@ final class ParcelOpsStore {
     }
   }
 
-  func checkRealGmailAuthReadiness(_ connection: GmailMailboxConnection) {
+  func testRealGmailSignIn(_ connection: GmailMailboxConnection) {
     let previousState = gmailAuthSessionState(for: connection)
     let timestamp = Self.auditTimestamp()
     let startedState = GmailAuthSessionState(
@@ -11631,7 +11631,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Real Gmail sign-in readiness check started. No browser sign-in opens, no Google token request is made, no Keychain token access occurs, and no Gmail API call is made."
+      detailText: "Real Gmail sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch Gmail messages."
     )
     gmailAuthSessionStates[connection.id] = startedState
     logAudit(
@@ -11639,19 +11639,19 @@ final class ParcelOpsStore {
       entityType: .gmailMailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
-      summary: "Real Gmail sign-in readiness check started.",
+      summary: "Real Gmail sign-in test started.",
       afterDetail: gmailAuthSessionAuditDetail(startedState)
     )
 
     Task {
       let result = await realGmailAuthClient.connect(connection: connection)
       await MainActor.run {
-        applyRealGmailAuthReadinessResult(result, to: connection)
+        applyRealGmailAuthResult(result, to: connection)
       }
     }
   }
 
-  private func applyRealGmailAuthReadinessResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection) {
+  private func applyRealGmailAuthResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection) {
     let timestamp = Self.auditTimestamp()
     let previousState = gmailAuthSessionState(for: connection)
     let tokenStatus = connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -11664,20 +11664,23 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: timestamp,
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: tokenStatus,
-      tokenStoreDetail: "Real Gmail readiness check did not create, read, write, delete, store, or log Google access tokens, refresh tokens, auth codes, client secrets, passwords, or Keychain items.",
+      tokenStoreDetail: result.status == .connected
+        ? "GoogleSignIn completed sign-in and may manage its own token cache. ParcelOps did not write token values to JSON, custom Keychain storage, or audit logs."
+        : "Real Gmail sign-in did not produce a connected session in ParcelOps. No Google token values were stored in JSON, custom Keychain storage, or audit logs.",
       detailText: result.detailText
     )
     gmailAuthSessionStates[connection.id] = state
     updateGmailMailboxConnection(connection) { draft in
-      draft.connectionStatus = "Real Gmail sign-in readiness: \(result.status.rawValue)"
-      draft.oauthReadinessStatus = result.status == .notConfigured ? "Missing setup for real Gmail sign-in" : "Ready for future real Gmail sign-in implementation"
+      draft.connectionStatus = "Real Gmail sign-in: \(result.status.rawValue)"
+      draft.credentialStorageStatus = result.status == .connected ? "GoogleSignIn token cache managed by SDK" : draft.credentialStorageStatus
+      draft.oauthReadinessStatus = result.status == .connected ? "Real Gmail sign-in completed" : result.status.rawValue
     }
     logAudit(
       action: .evaluated,
       entityType: .gmailMailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
-      summary: "Real Gmail sign-in readiness check completed.",
+      summary: result.status == .connected ? "Real Gmail sign-in succeeded." : "Real Gmail sign-in did not connect.",
       afterDetail: gmailAuthSessionAuditDetail(state)
     )
   }

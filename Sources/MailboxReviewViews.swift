@@ -200,7 +200,7 @@ struct MailboxView: View {
             } onRealReadinessCheck: {
               store.checkRealGmailReadiness(for: connection)
             } onRealAuthReadinessCheck: {
-              store.checkRealGmailAuthReadiness(connection)
+              store.testRealGmailSignIn(connection)
             } onMockAuthConnect: {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
