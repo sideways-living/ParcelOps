@@ -2166,7 +2166,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastManualRefreshDate: String
   var setupNotes: String
   var oauthReadinessStatus: String
+  var googleCloudProjectHint: String?
+  var oauthClientIDPlaceholder: String?
+  var redirectURIPlaceholder: String?
   var requestedScopesSummary: String
+  var consentScreenNotes: String?
   var credentialStorageStatus: String
   var mailboxMode: SpaceMailMailboxMode
   var lastRefreshFetchedCount: Int
@@ -2191,7 +2195,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastManualRefreshDate: String,
     setupNotes: String,
     oauthReadinessStatus: String,
+    googleCloudProjectHint: String? = nil,
+    oauthClientIDPlaceholder: String? = nil,
+    redirectURIPlaceholder: String? = nil,
     requestedScopesSummary: String,
+    consentScreenNotes: String? = nil,
     credentialStorageStatus: String,
     mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
     lastRefreshFetchedCount: Int = 0,
@@ -2215,7 +2223,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastManualRefreshDate = lastManualRefreshDate
     self.setupNotes = setupNotes
     self.oauthReadinessStatus = oauthReadinessStatus
+    self.googleCloudProjectHint = googleCloudProjectHint
+    self.oauthClientIDPlaceholder = oauthClientIDPlaceholder
+    self.redirectURIPlaceholder = redirectURIPlaceholder
     self.requestedScopesSummary = requestedScopesSummary
+    self.consentScreenNotes = consentScreenNotes
     self.credentialStorageStatus = credentialStorageStatus
     self.mailboxMode = mailboxMode
     self.lastRefreshFetchedCount = lastRefreshFetchedCount

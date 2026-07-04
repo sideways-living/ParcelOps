@@ -217,7 +217,11 @@ enum SampleData {
       lastManualRefreshDate: "Never",
       setupNotes: "Gmail setup placeholder for mailboxes hosted on Gmail/Google Workspace. No OAuth flow, token exchange, Gmail API call, or mailbox mutation is connected yet.",
       oauthReadinessStatus: "Needs Google Cloud OAuth setup",
-      requestedScopesSummary: "Future read-only Gmail metadata/message read scope for manual refresh only",
+      googleCloudProjectHint: "ParcelOps Gmail intake test project",
+      oauthClientIDPlaceholder: "Google OAuth client ID placeholder only",
+      redirectURIPlaceholder: "Reverse client ID URL scheme placeholder",
+      requestedScopesSummary: "https://www.googleapis.com/auth/gmail.readonly for manual read-only refresh only",
+      consentScreenNotes: "External/internal consent screen planning only. No OAuth flow runs yet.",
       credentialStorageStatus: "Token storage not configured",
       mailboxMode: .mixedFiltered,
       reviewState: .needsReview

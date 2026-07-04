@@ -13800,8 +13800,20 @@ final class ParcelOpsStore {
     if connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Monitored labels")
     }
+    if (connection.googleCloudProjectHint ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Google Cloud project hint")
+    }
+    if (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("OAuth client ID placeholder")
+    }
+    if (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Redirect URI placeholder")
+    }
     if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Requested scopes summary")
+    }
+    if (connection.consentScreenNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Consent screen notes")
     }
     if connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Token storage decision")
@@ -13831,10 +13843,18 @@ final class ParcelOpsStore {
     let trimmedLabels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedScopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedNotes = connection.setupNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let projectHint = (connection.googleCloudProjectHint ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectURI = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let consentNotes = (connection.consentScreenNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let lowerScopes = trimmedScopes.lowercased()
     let hasEmail = !trimmedEmail.isEmpty
     let hasLabels = !trimmedLabels.isEmpty
+    let hasProjectHint = !projectHint.isEmpty
+    let hasClientID = !clientID.isEmpty
+    let hasRedirectURI = !redirectURI.isEmpty
     let hasReadonlyScope = lowerScopes.contains("gmail.readonly") || lowerScopes.contains("gmail.metadata")
+    let hasConsentNotes = !consentNotes.isEmpty && !consentNotes.localizedCaseInsensitiveContains("placeholder")
     let hasCredentialPlan = !connection.credentialStorageStatus.localizedCaseInsensitiveContains("not configured")
       && !connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     let hasSetupNotes = !trimmedNotes.isEmpty && !trimmedNotes.localizedCaseInsensitiveContains("placeholder")
@@ -13842,8 +13862,18 @@ final class ParcelOpsStore {
     let items = [
       GmailOAuthImplementationChecklistItem(
         title: "Google Cloud project identified",
-        isComplete: hasSetupNotes,
-        detail: hasSetupNotes ? "Setup notes contain local planning context." : "Capture Google Cloud project or setup notes without secrets."
+        isComplete: hasProjectHint,
+        detail: hasProjectHint ? projectHint : "Capture the Google Cloud project name or hint without secrets."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "OAuth client ID placeholder captured",
+        isComplete: hasClientID,
+        detail: hasClientID ? "Client ID placeholder captured. Do not enter a client secret." : "Capture the iOS/macOS OAuth client ID placeholder from Google Cloud."
+      ),
+      GmailOAuthImplementationChecklistItem(
+        title: "Redirect URI / URL scheme planned",
+        isComplete: hasRedirectURI,
+        detail: hasRedirectURI ? redirectURI : "Capture the future reverse-client-ID URL scheme or redirect handling note."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "Gmail account captured",
@@ -13862,8 +13892,8 @@ final class ParcelOpsStore {
       ),
       GmailOAuthImplementationChecklistItem(
         title: "OAuth consent screen notes captured",
-        isComplete: hasSetupNotes,
-        detail: hasSetupNotes ? "Consent/setup notes are present." : "Capture consent screen notes without client secrets or tokens."
+        isComplete: hasConsentNotes || hasSetupNotes,
+        detail: hasConsentNotes ? consentNotes : "Capture consent screen notes without client secrets or tokens."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "Token storage decision pending",
@@ -13948,7 +13978,7 @@ final class ParcelOpsStore {
   }
 
   private func gmailMailboxConnectionAuditDetail(_ connection: GmailMailboxConnection) -> String {
-    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nOAuth readiness: \(connection.oauthReadinessStatus)\nScopes: \(connection.requestedScopesSummary)\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nLast refresh: \(connection.lastRefreshSummary)\nNo OAuth token, refresh token, auth code, client secret, password, Keychain item, Gmail API response, raw Gmail message, or full mailbox content is stored in this setup record."
+    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nOAuth readiness: \(connection.oauthReadinessStatus)\nGoogle Cloud project hint: \(connection.googleCloudProjectHint ?? "")\nOAuth client ID placeholder: \(connection.oauthClientIDPlaceholder ?? "")\nRedirect URI placeholder: \(connection.redirectURIPlaceholder ?? "")\nScopes: \(connection.requestedScopesSummary)\nConsent notes: \(connection.consentScreenNotes ?? "")\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nLast refresh: \(connection.lastRefreshSummary)\nNo OAuth token, refresh token, auth code, client secret, password, Keychain item, Gmail API response, raw Gmail message, or full mailbox content is stored in this setup record."
   }
 
   private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {

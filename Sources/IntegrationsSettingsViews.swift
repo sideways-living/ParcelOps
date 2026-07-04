@@ -1512,6 +1512,35 @@ struct GmailMailboxConnectionRow: View {
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 8) {
+        Label("Google app setup placeholders", systemImage: "gearshape.2.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+        Text("Non-secret planning fields only. Do not enter client secrets, auth codes, access tokens, refresh tokens, API keys, passwords, or Keychain values.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 160) {
+          Badge((connection.googleCloudProjectHint ?? "").isEmpty ? "Project missing" : "Project noted", color: (connection.googleCloudProjectHint ?? "").isEmpty ? .orange : .green)
+          Badge((connection.oauthClientIDPlaceholder ?? "").isEmpty ? "Client ID missing" : "Client ID noted", color: (connection.oauthClientIDPlaceholder ?? "").isEmpty ? .orange : .green)
+          Badge((connection.redirectURIPlaceholder ?? "").isEmpty ? "Redirect missing" : "Redirect noted", color: (connection.redirectURIPlaceholder ?? "").isEmpty ? .orange : .green)
+          Badge((connection.consentScreenNotes ?? "").isEmpty ? "Consent notes missing" : "Consent noted", color: (connection.consentScreenNotes ?? "").isEmpty ? .orange : .green)
+        }
+        if let project = connection.googleCloudProjectHint, !project.isEmpty {
+          Text("Project: \(project)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        if let redirect = connection.redirectURIPlaceholder, !redirect.isEmpty {
+          Text("Redirect/scheme: \(redirect)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
         Label("Gmail OAuth planning", systemImage: "checklist")
           .font(.caption.weight(.semibold))
           .foregroundStyle(readiness.isReady ? .green : .orange)
@@ -1565,7 +1594,12 @@ struct GmailMailboxConnectionRow: View {
           }
           TextField("Connection status", text: $draft.connectionStatus)
           TextField("OAuth readiness", text: $draft.oauthReadinessStatus)
+          TextField("Google Cloud project hint", text: optionalTextBinding(\.googleCloudProjectHint))
+          TextField("OAuth client ID placeholder", text: optionalTextBinding(\.oauthClientIDPlaceholder))
+          TextField("Redirect URI or URL scheme placeholder", text: optionalTextBinding(\.redirectURIPlaceholder))
           TextField("Requested scopes", text: $draft.requestedScopesSummary)
+          TextField("Consent screen notes", text: optionalTextBinding(\.consentScreenNotes), axis: .vertical)
+            .lineLimit(2...5)
           TextField("Credential storage", text: $draft.credentialStorageStatus)
           TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
             .lineLimit(2...5)
@@ -1636,6 +1670,13 @@ struct GmailMailboxConnectionRow: View {
     if decision.localizedCaseInsensitiveContains("Uncertain") { return .orange }
     if decision.localizedCaseInsensitiveContains("Filtered") { return .teal }
     return .secondary
+  }
+
+  private func optionalTextBinding(_ keyPath: WritableKeyPath<GmailMailboxConnection, String?>) -> Binding<String> {
+    Binding(
+      get: { draft[keyPath: keyPath] ?? "" },
+      set: { draft[keyPath: keyPath] = $0 }
+    )
   }
 }
 
