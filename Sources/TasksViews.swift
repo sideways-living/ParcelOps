@@ -72,11 +72,30 @@ struct TasksView: View {
   }
 
   private var gmailFilteredCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    max(gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }, pendingFilteredGmailCount)
   }
 
   private var gmailUncertainCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    max(gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }, pendingUncertainGmailCount)
+  }
+
+  private var pendingFilteredGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.filteredMessages?.count ?? 0)
+    }
+  }
+
+  private var pendingUncertainGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.uncertainMessages?.count ?? 0)
+    }
+  }
+
+  private var pendingMailboxReviewCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + pendingFilteredSpaceMailCount
+      + pendingUncertainGmailCount
+      + pendingFilteredGmailCount
   }
 
   private var gmailWarningCount: Int {
@@ -542,7 +561,7 @@ struct TasksView: View {
   private var taskScopePanel: some View {
     SettingsPanel(title: "Task scope", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Tasks should represent work someone owns. Parser checks, filtered SpaceMail messages, and classifier diagnostics stay in Inbox, Mailbox Monitor, Workbench, and Audit unless a person creates a follow-up task from them.")
+        Text("Tasks should represent work someone owns. Parser checks, filtered SpaceMail/Gmail messages, and classifier diagnostics stay in Inbox, Mailbox Monitor, Workbench, and Audit unless a person creates a follow-up task from them.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -552,14 +571,14 @@ struct TasksView: View {
           ("Handoffs", "\(handoffActionCount)", handoffActionCount == 0 ? .green : .blue),
           ("Drafts", "\(draftActionCount)", draftActionCount == 0 ? .green : .blue),
           ("Parser context", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .secondary),
-          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .orange : .secondary)
+          ("Mailbox review", "\(pendingMailboxReviewCount)", pendingMailboxReviewCount == 0 ? .secondary : .orange)
         ])
 
-        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty }
+        Text(store.intakeParserDiagnostics.isEmpty && pendingMailboxReviewCount == 0
           ? "No parser or uncertain-mail context currently needs escalation into a task."
           : "Create a task only when parser or uncertain-mail context needs a named owner, due date, or handoff.")
           .font(.caption.weight(.semibold))
-          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } ? .green : .orange)
+          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && pendingMailboxReviewCount == 0 ? .green : .orange)
           .fixedSize(horizontal: false, vertical: true)
 
         CompactActionRow {
@@ -664,13 +683,13 @@ struct TasksView: View {
     SettingsPanel(title: "Gmail task context", symbol: "envelope.badge.shield.half.filled") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 12) {
-          Image(systemName: gmailWarningCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+          Image(systemName: gmailTaskContextSymbol)
             .font(.title3)
-            .foregroundStyle(gmailWarningCount > 0 ? .orange : .green)
+            .foregroundStyle(gmailTaskContextColor)
             .frame(width: 28)
 
           VStack(alignment: .leading, spacing: 4) {
-            Text(gmailWarningCount > 0 ? "Gmail setup or intake needs review" : "Gmail has no assigned task pressure")
+            Text(gmailTaskContextTitle)
               .font(.headline)
             Text(gmailTaskContextDetail)
               .font(.subheadline)
@@ -682,8 +701,8 @@ struct TasksView: View {
         MetricStrip(items: [
           ("Fetched", "\(gmailFetchedCount)", gmailFetchedCount > 0 ? .blue : .secondary),
           ("Imported", "\(gmailImportedCount)", gmailImportedCount > 0 ? .green : .secondary),
-          ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount > 0 ? .teal : .secondary),
-          ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount > 0 ? .orange : .secondary),
+          ("Filtered review", "\(pendingFilteredGmailCount)", pendingFilteredGmailCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(pendingUncertainGmailCount)", pendingUncertainGmailCount > 0 ? .orange : .secondary),
           ("Warnings", "\(gmailWarningCount)", gmailWarningCount > 0 ? .orange : .green)
         ])
 
@@ -713,7 +732,7 @@ struct TasksView: View {
           }
         }
 
-        Text("Gmail refresh and sign-in are explicit Mailbox Monitor actions. Tasks should only be used when a person needs ownership after a Gmail result is reviewed.")
+        Text("Gmail refresh and sign-in are explicit Mailbox Monitor actions. Filtered and uncertain Gmail previews are review context first, not assigned backlog.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -739,6 +758,12 @@ struct TasksView: View {
     if gmailHealthSummaries.isEmpty {
       return "No Gmail setup exists yet. Add one only for mailboxes hosted by Gmail or Google Workspace."
     }
+    if pendingUncertainGmailCount > 0 {
+      return "\(pendingUncertainGmailCount) Gmail message\(pendingUncertainGmailCount == 1 ? "" : "s") are held outside Inbox as uncertain. Review them in Mailbox Monitor before creating tasks or orders."
+    }
+    if pendingFilteredGmailCount > 0 {
+      return "\(pendingFilteredGmailCount) filtered Gmail example\(pendingFilteredGmailCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor. Create a task only if a person must follow up on one."
+    }
     if gmailWarningCount > 0 {
       return "\(gmailWarningCount) Gmail setup or refresh result needs mailbox review before it should become assigned task work."
     }
@@ -749,6 +774,25 @@ struct TasksView: View {
       return "The mixed Gmail filter kept \(gmailFilteredCount) non-order message\(gmailFilteredCount == 1 ? "" : "s") out of Inbox."
     }
     return "Use Mailbox Monitor for Gmail setup/readiness; no Gmail result currently requires assigned follow-up."
+  }
+
+  private var gmailTaskContextTitle: String {
+    if pendingUncertainGmailCount > 0 { return "Gmail uncertain mail needs review" }
+    if pendingFilteredGmailCount > 0 { return "Gmail filtered examples are reviewable" }
+    if gmailWarningCount > 0 { return "Gmail setup or intake needs review" }
+    return "Gmail has no assigned task pressure"
+  }
+
+  private var gmailTaskContextSymbol: String {
+    if pendingUncertainGmailCount > 0 || gmailWarningCount > 0 { return "exclamationmark.triangle.fill" }
+    if pendingFilteredGmailCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    return "checkmark.circle.fill"
+  }
+
+  private var gmailTaskContextColor: Color {
+    if pendingUncertainGmailCount > 0 || gmailWarningCount > 0 { return .orange }
+    if pendingFilteredGmailCount > 0 { return .teal }
+    return .green
   }
 
   private func gmailToneColor(_ tone: String) -> Color {

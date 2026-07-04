@@ -84,8 +84,10 @@ struct AuditView: View {
   private var spaceMailEvidenceEvents: [AuditEvent] {
     searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
+        || event.entityType == .gmailMailboxConnection
         || (event.entityType == .intakeEmail && event.summary.localizedCaseInsensitiveContains("mailbox"))
         || event.summary.localizedCaseInsensitiveContains("spacemail")
+        || event.summary.localizedCaseInsensitiveContains("gmail")
     }
   }
 
@@ -99,6 +101,10 @@ struct AuditView: View {
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
+  }
+
+  private var gmailHealthSummaries: [GmailIntakeHealthSummary] {
+    store.gmailIntakeHealthSummaries
   }
 
   private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
@@ -136,6 +142,65 @@ struct AuditView: View {
       && spaceMailFilteredCount > 0
   }
 
+  private var gmailFetchedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var gmailImportedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var gmailDuplicateCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var pendingFilteredGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.filteredMessages?.count ?? 0)
+    }
+  }
+
+  private var pendingUncertainGmailCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.uncertainMessages?.count ?? 0)
+    }
+  }
+
+  private var gmailFilteredCount: Int {
+    max(gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }, pendingFilteredGmailCount)
+  }
+
+  private var gmailUncertainCount: Int {
+    max(gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }, pendingUncertainGmailCount)
+  }
+
+  private var mailboxFetchedCount: Int {
+    spaceMailFetchedCount + gmailFetchedCount
+  }
+
+  private var mailboxImportedCount: Int {
+    spaceMailImportedCount + gmailImportedCount
+  }
+
+  private var mailboxDuplicateCount: Int {
+    spaceMailDuplicateCount + gmailDuplicateCount
+  }
+
+  private var mailboxFilteredCount: Int {
+    spaceMailFilteredCount + gmailFilteredCount
+  }
+
+  private var mailboxUncertainCount: Int {
+    spaceMailUncertainCount + gmailUncertainCount
+  }
+
+  private var mailboxFilteredOnlyOutcome: Bool {
+    mailboxFetchedCount > 0
+      && mailboxImportedCount == 0
+      && mailboxUncertainCount == 0
+      && mailboxFilteredCount > 0
+  }
+
   private var auditNextCheckTitle: String {
     if !mvpFollowUpEvents.isEmpty {
       return "Review MVP test and release follow-ups"
@@ -163,7 +228,7 @@ struct AuditView: View {
       return "Start with local data hygiene, operator test-session, and release snapshot tasks so readiness gaps stay visible in Tasks instead of being buried in Audit."
     }
     if !spaceMailEvidenceEvents.isEmpty {
-      return "Start with SpaceMail intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals."
+      return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across SpaceMail and Gmail."
     }
     if !inboxDispatchHandoffEvents.isEmpty {
       return "Check reopened and completed dispatch handoff events together so Inbox-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
@@ -194,7 +259,7 @@ struct AuditView: View {
     [
       (
         "Mailbox refresh evidence",
-        "SpaceMail or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
+        "SpaceMail, Gmail, or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
         spaceMailEvidenceEvents.count,
         "server.rack",
         spaceMailEvidenceEvents.isEmpty ? .orange : .teal
@@ -432,7 +497,7 @@ struct AuditView: View {
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
         ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
-        ("SpaceMail", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+        ("Mailbox", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .green : .purple),
@@ -513,11 +578,11 @@ struct AuditView: View {
         }
 
         MetricStrip(items: [
-          ("Fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
-          ("Imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
-          ("Uncertain", "\(spaceMailUncertainCount)", spaceMailUncertainCount == 0 ? .secondary : .orange),
-          ("Filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal),
-          ("Duplicates", "\(spaceMailDuplicateCount)", spaceMailDuplicateCount == 0 ? .secondary : .teal),
+          ("Fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
+          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .teal),
           ("Parser", "\(spaceMailParserIssueCount)", spaceMailParserIssueCount == 0 ? .secondary : .purple),
           ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange)
         ])
@@ -547,6 +612,36 @@ struct AuditView: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(auditColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        if !gmailHealthSummaries.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(gmailHealthSummaries.prefix(3)) { summary in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: "envelope.badge.shield.half.filled")
+                    .foregroundStyle(auditColor(for: summary.tone))
+                    .frame(width: 18)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(summary.displayName)
+                      .font(.caption.weight(.semibold))
+                    Text(summary.verdict)
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(auditColor(for: summary.tone))
+                    Text(summary.nextAction)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer()
+                  Badge("Gmail", color: auditColor(for: summary.tone))
+                }
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(auditColor(for: summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
           }
         }
 
@@ -581,28 +676,28 @@ struct AuditView: View {
   }
 
   private var spaceMailAuditOutcomeTitle: String {
-    if spaceMailImportedCount > 0 { return "Mailbox imported order candidates" }
-    if spaceMailUncertainCount > 0 { return "Mailbox has uncertain previews" }
+    if mailboxImportedCount > 0 { return "Mailbox imported order candidates" }
+    if mailboxUncertainCount > 0 { return "Mailbox has uncertain previews" }
     if spaceMailParserIssueCount > 0 { return "Mailbox parser diagnostics need review" }
-    if spaceMailFilteredOnlyOutcome { return "Mailbox refresh was mostly non-order mail" }
-    if spaceMailFetchedCount > 0 { return "Mailbox refresh created no operator work" }
+    if mailboxFilteredOnlyOutcome { return "Mailbox refresh was mostly non-order mail" }
+    if mailboxFetchedCount > 0 { return "Mailbox refresh created no operator work" }
     return spaceMailPostRefreshPlan.title
   }
 
   private var spaceMailAuditOutcomeDetail: String {
-    if spaceMailImportedCount > 0 {
-      return "\(spaceMailImportedCount) message reached Inbox as likely order intake. Use Audit to confirm the import happened, then continue in Inbox or Orders."
+    if mailboxImportedCount > 0 {
+      return "\(mailboxImportedCount) message reached Inbox as likely order intake across configured mailboxes. Use Audit to confirm the import happened, then continue in Inbox or Orders."
     }
-    if spaceMailUncertainCount > 0 {
-      return "\(spaceMailUncertainCount) ambiguous message is held outside Inbox. Review it in Mailbox Monitor before creating tasks or orders."
+    if mailboxUncertainCount > 0 {
+      return "\(mailboxUncertainCount) ambiguous message is held outside Inbox. Review it in Mailbox Monitor before creating tasks or orders."
     }
     if spaceMailParserIssueCount > 0 {
       return "\(spaceMailParserIssueCount) parser diagnostic is available. Keep technical diagnostics hidden unless you need the full evidence trail."
     }
-    if spaceMailFilteredOnlyOutcome {
-      return "\(spaceMailFilteredCount) fetched message was filtered as non-order mail. That is expected for the mixed SpaceMail mailbox and does not require task or Workbench follow-up."
+    if mailboxFilteredOnlyOutcome {
+      return "\(mailboxFilteredCount) fetched message was filtered as non-order mail. That is expected for mixed mailboxes and does not require task or Workbench follow-up."
     }
-    if spaceMailFetchedCount > 0 {
+    if mailboxFetchedCount > 0 {
       return "The latest refresh fetched mail but did not import, hold uncertain, or create parser work."
     }
     return spaceMailPostRefreshPlan.detail
@@ -616,18 +711,18 @@ struct AuditView: View {
   }
 
   private var spaceMailAuditOutcomeSymbol: String {
-    if spaceMailImportedCount > 0 { return "tray.full.fill" }
-    if spaceMailUncertainCount > 0 { return "questionmark.folder.fill" }
+    if mailboxImportedCount > 0 { return "tray.full.fill" }
+    if mailboxUncertainCount > 0 { return "questionmark.folder.fill" }
     if spaceMailParserIssueCount > 0 { return "text.magnifyingglass" }
-    if spaceMailFilteredOnlyOutcome { return "checkmark.seal.fill" }
+    if mailboxFilteredOnlyOutcome { return "checkmark.seal.fill" }
     return "tray.and.arrow.down.fill"
   }
 
   private var spaceMailAuditOutcomeColor: Color {
-    if spaceMailImportedCount > 0 || spaceMailUncertainCount > 0 { return .orange }
+    if mailboxImportedCount > 0 || mailboxUncertainCount > 0 { return .orange }
     if spaceMailParserIssueCount > 0 { return .purple }
-    if spaceMailFilteredOnlyOutcome { return .green }
-    if spaceMailFetchedCount > 0 { return .teal }
+    if mailboxFilteredOnlyOutcome { return .green }
+    if mailboxFetchedCount > 0 { return .teal }
     return auditColor(for: spaceMailPostRefreshPlan.tone)
   }
 
@@ -709,14 +804,14 @@ struct AuditView: View {
         }
 
         if recentEvents.isEmpty {
-          MVPEmptyState(title: normalizedAuditSearch.isEmpty ? "No audit activity yet" : "No audit events match", detail: normalizedAuditSearch.isEmpty ? "Create, edit, review, or complete a local record and the action will appear here." : "Clear the audit search or try a broader term such as SpaceMail, order, Inbox, tracking, parser, or the record label.", symbol: "list.clipboard.fill")
+          MVPEmptyState(title: normalizedAuditSearch.isEmpty ? "No audit activity yet" : "No audit events match", detail: normalizedAuditSearch.isEmpty ? "Create, edit, review, or complete a local record and the action will appear here." : "Clear the audit search or try a broader term such as mailbox, Gmail, SpaceMail, order, Inbox, tracking, parser, or the record label.", symbol: "list.clipboard.fill")
         } else {
           Toggle("Show technical diagnostics", isOn: $showTechnicalDiagnostics)
             .font(.caption.weight(.semibold))
             .toggleStyle(.switch)
 
           if hiddenTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
-            Label("\(hiddenTechnicalDiagnosticCount) SpaceMail parser, duplicate, and no-change diagnostics are hidden from the operator feed. Open the detailed log or enable technical diagnostics when investigating intake internals.", systemImage: "line.3.horizontal.decrease.circle")
+            Label("\(hiddenTechnicalDiagnosticCount) mailbox parser, duplicate, and no-change diagnostics are hidden from the operator feed. Open the detailed log or enable technical diagnostics when investigating intake internals.", systemImage: "line.3.horizontal.decrease.circle")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -726,7 +821,7 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "SpaceMail intake evidence", detail: "Credential, refresh, filtering, parser, and local intake events for the current mailbox setup.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          AuditFeedSection(title: "Mailbox intake evidence", detail: "Credential, sign-in, refresh, filtering, parser, and local intake events for SpaceMail and Gmail setup.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1122,7 +1217,11 @@ private extension AuditEvent {
   }
 
   var isTechnicalSpaceMailDiagnostic: Bool {
-    guard entityType == .spaceMailIMAPConnection || entityType == .intakeEmail || summary.localizedCaseInsensitiveContains("spacemail") else {
+    guard entityType == .spaceMailIMAPConnection
+      || entityType == .gmailMailboxConnection
+      || entityType == .intakeEmail
+      || summary.localizedCaseInsensitiveContains("spacemail")
+      || summary.localizedCaseInsensitiveContains("gmail") else {
       return false
     }
 
