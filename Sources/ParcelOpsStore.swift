@@ -11837,34 +11837,25 @@ final class ParcelOpsStore {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
     let timestamp = Self.auditTimestamp()
+    let readiness = gmailOAuthReadinessSummary(for: connection)
+    let adapterDetail = GoogleGmailAuthAdapter().setupReadinessDetail(for: connection)
     logAudit(
       action: .evaluated,
       entityType: .gmailMailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real Gmail readiness check started.",
-      afterDetail: "Labels: \(connection.monitoredLabelNames)\nOAuth client placeholder: \((connection.oauthClientIDPlaceholder ?? "").isEmpty ? "missing" : "present")\nRedirect placeholder: \((connection.redirectURIPlaceholder ?? "").isEmpty ? "missing" : "present")\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, or mailbox mutation occurred."
+      afterDetail: "Labels: \(connection.monitoredLabelNames)\nOAuth client ID: \(gmailReadinessPresenceLabel(connection.oauthClientIDPlaceholder))\nCallback scheme: \(gmailReadinessPresenceLabel(connection.redirectURIPlaceholder))\nCompiled app readiness: \(readiness.isReady ? "ready" : "blocked")\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, or mailbox mutation occurred."
     )
 
-    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
-    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    let redirectURI = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
-    var missing: [String] = []
-    if emailAddress.isEmpty { missing.append("Gmail address") }
-    if labels.isEmpty { missing.append("labels") }
-    if clientID.isEmpty { missing.append("OAuth client ID placeholder") }
-    if redirectURI.isEmpty { missing.append("redirect URI or URL scheme placeholder") }
-    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
-      missing.append("read-only Gmail scope")
-    }
-    let status: GmailMailboxFetchStatus = missing.isEmpty ? .ready : .notConfigured
-    let detail = missing.isEmpty
-      ? "Real Gmail setup fields are present. Use Test real Google sign-in, then Run real Gmail refresh for the manual read-only API path. This readiness check did not request a token, call Gmail, or access mailbox messages."
-      : "Real Gmail setup is incomplete. Missing: \(missing.joined(separator: ", ")). This readiness check did not request a token, call Gmail, or access mailbox messages."
+    let status: GmailMailboxFetchStatus = readiness.isReady ? .ready : .notConfigured
+    let missing = readiness.missingFields
+    let detail = readiness.isReady
+      ? "Real Gmail setup and compiled callback configuration are ready. Use Test real Google sign-in, then Run real Gmail refresh for the manual read-only API path. This readiness check did not request a token, call Gmail, or access mailbox messages."
+      : "Real Gmail setup is incomplete or blocked. Missing or blocked: \(missing.joined(separator: ", ")). This readiness check did not request a token, call Gmail, or access mailbox messages."
     updateGmailMailboxConnection(connection) { draft in
       draft.connectionStatus = "Real Gmail readiness: \(status.rawValue)"
+      draft.oauthReadinessStatus = readiness.statusText
       draft.lastManualRefreshDate = timestamp
       draft.lastRefreshFetchedCount = 0
       draft.lastRefreshImportedCount = 0
@@ -11881,8 +11872,15 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real Gmail readiness check completed.",
-      afterDetail: "Status: \(status.rawValue)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMissing fields: \(missing.isEmpty ? "none" : missing.joined(separator: ", "))\nDetail: \(detail)\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, Gmail API response, raw Gmail message, or mailbox mutation occurred."
+      afterDetail: "Status: \(status.rawValue)\nReadiness: \(readiness.statusText)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMissing or blocked setup: \(missing.isEmpty ? "none" : missing.joined(separator: ", "))\nDetail: \(detail)\nAdapter preflight: \(adapterDetail)\nNo Google OAuth flow, token request, Gmail API call, Keychain token access, Gmail API response, raw Gmail message, or mailbox mutation occurred."
     )
+  }
+
+  private func gmailReadinessPresenceLabel(_ value: String?) -> String {
+    let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return "missing" }
+    if trimmed.localizedCaseInsensitiveContains("placeholder") { return "placeholder" }
+    return "present"
   }
 
   private func refreshMockGmailMessages(for connection: GmailMailboxConnection) async {
