@@ -2286,37 +2286,48 @@ struct OperatorMVPReadinessCard: View {
 
   private var checks: [(title: String, detail: String, isComplete: Bool, tone: String, symbol: String)] {
     let hasSpaceMailSetup = !store.spaceMailIMAPConnections.isEmpty
+    let hasGmailSetup = !store.gmailMailboxConnections.isEmpty
     let hasSpaceMailCredential = store.spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
+    let hasGmailConnectedAuth = store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+    let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
+    let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
     let hasMailboxRefresh = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let hasInboxEvidence = !store.intakeEmails.isEmpty || !store.importQueueItems.isEmpty || !store.acceptanceRecords.isEmpty
     let hasInboxOrder = store.orders.contains { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder }
     let hasDispatchContext = !store.shipmentManifestRecords.isEmpty && !store.dispatchReadinessChecklists.isEmpty
     let hasOpenWorkRouting = !store.openWorkbenchItems.isEmpty || !store.reviewTasks.isEmpty || !store.handoffNotes.isEmpty
     let hasAuditTrail = store.auditEvents.contains { event in
-      [.spaceMailIMAPConnection, .intakeEmail, .order, .reviewTask, .handoffNote, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
+      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order, .reviewTask, .handoffNote, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
     }
 
     return [
       (
         "Mailbox setup",
-        hasSpaceMailSetup ? "SpaceMail setup exists for manual read-only intake." : "Add or review SpaceMail setup before expecting real intake.",
-        hasSpaceMailSetup,
-        hasSpaceMailSetup ? "success" : "warning",
-        "server.rack"
+        hasMailboxSetup
+          ? "At least one live mailbox path is configured for manual read-only intake."
+          : "Add or review SpaceMail or Gmail setup before expecting real intake.",
+        hasMailboxSetup,
+        hasMailboxSetup ? "success" : "warning",
+        hasGmailSetup && !hasSpaceMailSetup ? "envelope.badge.shield.half.filled" : "server.rack"
       ),
       (
-        "Credential path",
-        hasSpaceMailCredential ? "A Keychain credential reference is available or marked ready." : "Set/check the SpaceMail Keychain password from Mailbox Monitor or Settings.",
-        hasSpaceMailCredential,
-        hasSpaceMailCredential ? "success" : "attention",
-        "key.horizontal.fill"
+        "Credential or sign-in",
+        hasMailboxCredentialOrAuth
+          ? "SpaceMail Keychain credential or Gmail Google sign-in evidence is available."
+          : "Set/check the SpaceMail Keychain password or complete Gmail Google sign-in from Mailbox Monitor or Settings.",
+        hasMailboxCredentialOrAuth,
+        hasMailboxCredentialOrAuth ? "success" : "attention",
+        hasGmailSetup && !hasSpaceMailSetup ? "person.badge.key.fill" : "key.horizontal.fill"
       ),
       (
         "Manual refresh evidence",
-        hasMailboxRefresh ? "At least one manual refresh has produced local result evidence." : "Run a manual SpaceMail refresh when credentials are ready.",
+        hasMailboxRefresh ? "At least one SpaceMail or Gmail manual refresh has produced local result evidence." : "Run a manual SpaceMail or Gmail refresh when credentials or sign-in are ready.",
         hasMailboxRefresh,
         hasMailboxRefresh ? "success" : "attention",
         "arrow.down.to.line.compact"
