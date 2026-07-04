@@ -173,7 +173,7 @@ struct MailboxView: View {
           }
         }
 
-        SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
+        SettingsPanel(title: "Gmail mailbox setup", symbol: "envelope.badge.shield.half.filled") {
           Text("Use this for Gmail or Google Workspace mailboxes that feed Inbox through the same intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -183,13 +183,14 @@ struct MailboxView: View {
             Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
           }
           if store.gmailMailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
+            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth app notes, and manual read-only refresh readiness.", symbol: "envelope.badge.shield.half.filled")
           }
           ForEach(store.gmailMailboxConnections) { connection in
             GmailMailboxConnectionRow(
               connection: connection,
               readiness: store.gmailOAuthReadinessSummary(for: connection),
               implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
+              setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)

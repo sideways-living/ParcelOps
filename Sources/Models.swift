@@ -1682,6 +1682,24 @@ struct GmailOAuthImplementationChecklistItem: Identifiable, Hashable {
   var detail: String
 }
 
+struct GmailSetupTestChecklist: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var statusText: String
+  var completedCount: Int
+  var totalCount: Int
+  var items: [GmailSetupTestChecklistItem]
+}
+
+struct GmailSetupTestChecklistItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var isComplete: Bool
+  var detail: String
+  var nextAction: String
+  var symbolName: String
+}
+
 struct GmailAuthSessionState: Identifiable, Hashable {
   var id: UUID { connectionID }
   var connectionID: UUID

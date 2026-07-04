@@ -240,7 +240,7 @@ struct IntegrationsView: View {
             }
             Button("Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
               store.addGmailMailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Gmail setup placeholder added locally. Real Gmail OAuth/API access is not connected yet."
+              setupFeedbackMessage = "Gmail setup added locally. Save non-secret app details, test Google sign-in, then run manual read-only refresh."
             }
             Button("Mailbox setup", systemImage: "envelope.badge.fill") {
               store.addTrackedMailboxPlaceholder()
@@ -516,26 +516,27 @@ struct IntegrationsView: View {
         }
 
         if showsGmailSetup {
-          SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
+          SettingsPanel(title: "Gmail mailbox setup", symbol: "envelope.badge.shield.half.filled") {
           Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
             Button("Add Gmail setup", systemImage: "plus") {
               store.addGmailMailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Gmail setup placeholder added locally. Use Mock Gmail refresh to test local intake only."
+              setupFeedbackMessage = "Gmail setup added locally. Use mock refresh for local testing or real refresh after Google sign-in."
             }
               .buttonStyle(.bordered)
             Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
           }
           if store.gmailMailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture email address, labels, mixed-mailbox mode, OAuth planning notes, and mock intake behavior before real Gmail access is implemented.", symbol: "envelope.badge.shield.half.filled")
+            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture email address, labels, mixed-mailbox mode, OAuth app notes, and real/manual refresh readiness.", symbol: "envelope.badge.shield.half.filled")
           }
           ForEach(store.gmailMailboxConnections) { connection in
             GmailMailboxConnectionRow(
               connection: connection,
               readiness: store.gmailOAuthReadinessSummary(for: connection),
               implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
+              setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
@@ -1215,6 +1216,7 @@ struct GmailMailboxConnectionRow: View {
   var connection: GmailMailboxConnection
   var readiness: GmailOAuthReadinessSummary
   var implementationPlan: GmailOAuthImplementationPlan
+  var setupTestChecklist: GmailSetupTestChecklist
   var authState: GmailAuthSessionState
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
@@ -1247,6 +1249,7 @@ struct GmailMailboxConnectionRow: View {
     connection: GmailMailboxConnection,
     readiness: GmailOAuthReadinessSummary,
     implementationPlan: GmailOAuthImplementationPlan,
+    setupTestChecklist: GmailSetupTestChecklist,
     authState: GmailAuthSessionState,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
@@ -1272,6 +1275,7 @@ struct GmailMailboxConnectionRow: View {
     self.connection = connection
     self.readiness = readiness
     self.implementationPlan = implementationPlan
+    self.setupTestChecklist = setupTestChecklist
     self.authState = authState
     self.onSave = onSave
     self.onReviewed = onReviewed
@@ -1624,6 +1628,31 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail setup test checklist", systemImage: "checklist.checked")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(setupTestChecklist.completedCount == setupTestChecklist.totalCount ? .green : .orange)
+        Text("Follow these steps in order when connecting or retesting a Gmail mailbox. This checklist is computed from local setup, sign-in, refresh, and audit state.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        MetricStrip(items: [
+          ("Steps", "\(setupTestChecklist.completedCount)/\(setupTestChecklist.totalCount)", setupTestChecklist.completedCount == setupTestChecklist.totalCount ? .green : .orange),
+          ("Auth", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", gmailRefreshModeLabel, gmailRefreshGuidanceColor),
+          ("Inbox", connection.lastRefreshImportedCount > 0 ? "Has intake" : "No intake", connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        ])
+        ForEach(Array(setupTestChecklist.items.enumerated()), id: \.element.id) { index, item in
+          GmailSetupChecklistStepRow(index: index + 1, item: item)
+        }
+        Text("Real Gmail refresh remains manual and read-only. ParcelOps does not delete, move, mark read, send, or modify Gmail messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+
       if isEditing {
         VStack(alignment: .leading, spacing: 8) {
           TextField("Display name", text: $draft.displayName)
@@ -1824,6 +1853,49 @@ struct GmailMailboxConnectionRow: View {
       get: { draft[keyPath: keyPath] ?? "" },
       set: { draft[keyPath: keyPath] = $0 }
     )
+  }
+}
+
+private struct GmailSetupChecklistStepRow: View {
+  var index: Int
+  var item: GmailSetupTestChecklistItem
+
+  private var accentColor: Color {
+    item.isComplete ? .green : .orange
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(accentColor.opacity(item.isComplete ? 0.20 : 0.16))
+          .frame(width: 24, height: 24)
+        Text("\(index)")
+          .font(.caption2.weight(.bold))
+          .foregroundStyle(accentColor)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Image(systemName: item.symbolName)
+            .foregroundStyle(accentColor)
+            .frame(width: 16)
+          Text(item.title)
+            .font(.caption.weight(.semibold))
+          Spacer()
+          Badge(item.isComplete ? "Done" : "Next", color: accentColor)
+        }
+        Text(item.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(item.nextAction)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(item.isComplete ? Color.secondary : Color.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .background(accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

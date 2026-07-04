@@ -14112,6 +14112,82 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailSetupTestChecklist(for connection: GmailMailboxConnection) -> GmailSetupTestChecklist {
+    let authState = gmailAuthSessionState(for: connection)
+    let readiness = gmailOAuthReadinessSummary(for: connection)
+    let trimmedEmail = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedLabels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hasMailboxSettings = !trimmedEmail.isEmpty && !trimmedLabels.isEmpty
+    let hasOAuthPlaceholders = readiness.missingFields.isEmpty ||
+      (!((connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) &&
+       !((connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+    let hasReadonlyScope = connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") ||
+      connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata")
+    let hasSignedIn = authState.status == .connected
+    let hasRealRefresh = connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
+    let hasFetched = connection.lastRefreshFetchedCount > 0
+    let hasUsefulResult = connection.lastRefreshImportedCount > 0 ||
+      connection.lastRefreshFilteredNonOrderCount > 0 ||
+      (connection.lastRefreshUncertainCount ?? 0) > 0 ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("No messages")
+    let needsReview = connection.lastRefreshImportedCount > 0 ||
+      (connection.lastRefreshUncertainCount ?? 0) > 0
+
+    let items = [
+      GmailSetupTestChecklistItem(
+        title: "Confirm mailbox settings",
+        isComplete: hasMailboxSettings,
+        detail: hasMailboxSettings ? "\(connection.emailAddress) using labels \(connection.monitoredLabelNames)." : "Add the Gmail address and monitored label, usually INBOX.",
+        nextAction: hasMailboxSettings ? "No action needed unless the label is wrong." : "Use Edit setup.",
+        symbolName: "envelope.badge"
+      ),
+      GmailSetupTestChecklistItem(
+        title: "Confirm Google app placeholders",
+        isComplete: hasOAuthPlaceholders && hasReadonlyScope,
+        detail: hasOAuthPlaceholders && hasReadonlyScope ? "Client/redirect placeholders and a read-only Gmail scope are present." : "Add OAuth client, redirect/scheme, and gmail.readonly or gmail.metadata scope notes.",
+        nextAction: hasOAuthPlaceholders && hasReadonlyScope ? "Proceed to sign-in test." : "Use Edit setup and save non-secret values only.",
+        symbolName: "gearshape.2.fill"
+      ),
+      GmailSetupTestChecklistItem(
+        title: "Test real Google sign-in",
+        isComplete: hasSignedIn,
+        detail: hasSignedIn ? "Google sign-in succeeded for \(authState.signedInAccount)." : "No connected Google sign-in is recorded for this setup.",
+        nextAction: hasSignedIn ? "Proceed to real refresh." : "Tap Test real Google sign-in.",
+        symbolName: "person.badge.key"
+      ),
+      GmailSetupTestChecklistItem(
+        title: "Run manual real Gmail refresh",
+        isComplete: hasRealRefresh,
+        detail: hasRealRefresh ? connection.connectionStatus : "Real refresh has not been run for this setup record.",
+        nextAction: hasRealRefresh ? "Review the latest refresh summary." : "Tap Run real Gmail refresh.",
+        symbolName: "tray.and.arrow.down"
+      ),
+      GmailSetupTestChecklistItem(
+        title: "Review refresh result",
+        isComplete: hasUsefulResult || hasFetched,
+        detail: "\(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount ?? 0) uncertain.",
+        nextAction: needsReview ? "Open Inbox/Mailbox review for imported or uncertain messages." : "If nothing imported, check label, mixed filtering, and Audit diagnostics.",
+        symbolName: "line.3.horizontal.decrease.circle"
+      ),
+      GmailSetupTestChecklistItem(
+        title: "Confirm audit trail",
+        isComplete: hasRealRefresh,
+        detail: hasRealRefresh ? "Audit has a real Gmail refresh event for the latest attempt." : "Audit will record sign-in and refresh actions after they run.",
+        nextAction: "Open Audit when detailed diagnostics are needed.",
+        symbolName: "list.clipboard.fill"
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    return GmailSetupTestChecklist(
+      connectionID: connection.id,
+      statusText: "\(completedCount)/\(items.count) Gmail setup test steps complete",
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
     TrackedMailbox(
       id: connection.id,
