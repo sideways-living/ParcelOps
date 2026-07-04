@@ -46,8 +46,19 @@ struct InboxView: View {
         item.reviewLabel,
         item.nextAction,
         item.readinessLabel,
-        item.readinessDetail
+        item.readinessDetail,
+        item.parserQualityLabel,
+        item.parserQualityDetail,
+        item.triageGroup.rawValue
       ].joined(separator: " ").localizedLowercase.contains(query)
+    }
+  }
+
+  private var visibleTriageGroups: [InboxTriageGroupBucket] {
+    InboxTriageGroup.displayOrder.compactMap { group in
+      let items = visibleTriageItems.filter { $0.triageGroup == group }
+      guard !items.isEmpty else { return nil }
+      return InboxTriageGroupBucket(group: group, items: items)
     }
   }
 
@@ -324,8 +335,8 @@ struct InboxView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
           }
-          ForEach(visibleTriageItems.prefix(12)) { item in
-            InboxTriageRow(item: item, store: store)
+          ForEach(visibleTriageGroups) { bucket in
+            InboxTriageGroupSection(bucket: bucket, store: store)
           }
         }
       }
@@ -716,9 +727,96 @@ private struct InboxMailboxHealthRow: View {
   }
 }
 
+private enum InboxTriageGroup: String, CaseIterable {
+  case needsCorrection = "Needs correction"
+  case readyToLink = "Ready to create or link"
+  case readyToProcess = "Ready to process"
+  case parserChecks = "Parser checks"
+
+  static let displayOrder: [InboxTriageGroup] = [
+    .needsCorrection,
+    .readyToLink,
+    .readyToProcess,
+    .parserChecks
+  ]
+
+  var detail: String {
+    switch self {
+    case .needsCorrection:
+      return "Fix weak or partial fields before creating operational records."
+    case .readyToLink:
+      return "Detected order signals look usable; create or link local order context."
+    case .readyToProcess:
+      return "Linked or high-confidence records that are ready for the next local action."
+    case .parserChecks:
+      return "Optional diagnostics for parser tuning and follow-up tasks."
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .needsCorrection:
+      return "exclamationmark.triangle.fill"
+    case .readyToLink:
+      return "link.circle.fill"
+    case .readyToProcess:
+      return "checkmark.seal.fill"
+    case .parserChecks:
+      return "text.magnifyingglass"
+    }
+  }
+
+  var color: Color {
+    switch self {
+    case .needsCorrection:
+      return .orange
+    case .readyToLink:
+      return .blue
+    case .readyToProcess:
+      return .green
+    case .parserChecks:
+      return .purple
+    }
+  }
+}
+
+private struct InboxTriageGroupBucket: Identifiable {
+  var group: InboxTriageGroup
+  var items: [InboxTriageItem]
+
+  var id: String { group.rawValue }
+}
+
+private struct InboxTriageGroupSection: View {
+  var bucket: InboxTriageGroupBucket
+  var store: ParcelOpsStore
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(bucket.group.rawValue, systemImage: bucket.group.symbol)
+          .font(.headline)
+          .foregroundStyle(bucket.group.color)
+        Badge("\(bucket.items.count)", color: bucket.group.color)
+      }
+
+      Text(bucket.group.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      ForEach(bucket.items.prefix(8)) { item in
+        InboxTriageRow(item: item, store: store)
+      }
+    }
+    .padding(.top, 4)
+  }
+}
+
 private struct InboxTriageItem: Identifiable {
   var id: String
   var source: InboxTriageSource
+  var triageGroup: InboxTriageGroup
   var sourceLabel: String
   var title: String
   var subtitle: String
@@ -729,6 +827,9 @@ private struct InboxTriageItem: Identifiable {
   var linkedOrderID: UUID?
   var linkedShipmentGroupID: UUID?
   var nextAction: String
+  var parserQualityLabel: String
+  var parserQualityDetail: String
+  var parserQualityTone: InboxTriageTone
   var readinessLabel: String
   var readinessDetail: String
   var readinessTone: InboxTriageTone
@@ -746,6 +847,7 @@ private struct InboxTriageItem: Identifiable {
     return InboxTriageItem(
       id: "email-\(email.id.uuidString)",
       source: .email(email),
+      triageGroup: email.triageGroup,
       sourceLabel: "Mailbox",
       title: "\(email.detectedMerchant) • \(email.detectedOrderNumber)",
       subtitle: email.subject,
@@ -760,6 +862,9 @@ private struct InboxTriageItem: Identifiable {
         : missingCriticalFields
           ? "Reprocess or edit before order creation"
           : "Create or link order",
+      parserQualityLabel: email.parserQualityLabel,
+      parserQualityDetail: email.parserQualityDetail,
+      parserQualityTone: email.parserQualityTone,
       readinessLabel: readiness.label,
       readinessDetail: readiness.detail,
       readinessTone: readiness.tone,
@@ -772,6 +877,7 @@ private struct InboxTriageItem: Identifiable {
     return InboxTriageItem(
       id: "import-\(item.id.uuidString)",
       source: .importQueue(item),
+      triageGroup: item.importStatus == .blocked || item.confidenceScore < 70 ? .needsCorrection : item.suggestedLinkedOrderID == nil ? .readyToLink : .readyToProcess,
       sourceLabel: "Import",
       title: "\(item.detectedMerchant) • \(item.detectedOrderNumber)",
       subtitle: item.sourceLabel,
@@ -782,6 +888,9 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: item.suggestedLinkedOrderID,
       linkedShipmentGroupID: item.suggestedShipmentGroupID,
       nextAction: item.importStatus == .blocked ? "Resolve blocked import" : item.confidenceScore < 70 ? "Check low-confidence fields" : "Accept or link import",
+      parserQualityLabel: item.confidenceScore < 70 ? "Check fields" : "Clean import",
+      parserQualityDetail: item.confidenceScore < 70 ? "Import confidence is below 70%; compare detected order, tracking, and destination before accepting." : "Import confidence is high enough for normal acceptance review.",
+      parserQualityTone: item.confidenceScore < 70 ? .attention : .success,
       readinessLabel: readiness.label,
       readinessDetail: readiness.detail,
       readinessTone: readiness.tone,
@@ -794,6 +903,7 @@ private struct InboxTriageItem: Identifiable {
     return InboxTriageItem(
       id: "acceptance-\(candidate.id)",
       source: .acceptance(candidate),
+      triageGroup: candidate.decision == .blocked || candidate.confidenceScore < 70 ? .needsCorrection : candidate.suggestedLinkedOrderID == nil ? .readyToLink : .readyToProcess,
       sourceLabel: "Acceptance",
       title: "\(candidate.detectedMerchant) • \(candidate.detectedOrderNumber)",
       subtitle: candidate.sourceLabel,
@@ -804,6 +914,9 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: candidate.suggestedLinkedOrderID,
       linkedShipmentGroupID: candidate.suggestedShipmentGroupID,
       nextAction: candidate.suggestedLinkedOrderID == nil ? "Choose order or create one" : "Accept into operations",
+      parserQualityLabel: candidate.confidenceScore < 70 ? "Check fields" : "Clean candidate",
+      parserQualityDetail: candidate.confidenceScore < 70 ? "Acceptance confidence is below 70%; compare detected fields before accepting." : "Acceptance candidate has usable detected fields for the next decision.",
+      parserQualityTone: candidate.confidenceScore < 70 ? .attention : .success,
       readinessLabel: readiness.label,
       readinessDetail: readiness.detail,
       readinessTone: readiness.tone,
@@ -816,6 +929,7 @@ private struct InboxTriageItem: Identifiable {
     return InboxTriageItem(
       id: "parser-\(diagnostic.id)",
       source: .parserDiagnostic(diagnostic),
+      triageGroup: diagnostic.severity == .critical || diagnostic.severity == .high ? .needsCorrection : .parserChecks,
       sourceLabel: "Parser",
       title: diagnostic.title,
       subtitle: diagnostic.subjectPreview,
@@ -826,6 +940,9 @@ private struct InboxTriageItem: Identifiable {
       linkedOrderID: nil,
       linkedShipmentGroupID: nil,
       nextAction: diagnostic.recommendedAction,
+      parserQualityLabel: diagnostic.severity.rawValue,
+      parserQualityDetail: diagnostic.summary,
+      parserQualityTone: readiness.tone,
       readinessLabel: readiness.label,
       readinessDetail: readiness.detail,
       readinessTone: readiness.tone,
@@ -1016,6 +1133,7 @@ private struct InboxTriageRow: View {
             if let confidenceScore = item.confidenceScore {
               Badge("\(confidenceScore)% confidence", color: confidenceColor(confidenceScore))
             }
+            Badge(item.parserQualityLabel, color: item.parserQualityTone.color)
             Badge(item.reviewLabel, color: item.source.color)
             Badge(item.readinessLabel, color: item.readinessTone.color)
             if let intakeSourceSummary {
@@ -1036,6 +1154,11 @@ private struct InboxTriageRow: View {
           Text(item.readinessDetail)
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          Label(item.parserQualityDetail, systemImage: "text.magnifyingglass")
+            .font(.caption2)
+            .foregroundStyle(item.parserQualityTone.color)
             .fixedSize(horizontal: false, vertical: true)
 
           if let intakeSourceSummary {
@@ -1410,6 +1533,84 @@ private extension ForwardedEmailIntake {
     if linkedOrderID == nil { score -= 8 }
     if reviewState == .needsReview { score -= 6 }
     return max(10, min(100, score))
+  }
+
+  var triageGroup: InboxTriageGroup {
+    if reviewState == .ignored {
+      return .parserChecks
+    }
+    if hasCriticalParserGaps || localInboxConfidence < 65 {
+      return .needsCorrection
+    }
+    if linkedOrderID == nil {
+      return .readyToLink
+    }
+    return .readyToProcess
+  }
+
+  var parserQualityLabel: String {
+    if reviewState == .ignored {
+      return "Ignored parse"
+    }
+    if hasCriticalParserGaps {
+      return "Weak parse"
+    }
+    if !missingParserFields.isEmpty {
+      return "Partial parse"
+    }
+    if linkedOrderID != nil {
+      return "Linked parse"
+    }
+    return "Clean parse"
+  }
+
+  var parserQualityDetail: String {
+    if reviewState == .ignored {
+      return "Ignored emails stay out of normal intake work unless reopened from the detailed mailbox view."
+    }
+    if hasCriticalParserGaps {
+      return "Parser is missing \(criticalParserGaps.joined(separator: " and ")); reprocess or edit before creating an order."
+    }
+    if !missingParserFields.isEmpty {
+      return "Parser found order evidence but still needs \(missingParserFields.joined(separator: ", ")) checked before final review."
+    }
+    if linkedOrderID != nil {
+      return "Detected intake fields are linked to an order; review the handoff context before closing the row."
+    }
+    return "Merchant, order, tracking, and destination fields look usable for create or link actions."
+  }
+
+  var parserQualityTone: InboxTriageTone {
+    if reviewState == .ignored {
+      return .muted
+    }
+    if hasCriticalParserGaps {
+      return .warning
+    }
+    if !missingParserFields.isEmpty {
+      return .attention
+    }
+    return .success
+  }
+
+  var hasCriticalParserGaps: Bool {
+    !criticalParserGaps.isEmpty
+  }
+
+  private var criticalParserGaps: [String] {
+    [
+      detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil
+    ].compactMap { $0 }
+  }
+
+  private var missingParserFields: [String] {
+    [
+      detectedMerchant.isPlaceholderValidationValue ? "merchant" : nil,
+      detectedOrderNumber.isPlaceholderValidationValue ? "order number" : nil,
+      detectedTrackingNumber.isPlaceholderValidationValue ? "tracking number" : nil,
+      detectedDestinationAddress.isPlaceholderValidationValue ? "destination" : nil
+    ].compactMap { $0 }
   }
 }
 
