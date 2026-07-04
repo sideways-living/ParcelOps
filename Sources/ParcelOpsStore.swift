@@ -13852,7 +13852,7 @@ final class ParcelOpsStore {
 
   @MainActor
   func handleGmailAuthCallback(_ url: URL) {
-    let isGmailCallback = url.scheme == GoogleGmailAuthAdapter.placeholderCallbackScheme
+    let isGmailCallback = GoogleGmailAuthAdapter.isPotentialCallbackURL(url)
     guard isGmailCallback else { return }
     let status = GoogleGmailAuthAdapter().callbackReadinessStatus(for: url)
     let connection = gmailMailboxConnections.first
@@ -13862,7 +13862,7 @@ final class ParcelOpsStore {
       entityID: connection?.id.uuidString ?? "gmail-auth-callback",
       entityLabel: connection?.displayName ?? "Gmail auth callback",
       summary: "Gmail auth callback readiness evaluated.",
-      afterDetail: "\(status)\nThis is placeholder callback readiness only. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+      afterDetail: "\(status)\nGmail callback handling accepts the placeholder scheme and real reversed Google OAuth client ID schemes registered in the compiled app. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
     )
   }
 

@@ -25,6 +25,10 @@ struct GoogleGmailAuthAdapter {
     #endif
   }
 
+  static func isPotentialCallbackURL(_ url: URL) -> Bool {
+    url.scheme == Self.placeholderCallbackScheme || (url.scheme ?? "").hasPrefix("com.googleusercontent.apps.")
+  }
+
   func setupReadinessDetail(for connection: GmailMailboxConnection) -> String {
     let problems = GmailReadinessValidator.problems(for: connection, checkBundle: true)
     let missingText = problems.isEmpty ? "No missing setup values detected." : "Missing or blocked: \(problems.joined(separator: ", "))."
@@ -33,7 +37,7 @@ struct GoogleGmailAuthAdapter {
 
   @MainActor
   func callbackReadinessStatus(for url: URL) -> String {
-    guard url.scheme == Self.placeholderCallbackScheme || (url.scheme ?? "").hasPrefix("com.googleusercontent.apps.") else {
+    guard Self.isPotentialCallbackURL(url) else {
       return "Ignored non-Gmail callback URL."
     }
 
