@@ -174,7 +174,7 @@ struct MailboxView: View {
         }
 
         SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
-          Text("Use this for Gmail or Google Workspace mailboxes that may later feed Inbox. This is local planning/mock support only; no Google OAuth flow, Gmail API call, token exchange, Keychain token item, or real mailbox access is connected yet.")
+          Text("Use this for Gmail or Google Workspace mailboxes that feed Inbox through the same intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {

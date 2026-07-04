@@ -517,7 +517,7 @@ struct IntegrationsView: View {
 
         if showsGmailSetup {
           SettingsPanel(title: "Gmail setup placeholders", symbol: "envelope.badge.shield.half.filled") {
-          Text("Use this for Gmail or Google Workspace mailboxes that may later feed the same Inbox intake path. This is planning/mock only: no Google OAuth, Gmail API call, token exchange, Keychain token item, or mailbox access runs here.")
+          Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -1344,6 +1344,23 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+          Label(gmailRefreshGuidanceTitle, systemImage: gmailRefreshGuidanceSymbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(gmailRefreshGuidanceColor)
+          Text(gmailRefreshGuidanceDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactMetadataGrid(minimumWidth: 135) {
+            Badge(gmailRefreshModeLabel, color: gmailRefreshGuidanceColor)
+            Badge(connection.mailboxMode == .mixedFiltered ? "Mixed filtering" : "Dedicated mailbox", color: .teal)
+            Badge("Read-only", color: .blue)
+            Badge("Manual", color: .secondary)
+          }
+        }
+        .padding(8)
+        .background(gmailRefreshGuidanceColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         if connection.mailboxMode == .mixedFiltered {
           Text("Mixed Gmail mode keeps filtered non-order messages out of Inbox. Use real refresh only after Google sign-in and read-only Gmail consent are ready.")
             .font(.caption2.weight(.semibold))
@@ -1592,7 +1609,7 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
-      Text("Mock Gmail refresh creates deterministic local test messages. Real Gmail refresh is a separate manual read-only action.")
+      Text("Recommended order: save setup, test real Google sign-in, then run real Gmail refresh. Mock Gmail refresh is still available for local intake testing.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
@@ -1694,6 +1711,105 @@ struct GmailMailboxConnectionRow: View {
     if summary.localizedCaseInsensitiveContains("Filtered") { return .teal }
     if summary.localizedCaseInsensitiveContains("passed") { return .green }
     return .secondary
+  }
+
+  private var gmailRefreshGuidanceTitle: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Sign in again before refresh"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Gmail consent needs attention"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Check Gmail label setup"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Gmail API returned a diagnostic"
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Refresh imported Inbox items"
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
+      return "Refresh completed with filtering"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
+      return "No Gmail messages matched"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Ready") {
+      return "Ready for manual real refresh"
+    }
+    return "Gmail refresh status"
+  }
+
+  private var gmailRefreshGuidanceDetail: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Use Test real Google sign-in, confirm the same mailbox account, then retry Run real Gmail refresh. ParcelOps does not store token values in JSON."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "The signed-in Google session is missing read-only Gmail consent or the Google Cloud consent screen/API access needs review. Re-run sign-in and confirm gmail.readonly or gmail.metadata is granted."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Check the label field. Use INBOX for the primary inbox, or an existing custom Gmail label name. Refresh stays read-only."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Open Audit for the safe Gmail HTTP status, error code/message, response size, and non-secret response preview. No tokens, auth headers, full URLs, or raw bodies are logged."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) message\(connection.lastRefreshImportedCount == 1 ? "" : "s") entered Inbox intake. Review Inbox triage before creating or linking orders."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
+      let uncertainCount = connection.lastRefreshUncertainCount ?? 0
+      return "\(connection.lastRefreshFilteredNonOrderCount) non-order message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") stayed out of Inbox; \(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") can be reviewed locally."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
+      return "The read-only Gmail request succeeded but returned no messages for the configured label/filter. Check the label or try again after new mail arrives."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Ready") {
+      return "Setup fields are present. Run Test real Google sign-in first, then Run real Gmail refresh when you are ready to fetch up to 10 read-only message previews."
+    }
+    return "Use mock refresh for local testing, or complete Google setup and sign-in before real refresh. Gmail refresh remains manual and read-only."
+  }
+
+  private var gmailRefreshGuidanceSymbol: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "person.badge.key"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "tag.slash"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "exclamationmark.triangle"
+    }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
+      return "line.3.horizontal.decrease.circle"
+    }
+    return "info.circle"
+  }
+
+  private var gmailRefreshGuidanceColor: Color {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return .orange
+    }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if (connection.lastRefreshUncertainCount ?? 0) > 0 { return .orange }
+    return .secondary
+  }
+
+  private var gmailRefreshModeLabel: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail") { return "Real Gmail" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Mock Gmail") { return "Mock Gmail" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("readiness") { return "Readiness" }
+    return "No refresh"
   }
 
   private func gmailClassifierDecisionColor(_ decision: String) -> Color {

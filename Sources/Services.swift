@@ -433,6 +433,19 @@ struct RealGmailMailboxClient: GmailMailboxClient {
           ))
           return
         }
+        let grantedScopes = user?.grantedScopes ?? []
+        let hasReadOnlyScope = grantedScopes.contains { scope in
+          scope.localizedCaseInsensitiveContains("gmail.readonly") ||
+          scope.localizedCaseInsensitiveContains("gmail.metadata")
+        }
+        guard hasReadOnlyScope else {
+          continuation.resume(returning: TokenResult(
+            status: .consentRequired,
+            accessToken: nil,
+            detail: "GoogleSignIn has a signed-in account, but the current session does not report a read-only Gmail scope. Run Test real Google sign-in again and consent to Gmail readonly/metadata access. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
         guard let token = user?.accessToken.tokenString, !token.isEmpty else {
           continuation.resume(returning: TokenResult(
             status: .tokenMissing,
@@ -550,9 +563,10 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       let errorBody = try? JSONDecoder().decode(GmailErrorEnvelope.self, from: data)
       let status = statusForHTTP(httpResponse.statusCode, error: errorBody)
       let reason = errorBody?.error.message ?? "No safe Gmail API error message returned."
+      let diagnosticLines = gmailHTTPDiagnosticLines(response: httpResponse, data: data)
       throw RealGmailMailboxError(
         status: status,
-        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Message: \(String(reason.prefix(240))). Response bytes: \(data.count). No authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
+        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Message: \(String(reason.prefix(240))). \(gmailHTTPRemediation(for: httpResponse.statusCode))\n\(diagnosticLines.joined(separator: "\n"))\nNo authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
       )
     }
 
@@ -598,6 +612,71 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     if statusCode >= 500 { return .networkFailed }
     if error != nil { return .apiRejected }
     return .networkFailed
+  }
+
+  private func gmailHTTPRemediation(for statusCode: Int) -> String {
+    switch statusCode {
+    case 401:
+      return "Run Test real Google sign-in again, confirm the signed-in account, and verify Gmail readonly/metadata consent."
+    case 403:
+      return "Check that the Google Cloud project has Gmail API enabled, the OAuth consent screen allows this account, and the app requested a read-only Gmail scope."
+    case 404:
+      return "Check the configured Gmail label. System labels should use names like INBOX; custom labels must exist on the mailbox."
+    case 429:
+      return "Gmail rate limited the manual request. Wait before retrying."
+    case 500...599:
+      return "Gmail returned a server-side error. Retry later without changing mailbox state."
+    default:
+      return "Use the safe Gmail error code/message below as the source of truth."
+    }
+  }
+
+  private func gmailHTTPDiagnosticLines(response: HTTPURLResponse, data: Data) -> [String] {
+    let contentType = response.value(forHTTPHeaderField: "Content-Type") ?? "missing"
+    let requestID = response.value(forHTTPHeaderField: "X-Request-Id")
+      ?? response.value(forHTTPHeaderField: "x-request-id")
+      ?? response.value(forHTTPHeaderField: "X-Google-Request-ID")
+      ?? "missing"
+    let authHeader = response.value(forHTTPHeaderField: "WWW-Authenticate") ?? ""
+    let authSummary = sanitizedAuthenticateSummary(authHeader)
+    let bodyPreview = sanitizedBodyPreview(from: data)
+    return [
+      "Gmail response content type: \(safeHeaderValue(contentType, limit: 80))",
+      "Gmail response bytes: \(data.count)",
+      "Gmail request id: \(safeHeaderValue(requestID, limit: 120))",
+      "Gmail auth challenge: \(authSummary)",
+      "Gmail response preview: \(bodyPreview)"
+    ]
+  }
+
+  private func sanitizedAuthenticateSummary(_ value: String) -> String {
+    guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "missing" }
+    let lowercased = value.lowercased()
+    var labels: [String] = []
+    if lowercased.contains("invalid_token") { labels.append("invalid token") }
+    if lowercased.contains("insufficient") { labels.append("insufficient scope or claims") }
+    if lowercased.contains("scope") { labels.append("scope mentioned") }
+    if lowercased.contains("realm") { labels.append("realm present") }
+    if lowercased.contains("error_description") { labels.append("description present") }
+    if labels.isEmpty { labels.append("challenge present") }
+    return labels.joined(separator: ", ")
+  }
+
+  private func sanitizedBodyPreview(from data: Data) -> String {
+    guard !data.isEmpty else { return "empty" }
+    let decoded = String(data: data, encoding: .utf8) ?? "non-UTF8 response"
+    return safeHeaderValue(decoded, limit: 180)
+  }
+
+  private func safeHeaderValue(_ value: String, limit: Int) -> String {
+    let redacted = value
+      .replacingOccurrences(of: #"Bearer\s+[A-Za-z0-9._\-]+"#, with: "Bearer [redacted]", options: .regularExpression)
+      .replacingOccurrences(of: #""access_token"\s*:\s*"[^"]+""#, with: "\"access_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: #""refresh_token"\s*:\s*"[^"]+""#, with: "\"refresh_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: #""id_token"\s*:\s*"[^"]+""#, with: "\"id_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+    return String(redacted.prefix(limit))
   }
 
   private static func safeErrorSummary(_ error: Error) -> String {
