@@ -123,6 +123,27 @@ struct InboxView: View {
     store.gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
   }
 
+  private var latestMailboxFetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestMailboxImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var latestMailboxDuplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+  }
+
+  private var latestMailboxFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var latestMailboxUncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+  }
+
   private var pendingFilteredGmailReviewCount: Int {
     store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
@@ -269,6 +290,7 @@ struct InboxView: View {
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
         mailboxHealthPanel
+        missingOrderDiagnosticPanel
         triagePanel
         detailRoutes
       }
@@ -355,6 +377,133 @@ struct InboxView: View {
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var missingOrderDiagnosticTitle: String {
+    if latestMailboxImportedCount > 0 { return "Review imported mailbox items first" }
+    if latestMailboxUncertainCount > 0 { return "Expected order may be in uncertain review" }
+    if latestMailboxFilteredCount > 0 { return "Expected order may have been filtered" }
+    if parserIssueCount > 0 { return "Expected order may need parser review" }
+    if latestMailboxFetchedCount > 0 { return "Latest refresh found no order candidates" }
+    return "No mailbox refresh result to inspect yet"
+  }
+
+  private var missingOrderDiagnosticDetail: String {
+    if latestMailboxImportedCount > 0 {
+      return "\(latestMailboxImportedCount) mailbox message\(latestMailboxImportedCount == 1 ? "" : "s") reached Inbox. Work those rows before tuning filters."
+    }
+    if latestMailboxUncertainCount > 0 {
+      return "\(latestMailboxUncertainCount) uncertain preview\(latestMailboxUncertainCount == 1 ? "" : "s") stayed out of the primary Inbox until manually imported or dismissed."
+    }
+    if latestMailboxFilteredCount > 0 {
+      return "\(latestMailboxFilteredCount) fetched message\(latestMailboxFilteredCount == 1 ? "" : "s") were classified as non-order. Open Mailbox Monitor to inspect safe examples and import only true order mail."
+    }
+    if parserIssueCount > 0 {
+      return "\(parserIssueCount) parser check\(parserIssueCount == 1 ? "" : "s") may explain missing order/tracking values on already-imported rows."
+    }
+    if latestMailboxFetchedCount > 0 {
+      return "The latest refresh fetched \(latestMailboxFetchedCount) message\(latestMailboxFetchedCount == 1 ? "" : "s") but produced no Inbox work. Send a known test order or inspect Mailbox Monitor diagnostics."
+    }
+    return "Run a manual SpaceMail or Gmail refresh from Mailbox Monitor after setup is ready."
+  }
+
+  private var missingOrderDiagnosticTone: Color {
+    if latestMailboxImportedCount > 0 { return .green }
+    if latestMailboxUncertainCount > 0 || parserIssueCount > 0 { return .orange }
+    if latestMailboxFilteredCount > 0 || latestMailboxFetchedCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var missingOrderDiagnosticPanel: some View {
+    SettingsPanel(title: "Expected order missing?", symbol: "magnifyingglass.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: latestMailboxImportedCount > 0 ? "tray.and.arrow.down.fill" : "magnifyingglass.circle.fill")
+            .foregroundStyle(missingOrderDiagnosticTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(missingOrderDiagnosticTitle)
+              .font(.headline)
+            Text(missingOrderDiagnosticDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(latestMailboxImportedCount > 0 ? "Inbox" : latestMailboxUncertainCount > 0 ? "Review" : latestMailboxFilteredCount > 0 ? "Filtered" : "Check", color: missingOrderDiagnosticTone)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestMailboxFetchedCount)", latestMailboxFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(latestMailboxImportedCount)", latestMailboxImportedCount > 0 ? .green : .secondary),
+          ("Duplicates", "\(latestMailboxDuplicateCount)", latestMailboxDuplicateCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(latestMailboxFilteredCount)", latestMailboxFilteredCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary),
+          ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .green)
+        ])
+
+        CompactMetadataGrid(minimumWidth: isCompact ? 150 : 180) {
+          inboxDiagnosticStep(
+            title: "Inbox",
+            detail: latestMailboxImportedCount > 0 ? "Work imported rows here." : "No imported rows from latest refresh.",
+            isActive: latestMailboxImportedCount > 0
+          )
+          inboxDiagnosticStep(
+            title: "Uncertain",
+            detail: latestMailboxUncertainCount > 0 ? "Review in Mailbox Monitor." : "No uncertain previews pending.",
+            isActive: latestMailboxUncertainCount > 0
+          )
+          inboxDiagnosticStep(
+            title: "Filtered",
+            detail: latestMailboxFilteredCount > 0 ? "Inspect examples if an order is missing." : "No filtered evidence to inspect.",
+            isActive: latestMailboxFilteredCount > 0
+          )
+          inboxDiagnosticStep(
+            title: "Parser",
+            detail: parserIssueCount > 0 ? "Enable diagnostics or reprocess." : "Parser queue is clear.",
+            isActive: parserIssueCount > 0
+          )
+        }
+
+        Text("This panel is a shortcut to local refresh diagnostics. It does not fetch mail, mutate mailbox messages, or change duplicate metadata.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Investigate in Mailbox Monitor", systemImage: "server.rack")
+          }
+          if parserIssueCount > 0 {
+            Button(showParserDiagnosticsInTriage ? "Hide parser rows" : "Show parser rows", systemImage: "text.magnifyingglass") {
+              showParserDiagnosticsInTriage.toggle()
+            }
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func inboxDiagnosticStep(title: String, detail: String, isActive: Bool) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: isActive ? "exclamationmark.circle.fill" : "checkmark.circle")
+        .foregroundStyle(isActive ? missingOrderDiagnosticTone : Color.secondary)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((isActive ? missingOrderDiagnosticTone : Color.secondary).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var triagePanel: some View {
