@@ -286,9 +286,14 @@ struct MailboxView: View {
               ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary)
             ])
 
+            MailboxProviderRefreshSummaryGrid(
+              spaceMailSummary: latestSpaceMailSummary,
+              gmailSummary: latestGmailSummary
+            )
+
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
 
-            Text("Trend rows summarize recent manual refreshes. Filtered mixed-mailbox messages are counted here but stay out of Inbox unless you explicitly promote or import them.")
+            Text("Provider rows summarize the latest SpaceMail and Gmail outcomes. The SpaceMail trend shows recent IMAP refresh history; Gmail status is shown in the Gmail setup row until a dedicated Gmail trend is needed. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -499,6 +504,128 @@ struct MailboxView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+private struct MailboxProviderRefreshSummaryGrid: View {
+  var spaceMailSummary: SpaceMailIntakeHealthSummary?
+  var gmailSummary: GmailIntakeHealthSummary?
+
+  var body: some View {
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
+      providerCard(
+        title: "SpaceMail IMAP",
+        symbol: "server.rack",
+        summary: spaceMailSummary.map {
+          ProviderSummary(
+            name: $0.displayName,
+            verdict: $0.verdict,
+            detail: $0.detail,
+            nextAction: $0.nextAction,
+            tone: $0.tone,
+            fetched: $0.fetchedCount,
+            imported: $0.importedCount,
+            duplicate: $0.duplicateCount,
+            filtered: $0.filteredCount,
+            uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
+            lastRefresh: $0.lastRefreshDate
+          )
+        },
+        emptyDetail: "Use SpaceMail for IMAP mailboxes such as SpaceMail. Add setup and Keychain credential before real refresh."
+      )
+
+      providerCard(
+        title: "Gmail / Google Workspace",
+        symbol: "envelope.badge.shield.half.filled",
+        summary: gmailSummary.map {
+          ProviderSummary(
+            name: $0.displayName,
+            verdict: $0.verdict,
+            detail: $0.detail,
+            nextAction: $0.nextAction,
+            tone: $0.tone,
+            fetched: $0.fetchedCount,
+            imported: $0.importedCount,
+            duplicate: $0.duplicateCount,
+            filtered: $0.filteredCount,
+            uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
+            lastRefresh: $0.lastRefreshDate
+          )
+        },
+        emptyDetail: "Use Gmail setup only for Google-hosted mailboxes. Real refresh remains explicit, manual, and read-only."
+      )
+    }
+  }
+
+  private func providerCard(title: String, symbol: String, summary: ProviderSummary?, emptyDetail: String) -> some View {
+    let tone = color(for: summary?.tone ?? "neutral")
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(title, systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+        Spacer()
+        Badge(summary?.lastRefresh ?? "No refresh", color: tone)
+      }
+
+      if let summary {
+        Text(summary.verdict)
+          .font(.subheadline.weight(.semibold))
+        Text("\(summary.name): \(summary.detail)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        MetricStrip(items: [
+          ("Fetched", "\(summary.fetched)", summary.fetched > 0 ? .blue : .secondary),
+          ("Imported", "\(summary.imported)", summary.imported > 0 ? .green : .secondary),
+          ("Duplicates", "\(summary.duplicate)", summary.duplicate > 0 ? .teal : .secondary),
+          ("Filtered", "\(summary.filtered)", summary.filtered > 0 ? .teal : .secondary),
+          ("Uncertain", "\(summary.uncertain)", summary.uncertain > 0 ? .orange : .secondary)
+        ])
+        Text("Next: \(summary.nextAction)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(tone)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        Text("Not configured")
+          .font(.subheadline.weight(.semibold))
+        Text(emptyDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(tone.opacity(0.16)))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  private struct ProviderSummary {
+    var name: String
+    var verdict: String
+    var detail: String
+    var nextAction: String
+    var tone: String
+    var fetched: Int
+    var imported: Int
+    var duplicate: Int
+    var filtered: Int
+    var uncertain: Int
+    var lastRefresh: String
   }
 }
 
