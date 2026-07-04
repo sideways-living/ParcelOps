@@ -414,6 +414,10 @@ struct MVPDevelopmentStatusPanel: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -425,8 +429,35 @@ struct MVPDevelopmentStatusPanel: View {
     }
   }
 
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasManualMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasManualMailboxReady: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
   private var hasRealRefreshEvidence: Bool {
     (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+  }
+
+  private var latestManualFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestManualImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -441,8 +472,8 @@ struct MVPDevelopmentStatusPanel: View {
   private var liveCapabilityCount: Int {
     [
       true,
-      hasSpaceMailSetup,
-      hasSpaceMailCredential,
+      hasManualMailboxSetup,
+      hasManualMailboxReady,
       hasRealRefreshEvidence,
       hasInboxOrderHandoff,
       !store.auditEvents.isEmpty
@@ -457,12 +488,12 @@ struct MVPDevelopmentStatusPanel: View {
 
   private var maturityDetail: String {
     if liveCapabilityCount >= 5 {
-      return "The app now has local persistence, manual SpaceMail intake, mixed-mailbox filtering, Inbox triage, order handoff, Tasks, Dispatch context, Audit, and Settings. The next work should be QA, simplification, and specific gaps found during use."
+      return "The app now has local persistence, manual mailbox intake for SpaceMail and Gmail, mixed-mailbox filtering, Inbox triage, order handoff, Tasks, Dispatch context, Audit, and Settings. The next work should be QA, simplification, and specific gaps found during use."
     }
     if liveCapabilityCount >= 3 {
-      return "The main local workflow is present. Run one complete SpaceMail-to-Inbox-to-Order-to-Audit pass before treating it as operator-ready."
+      return "The main local workflow is present. Run one complete mailbox-to-Inbox-to-Order-to-Audit pass before treating it as operator-ready."
     }
-    return "Navigation, local records, and persistence are in place. Finish SpaceMail setup, credential check, and one manual refresh before judging the live intake workflow."
+    return "Navigation, local records, and persistence are in place. Finish either SpaceMail credential setup or Gmail sign-in, then run one manual refresh before judging the live intake workflow."
   }
 
   private var maturityColor: Color {
@@ -491,10 +522,10 @@ struct MVPDevelopmentStatusPanel: View {
         }
 
         MetricStrip(items: [
-          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
-          ("Credential", hasSpaceMailCredential ? "Ready" : "Needed", hasSpaceMailCredential ? .green : .orange),
-          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", hasRealRefreshEvidence ? .blue : .secondary),
-          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Mailbox setup", hasManualMailboxSetup ? "Set" : "Needed", hasManualMailboxSetup ? .green : .orange),
+          ("Manual auth", hasManualMailboxReady ? "Ready" : "Needed", hasManualMailboxReady ? .green : .orange),
+          ("Fetched", "\(latestManualFetchedCount)", hasRealRefreshEvidence ? .blue : .secondary),
+          ("Imported", "\(latestManualImportedCount)", latestManualImportedCount > 0 ? .green : .secondary),
           ("Inbox orders", hasInboxOrderHandoff ? "Seen" : "Needed", hasInboxOrderHandoff ? .green : .orange),
           ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
         ])
@@ -502,13 +533,13 @@ struct MVPDevelopmentStatusPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
           statusBlock(
             title: "Usable now",
-            detail: "Local JSON persistence, primary navigation, SpaceMail manual refresh boundary, mixed-mailbox filtering, Inbox triage, local order handoff, Tasks, Dispatch context, Audit, and Settings.",
+            detail: "Local JSON persistence, primary navigation, SpaceMail and Gmail manual refresh boundaries, mixed-mailbox filtering, Inbox triage, local order handoff, Tasks, Dispatch context, Audit, and Settings.",
             symbol: "checkmark.circle.fill",
             color: .green
           )
           statusBlock(
             title: "Needs QA evidence",
-            detail: "One repeatable pass through SpaceMail refresh, uncertain/filtered review, create or link order, Workbench follow-up, Dispatch setup, Task completion, Audit, quit and reopen.",
+            detail: "One repeatable pass through a manual mailbox refresh, uncertain/filtered review, create or link order, Workbench follow-up, Dispatch setup, Task completion, Audit, quit and reopen.",
             symbol: "checklist.checked",
             color: .orange
           )
@@ -581,6 +612,36 @@ struct MVPUsableVersionPanel: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasManualMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasManualMailboxReady: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
+  private var latestManualFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestManualImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
   private var inboxOrderCount: Int {
     let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
     return store.orders.filter { order in
@@ -595,28 +656,28 @@ struct MVPUsableVersionPanel: View {
   }
 
   private var readinessTitle: String {
-    if !hasSpaceMailSetup { return "Usable locally, mailbox setup still needed" }
-    if !hasSpaceMailCredential { return "Usable locally, SpaceMail credential needed" }
+    if !hasManualMailboxSetup { return "Usable locally, mailbox setup still needed" }
+    if !hasManualMailboxReady { return "Usable locally, mailbox credential or sign-in needed" }
     if inboxOrderCount == 0 { return "Ready for a supervised Inbox-to-order test" }
     if operatorWorkCount > 0 { return "Usable for hands-on operator testing" }
     return "Primary MVP path is usable"
   }
 
   private var readinessDetail: String {
-    if !hasSpaceMailSetup {
-      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add a SpaceMail setup before relying on live mailbox intake."
+    if !hasManualMailboxSetup {
+      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before relying on live mailbox intake."
     }
-    if !hasSpaceMailCredential {
-      return "The SpaceMail setup exists, but real manual refresh needs a Keychain password or app-password reference."
+    if !hasManualMailboxReady {
+      return "The mailbox setup exists, but real manual refresh still needs either a SpaceMail Keychain credential or a connected Gmail sign-in."
     }
     if inboxOrderCount == 0 {
-      return "Run a manual SpaceMail refresh, review one imported intake row, then create or link an order to prove the daily flow."
+      return "Run a manual SpaceMail or Gmail refresh, review one imported intake row, then create or link an order to prove the daily flow."
     }
     return "The main daily flow now covers mailbox intake, Inbox triage, order handoff, Workbench follow-up, Tasks, Dispatch context, Audit, and local Settings."
   }
 
   private var readinessColor: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredential { return .orange }
+    if !hasManualMailboxSetup || !hasManualMailboxReady { return .orange }
     if inboxOrderCount == 0 { return .teal }
     return .green
   }
@@ -641,10 +702,10 @@ struct MVPUsableVersionPanel: View {
         }
 
         MetricStrip(items: [
-          ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
-          ("Credential", hasSpaceMailCredential ? "Keychain" : "Needed", hasSpaceMailCredential ? .green : .orange),
-          ("Last fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
-          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Mailbox", hasManualMailboxSetup ? "Set" : "Needed", hasManualMailboxSetup ? .green : .orange),
+          ("Auth", hasManualMailboxReady ? "Ready" : "Needed", hasManualMailboxReady ? .green : .orange),
+          ("Last fetched", "\(latestManualFetchedCount)", latestManualFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(latestManualImportedCount)", latestManualImportedCount > 0 ? .green : .secondary),
           ("Inbox orders", "\(inboxOrderCount)", inboxOrderCount > 0 ? .green : .orange),
           ("Open review", "\(operatorWorkCount)", operatorWorkCount == 0 ? .green : .orange)
         ])
@@ -652,7 +713,7 @@ struct MVPUsableVersionPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
           statusLine(
             title: "Usable today",
-            detail: "Manual SpaceMail intake, mixed-mailbox filtering, Inbox triage, local order creation/linking, Tasks, Dispatch context, Audit, and JSON persistence.",
+            detail: "Manual SpaceMail and Gmail intake, mixed-mailbox filtering, Inbox triage, local order creation/linking, Tasks, Dispatch context, Audit, and JSON persistence.",
             symbol: "hand.thumbsup.fill",
             color: .green
           )
@@ -707,9 +768,41 @@ struct MVPDevelopmentProgressPanel: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasManualMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasManualMailboxReady: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
   private var hasRefreshEvidence: Bool {
     (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
       || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var latestManualFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestManualImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -737,6 +830,7 @@ struct MVPDevelopmentProgressPanel: View {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
       + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
       + store.openWorkbenchItems.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
@@ -774,7 +868,7 @@ struct MVPDevelopmentProgressPanel: View {
       return "The remaining work should be hands-on QA, data cleanup, parser/classifier tuning, and simplifying any screens that still feel too technical. Additional integrations should wait."
     }
     if completedFoundationCount >= 5 {
-      return "Dashboard, primary navigation, local records, SpaceMail setup, and order handoff are mostly in place. Finish repeatable QA evidence before expanding integrations."
+      return "Dashboard, primary navigation, local records, manual mailbox setup, and order handoff are mostly in place. Finish repeatable QA evidence before expanding integrations."
     }
     return "Keep focusing on the local daily flow: setup, manual refresh, Inbox triage, order handoff, dispatch context, tasks, and audit trace."
   }
@@ -796,11 +890,11 @@ struct MVPDevelopmentProgressPanel: View {
         !store.orders.isEmpty && !store.auditEvents.isEmpty ? .green : .orange
       ),
       (
-        "SpaceMail setup",
-        "The current live intake path has non-secret IMAP setup and Keychain credential status.",
-        hasSpaceMailSetup && hasSpaceMailCredential,
+        "Manual mailbox setup",
+        "The current live intake paths support SpaceMail IMAP and Gmail with explicit manual refresh.",
+        hasManualMailboxSetup && hasManualMailboxReady,
         "server.rack",
-        hasSpaceMailSetup && hasSpaceMailCredential ? .green : .orange
+        hasManualMailboxSetup && hasManualMailboxReady ? .green : .orange
       ),
       (
         "Manual refresh proof",
@@ -865,8 +959,8 @@ struct MVPDevelopmentProgressPanel: View {
         MetricStrip(items: [
           ("Foundations", "\(completedFoundationCount)/\(progressItems.count)", progressTone),
           ("Open noise", "\(openOperationalNoiseCount)", openOperationalNoiseCount == 0 ? .green : .orange),
-          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
-          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
+          ("Fetched", "\(latestManualFetchedCount)", latestManualFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(latestManualImportedCount)", latestManualImportedCount > 0 ? .green : .secondary),
           ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
         ])
 
@@ -918,6 +1012,32 @@ struct MVPHandsOnReleaseChecklist: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasManualMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasManualMailboxReady: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
+  private var latestManualFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
   private var intakeReadyCount: Int {
     store.intakeEmails.filter { email in
       email.reviewState == .needsReview || email.linkedOrderID != nil
@@ -946,9 +1066,9 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var nextTestTitle: String {
-    if !hasSpaceMailSetup { return "Next: add SpaceMail setup" }
-    if !hasSpaceMailCredential { return "Next: set/check SpaceMail credential" }
-    if latestSpaceMailSummary?.fetchedCount ?? 0 == 0 { return "Next: run one manual SpaceMail refresh" }
+    if !hasManualMailboxSetup { return "Next: add SpaceMail or Gmail setup" }
+    if !hasManualMailboxReady { return "Next: finish mailbox credential or sign-in" }
+    if latestManualFetchedCount == 0 { return "Next: run one manual mailbox refresh" }
     if intakeReadyCount == 0 { return "Next: review Mailbox Monitor results" }
     if inboxCreatedOrderCount == 0 { return "Next: create or link one order from Inbox" }
     if dispatchContextCount == 0 { return "Next: create dispatch setup for one order" }
@@ -957,14 +1077,14 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var nextTestDetail: String {
-    if !hasSpaceMailSetup {
-      return "Create the non-secret SpaceMail setup first. Do not put passwords into setup notes."
+    if !hasManualMailboxSetup {
+      return "Create a non-secret SpaceMail setup for IMAP mailboxes or Gmail setup for Google-hosted mailboxes."
     }
-    if !hasSpaceMailCredential {
-      return "Use the secure SpaceMail credential prompt. The password/app-password should live in Keychain only."
+    if !hasManualMailboxReady {
+      return "Use the secure SpaceMail credential prompt or explicit Gmail sign-in. Do not put passwords, tokens, or auth details in notes or JSON."
     }
-    if latestSpaceMailSummary?.fetchedCount ?? 0 == 0 {
-      return "Run the explicit real SpaceMail refresh. It is manual, read-only, and must not mutate the mailbox."
+    if latestManualFetchedCount == 0 {
+      return "Run an explicit real SpaceMail or Gmail refresh. It is manual, read-only, and must not mutate the mailbox."
     }
     if intakeReadyCount == 0 {
       return "Check whether messages were filtered, uncertain, duplicate, or imported. Import only genuine order mail."
@@ -983,7 +1103,7 @@ struct MVPHandsOnReleaseChecklist: View {
 
   private var nextTestColor: Color {
     if completedChecklistCount >= checklistItems.count { return .green }
-    if !hasSpaceMailSetup || !hasSpaceMailCredential { return .orange }
+    if !hasManualMailboxSetup || !hasManualMailboxReady { return .orange }
     return .teal
   }
 
@@ -991,10 +1111,10 @@ struct MVPHandsOnReleaseChecklist: View {
     [
       (
         "1. Refresh intake",
-        "Run SpaceMail manually, then confirm fetched, imported, duplicate, filtered, and uncertain counts are understandable.",
+        "Run SpaceMail or Gmail manually, then confirm fetched, imported, duplicate, filtered, and uncertain counts are understandable.",
         "server.rack",
-        hasSpaceMailSetup && hasSpaceMailCredential && (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .green : .orange,
-        hasSpaceMailSetup && hasSpaceMailCredential && (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+        hasManualMailboxReady && latestManualFetchedCount > 0 ? .green : .orange,
+        hasManualMailboxReady && latestManualFetchedCount > 0
       ),
       (
         "2. Triage Inbox",
@@ -1684,6 +1804,16 @@ struct MVPReleaseRunbook: View {
     }
   }
 
+  private var hasGmailResult: Bool {
+    store.gmailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    }
+  }
+
+  private var hasLiveMailboxResult: Bool {
+    hasSpaceMailResult || hasGmailResult
+  }
+
   private var hasAuditEvidence: Bool {
     store.auditEvents.contains { event in
       [.spaceMailIMAPConnection, .intakeEmail, .order, .reviewTask, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
@@ -1699,7 +1829,7 @@ struct MVPReleaseRunbook: View {
 
   private var runbookTone: Color {
     if hasDemoOrder && hasAuditEvidence { return .green }
-    if hasDemoOrder || hasSpaceMailResult { return .teal }
+    if hasDemoOrder || hasLiveMailboxResult { return .teal }
     return .orange
   }
 
@@ -1716,13 +1846,13 @@ struct MVPReleaseRunbook: View {
     if hasDemoOrder {
       return "The local demo order exists. Complete or reopen the dispatch handoff, then confirm the trail in Audit."
     }
-    return "Seed the local demo workflow first so testing does not depend on SpaceMail inbox contents or classifier results."
+    return "Seed the local demo workflow first so testing does not depend on live mailbox contents or classifier results."
   }
 
   private var normalSteps: [(String, String, String, Color)] {
     [
       ("1. Start at Dashboard", "Use Start here, Hands-on status, and Release-candidate checkpoint to decide where work should begin.", "square.grid.2x2.fill", .teal),
-      ("2. Prove intake", "Use Inbox or Mailbox Monitor. A local demo email is enough; SpaceMail refresh is useful but optional for release-candidate QA.", "tray.full.fill", .blue),
+      ("2. Prove intake", "Use Inbox or Mailbox Monitor. A local demo email is enough; SpaceMail or Gmail refresh is useful but optional for release-candidate QA.", "tray.full.fill", .blue),
       ("3. Create/link order", "Confirm merchant, order number, tracking, destination, and source trail before treating the order as operational.", "shippingbox.fill", .green),
       ("4. Close dispatch handoff", "Confirm manifest and readiness setup, then complete or reopen the local handoff as needed.", "paperplane.fill", .purple),
       ("5. Resolve owned work", "Open Workbench and Tasks. Complete only assigned local follow-up; filtered non-order mailbox results should not flood task work.", "checklist", .orange),
@@ -1737,17 +1867,17 @@ struct MVPReleaseRunbook: View {
       ("Order keeps source trail", "The order detail can explain where the order came from and what still needs review.", "tray.and.arrow.down.fill", .blue, hasDemoOrder),
       ("Dispatch has a handoff path", "The tester can see manifest/readiness context and complete or reopen local handoff records.", "checkmark.rectangle.stack.fill", .purple, hasDemoOrder),
       ("Audit explains the trail", "Recent local actions appear in Audit with safe non-secret details.", "list.clipboard.fill", .purple, hasAuditEvidence),
-      ("Settings explains boundaries", "Local JSON storage, SpaceMail credentials, and disconnected integrations are clear from Settings/MVP Setup.", "lock.shield.fill", .green, true)
+      ("Settings explains boundaries", "Local JSON storage, SpaceMail/Gmail credentials or auth state, and disconnected integrations are clear from Settings/MVP Setup.", "lock.shield.fill", .green, true)
     ]
   }
 
   private var knownLimitations: [(String, String, String, Color)] {
     [
-      ("SpaceMail is manual", "Real IMAP refresh is explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
+      ("Mailbox refresh is manual", "Real SpaceMail and Gmail refreshes are explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
       ("Shopify is not connected", "Shopify records remain placeholders. No Shopify API, OAuth, store login, or order sync is active.", "cart.badge.plus", .orange),
       ("Carrier tracking is local", "Carrier events are local records only. No carrier APIs, label printing, booking, scanner, or tracking refresh is active.", "location.fill.viewfinder", .orange),
       ("Outbound communication is draft-only", "Draft messages and templates are local planning records. ParcelOps does not send email or notifications.", "paperplane.slash.fill", .secondary),
-      ("Secrets stay out of JSON", "SpaceMail passwords are handled through Keychain status/actions, while JSON stores only non-secret operational records.", "key.horizontal.fill", .green),
+      ("Secrets stay out of JSON", "SpaceMail passwords are handled through Keychain status/actions and Gmail uses platform auth state, while JSON stores only non-secret operational records.", "key.horizontal.fill", .green),
       ("Advanced records are supporting context", "Costs, claims, procurement, receiving, custody, labels, and scans exist locally but are not the primary daily path.", "archivebox.fill", .secondary)
     ]
   }
@@ -1776,7 +1906,7 @@ struct MVPReleaseRunbook: View {
 
       MetricStrip(items: [
         ("Demo order", hasDemoOrder ? "Ready" : "Needed", hasDemoOrder ? .green : .orange),
-        ("SpaceMail", hasSpaceMailResult ? "Seen" : "Optional", hasSpaceMailResult ? .green : .secondary),
+        ("Mailbox", hasLiveMailboxResult ? "Seen" : "Optional", hasLiveMailboxResult ? .green : .secondary),
         ("Open work", "\(store.openWorkbenchItems.count + store.reviewTasksNeedingAttention.count)", hasOpenPrimaryWork ? .orange : .green),
         ("Audit", hasAuditEvidence ? "Ready" : "Needed", hasAuditEvidence ? .green : .orange),
         ("Records", "\(store.orders.count + store.intakeEmails.count + store.auditEvents.count)", .blue)
