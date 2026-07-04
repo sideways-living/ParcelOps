@@ -16,6 +16,7 @@ struct MVPSetupView: View {
         MVPUsableVersionPanel(store: store)
         MVPDevelopmentProgressPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
+        MVPMailboxProviderStatusPanel(store: store)
         MVPNextDevelopmentPrioritiesPanel(store: store)
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
@@ -24,10 +25,11 @@ struct MVPSetupView: View {
 
         MVPWorkflowGuide(
           title: "First usable workflow",
-          detail: "Use this path to test the current SpaceMail-first local operator workflow end to end.",
+          detail: "Use this path to test the current manual mailbox operator workflow end to end. SpaceMail and Gmail are the active manual intake paths; Microsoft 365 remains available as an advanced provider path.",
           steps: [
-            "Confirm SpaceMail setup and Keychain credential, then run one manual read-only refresh.",
-            "Use Inbox or Mailbox Monitor to review imported, uncertain, filtered, and parser results.",
+            "Confirm the relevant mailbox setup: SpaceMail IMAP with Keychain credential, or Gmail sign-in and labels.",
+            "Run one explicit manual read-only refresh for the selected provider.",
+            "Use Inbox or Mailbox Monitor to review imported, uncertain, filtered, duplicate, and parser results.",
             "Create or link one order from a confirmed intake row.",
             "Use Orders and Workbench to verify the source trail, tracking, destination, and follow-up.",
             "Use Dispatch, Tasks, and Audit to confirm handoff readiness and traceability."
@@ -53,10 +55,12 @@ struct MVPSetupView: View {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
           MVPStatusCard(title: "SpaceMail intake", detail: "SpaceMail IMAP can run a manual read-only refresh, filter mixed mailbox mail, and import likely order messages into local Inbox review.", status: "Manual", symbol: "envelope.badge.fill", color: .green)
+          MVPStatusCard(title: "Gmail intake", detail: "Gmail can use explicit sign-in and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
+          MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available, but it is no longer the primary mailbox path for this MVP.", status: "Advanced", symbol: "building.2.crop.circle", color: .teal)
           MVPStatusCard(title: "Shopify", detail: "Shopify records and account placeholders exist, but no Shopify API or OAuth flow is connected.", status: "Placeholder", symbol: "cart.badge.plus", color: .orange)
           MVPStatusCard(title: "Carrier tracking", detail: "Tracking events are local records only. Carrier APIs and live refresh are not connected.", status: "Placeholder", symbol: "location.fill.viewfinder", color: .orange)
           MVPStatusCard(title: "Store logins", detail: "Account records are placeholders only. No browser automation or credential sync is active.", status: "Placeholder", symbol: "key.horizontal.fill", color: .orange)
-          MVPStatusCard(title: "Credential storage", detail: "SpaceMail password/app-password storage uses Keychain. Tokens, API keys, OAuth secrets, and mailbox credentials are not stored in JSON.", status: "SpaceMail only", symbol: "lock.shield.fill", color: .green)
+          MVPStatusCard(title: "Credential storage", detail: "SpaceMail passwords use Keychain and OAuth providers use their platform caches. Tokens, API keys, OAuth secrets, and mailbox credentials are not stored in JSON.", status: "Scoped", symbol: "lock.shield.fill", color: .green)
           MVPStatusCard(title: "Background work", detail: "No background sync, notifications, reminders, calendars, OCR, scanners, or file pickers are active.", status: "Not connected", symbol: "bell.slash.fill", color: .red)
         }
 
@@ -84,6 +88,166 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPMailboxProviderStatusPanel: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailCoreSetup: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    }
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var manualProviderReadyCount: Int {
+    [hasSpaceMailSetup && hasSpaceMailCredential, hasGmailCoreSetup && hasGmailConnectedAuth].filter { $0 }.count
+  }
+
+  private var latestManualFetchCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var statusTitle: String {
+    if manualProviderReadyCount > 0 { return "Manual mailbox intake is ready for hands-on testing" }
+    if hasSpaceMailSetup || hasGmailSetup { return "Mailbox setup exists; finish credentials or sign-in" }
+    return "Add one manual mailbox provider before live intake testing"
+  }
+
+  private var statusDetail: String {
+    if manualProviderReadyCount > 0 {
+      return "Use SpaceMail for IMAP mailboxes and Gmail for Google-hosted mailboxes. Both paths are explicit, manual, read-only, mixed-mailbox aware, and route into the same Inbox triage flow."
+    }
+    if hasGmailSetup && !hasGmailConnectedAuth {
+      return "Gmail setup exists, but real refresh needs the explicit Gmail sign-in test to succeed. Mock refresh remains available for local testing."
+    }
+    if hasSpaceMailSetup && !hasSpaceMailCredential {
+      return "SpaceMail setup exists, but real refresh needs a Keychain password or app-password reference."
+    }
+    return "Start with SpaceMail if the mailbox is IMAP-based, or Gmail if the mailbox is Google-hosted. Microsoft 365 can stay in the advanced provider section."
+  }
+
+  private var statusTone: Color {
+    manualProviderReadyCount > 0 ? .green : .orange
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Mailbox provider status", symbol: "tray.full.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: manualProviderReadyCount > 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(statusTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(statusTitle)
+              .font(.headline)
+            Text(statusDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(manualProviderReadyCount > 0 ? "Manual ready" : "Setup needed", color: statusTone)
+        }
+
+        MetricStrip(items: [
+          ("SpaceMail", hasSpaceMailSetup ? (hasSpaceMailCredential ? "Ready" : "Credential") : "Not set", hasSpaceMailSetup && hasSpaceMailCredential ? .green : .orange),
+          ("Gmail", hasGmailSetup ? (hasGmailConnectedAuth ? "Connected" : "Sign in") : "Not set", hasGmailSetup && hasGmailConnectedAuth ? .green : .orange),
+          ("Last fetched", "\(latestManualFetchCount)", latestManualFetchCount > 0 ? .blue : .secondary),
+          ("SpaceMail filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+          ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+          ("Microsoft 365", store.microsoft365MailboxConnections.isEmpty ? "Optional" : "Advanced", .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          providerBlock(
+            title: "SpaceMail IMAP",
+            detail: latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for IMAP mailboxes. Real refresh is manual, read-only, and uses Keychain-backed credential status.",
+            symbol: "server.rack",
+            color: hasSpaceMailSetup && hasSpaceMailCredential ? .green : .orange
+          )
+          providerBlock(
+            title: "Gmail",
+            detail: latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after explicit sign-in; mock refresh remains available.",
+            symbol: "envelope.open.fill",
+            color: hasGmailSetup && hasGmailConnectedAuth ? .green : .orange
+          )
+          providerBlock(
+            title: "Microsoft 365",
+            detail: "Keep as an advanced provider path for tenants that use Microsoft mailboxes. It should not block the current SpaceMail/Gmail MVP test path.",
+            symbol: "building.2.crop.circle",
+            color: .teal
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            IntegrationsView(store: store)
+          } label: {
+            Label("Settings", systemImage: "gearshape.fill")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func providerBlock(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
