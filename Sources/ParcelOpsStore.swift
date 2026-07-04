@@ -2262,6 +2262,7 @@ final class ParcelOpsStore {
       + intakeParserWorkbenchItems()
       + spaceMailIntakeWorkbenchItems()
       + gmailIntakeWorkbenchItems()
+      + mailboxClassifierWorkbenchItems()
       + importQueueWorkbenchItems()
       + acceptanceWorkbenchItems()
       + reconciliationWorkbenchItems()
@@ -3841,6 +3842,61 @@ final class ParcelOpsStore {
         suggestedNextAction: summary.nextAction
       )
     }
+  }
+
+  private func mailboxClassifierWorkbenchItems() -> [WorkbenchItem] {
+    let spaceMailItems = spaceMailIMAPConnections.compactMap { connection -> WorkbenchItem? in
+      let decisionFailures = connection.classifierTestResults.filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+          || $0.parserStatus.localizedCaseInsensitiveContains("needs review")
+      }
+      guard !decisionFailures.isEmpty else { return nil }
+      let examples = decisionFailures.prefix(3).map { result in
+        "\(result.sampleName): \(result.decision)"
+      }.joined(separator: "; ")
+
+      return WorkbenchItem(
+        id: "spacemail-classifier-\(connection.id.uuidString)",
+        title: "SpaceMail classifier needs review",
+        summary: "\(connection.displayName): \(decisionFailures.count) classifier/parser expectation\(decisionFailures.count == 1 ? "" : "s") need review. \(examples)",
+        linkedEntityType: .integration,
+        linkedEntityID: connection.id.uuidString,
+        prioritySeverity: "Medium",
+        status: "Classifier needs review",
+        assignee: "Mailbox team",
+        dueDateText: connection.lastManualRefreshDate,
+        reviewState: .needsReview,
+        source: .spaceMailIntake,
+        suggestedNextAction: "Open Mailbox Monitor and adjust hints or parser expectations before relying on mixed-mailbox filtering."
+      )
+    }
+
+    let gmailItems = gmailMailboxConnections.compactMap { connection -> WorkbenchItem? in
+      let decisionFailures = (connection.classifierTestResults ?? []).filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+      }
+      guard !decisionFailures.isEmpty else { return nil }
+      let examples = decisionFailures.prefix(3).map { result in
+        "\(result.sampleName): \(result.decision)"
+      }.joined(separator: "; ")
+
+      return WorkbenchItem(
+        id: "gmail-classifier-\(connection.id.uuidString)",
+        title: "Gmail classifier needs review",
+        summary: "\(connection.displayName): \(decisionFailures.count) classifier expectation\(decisionFailures.count == 1 ? "" : "s") need review. \(examples)",
+        linkedEntityType: .integration,
+        linkedEntityID: connection.id.uuidString,
+        prioritySeverity: "Medium",
+        status: "Classifier needs review",
+        assignee: "Mailbox team",
+        dueDateText: connection.lastManualRefreshDate,
+        reviewState: .needsReview,
+        source: .gmailIntake,
+        suggestedNextAction: "Open Mailbox Monitor and review Gmail classifier tests before using real mixed-mailbox intake."
+      )
+    }
+
+    return spaceMailItems + gmailItems
   }
 
   private func importQueueWorkbenchItems() -> [WorkbenchItem] {
