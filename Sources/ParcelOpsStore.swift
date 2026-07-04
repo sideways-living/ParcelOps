@@ -11228,6 +11228,7 @@ final class ParcelOpsStore {
       draft.lastRefreshImportedCount = result.imported
       draft.lastRefreshDuplicateCount = result.duplicates
       draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+      draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered. \(fetchResult.detail)"
     }
     logAudit(

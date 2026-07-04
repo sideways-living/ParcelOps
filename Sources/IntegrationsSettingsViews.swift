@@ -1276,13 +1276,6 @@ struct GmailMailboxConnectionRow: View {
         Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
       }
 
-      MetricStrip(items: [
-        ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
-        ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
-        ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
-        ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
-      ])
-
       Text("Status: \(connection.connectionStatus) • Last refresh: \(connection.lastManualRefreshDate)")
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -1292,6 +1285,41 @@ struct GmailMailboxConnectionRow: View {
       Text("Credential storage: \(connection.credentialStorageStatus)")
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Latest Gmail mock refresh", systemImage: "tray.and.arrow.down")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(connection.lastRefreshImportedCount > 0 ? .green : connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+        MetricStrip(items: [
+          ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
+          ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+          ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+        ])
+        Text(connection.lastRefreshSummary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if connection.mailboxMode == .mixedFiltered {
+          Text("Mixed Gmail mode keeps filtered non-order mock messages out of Inbox. Real Gmail API access is still not connected.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          Text("Dedicated Gmail mode passes fetched mock messages straight to intake duplicate/import handling.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let examples = connection.lastRefreshFilteredExamples, !examples.isEmpty {
+          Text("Filtered examples: \(examples.joined(separator: "; "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: authState.status.symbol)
@@ -1368,11 +1396,6 @@ struct GmailMailboxConnectionRow: View {
       }
       .padding(10)
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
-
-      Text(connection.lastRefreshSummary)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
 
       Text("Gmail is not connected yet. Mock Gmail refresh only creates deterministic local test messages through the provider-neutral intake path.")
         .font(.caption.weight(.semibold))

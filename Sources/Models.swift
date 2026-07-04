@@ -2149,6 +2149,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshDuplicateCount: Int
   var lastRefreshFilteredNonOrderCount: Int
   var lastRefreshSummary: String
+  var lastRefreshFilteredExamples: [String]?
   var reviewState: ReviewState
 
   init(
@@ -2168,6 +2169,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshDuplicateCount: Int = 0,
     lastRefreshFilteredNonOrderCount: Int = 0,
     lastRefreshSummary: String = "No Gmail refresh has run yet.",
+    lastRefreshFilteredExamples: [String]? = nil,
     reviewState: ReviewState
   ) {
     self.id = id
@@ -2186,6 +2188,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
     self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
     self.lastRefreshSummary = lastRefreshSummary
+    self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
     self.reviewState = reviewState
   }
 }
