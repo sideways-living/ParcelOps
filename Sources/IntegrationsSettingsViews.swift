@@ -1735,19 +1735,24 @@ struct GmailMailboxConnectionRow: View {
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 8) {
-        Label("Google app setup placeholders", systemImage: "gearshape.2.fill")
+        Label("Google app setup and callback readiness", systemImage: "gearshape.2.fill")
           .font(.caption.weight(.semibold))
           .foregroundStyle(readiness.isReady ? .green : .orange)
-        Text("Non-secret planning fields only. Do not enter client secrets, auth codes, access tokens, refresh tokens, API keys, passwords, or Keychain values.")
+        Text("Real Gmail sign-in needs the saved Google iOS OAuth client ID, the reversed callback URL scheme, and the compiled App Info.plist values to match. Do not enter client secrets, auth codes, access tokens, refresh tokens, API keys, passwords, or Keychain values.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         CompactMetadataGrid(minimumWidth: 160) {
           Badge((connection.googleCloudProjectHint ?? "").isEmpty ? "Project missing" : "Project noted", color: (connection.googleCloudProjectHint ?? "").isEmpty ? .orange : .green)
-          Badge((connection.oauthClientIDPlaceholder ?? "").isEmpty ? "Client ID missing" : "Client ID noted", color: (connection.oauthClientIDPlaceholder ?? "").isEmpty ? .orange : .green)
-          Badge((connection.redirectURIPlaceholder ?? "").isEmpty ? "Redirect missing" : "Redirect noted", color: (connection.redirectURIPlaceholder ?? "").isEmpty ? .orange : .green)
+          Badge(gmailClientIDBadgeText, color: gmailClientIDBadgeColor)
+          Badge(gmailRedirectBadgeText, color: gmailRedirectBadgeColor)
+          Badge(readiness.isReady ? "App callback ready" : "App callback blocked", color: readiness.isReady ? .green : .orange)
           Badge((connection.consentScreenNotes ?? "").isEmpty ? "Consent notes missing" : "Consent noted", color: (connection.consentScreenNotes ?? "").isEmpty ? .orange : .green)
         }
+        Text(readiness.detailText)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
         if let project = connection.googleCloudProjectHint, !project.isEmpty {
           Text("Project: \(project)")
             .font(.caption2)
@@ -1938,6 +1943,52 @@ struct GmailMailboxConnectionRow: View {
       || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var gmailClientIDBadgeText: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Client ID missing" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Client placeholder"
+    }
+    if clientID.hasSuffix(".apps.googleusercontent.com") {
+      return "Client ID shaped"
+    }
+    return "Client ID shape issue"
+  }
+
+  private var gmailClientIDBadgeColor: Color {
+    gmailClientIDBadgeText == "Client ID shaped" ? .green : .orange
+  }
+
+  private var gmailRedirectBadgeText: String {
+    let redirect = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if redirect.isEmpty { return "Callback missing" }
+    if redirect == GoogleGmailAuthAdapter.placeholderCallbackScheme || redirect.localizedCaseInsensitiveContains("placeholder") {
+      return "Callback placeholder"
+    }
+    if gmailRedirectScheme(from: redirect).hasPrefix("com.googleusercontent.apps.") {
+      return "Callback shaped"
+    }
+    return "Callback shape issue"
+  }
+
+  private var gmailRedirectBadgeColor: Color {
+    gmailRedirectBadgeText == "Callback shaped" ? .green : .orange
+  }
+
+  private func gmailRedirectScheme(from value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let url = URL(string: trimmed), let scheme = url.scheme, !scheme.isEmpty {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: "://").first, scheme != trimmed {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: ":").first, scheme != trimmed {
+      return scheme
+    }
+    return trimmed
   }
 
   private var gmailOperatorNextTitle: String {

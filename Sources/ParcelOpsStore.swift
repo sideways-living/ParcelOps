@@ -14629,6 +14629,9 @@ final class ParcelOpsStore {
 
   func gmailOAuthReadinessSummary(for connection: GmailMailboxConnection) -> GmailOAuthReadinessSummary {
     var missingFields: [String] = []
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectValue = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectScheme = gmailRedirectScheme(from: redirectValue)
     if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Gmail address")
     }
@@ -14638,11 +14641,25 @@ final class ParcelOpsStore {
     if (connection.googleCloudProjectHint ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Google Cloud project hint")
     }
-    if (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missingFields.append("OAuth client ID placeholder")
+    if clientID.isEmpty {
+      missingFields.append("Google OAuth iOS client ID")
+    } else if gmailClientIDIsPlaceholder(clientID) {
+      missingFields.append("Real Google OAuth iOS client ID; placeholder is still saved")
+    } else if gmailExpectedRedirectScheme(for: clientID) == nil {
+      missingFields.append("Google OAuth iOS client ID ending in .apps.googleusercontent.com")
     }
-    if (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      missingFields.append("Redirect URI placeholder")
+    if redirectScheme.isEmpty {
+      missingFields.append("Reversed Google client ID URL scheme")
+    } else if gmailCallbackSchemeIsPlaceholder(redirectScheme) {
+      missingFields.append("Real Gmail callback URL scheme; placeholder is still saved")
+    } else if !redirectScheme.hasPrefix("com.googleusercontent.apps.") {
+      missingFields.append("Gmail callback URL scheme starting with com.googleusercontent.apps.")
+    }
+    if let expectedScheme = gmailExpectedRedirectScheme(for: clientID),
+       !redirectScheme.isEmpty,
+       !gmailCallbackSchemeIsPlaceholder(redirectScheme),
+       redirectScheme != expectedScheme {
+      missingFields.append("Gmail callback URL scheme matching the reversed Google OAuth client ID")
     }
     if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Requested scopes summary")
@@ -14658,11 +14675,29 @@ final class ParcelOpsStore {
     if !lowerScopes.contains("gmail.readonly") && !lowerScopes.contains("gmail.metadata") {
       missingFields.append("Read-only Gmail scope")
     }
+    let bundleClientID = (Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if bundleClientID.isEmpty {
+      missingFields.append("Compiled App Info.plist GIDClientID")
+    } else if gmailClientIDIsPlaceholder(bundleClientID) {
+      missingFields.append("Compiled App Info.plist GIDClientID replacing the placeholder")
+    } else if !clientID.isEmpty, !gmailClientIDIsPlaceholder(clientID), bundleClientID != clientID {
+      missingFields.append("Compiled App Info.plist GIDClientID matching this Gmail setup")
+    }
+    let bundleSchemes = gmailBundleURLSchemes()
+    if !redirectScheme.isEmpty,
+       !gmailCallbackSchemeIsPlaceholder(redirectScheme),
+       !bundleSchemes.contains(redirectScheme) {
+      missingFields.append("Compiled App Info.plist Gmail callback URL scheme")
+    }
+    if bundleSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme),
+       !bundleSchemes.contains(redirectScheme) {
+      missingFields.append("Compiled App Info.plist replacing the placeholder Gmail callback scheme")
+    }
 
     let isReady = missingFields.isEmpty
-    let statusText = isReady ? "Ready for future Gmail OAuth implementation" : "Missing \(missingFields.count) Gmail setup item\(missingFields.count == 1 ? "" : "s")"
+    let statusText = isReady ? "Ready for real Gmail sign-in test" : "Missing \(missingFields.count) Gmail setup item\(missingFields.count == 1 ? "" : "s")"
     let detailText = isReady
-      ? "Non-secret Gmail OAuth planning fields are complete for future implementation review."
+      ? "Gmail setup values and compiled app callback configuration are ready for the explicit real sign-in test."
       : "Missing: \(missingFields.joined(separator: ", "))"
     return GmailOAuthReadinessSummary(
       connectionID: connection.id,
@@ -14701,14 +14736,14 @@ final class ParcelOpsStore {
         detail: hasProjectHint ? projectHint : "Capture the Google Cloud project name or hint without secrets."
       ),
       GmailOAuthImplementationChecklistItem(
-        title: "OAuth client ID placeholder captured",
-        isComplete: hasClientID,
-        detail: hasClientID ? "Client ID placeholder captured. Do not enter a client secret." : "Capture the iOS/macOS OAuth client ID placeholder from Google Cloud."
+        title: "Google OAuth iOS client ID captured",
+        isComplete: hasClientID && !gmailClientIDIsPlaceholder(clientID) && gmailExpectedRedirectScheme(for: clientID) != nil,
+        detail: hasClientID ? "Use the iOS OAuth client ID from Google Cloud. It should end in .apps.googleusercontent.com. Do not enter a client secret." : "Capture the iOS OAuth client ID from Google Cloud."
       ),
       GmailOAuthImplementationChecklistItem(
-        title: "Redirect URI / URL scheme planned",
-        isComplete: hasRedirectURI,
-        detail: hasRedirectURI ? redirectURI : "Capture the future reverse-client-ID URL scheme or redirect handling note."
+        title: "Reversed client ID URL scheme registered",
+        isComplete: hasRedirectURI && !gmailCallbackSchemeIsPlaceholder(gmailRedirectScheme(from: redirectURI)) && gmailExpectedRedirectScheme(for: clientID) == gmailRedirectScheme(from: redirectURI),
+        detail: hasRedirectURI ? "Expected scheme: \(gmailExpectedRedirectScheme(for: clientID) ?? "unknown"). Saved scheme: \(gmailRedirectScheme(from: redirectURI))." : "Capture the reversed client ID URL scheme from the Google iOS OAuth client."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "Gmail account captured",
@@ -14759,13 +14794,16 @@ final class ParcelOpsStore {
 
   func gmailSetupTestChecklist(for connection: GmailMailboxConnection) -> GmailSetupTestChecklist {
     let authState = gmailAuthSessionState(for: connection)
-    let readiness = gmailOAuthReadinessSummary(for: connection)
     let trimmedEmail = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedLabels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectScheme = gmailRedirectScheme(from: (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+    let expectedRedirectScheme = gmailExpectedRedirectScheme(for: clientID)
     let hasMailboxSettings = !trimmedEmail.isEmpty && !trimmedLabels.isEmpty
-    let hasOAuthPlaceholders = readiness.missingFields.isEmpty ||
-      (!((connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) &&
-       !((connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+    let hasOAuthAppConfig = !gmailClientIDIsPlaceholder(clientID) &&
+      expectedRedirectScheme != nil &&
+      !gmailCallbackSchemeIsPlaceholder(redirectScheme) &&
+      expectedRedirectScheme == redirectScheme
     let hasReadonlyScope = connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") ||
       connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata")
     let hasSignedIn = authState.status == .connected
@@ -14788,9 +14826,9 @@ final class ParcelOpsStore {
       ),
       GmailSetupTestChecklistItem(
         title: "Confirm Google app placeholders",
-        isComplete: hasOAuthPlaceholders && hasReadonlyScope,
-        detail: hasOAuthPlaceholders && hasReadonlyScope ? "Client/redirect placeholders and a read-only Gmail scope are present." : "Add OAuth client, redirect/scheme, and gmail.readonly or gmail.metadata scope notes.",
-        nextAction: hasOAuthPlaceholders && hasReadonlyScope ? "Proceed to sign-in test." : "Use Edit setup and save non-secret values only.",
+        isComplete: hasOAuthAppConfig && hasReadonlyScope,
+        detail: hasOAuthAppConfig && hasReadonlyScope ? "Google iOS OAuth client ID, reversed callback scheme, and read-only Gmail scope are structurally ready." : "Add the real Google iOS OAuth client ID, matching reversed callback scheme, and gmail.readonly or gmail.metadata scope.",
+        nextAction: hasOAuthAppConfig && hasReadonlyScope ? "Proceed to sign-in test after compiled app plist values also match." : "Use Edit setup and save non-secret values only.",
         symbolName: "gearshape.2.fill"
       ),
       GmailSetupTestChecklistItem(
@@ -14831,6 +14869,57 @@ final class ParcelOpsStore {
       totalCount: items.count,
       items: items
     )
+  }
+
+  private func gmailRedirectScheme(from value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      return ""
+    }
+    if let url = URL(string: trimmed), let scheme = url.scheme, !scheme.isEmpty {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: "://").first, scheme != trimmed {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: ":").first, scheme != trimmed {
+      return scheme
+    }
+    return trimmed
+  }
+
+  private func gmailExpectedRedirectScheme(for clientID: String) -> String? {
+    let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+    let suffix = ".apps.googleusercontent.com"
+    guard trimmed.hasSuffix(suffix), trimmed.count > suffix.count else {
+      return nil
+    }
+    return "com.googleusercontent.apps.\(trimmed.dropLast(suffix.count))"
+  }
+
+  private func gmailClientIDIsPlaceholder(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ||
+      trimmed == GoogleGmailAuthAdapter.placeholderClientID ||
+      trimmed.localizedCaseInsensitiveContains("placeholder") ||
+      trimmed.localizedCaseInsensitiveContains("replace_before_real")
+  }
+
+  private func gmailCallbackSchemeIsPlaceholder(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ||
+      trimmed == GoogleGmailAuthAdapter.placeholderCallbackScheme ||
+      trimmed.localizedCaseInsensitiveContains("parcelops-placeholder") ||
+      trimmed.localizedCaseInsensitiveContains("placeholder")
+  }
+
+  private func gmailBundleURLSchemes() -> [String] {
+    guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
+      return []
+    }
+    return urlTypes.flatMap { entry -> [String] in
+      (entry["CFBundleURLSchemes"] as? [String]) ?? []
+    }
   }
 
   private func trackedMailbox(for connection: Microsoft365MailboxConnection) -> TrackedMailbox {
