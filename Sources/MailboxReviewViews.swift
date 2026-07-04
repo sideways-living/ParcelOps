@@ -217,6 +217,12 @@ struct MailboxView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onTestClassifier: {
+              store.testGmailAmbiguousClassifier(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runGmailClassifierTestSuite(for: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }

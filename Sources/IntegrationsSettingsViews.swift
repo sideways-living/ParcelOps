@@ -563,6 +563,12 @@ struct IntegrationsView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onTestClassifier: {
+              store.testGmailAmbiguousClassifier(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runGmailClassifierTestSuite(for: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }
@@ -1217,10 +1223,16 @@ struct GmailMailboxConnectionRow: View {
   var onCreatePlanTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
+  var onTestClassifier: () -> Void
+  var onTestCustomClassifier: (String, String, String) -> Void
+  var onRunClassifierSuite: () -> Void
   var onRemove: () -> Void
 
   @State private var draft: GmailMailboxConnection
   @State private var isEditing = false
+  @State private var classifierSender = ""
+  @State private var classifierSubject = "Delivery question"
+  @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
 
   init(
     connection: GmailMailboxConnection,
@@ -1240,6 +1252,9 @@ struct GmailMailboxConnectionRow: View {
     onCreatePlanTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
+    onTestClassifier: @escaping () -> Void,
+    onTestCustomClassifier: @escaping (String, String, String) -> Void,
+    onRunClassifierSuite: @escaping () -> Void,
     onRemove: @escaping () -> Void
   ) {
     self.connection = connection
@@ -1259,6 +1274,9 @@ struct GmailMailboxConnectionRow: View {
     self.onCreatePlanTask = onCreatePlanTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
+    self.onTestClassifier = onTestClassifier
+    self.onTestCustomClassifier = onTestCustomClassifier
+    self.onRunClassifierSuite = onRunClassifierSuite
     self.onRemove = onRemove
     _draft = State(initialValue: connection)
   }
@@ -1385,6 +1403,74 @@ struct GmailMailboxConnectionRow: View {
         .padding(10)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail classifier test", systemImage: "text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailClassifierColor)
+        Text("Local tests only. Use this to check how mixed Gmail mock messages would be imported, held as uncertain, or filtered before any real Gmail API work exists.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 170) {
+          Badge("Import: signal + ID", color: .green)
+          Badge("Uncertain: order-ish, no ID", color: .orange)
+          Badge("Filter: marketing/security", color: .teal)
+          Badge("No Gmail API", color: .secondary)
+        }
+        Text(connection.classifierTestSummary ?? "No Gmail classifier test has run yet.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailClassifierColor)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+          TextField("Sender", text: $classifierSender)
+            .textFieldStyle(.roundedBorder)
+          TextField("Subject", text: $classifierSubject)
+            .textFieldStyle(.roundedBorder)
+          TextField("Body preview", text: $classifierPreview, axis: .vertical)
+            .lineLimit(2...4)
+            .textFieldStyle(.roundedBorder)
+        }
+        CompactActionRow {
+          Button("Test ambiguous sample", systemImage: "play.circle", action: onTestClassifier)
+          Button("Run custom test", systemImage: "text.magnifyingglass") {
+            onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
+          }
+          .disabled(classifierSubject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && classifierPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          Button("Run Gmail suite", systemImage: "checklist", action: onRunClassifierSuite)
+        }
+        if let results = connection.classifierTestResults, !results.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            ForEach(results) { result in
+              VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                  Text(result.sampleName)
+                    .font(.caption.weight(.semibold))
+                  Spacer()
+                  Badge(result.decision, color: gmailClassifierDecisionColor(result.decision))
+                }
+                Text("\(result.reason) • score \(result.score)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                Text(result.decisionStatus)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(result.decisionStatus.localizedCaseInsensitiveContains("needs review") ? .orange : .green)
+                CompactMetadataGrid(minimumWidth: 120) {
+                  Badge(result.detectedOrderNumber, color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
+                  Badge(result.detectedTrackingNumber, color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
+                  if result.expectedDecision != "No expected decision" {
+                    Badge("Expected \(result.expectedDecision)", color: gmailClassifierDecisionColor(result.expectedDecision))
+                  }
+                }
+              }
+              .padding(8)
+              .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+      .padding(10)
+      .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: authState.status.symbol)
@@ -1533,6 +1619,23 @@ struct GmailMailboxConnectionRow: View {
     }
     .padding()
     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailClassifierColor: Color {
+    guard let summary = connection.classifierTestSummary else { return .secondary }
+    if summary.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if summary.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if summary.localizedCaseInsensitiveContains("Imported") { return .green }
+    if summary.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    if summary.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
+  private func gmailClassifierDecisionColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("Imported") { return .green }
+    if decision.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    return .secondary
   }
 }
 

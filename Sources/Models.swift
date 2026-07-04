@@ -421,6 +421,19 @@ struct GmailReviewMessage: Identifiable, Hashable, Codable {
   var capturedDate: String
 }
 
+struct GmailClassifierTestResult: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sampleName: String
+  var decision: String
+  var reason: String
+  var score: Int
+  var subjectPreview: String
+  var detectedOrderNumber: String
+  var detectedTrackingNumber: String
+  var expectedDecision: String
+  var decisionStatus: String
+}
+
 struct SpaceMailClassifierReasonCount: Identifiable, Hashable, Codable {
   var id = UUID()
   var decision: String
@@ -2165,6 +2178,8 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshFilteredExamples: [String]?
   var lastRefreshUncertainExamples: [String]?
   var uncertainMessages: [GmailReviewMessage]?
+  var classifierTestSummary: String?
+  var classifierTestResults: [GmailClassifierTestResult]?
   var reviewState: ReviewState
 
   init(
@@ -2188,6 +2203,8 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshFilteredExamples: [String]? = nil,
     lastRefreshUncertainExamples: [String]? = nil,
     uncertainMessages: [GmailReviewMessage]? = nil,
+    classifierTestSummary: String? = nil,
+    classifierTestResults: [GmailClassifierTestResult]? = nil,
     reviewState: ReviewState
   ) {
     self.id = id
@@ -2210,6 +2227,8 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
     self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
     self.uncertainMessages = uncertainMessages
+    self.classifierTestSummary = classifierTestSummary
+    self.classifierTestResults = classifierTestResults
     self.reviewState = reviewState
   }
 }

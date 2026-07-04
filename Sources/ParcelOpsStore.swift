@@ -5518,45 +5518,12 @@ final class ParcelOpsStore {
     var importedExamples: [String] = []
 
     for message in messages {
-      let subject = message.subject.lowercased()
-      let preview = message.plainTextBodyPreview.lowercased()
-      let combined = "\(subject) \(preview)"
-      let orderNumber = detectedOrderNumber(in: combined)
-      let trackingNumber = detectedTrackingNumber(in: combined, excluding: orderNumber)
-      let hasOrderID = !orderNumber.localizedCaseInsensitiveContains("needs review")
-      let hasTrackingID = !trackingNumber.localizedCaseInsensitiveContains("needs review")
-      let hasStrongSignal = [
-        "order",
-        "tracking",
-        "shipped",
-        "shipment",
-        "dispatch",
-        "delivered",
-        "delivery update",
-        "delivery question",
-        "relates to an order",
-        "refund",
-        "return"
-      ].contains { combined.contains($0) }
-      let hasMarketingOrAccountSignal = [
-        "newsletter",
-        "unsubscribe",
-        "offer",
-        "final days",
-        "sale",
-        "security notification",
-        "sign-in",
-        "password",
-        "calendar",
-        "social"
-      ].contains { combined.contains($0) }
-
-      if hasStrongSignal && (hasOrderID || hasTrackingID) && !hasMarketingOrAccountSignal {
+      let relevance = classifyGmailMessageRelevance(message)
+      if relevance.decision == "Imported" {
         importMessages.append(message)
-        importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (strong order signal)")
-      } else if hasStrongSignal && !hasMarketingOrAccountSignal {
-        let reason = "order-ish, missing order/tracking id"
-        uncertainExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(reason))")
+        importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+      } else if relevance.decision == "Uncertain" {
+        uncertainExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
         uncertainMessages.append(
           GmailReviewMessage(
             providerMessageID: message.providerMessageID,
@@ -5565,20 +5532,12 @@ final class ParcelOpsStore {
             subject: safeAuditPreview(message.subject, limit: 160),
             receivedDate: message.receivedDate,
             bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
-            reason: reason,
+            reason: relevance.reason,
             capturedDate: Self.auditTimestamp()
           )
         )
       } else {
-        let reason: String
-        if hasMarketingOrAccountSignal {
-          reason = "marketing/account signal"
-        } else if !hasOrderID && !hasTrackingID {
-          reason = "missing order/tracking id"
-        } else {
-          reason = "weak order signal"
-        }
-        filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(reason))")
+        filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       }
     }
 
@@ -5605,6 +5564,58 @@ final class ParcelOpsStore {
       Array(uncertainExamples.prefix(5)),
       detailLines.joined(separator: "\n")
     )
+  }
+
+  private func classifyGmailMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: String, reason: String, score: Int, orderNumber: String, trackingNumber: String) {
+    let combined = "\(message.subject) \(message.plainTextBodyPreview)".lowercased()
+    let orderNumber = detectedOrderNumber(in: combined)
+    let trackingNumber = detectedTrackingNumber(in: combined, excluding: orderNumber)
+    let hasOrderID = !orderNumber.localizedCaseInsensitiveContains("needs review")
+    let hasTrackingID = !trackingNumber.localizedCaseInsensitiveContains("needs review")
+    let hasStrongSignal = [
+      "order",
+      "tracking",
+      "shipped",
+      "shipment",
+      "dispatch",
+      "delivered",
+      "delivery update",
+      "delivery question",
+      "relates to an order",
+      "refund",
+      "return"
+    ].contains { combined.contains($0) }
+    let hasMarketingOrAccountSignal = [
+      "newsletter",
+      "unsubscribe",
+      "offer",
+      "final days",
+      "sale",
+      "security notification",
+      "sign-in",
+      "password",
+      "calendar",
+      "social"
+    ].contains { combined.contains($0) }
+    let score =
+      (hasStrongSignal ? 2 : 0)
+      + (hasOrderID ? 2 : 0)
+      + (hasTrackingID ? 2 : 0)
+      - (hasMarketingOrAccountSignal ? 3 : 0)
+
+    if hasStrongSignal && (hasOrderID || hasTrackingID) && !hasMarketingOrAccountSignal {
+      return ("Imported", "strong order signal", score, orderNumber, trackingNumber)
+    }
+    if hasStrongSignal && !hasMarketingOrAccountSignal {
+      return ("Uncertain", "order-ish, missing order/tracking id", score, orderNumber, trackingNumber)
+    }
+    if hasMarketingOrAccountSignal {
+      return ("Filtered", "marketing/account signal", score, orderNumber, trackingNumber)
+    }
+    if !hasOrderID && !hasTrackingID {
+      return ("Filtered", "missing order/tracking id", score, orderNumber, trackingNumber)
+    }
+    return ("Filtered", "weak order signal", score, orderNumber, trackingNumber)
   }
 
   private func classifyMailboxMessageRelevance(_ message: FetchedMailboxMessage, for connection: SpaceMailIMAPConnection) -> (decision: MailboxRelevanceDecision, score: Int, reason: String) {
@@ -11333,6 +11344,154 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Uncertain Gmail message dismissed locally.",
       afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nThe message was removed from the local Gmail uncertain review list only. No Gmail API call, OAuth token, mailbox item, or full message body was changed."
+    )
+  }
+
+  func testGmailAmbiguousClassifier(for connection: GmailMailboxConnection) {
+    let sample = FetchedMailboxMessage(
+      providerMessageID: "gmail-local-classifier-\(connection.id.uuidString)",
+      sender: connection.emailAddress,
+      subject: "Delivery question",
+      receivedDate: Self.auditTimestamp(),
+      plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+      sourceMailboxID: trackedMailbox(for: connection).id
+    )
+    evaluateGmailClassifierSample(sample, for: connection, sampleName: "Ambiguous delivery question")
+  }
+
+  func testGmailCustomClassifier(for connection: GmailMailboxConnection, sender: String, subject: String, preview: String) {
+    let sample = FetchedMailboxMessage(
+      providerMessageID: "gmail-local-custom-classifier-\(connection.id.uuidString)",
+      sender: safeAuditPreview(sender.isEmpty ? connection.emailAddress : sender, limit: 120),
+      subject: safeAuditPreview(subject.isEmpty ? "No subject" : subject, limit: 160),
+      receivedDate: Self.auditTimestamp(),
+      plainTextBodyPreview: safeAuditPreview(preview, limit: 280),
+      sourceMailboxID: trackedMailbox(for: connection).id
+    )
+    evaluateGmailClassifierSample(sample, for: connection, sampleName: "Custom Gmail classifier test")
+  }
+
+  func runGmailClassifierTestSuite(for connection: GmailMailboxConnection) {
+    let mailboxID = trackedMailbox(for: connection).id
+    let samples: [(String, String, FetchedMailboxMessage)] = [
+      (
+        "Clear shipped order",
+        "Imported",
+        FetchedMailboxMessage(
+          providerMessageID: "gmail-suite-order-\(connection.id.uuidString)",
+          sender: "orders@example-shop.test",
+          subject: "Order TEST-123 shipped tracking ABC123",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123 to Melbourne.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Ambiguous delivery question",
+        "Uncertain",
+        FetchedMailboxMessage(
+          providerMessageID: "gmail-suite-question-\(connection.id.uuidString)",
+          sender: "customer@example.com",
+          subject: "Delivery question",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Marketing offer",
+        "Filtered",
+        FetchedMailboxMessage(
+          providerMessageID: "gmail-suite-marketing-\(connection.id.uuidString)",
+          sender: "offers@example-shop.test",
+          subject: "Final days for free delivery",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Final days to get free delivery on your next purchase. Unsubscribe here.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "Security notification",
+        "Filtered",
+        FetchedMailboxMessage(
+          providerMessageID: "gmail-suite-security-\(connection.id.uuidString)",
+          sender: "security@example.com",
+          subject: "Security notification",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "A sign-in notification was generated for this account. This is not an order update.",
+          sourceMailboxID: mailboxID
+        )
+      )
+    ]
+    let results = samples.map { gmailClassifierTestResult(name: $0.0, message: $0.2, expectedDecision: $0.1) }
+    let passed = results.filter { $0.decisionStatus.localizedCaseInsensitiveContains("passed") }.count
+    let summary = "Gmail classifier suite: \(passed)/\(results.count) local expectations passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred."
+    updateGmailMailboxConnection(connection) { draft in
+      draft.classifierTestSummary = summary
+      draft.classifierTestResults = results
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail classifier test suite ran locally.",
+      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), \($0.decisionStatus), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber)" }.joined(separator: "\n"))\nNo Gmail API call, OAuth token, mailbox mutation, external service call, or full message body logging occurred."
+    )
+  }
+
+  private func evaluateGmailClassifierSample(_ sample: FetchedMailboxMessage, for connection: GmailMailboxConnection, sampleName: String) {
+    let result = gmailClassifierTestResult(name: sampleName, message: sample, expectedDecision: "No expected decision")
+    updateGmailMailboxConnection(connection) { draft in
+      draft.classifierTestSummary = "\(sampleName): \(result.decision). \(result.reason). Order \(result.detectedOrderNumber), tracking \(result.detectedTrackingNumber). No Gmail API call, mailbox fetch, or import occurred."
+      draft.classifierTestResults = [result]
+      if result.decision == "Uncertain" {
+        var current = draft.uncertainMessages ?? []
+        current.removeAll { $0.providerMessageID == sample.providerMessageID }
+        current.insert(
+          GmailReviewMessage(
+            providerMessageID: sample.providerMessageID,
+            sourceMailboxID: sample.sourceMailboxID,
+            sender: sample.sender,
+            subject: sample.subject,
+            receivedDate: sample.receivedDate,
+            bodyPreview: sample.plainTextBodyPreview,
+            reason: result.reason,
+            capturedDate: Self.auditTimestamp()
+          ),
+          at: 0
+        )
+        draft.uncertainMessages = current
+        draft.lastRefreshUncertainCount = current.count
+        draft.lastRefreshUncertainExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      }
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail classifier sample tested locally.",
+      afterDetail: "Subject: \(result.subjectPreview)\nDecision: \(result.decision)\nReason: \(result.reason)\nDetected order: \(result.detectedOrderNumber)\nDetected tracking: \(result.detectedTrackingNumber)\nNo Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  private func gmailClassifierTestResult(name: String, message: FetchedMailboxMessage, expectedDecision: String) -> GmailClassifierTestResult {
+    let relevance = classifyGmailMessageRelevance(message)
+    return GmailClassifierTestResult(
+      sampleName: name,
+      decision: relevance.decision,
+      reason: relevance.reason,
+      score: relevance.score,
+      subjectPreview: safeAuditPreview(message.subject, limit: 120),
+      detectedOrderNumber: relevance.orderNumber,
+      detectedTrackingNumber: relevance.trackingNumber,
+      expectedDecision: expectedDecision,
+      decisionStatus: expectedDecision == "No expected decision"
+        ? "No classifier expectation"
+        : relevance.decision.normalizedValidationKey == expectedDecision.normalizedValidationKey
+          ? "Classifier passed: expected \(expectedDecision)"
+          : "Classifier needs review: expected \(expectedDecision), got \(relevance.decision)"
     )
   }
 
