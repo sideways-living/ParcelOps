@@ -1782,6 +1782,57 @@ struct MockGmailAuthClient: GmailAuthClient {
   }
 }
 
+struct RealGmailAuthClient: GmailAuthClient {
+  func connect(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    let missingFields = missingReadinessFields(for: connection)
+    if !missingFields.isEmpty {
+      return GmailAuthResult(
+        status: .notConfigured,
+        signedInAccount: "Not signed in",
+        detailText: "Real Gmail sign-in readiness check stopped before OAuth. Missing: \(missingFields.joined(separator: ", ")). No browser sign-in opened, no Google token request was made, no Keychain token access occurred, and no Gmail API call was made."
+      )
+    }
+
+    return GmailAuthResult(
+      status: .notConnected,
+      signedInAccount: "Not signed in",
+      detailText: "Real Gmail sign-in boundary is ready for a future Google OAuth implementation, but OAuth is intentionally not implemented yet. A future slice should use the configured client ID, redirect URI or URL scheme, and read-only Gmail scopes. No browser sign-in opened, no token was requested or stored, and no Gmail API call was made."
+    )
+  }
+
+  func simulateFailure(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    GmailAuthResult(
+      status: .authFailed,
+      signedInAccount: "Not signed in",
+      detailText: "Real Gmail sign-in readiness failure simulated by the boundary. No Google sign-in opened, no tokens were requested or stored, and no network call was made."
+    )
+  }
+
+  private func missingReadinessFields(for connection: GmailMailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Gmail address")
+    }
+    if connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Monitored labels")
+    }
+    if (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("OAuth client ID placeholder")
+    }
+    if (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Redirect URI or URL scheme placeholder")
+    }
+    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
+      missingFields.append("read-only Gmail scope")
+    }
+    if (connection.consentScreenNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("consent screen notes")
+    }
+    return missingFields
+  }
+}
+
 struct MockOrderMatchingService: OrderMatchingService {
   func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState {
     event.severity == .info ? .accepted : .needsReview

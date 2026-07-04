@@ -545,6 +545,8 @@ struct IntegrationsView: View {
               store.importMockGmailMessages(for: connection)
             } onRealReadinessCheck: {
               store.checkRealGmailReadiness(for: connection)
+            } onRealAuthReadinessCheck: {
+              store.checkRealGmailAuthReadiness(connection)
             } onMockAuthConnect: {
               store.connectGmailAuthMock(connection)
             } onMockAuthFailure: {
@@ -1216,6 +1218,7 @@ struct GmailMailboxConnectionRow: View {
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
   var onRealReadinessCheck: () -> Void
+  var onRealAuthReadinessCheck: () -> Void
   var onMockAuthConnect: () -> Void
   var onMockAuthFailure: () -> Void
   var onTokenStoreReady: () -> Void
@@ -1246,6 +1249,7 @@ struct GmailMailboxConnectionRow: View {
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
     onRealReadinessCheck: @escaping () -> Void,
+    onRealAuthReadinessCheck: @escaping () -> Void,
     onMockAuthConnect: @escaping () -> Void,
     onMockAuthFailure: @escaping () -> Void,
     onTokenStoreReady: @escaping () -> Void,
@@ -1269,6 +1273,7 @@ struct GmailMailboxConnectionRow: View {
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
     self.onRealReadinessCheck = onRealReadinessCheck
+    self.onRealAuthReadinessCheck = onRealAuthReadinessCheck
     self.onMockAuthConnect = onMockAuthConnect
     self.onMockAuthFailure = onMockAuthFailure
     self.onTokenStoreReady = onTokenStoreReady
@@ -1587,6 +1592,11 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
 
+      Text("Real Gmail sign-in is still a boundary check only. Use it to find missing Google Cloud OAuth setup before a future browser sign-in slice.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
       if isEditing {
         VStack(alignment: .leading, spacing: 8) {
           TextField("Display name", text: $draft.displayName)
@@ -1637,6 +1647,8 @@ struct GmailMailboxConnectionRow: View {
         }
         .buttonStyle(.bordered)
         Button("Check real Gmail readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          .buttonStyle(.bordered)
+        Button("Check real Gmail sign-in setup", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
           .buttonStyle(.bordered)
         Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
           .buttonStyle(.bordered)

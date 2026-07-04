@@ -130,6 +130,7 @@ final class ParcelOpsStore {
   private let gmailMailboxClient: GmailMailboxClient
   private let realGmailMailboxClient: GmailMailboxClient
   private let gmailAuthClient: GmailAuthClient
+  private let realGmailAuthClient: GmailAuthClient
   private let gmailTokenStore: GmailTokenStore
   private let microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider
   private let microsoft365AuthClient: Microsoft365AuthClient
@@ -154,6 +155,7 @@ final class ParcelOpsStore {
     gmailMailboxClient: GmailMailboxClient = MockGmailMailboxClient(),
     realGmailMailboxClient: GmailMailboxClient = RealGmailMailboxClient(),
     gmailAuthClient: GmailAuthClient = MockGmailAuthClient(),
+    realGmailAuthClient: GmailAuthClient = RealGmailAuthClient(),
     gmailTokenStore: GmailTokenStore = MockGmailTokenStore(),
     microsoft365GraphTokenProvider: Microsoft365GraphTokenProvider = MSALMicrosoft365GraphTokenProvider(),
     microsoft365AuthClient: Microsoft365AuthClient = MockMicrosoft365AuthClient(),
@@ -212,6 +214,7 @@ final class ParcelOpsStore {
     self.gmailMailboxClient = gmailMailboxClient
     self.realGmailMailboxClient = realGmailMailboxClient
     self.gmailAuthClient = gmailAuthClient
+    self.realGmailAuthClient = realGmailAuthClient
     self.gmailTokenStore = gmailTokenStore
     self.microsoft365GraphTokenProvider = microsoft365GraphTokenProvider
     self.microsoft365AuthClient = microsoft365AuthClient
@@ -11615,6 +11618,68 @@ final class ParcelOpsStore {
         applyGmailAuthResult(result, to: connection)
       }
     }
+  }
+
+  func checkRealGmailAuthReadiness(_ connection: GmailMailboxConnection) {
+    let previousState = gmailAuthSessionState(for: connection)
+    let timestamp = Self.auditTimestamp()
+    let startedState = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: .connecting,
+      signedInAccount: "Not signed in",
+      lastAuthAttemptDate: timestamp,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
+      detailText: "Real Gmail sign-in readiness check started. No browser sign-in opens, no Google token request is made, no Keychain token access occurs, and no Gmail API call is made."
+    )
+    gmailAuthSessionStates[connection.id] = startedState
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail sign-in readiness check started.",
+      afterDetail: gmailAuthSessionAuditDetail(startedState)
+    )
+
+    Task {
+      let result = await realGmailAuthClient.connect(connection: connection)
+      await MainActor.run {
+        applyRealGmailAuthReadinessResult(result, to: connection)
+      }
+    }
+  }
+
+  private func applyRealGmailAuthReadinessResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection) {
+    let timestamp = Self.auditTimestamp()
+    let previousState = gmailAuthSessionState(for: connection)
+    let tokenStatus = connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? "Token storage not configured"
+      : connection.credentialStorageStatus
+    let state = GmailAuthSessionState(
+      connectionID: connection.id,
+      status: result.status,
+      signedInAccount: result.signedInAccount,
+      lastAuthAttemptDate: timestamp,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: tokenStatus,
+      tokenStoreDetail: "Real Gmail readiness check did not create, read, write, delete, store, or log Google access tokens, refresh tokens, auth codes, client secrets, passwords, or Keychain items.",
+      detailText: result.detailText
+    )
+    gmailAuthSessionStates[connection.id] = state
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Real Gmail sign-in readiness: \(result.status.rawValue)"
+      draft.oauthReadinessStatus = result.status == .notConfigured ? "Missing setup for real Gmail sign-in" : "Ready for future real Gmail sign-in implementation"
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail sign-in readiness check completed.",
+      afterDetail: gmailAuthSessionAuditDetail(state)
+    )
   }
 
   func simulateGmailAuthFailure(_ connection: GmailMailboxConnection) {
