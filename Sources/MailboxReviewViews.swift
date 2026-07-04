@@ -107,6 +107,8 @@ struct MailboxView: View {
 
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
 
+        GmailOperationsRunbook()
+
         SpaceMailOperatorGuidanceStack(store: store)
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {

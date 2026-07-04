@@ -3071,6 +3071,85 @@ struct SpaceMailOperationsRunbook: View {
   }
 }
 
+struct GmailOperationsRunbook: View {
+  private let normalSteps = [
+    ("Confirm setup", "Check Gmail address, monitored labels, OAuth client ID placeholder, reversed URL scheme, and read-only Gmail scope notes."),
+    ("Test Google sign-in", "Use the explicit sign-in test. ParcelOps should record only non-secret status, not tokens or callback URLs."),
+    ("Run manual refresh", "Use real Gmail refresh only when a person is ready to review results. It must stay read-only."),
+    ("Review outcomes", "Start with imported Inbox rows, then uncertain messages, then filtered examples if expected order mail is missing."),
+    ("Create or link orders", "Use confirmed order or tracking details to create/link orders, then check Orders, Workbench, Tasks, and Audit.")
+  ]
+
+  private let recoverySteps = [
+    ("Setup incomplete", "Add missing Gmail address, labels, OAuth client ID placeholder, redirect/scheme, or read-only scope notes."),
+    ("Sign-in required", "Run Test real Google sign-in again and confirm the same mailbox account is used."),
+    ("Consent/API issue", "Confirm Gmail API is enabled, the consent screen allows the account, and gmail.readonly or gmail.metadata is granted."),
+    ("Label issue", "Use INBOX for the primary inbox or an existing Gmail label. Refresh remains read-only."),
+    ("No imports", "Check mixed mailbox summary. Filtered non-order mail is expected for mixed-use Gmail mailboxes.")
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Gmail operations runbook")
+            .font(.headline)
+          Text("Use this when connecting or retesting a Gmail or Google Workspace mailbox. It describes operator actions only; it does not start sign-in or refresh.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Manual", color: .teal)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 10)], alignment: .leading, spacing: 10) {
+        runbookColumn(title: "Normal path", symbol: "checkmark.seal.fill", items: normalSteps, color: .green)
+        runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
+      }
+
+      Text("Boundaries: Gmail refresh is manual and read-only. ParcelOps must not delete, move, mark read, send, or modify Gmail messages. Google access tokens, refresh tokens, auth codes, callback URLs, and client secrets must not be written to JSON or Audit.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func runbookColumn(title: String, symbol: String, items: [(String, String)], color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+        HStack(alignment: .top, spacing: 8) {
+          Text("\(index + 1)")
+            .font(.caption2.bold())
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+            .background(color, in: Circle())
+          VStack(alignment: .leading, spacing: 2) {
+            Text(item.0)
+              .font(.caption.weight(.semibold))
+            Text(item.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct SpaceMailShiftHandoffCard: View {
   var summary: SpaceMailShiftHandoffSummary
 

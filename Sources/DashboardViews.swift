@@ -1197,6 +1197,17 @@ struct DashboardView: View {
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
 
         DisclosureGroup {
+          GmailOperationsRunbook()
+            .padding(.top, 8)
+        } label: {
+          Label("Gmail operator runbook", systemImage: "envelope.badge.shield.half.filled")
+            .font(.subheadline.weight(.semibold))
+        }
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+        DisclosureGroup {
           SpaceMailOperationsRunbook()
             .padding(.top, 8)
         } label: {
