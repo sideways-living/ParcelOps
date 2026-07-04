@@ -320,6 +320,12 @@ struct MailboxView: View {
           }
         }
 
+        MailboxMissedOrderInvestigationPanel(
+          store: store,
+          latestSpaceMailSummary: latestSpaceMailSummary,
+          latestGmailSummary: latestGmailSummary
+        )
+
         SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
           Text("Microsoft 365 remains available as an advanced option. SpaceMail and Gmail are the current manual mailbox intake paths for this project.")
             .font(.subheadline)
@@ -508,6 +514,340 @@ struct MailboxView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+private struct MailboxMissedOrderInvestigationPanel: View {
+  var store: ParcelOpsStore
+  var latestSpaceMailSummary: SpaceMailIntakeHealthSummary?
+  var latestGmailSummary: GmailIntakeHealthSummary?
+
+  private struct ReviewPreview: Identifiable {
+    var id: String
+    var provider: String
+    var queue: String
+    var subject: String
+    var sender: String
+    var reason: String
+    var preview: String
+    var tone: Color
+  }
+
+  private var latestFetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var latestImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var latestDuplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+  }
+
+  private var latestFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var latestUncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+  }
+
+  private var parserDiagnosticCount: Int {
+    store.intakeParserDiagnostics.count
+  }
+
+  private var hasProviderSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var reviewPreviews: [ReviewPreview] {
+    let spaceMailUncertain = store.spaceMailIMAPConnections.flatMap { connection in
+      connection.uncertainMessages.prefix(3).map { message in
+        ReviewPreview(
+          id: "spacemail-uncertain-\(connection.id)-\(message.id)",
+          provider: "SpaceMail",
+          queue: "Uncertain",
+          subject: message.subject,
+          sender: message.sender,
+          reason: message.reason,
+          preview: message.bodyPreview,
+          tone: .orange
+        )
+      }
+    }
+    let gmailUncertain = store.gmailMailboxConnections.flatMap { connection in
+      (connection.uncertainMessages ?? []).prefix(3).map { message in
+        ReviewPreview(
+          id: "gmail-uncertain-\(connection.id)-\(message.id)",
+          provider: "Gmail",
+          queue: "Uncertain",
+          subject: message.subject,
+          sender: message.sender,
+          reason: message.reason,
+          preview: message.bodyPreview,
+          tone: .orange
+        )
+      }
+    }
+    let spaceMailFiltered = store.spaceMailIMAPConnections.flatMap { connection in
+      connection.filteredMessages.prefix(2).map { message in
+        ReviewPreview(
+          id: "spacemail-filtered-\(connection.id)-\(message.id)",
+          provider: "SpaceMail",
+          queue: "Filtered",
+          subject: message.subject,
+          sender: message.sender,
+          reason: message.reason,
+          preview: message.bodyPreview,
+          tone: .teal
+        )
+      }
+    }
+    let gmailFiltered = store.gmailMailboxConnections.flatMap { connection in
+      (connection.filteredMessages ?? []).prefix(2).map { message in
+        ReviewPreview(
+          id: "gmail-filtered-\(connection.id)-\(message.id)",
+          provider: "Gmail",
+          queue: "Filtered",
+          subject: message.subject,
+          sender: message.sender,
+          reason: message.reason,
+          preview: message.bodyPreview,
+          tone: .teal
+        )
+      }
+    }
+
+    return Array((spaceMailUncertain + gmailUncertain + spaceMailFiltered + gmailFiltered).prefix(8))
+  }
+
+  private var latestFilteredExamples: [String] {
+    let spaceMailExamples = store.spaceMailIMAPConnections.flatMap { $0.lastRefreshFilteredExamples }
+    let gmailExamples = store.gmailMailboxConnections.flatMap { $0.lastRefreshFilteredExamples ?? [] }
+    return Array((spaceMailExamples + gmailExamples).prefix(5))
+  }
+
+  private var latestUncertainExamples: [String] {
+    let spaceMailExamples = store.spaceMailIMAPConnections.flatMap { $0.lastRefreshUncertainExamples }
+    let gmailExamples = store.gmailMailboxConnections.flatMap { $0.lastRefreshUncertainExamples ?? [] }
+    return Array((spaceMailExamples + gmailExamples).prefix(5))
+  }
+
+  private var title: String {
+    if !hasProviderSetup { return "Set up a mailbox provider first" }
+    if latestImportedCount > 0 { return "Latest refresh imported order candidates" }
+    if latestUncertainCount > 0 { return "Review uncertain mailbox previews" }
+    if latestFilteredCount > 0 { return "Check filtered examples if an order is missing" }
+    if parserDiagnosticCount > 0 { return "Parser diagnostics need review" }
+    if latestFetchedCount > 0 { return "Latest refresh found no order candidates" }
+    return "Run a mailbox refresh to investigate missing orders"
+  }
+
+  private var detail: String {
+    if !hasProviderSetup {
+      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes, then run a manual read-only refresh."
+    }
+    if latestImportedCount > 0 {
+      return "\(latestImportedCount) likely order message\(latestImportedCount == 1 ? "" : "s") reached Inbox. Start in Inbox, then create or link orders."
+    }
+    if latestUncertainCount > 0 {
+      return "\(latestUncertainCount) uncertain preview\(latestUncertainCount == 1 ? "" : "s") stayed out of Inbox. Import true order mail or dismiss non-order mail locally."
+    }
+    if latestFilteredCount > 0 {
+      return "\(latestFilteredCount) fetched message\(latestFilteredCount == 1 ? "" : "s") were filtered as non-order. Use the examples below only when an expected order email is missing."
+    }
+    if parserDiagnosticCount > 0 {
+      return "Captured intake exists, but parser diagnostics still need review before creating clean orders."
+    }
+    if latestFetchedCount > 0 {
+      return "The latest provider refresh fetched mail but did not create order intake. Send or forward a known test order, then refresh again."
+    }
+    return "No recent provider refresh evidence is available. Use SpaceMail or Gmail setup rows to run a manual refresh."
+  }
+
+  private var tone: Color {
+    if !hasProviderSetup { return .orange }
+    if latestImportedCount > 0 { return .green }
+    if latestUncertainCount > 0 || parserDiagnosticCount > 0 { return .orange }
+    if latestFilteredCount > 0 { return .teal }
+    return .secondary
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Missing order investigation", symbol: "magnifyingglass.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: latestImportedCount > 0 ? "tray.and.arrow.down.fill" : "magnifyingglass.circle.fill")
+            .foregroundStyle(tone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+              .font(.headline)
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(latestImportedCount > 0 ? "Inbox" : latestUncertainCount > 0 ? "Review" : latestFilteredCount > 0 ? "Filtered" : "Check", color: tone)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestFetchedCount)", latestFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(latestImportedCount)", latestImportedCount > 0 ? .green : .secondary),
+          ("Duplicates", "\(latestDuplicateCount)", latestDuplicateCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(latestFilteredCount)", latestFilteredCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(latestUncertainCount)", latestUncertainCount > 0 ? .orange : .secondary),
+          ("Parser", "\(parserDiagnosticCount)", parserDiagnosticCount > 0 ? .orange : .green)
+        ])
+
+        CompactMetadataGrid(minimumWidth: 190) {
+          investigationStep(
+            index: 1,
+            title: "Check Inbox",
+            detail: latestImportedCount > 0 ? "Imported candidates are actionable there." : "No imported candidates from the latest refresh.",
+            isActive: latestImportedCount > 0
+          )
+          investigationStep(
+            index: 2,
+            title: "Review uncertain",
+            detail: latestUncertainCount > 0 ? "Import true order mail or dismiss locally." : "No uncertain previews are pending.",
+            isActive: latestUncertainCount > 0
+          )
+          investigationStep(
+            index: 3,
+            title: "Inspect filtered",
+            detail: latestFilteredCount > 0 ? "Use examples only when an expected order is missing." : "No filtered examples from the latest refresh.",
+            isActive: latestFilteredCount > 0
+          )
+          investigationStep(
+            index: 4,
+            title: "Reprocess parser",
+            detail: parserDiagnosticCount > 0 ? "Reprocess or task parser diagnostics." : "Parser queue is clear.",
+            isActive: parserDiagnosticCount > 0
+          )
+        }
+
+        if !reviewPreviews.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Reviewable previews", systemImage: "line.3.horizontal.decrease.circle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(tone)
+            ForEach(reviewPreviews) { preview in
+              VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Text(preview.subject.isEmpty ? "No subject" : preview.subject)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Spacer()
+                  Badge(preview.provider, color: preview.provider == "Gmail" ? .teal : .blue)
+                  Badge(preview.queue, color: preview.tone)
+                }
+                Text(preview.sender)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                Text(preview.reason)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(preview.tone)
+                Text(preview.preview)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+              .padding(8)
+              .background(preview.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        } else if !latestFilteredExamples.isEmpty || !latestUncertainExamples.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Latest safe examples", systemImage: "doc.text.magnifyingglass")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.teal)
+            if !latestUncertainExamples.isEmpty {
+              Text("Uncertain: \(latestUncertainExamples.joined(separator: "; "))")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if !latestFilteredExamples.isEmpty {
+              Text("Filtered: \(latestFilteredExamples.joined(separator: "; "))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(10)
+          .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        if !store.intakeParserDiagnostics.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Top parser checks", systemImage: "text.magnifyingglass")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.orange)
+            ForEach(store.intakeParserDiagnostics.prefix(3)) { diagnostic in
+              VStack(alignment: .leading, spacing: 3) {
+                Text(diagnostic.title)
+                  .font(.caption.weight(.semibold))
+                Text("\(diagnostic.subjectPreview) • \(diagnostic.recommendedAction)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+              .padding(8)
+              .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("This panel reads local summaries only. It does not fetch mail, change duplicate metadata, mutate mailbox messages, or store full message bodies.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          Button("Reprocess intake", systemImage: "arrow.triangle.2.circlepath") {
+            store.reprocessReviewIntakeEmails()
+          }
+          .disabled(store.reviewIntakeEmails.isEmpty)
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func investigationStep(index: Int, title: String, detail: String, isActive: Bool) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Text("\(index)")
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(.white)
+        .frame(width: 22, height: 22)
+        .background(isActive ? tone : Color.secondary, in: Circle())
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((isActive ? tone : Color.secondary).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
