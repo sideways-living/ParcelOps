@@ -2252,6 +2252,10 @@ struct FirstLiveMailboxTestCard: View {
     !store.spaceMailIMAPConnections.isEmpty
   }
 
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
   private var hasSpaceMailCredential: Bool {
     store.spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
@@ -2259,34 +2263,73 @@ struct FirstLiveMailboxTestCard: View {
     }
   }
 
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasMailboxCredentialOrAuth: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
+  private var fetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var importedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var filteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var duplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+  }
+
   private var hasRealRefresh: Bool {
     store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
       || (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+      || (latestGmailSummary?.fetchedCount ?? 0) > 0
   }
 
   private var hasImportEvidence: Bool {
     (latestSpaceMailSummary?.importedCount ?? 0) > 0
+      || (latestGmailSummary?.importedCount ?? 0) > 0
       || store.intakeEmails.contains { email in
         let source = store.intakeSourceSummary(for: email)
         return source.label.localizedCaseInsensitiveContains("SpaceMail")
+          || source.label.localizedCaseInsensitiveContains("Gmail")
       }
   }
 
   private var pendingUncertainCount: Int {
-    latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
   }
 
   private var hasRefreshOutcome: Bool {
     hasRealRefresh
       && (
-        (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
-          || (latestSpaceMailSummary?.importedCount ?? 0) > 0
-          || (latestSpaceMailSummary?.filteredCount ?? 0) > 0
-          || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
+        fetchedCount > 0
+          || importedCount > 0
+          || filteredCount > 0
+          || duplicateCount > 0
           || pendingUncertainCount > 0
       )
   }
@@ -2305,11 +2348,14 @@ struct FirstLiveMailboxTestCard: View {
     }
   }
 
-  private var hasSpaceMailAudit: Bool {
+  private var hasMailboxAudit: Bool {
     store.recentAuditEvents.contains { event in
       event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.summary.localizedCaseInsensitiveContains("Gmail")
         || event.entityLabel.localizedCaseInsensitiveContains("SpaceMail")
+        || event.entityLabel.localizedCaseInsensitiveContains("Gmail")
         || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
     }
   }
 
@@ -2318,26 +2364,26 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var statusTitle: String {
-    if !hasSpaceMailSetup { return "First live mailbox test: setup needed" }
-    if !hasSpaceMailCredential { return "First live mailbox test: credential needed" }
+    if !hasMailboxSetup { return "First live mailbox test: setup needed" }
+    if !hasMailboxCredentialOrAuth { return "First live mailbox test: credential or sign-in needed" }
     if !hasRealRefresh { return "First live mailbox test: run refresh" }
     if hasOnlyNonOrderOutcome { return "First live mailbox test: no order mail found" }
     if pendingUncertainCount > 0 && !hasImportEvidence { return "First live mailbox test: review uncertain mail" }
     if !hasRefreshOutcome { return "First live mailbox test: review results" }
     if !hasInboxOrder { return "First live mailbox test: create or link order" }
-    if !hasSpaceMailAudit { return "First live mailbox test: confirm Audit" }
+    if !hasMailboxAudit { return "First live mailbox test: confirm Audit" }
     return "First live mailbox test: ready to repeat"
   }
 
   private var statusDetail: String {
-    if !hasSpaceMailSetup {
-      return "Open Mailbox Monitor or Settings and confirm the non-secret SpaceMail IMAP setup."
+    if !hasMailboxSetup {
+      return "Open Mailbox Monitor or Settings and confirm a SpaceMail IMAP setup or Gmail setup for the mailbox you want to test."
     }
-    if !hasSpaceMailCredential {
-      return "Set or check the SpaceMail Keychain credential. Do not place passwords in notes or JSON-backed fields."
+    if !hasMailboxCredentialOrAuth {
+      return "Set/check the SpaceMail Keychain credential or complete Gmail sign-in. Do not place passwords, tokens, or app secrets in notes or JSON-backed fields."
     }
     if !hasRealRefresh {
-      return "Run the explicit real SpaceMail refresh. It is manual and read-only."
+      return "Run the explicit real SpaceMail or Gmail refresh. It is manual and read-only."
     }
     if hasOnlyNonOrderOutcome {
       return "The mixed-mailbox filter ran and kept non-order mail out of Inbox. Send or forward one clear order/tracking test email when you want to verify order creation."
@@ -2351,10 +2397,10 @@ struct FirstLiveMailboxTestCard: View {
     if !hasInboxOrder {
       return "Use Inbox to import, reprocess, create, or link one order from confirmed intake."
     }
-    if !hasSpaceMailAudit {
+    if !hasMailboxAudit {
       return "Use Audit to confirm the refresh, Inbox, and order handoff events are traceable."
     }
-    return "The core SpaceMail to Inbox to Orders loop has enough local evidence for hands-on testing."
+    return "The core mailbox to Inbox to Orders loop has enough local evidence for hands-on testing."
   }
 
   private var statusColor: Color {
@@ -2365,15 +2411,15 @@ struct FirstLiveMailboxTestCard: View {
     [
       FirstLiveMailboxTestItem(
         title: "Confirm setup",
-        detail: "SpaceMail IMAP record exists with host, port, folder, and mixed-mailbox mode.",
-        symbol: "server.rack",
-        isComplete: hasSpaceMailSetup
+        detail: "SpaceMail IMAP or Gmail setup exists with the non-secret mailbox settings needed for manual refresh.",
+        symbol: "mail.stack.fill",
+        isComplete: hasMailboxSetup
       ),
       FirstLiveMailboxTestItem(
-        title: "Check credential",
-        detail: "Keychain password/app-password reference is available; no secret is stored in JSON.",
+        title: "Check credential or sign-in",
+        detail: "SpaceMail has a Keychain password reference or Gmail has connected sign-in; no secret is stored in JSON.",
         symbol: "lock.shield.fill",
-        isComplete: hasSpaceMailCredential
+        isComplete: hasMailboxCredentialOrAuth
       ),
       FirstLiveMailboxTestItem(
         title: "Run refresh",
@@ -2383,7 +2429,7 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: "Review intake",
-        detail: "Imported, uncertain, filtered, or duplicate SpaceMail results are visible enough to explain the refresh outcome.",
+        detail: "Imported, uncertain, filtered, or duplicate SpaceMail/Gmail results are visible enough to explain the refresh outcome.",
         symbol: "tray.full.fill",
         isComplete: hasRefreshOutcome
       ),
@@ -2395,9 +2441,9 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: "Verify audit",
-        detail: "Recent Audit history includes SpaceMail or Inbox handoff evidence.",
+        detail: "Recent Audit history includes mailbox refresh or Inbox handoff evidence.",
         symbol: "list.clipboard.fill",
-        isComplete: hasSpaceMailAudit
+        isComplete: hasMailboxAudit
       )
     ]
   }
@@ -2424,9 +2470,9 @@ struct FirstLiveMailboxTestCard: View {
         }
 
         MetricStrip(items: [
-          ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
-          ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
-          ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
+          ("Fetched", "\(fetchedCount)", fetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
+          ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
           ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount > 0 ? .orange : .secondary)
         ])
 
