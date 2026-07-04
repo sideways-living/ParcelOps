@@ -559,6 +559,10 @@ struct IntegrationsView: View {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
               store.createReviewTaskFromGmailOAuthPlan(connection)
+            } onImportUncertain: { message in
+              store.importUncertainGmailMessage(message, for: connection)
+            } onDismissUncertain: { message in
+              store.dismissUncertainGmailMessage(message, for: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }
@@ -1211,6 +1215,8 @@ struct GmailMailboxConnectionRow: View {
   var onTokenClear: () -> Void
   var onReviewPlan: () -> Void
   var onCreatePlanTask: () -> Void
+  var onImportUncertain: (GmailReviewMessage) -> Void
+  var onDismissUncertain: (GmailReviewMessage) -> Void
   var onRemove: () -> Void
 
   @State private var draft: GmailMailboxConnection
@@ -1232,6 +1238,8 @@ struct GmailMailboxConnectionRow: View {
     onTokenClear: @escaping () -> Void,
     onReviewPlan: @escaping () -> Void,
     onCreatePlanTask: @escaping () -> Void,
+    onImportUncertain: @escaping (GmailReviewMessage) -> Void,
+    onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
     onRemove: @escaping () -> Void
   ) {
     self.connection = connection
@@ -1249,6 +1257,8 @@ struct GmailMailboxConnectionRow: View {
     self.onTokenClear = onTokenClear
     self.onReviewPlan = onReviewPlan
     self.onCreatePlanTask = onCreatePlanTask
+    self.onImportUncertain = onImportUncertain
+    self.onDismissUncertain = onDismissUncertain
     self.onRemove = onRemove
     _draft = State(initialValue: connection)
   }
@@ -1294,7 +1304,8 @@ struct GmailMailboxConnectionRow: View {
           ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
           ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
           ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
-          ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+          ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(connection.lastRefreshUncertainCount ?? 0)", (connection.lastRefreshUncertainCount ?? 0) > 0 ? .orange : .secondary)
         ])
         Text(connection.lastRefreshSummary)
           .font(.caption)
@@ -1317,9 +1328,63 @@ struct GmailMailboxConnectionRow: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
+        if let examples = connection.lastRefreshUncertainExamples, !examples.isEmpty {
+          Text("Uncertain examples: \(examples.joined(separator: "; "))")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
       }
       .padding(10)
-      .background(connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .background((connection.lastRefreshUncertainCount ?? 0) > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      if let messages = connection.uncertainMessages, !messages.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Review uncertain Gmail mock messages", systemImage: "questionmark.folder.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          Text("These local mock previews looked order-related but were missing a strong order or tracking ID. They stay out of Inbox until imported locally.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          ForEach(messages) { message in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(message.subject)
+                    .font(.caption.weight(.semibold))
+                  Text("\(message.sender) • \(message.receivedDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Badge("Uncertain", color: .orange)
+              }
+              Text(message.bodyPreview)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text("Reason: \(message.reason)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.orange)
+              CompactActionRow {
+                Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+                  onImportUncertain(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+                  onDismissUncertain(message)
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(8)
+            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: authState.status.symbol)

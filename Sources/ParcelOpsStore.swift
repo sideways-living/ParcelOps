@@ -5498,18 +5498,23 @@ final class ParcelOpsStore {
   private func filteredGmailMessages(
     _ messages: [FetchedMailboxMessage],
     for connection: GmailMailboxConnection
-  ) -> (importMessages: [FetchedMailboxMessage], filteredCount: Int, filteredExamples: [String], detail: String) {
+  ) -> (importMessages: [FetchedMailboxMessage], uncertainMessages: [GmailReviewMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], detail: String) {
     guard connection.mailboxMode == .mixedFiltered else {
       return (
         messages,
+        [],
         0,
+        0,
+        [],
         [],
         "Gmail mailbox mode is dedicated order mailbox, so all fetched messages were passed to intake duplicate/import handling."
       )
     }
 
     var importMessages: [FetchedMailboxMessage] = []
+    var uncertainMessages: [GmailReviewMessage] = []
     var filteredExamples: [String] = []
+    var uncertainExamples: [String] = []
     var importedExamples: [String] = []
 
     for message in messages {
@@ -5528,6 +5533,8 @@ final class ParcelOpsStore {
         "dispatch",
         "delivered",
         "delivery update",
+        "delivery question",
+        "relates to an order",
         "refund",
         "return"
       ].contains { combined.contains($0) }
@@ -5547,6 +5554,21 @@ final class ParcelOpsStore {
       if hasStrongSignal && (hasOrderID || hasTrackingID) && !hasMarketingOrAccountSignal {
         importMessages.append(message)
         importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (strong order signal)")
+      } else if hasStrongSignal && !hasMarketingOrAccountSignal {
+        let reason = "order-ish, missing order/tracking id"
+        uncertainExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(reason))")
+        uncertainMessages.append(
+          GmailReviewMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
+            reason: reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       } else {
         let reason: String
         if hasMarketingOrAccountSignal {
@@ -5570,11 +5592,17 @@ final class ParcelOpsStore {
     if !filteredExamples.isEmpty {
       detailLines.append("Filtered examples: \(filteredExamples.prefix(3).joined(separator: "; ")).")
     }
+    if !uncertainExamples.isEmpty {
+      detailLines.append("Uncertain examples: \(uncertainExamples.prefix(3).joined(separator: "; ")).")
+    }
 
     return (
       importMessages,
+      uncertainMessages,
       filteredExamples.count,
+      uncertainExamples.count,
       Array(filteredExamples.prefix(5)),
+      Array(uncertainExamples.prefix(5)),
       detailLines.joined(separator: "\n")
     )
   }
@@ -11221,6 +11249,7 @@ final class ParcelOpsStore {
     let filterResult = filteredGmailMessages(fetchResult.messages, for: connection)
     let result = importFetchedMailboxMessages(filterResult.importMessages)
     let filteredExamples = filterResult.filteredExamples.joined(separator: "; ")
+    let uncertainExamples = filterResult.uncertainExamples.joined(separator: "; ")
     updateGmailMailboxConnection(connection) { draft in
       draft.connectionStatus = "Mock Gmail: \(fetchResult.status.rawValue)"
       draft.lastManualRefreshDate = timestamp
@@ -11228,8 +11257,11 @@ final class ParcelOpsStore {
       draft.lastRefreshImportedCount = result.imported
       draft.lastRefreshDuplicateCount = result.duplicates
       draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+      draft.lastRefreshUncertainCount = filterResult.uncertainCount
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
-      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered. \(fetchResult.detail)"
+      draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
+      draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(fetchResult.detail)"
     }
     logAudit(
       action: .evaluated,
@@ -11237,7 +11269,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Gmail refresh completed.",
-      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
+      afterDetail: "Status: \(fetchResult.status.rawValue)\nFetched: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Local mock client boundary through provider-neutral intake.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filteredExamples)\nUncertain examples: \(uncertainExamples)\nClient detail: \(fetchResult.detail)\nNo OAuth flow, token exchange, Gmail API call, Keychain access, or mailbox mutation occurred."
     )
   }
 
@@ -11254,6 +11286,53 @@ final class ParcelOpsStore {
       summary: "Gmail mailbox setup placeholder removed.",
       beforeDetail: beforeDetail,
       afterDetail: "No OAuth flow, Gmail API call, token, Keychain item, or mailbox message was changed."
+    )
+  }
+
+  func importUncertainGmailMessage(_ uncertainMessage: GmailReviewMessage, for connection: GmailMailboxConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: uncertainMessage.providerMessageID,
+      sender: uncertainMessage.sender,
+      subject: uncertainMessage.subject,
+      receivedDate: uncertainMessage.receivedDate,
+      plainTextBodyPreview: uncertainMessage.bodyPreview,
+      sourceMailboxID: uncertainMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    updateGmailMailboxConnection(connection) { draft in
+      var current = draft.uncertainMessages ?? []
+      current.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
+      draft.uncertainMessages = current
+      draft.lastRefreshUncertainCount = current.count
+      draft.lastRefreshUncertainExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Gmail uncertain preview imported locally. \(current.count) uncertain Gmail previews remain."
+    }
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain Gmail message imported into intake locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nStored preview only was used. No Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  func dismissUncertainGmailMessage(_ uncertainMessage: GmailReviewMessage, for connection: GmailMailboxConnection) {
+    updateGmailMailboxConnection(connection) { draft in
+      var current = draft.uncertainMessages ?? []
+      current.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
+      draft.uncertainMessages = current
+      draft.lastRefreshUncertainCount = current.count
+      draft.lastRefreshUncertainExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Gmail uncertain preview dismissed locally. \(current.count) uncertain Gmail previews remain."
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain Gmail message dismissed locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nThe message was removed from the local Gmail uncertain review list only. No Gmail API call, OAuth token, mailbox item, or full message body was changed."
     )
   }
 

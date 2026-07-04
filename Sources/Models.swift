@@ -409,6 +409,18 @@ struct SpaceMailFilteredMessage: Identifiable, Hashable, Codable {
   var capturedDate: String
 }
 
+struct GmailReviewMessage: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var providerMessageID: String
+  var sourceMailboxID: UUID
+  var sender: String
+  var subject: String
+  var receivedDate: String
+  var bodyPreview: String
+  var reason: String
+  var capturedDate: String
+}
+
 struct SpaceMailClassifierReasonCount: Identifiable, Hashable, Codable {
   var id = UUID()
   var decision: String
@@ -2148,8 +2160,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshImportedCount: Int
   var lastRefreshDuplicateCount: Int
   var lastRefreshFilteredNonOrderCount: Int
+  var lastRefreshUncertainCount: Int?
   var lastRefreshSummary: String
   var lastRefreshFilteredExamples: [String]?
+  var lastRefreshUncertainExamples: [String]?
+  var uncertainMessages: [GmailReviewMessage]?
   var reviewState: ReviewState
 
   init(
@@ -2168,8 +2183,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshImportedCount: Int = 0,
     lastRefreshDuplicateCount: Int = 0,
     lastRefreshFilteredNonOrderCount: Int = 0,
+    lastRefreshUncertainCount: Int? = nil,
     lastRefreshSummary: String = "No Gmail refresh has run yet.",
     lastRefreshFilteredExamples: [String]? = nil,
+    lastRefreshUncertainExamples: [String]? = nil,
+    uncertainMessages: [GmailReviewMessage]? = nil,
     reviewState: ReviewState
   ) {
     self.id = id
@@ -2187,8 +2205,11 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshImportedCount = lastRefreshImportedCount
     self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
     self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
+    self.lastRefreshUncertainCount = lastRefreshUncertainCount
     self.lastRefreshSummary = lastRefreshSummary
     self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
+    self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
+    self.uncertainMessages = uncertainMessages
     self.reviewState = reviewState
   }
 }

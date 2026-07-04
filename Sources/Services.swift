@@ -299,6 +299,14 @@ struct MockGmailMailboxClient: GmailMailboxClient {
       ),
       FetchedMailboxMessage(
         providerMessageID: "gmail-mock-\(connection.id.uuidString)-1003",
+        sender: "ops-question@example-merchant.test",
+        subject: "Delivery question",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1004",
         sender: "newsletter@example-merchant.test",
         subject: "Final days for winter offers",
         receivedDate: "Mock Gmail refresh",
@@ -306,7 +314,7 @@ struct MockGmailMailboxClient: GmailMailboxClient {
         sourceMailboxID: sourceMailboxID
       ),
       FetchedMailboxMessage(
-        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1004",
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1005",
         sender: "security@example.test",
         subject: "Security notification",
         receivedDate: "Mock Gmail refresh",

@@ -213,6 +213,10 @@ struct MailboxView: View {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
               store.createReviewTaskFromGmailOAuthPlan(connection)
+            } onImportUncertain: { message in
+              store.importUncertainGmailMessage(message, for: connection)
+            } onDismissUncertain: { message in
+              store.dismissUncertainGmailMessage(message, for: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }
