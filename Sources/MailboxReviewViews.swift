@@ -1064,11 +1064,9 @@ private struct MailboxGmailReadinessPanel: View {
 
   private var hasCoreSetup: Bool {
     guard let connection = primaryConnection else { return false }
-    return !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    return hasMailboxBasics(connection)
+      && hasOAuthPlaceholders(connection)
+      && hasReadOnlyScope(connection)
   }
 
   private var hasConnectedAuth: Bool {
@@ -1097,6 +1095,73 @@ private struct MailboxGmailReadinessPanel: View {
 
   private var fetchedCount: Int {
     store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var hasReviewOutcome: Bool {
+    importedCount > 0 || filteredCount > 0 || pendingUncertainCount > 0 || fetchedCount > 0
+  }
+
+  private var hasGmailAuditEvidence: Bool {
+    store.recentAuditEvents.contains { event in
+      event.summary.localizedCaseInsensitiveContains("Gmail")
+        || event.entityLabel.localizedCaseInsensitiveContains("Gmail")
+        || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
+    }
+  }
+
+  private var checklistItems: [GmailReadinessChecklistItem] {
+    guard let connection = primaryConnection else {
+      return [
+        GmailReadinessChecklistItem(
+          title: "Add Gmail setup",
+          detail: "Create a setup record only for mailboxes hosted by Gmail or Google Workspace.",
+          symbol: "plus.circle",
+          isComplete: false
+        )
+      ]
+    }
+
+    let mailboxBasicsReady = hasMailboxBasics(connection)
+    let oauthReady = hasOAuthPlaceholders(connection) && hasReadOnlyScope(connection)
+    let latestResultText = "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered, \(pendingUncertainCount) uncertain."
+    return [
+      GmailReadinessChecklistItem(
+        title: "Mailbox and label",
+        detail: mailboxBasicsReady ? "\(connection.emailAddress) using labels \(connection.monitoredLabelNames)." : "Add the Gmail address and monitored labels, usually INBOX.",
+        symbol: "envelope.fill",
+        isComplete: mailboxBasicsReady
+      ),
+      GmailReadinessChecklistItem(
+        title: "OAuth app values",
+        detail: oauthReady ? "Client ID, reversed URL scheme, and read-only Gmail scope are present." : "Add Google Cloud iOS OAuth client ID, reversed URL scheme, and gmail.readonly or gmail.metadata.",
+        symbol: "key.fill",
+        isComplete: oauthReady
+      ),
+      GmailReadinessChecklistItem(
+        title: "Google sign-in",
+        detail: hasConnectedAuth ? "Real Google sign-in status is connected for this app session." : "Use Test real Google sign-in before running a real Gmail refresh.",
+        symbol: "person.crop.circle.badge.checkmark",
+        isComplete: hasConnectedAuth
+      ),
+      GmailReadinessChecklistItem(
+        title: "Manual refresh",
+        detail: hasManualRefresh ? "A manual Gmail refresh result exists. Refresh remains read-only and user-initiated." : "Run real Gmail refresh only after sign-in, or use mock refresh for local workflow testing.",
+        symbol: "arrow.triangle.2.circlepath",
+        isComplete: hasManualRefresh
+      ),
+      GmailReadinessChecklistItem(
+        title: "Review result",
+        detail: hasReviewOutcome ? latestResultText : "No Gmail refresh result has produced a reviewable outcome yet.",
+        symbol: "tray.full.fill",
+        isComplete: hasReviewOutcome
+      ),
+      GmailReadinessChecklistItem(
+        title: "Audit trail",
+        detail: hasGmailAuditEvidence ? "Audit has Gmail setup, sign-in, refresh, or review evidence." : "Audit will show Gmail actions after setup, auth, refresh, or review work runs.",
+        symbol: "list.clipboard.fill",
+        isComplete: hasGmailAuditEvidence
+      )
+    ]
   }
 
   private var readinessTone: Color {
@@ -1176,6 +1241,12 @@ private struct MailboxGmailReadinessPanel: View {
           ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount == 0 ? .green : .orange)
         ])
 
+        CompactMetadataGrid(minimumWidth: 190) {
+          ForEach(Array(checklistItems.enumerated()), id: \.offset) { index, item in
+            GmailReadinessChecklistCard(index: index + 1, item: item)
+          }
+        }
+
         if let summary = latestSummary {
           VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -1235,6 +1306,66 @@ private struct MailboxGmailReadinessPanel: View {
     default:
       return .secondary
     }
+  }
+
+  private func hasMailboxBasics(_ connection: GmailMailboxConnection) -> Bool {
+    !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func hasOAuthPlaceholders(_ connection: GmailMailboxConnection) -> Bool {
+    !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func hasReadOnlyScope(_ connection: GmailMailboxConnection) -> Bool {
+    connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly")
+      || connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata")
+  }
+}
+
+private struct GmailReadinessChecklistItem {
+  var title: String
+  var detail: String
+  var symbol: String
+  var isComplete: Bool
+}
+
+private struct GmailReadinessChecklistCard: View {
+  var index: Int
+  var item: GmailReadinessChecklistItem
+
+  private var tone: Color {
+    item.isComplete ? .green : .orange
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(tone.opacity(0.16))
+          .frame(width: 28, height: 28)
+        Image(systemName: item.isComplete ? "checkmark" : item.symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+      }
+
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Text("\(index). \(item.title)")
+            .font(.caption.weight(.semibold))
+          Spacer(minLength: 4)
+          Badge(item.isComplete ? "Done" : "Next", color: tone)
+        }
+        Text(item.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
