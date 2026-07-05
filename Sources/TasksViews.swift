@@ -254,6 +254,7 @@ struct TasksView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
+        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel

@@ -258,6 +258,13 @@ struct AuditView: View {
   private var auditEvidenceItems: [(title: String, detail: String, count: Int, symbol: String, color: Color)] {
     [
       (
+        "Mailbox release gate",
+        "\(store.mailboxProviderReleaseGateSummary.verdict): \(store.mailboxProviderReleaseGateSummary.detail)",
+        store.mailboxProviderReleaseGateSummary.gates.filter(\.isPassed).count,
+        "checkmark.seal.fill",
+        color(for: store.mailboxProviderReleaseGateSummary.tone)
+      ),
+      (
         "Mailbox refresh evidence",
         "SpaceMail, Gmail, or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
         spaceMailEvidenceEvents.count,
@@ -300,6 +307,19 @@ struct AuditView: View {
         hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange
       )
     ]
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
   }
 
   private var auditEvidenceReadyCount: Int {

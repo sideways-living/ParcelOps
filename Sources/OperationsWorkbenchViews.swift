@@ -369,6 +369,7 @@ struct OperationsWorkbenchView: View {
           detailWhenClear: "No primary workflow exceptions are waiting. Use advanced filters only when you need supporting records.",
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
+        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         operatorSummary
         resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)
