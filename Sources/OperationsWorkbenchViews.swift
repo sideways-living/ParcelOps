@@ -372,6 +372,7 @@ struct OperationsWorkbenchView: View {
         operatorSummary
         resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)
+        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         Text("SpaceMail refresh trend is context for triage. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)

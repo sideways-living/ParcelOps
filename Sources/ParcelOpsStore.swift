@@ -889,6 +889,128 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxIntakeQualitySummary: SpaceMailQACheckSummary {
+    let totalIntakeCount = intakeEmails.count
+    let openReviewCount = intakeEmails.filter { $0.reviewState == .needsReview }.count
+    let reviewedCount = intakeEmails.filter { $0.reviewState == .reviewed }.count
+    let ignoredCount = intakeEmails.filter { $0.reviewState == .ignored }.count
+    let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
+    let parserIssueCount = intakeParserDiagnostics.count
+    let criticalParserIssueCount = intakeParserDiagnostics.filter { $0.severity == .critical || $0.severity == .high }.count
+    let intakeIDsWithSourceTrace = Set(mailboxIngestRecords.compactMap(\.intakeEmailID))
+    let tracedIntakeCount = intakeEmails.filter { intakeIDsWithSourceTrace.contains($0.id) }.count
+    let rowsWithOrderOrTracking = intakeEmails.filter { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue
+        || !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+    let rowsWithOrderAndTracking = intakeEmails.filter { email in
+      !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+    }.count
+    let rowsWithDestination = intakeEmails.filter { !$0.detectedDestinationAddress.isPlaceholderValidationValue }.count
+    let actionableIntakeCount = intakeEmails.filter { email in
+      email.reviewState == .needsReview
+        && (
+          !email.detectedOrderNumber.isPlaceholderValidationValue
+            || !email.detectedTrackingNumber.isPlaceholderValidationValue
+            || !email.detectedDestinationAddress.isPlaceholderValidationValue
+        )
+    }.count
+    let duplicateTraceCount = mailboxIngestRecords.count
+    let allOpenRowsHaveSignals = openReviewCount == 0 || actionableIntakeCount > 0
+    let reviewQueueControlled = openReviewCount <= max(3, totalIntakeCount / 2)
+    let parserIssuesControlled = criticalParserIssueCount == 0
+
+    let checks = [
+      SpaceMailQACheck(
+        title: "Intake rows exist",
+        detail: "Mailbox imports should create local ForwardedEmailIntake rows before the operator workflow can be judged.",
+        evidence: totalIntakeCount > 0 ? "\(totalIntakeCount) intake row\(totalIntakeCount == 1 ? "" : "s") captured." : "No intake rows are captured yet.",
+        isComplete: totalIntakeCount > 0,
+        tone: totalIntakeCount > 0 ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Provider source trace",
+        detail: "Imported rows should retain local ingest metadata so duplicate refreshes can update or skip safely.",
+        evidence: tracedIntakeCount > 0 ? "\(tracedIntakeCount) intake row\(tracedIntakeCount == 1 ? "" : "s") linked to provider ingest metadata." : "No intake rows have provider ingest trace yet.",
+        isComplete: tracedIntakeCount > 0,
+        tone: tracedIntakeCount > 0 ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Order or tracking signals",
+        detail: "At least some intake rows should expose detected order or tracking fields before create-order handoff.",
+        evidence: rowsWithOrderOrTracking > 0 ? "\(rowsWithOrderOrTracking) row\(rowsWithOrderOrTracking == 1 ? "" : "s") include order or tracking signals; \(rowsWithOrderAndTracking) include both." : "No intake rows currently expose an order or tracking signal.",
+        isComplete: rowsWithOrderOrTracking > 0,
+        tone: rowsWithOrderOrTracking > 0 ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Destination signal",
+        detail: "Destination extraction is not always required, but visible destination evidence makes handoff safer.",
+        evidence: rowsWithDestination > 0 ? "\(rowsWithDestination) row\(rowsWithDestination == 1 ? "" : "s") include destination signal." : "No destination signal is detected in current intake rows.",
+        isComplete: rowsWithDestination > 0,
+        tone: rowsWithDestination > 0 ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Open rows are actionable",
+        detail: "Rows needing review should contain at least one useful local signal, not only generic or empty mailbox text.",
+        evidence: allOpenRowsHaveSignals ? "\(actionableIntakeCount) open row\(actionableIntakeCount == 1 ? "" : "s") contain detected order, tracking, or destination context." : "\(openReviewCount) open row\(openReviewCount == 1 ? "" : "s") need review but no actionable signal was detected.",
+        isComplete: allOpenRowsHaveSignals,
+        tone: allOpenRowsHaveSignals ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Review state controlled",
+        detail: "The primary Inbox should not be overwhelmed by old unresolved intake rows.",
+        evidence: "\(openReviewCount) needs review, \(reviewedCount) reviewed, \(ignoredCount) ignored.",
+        isComplete: reviewQueueControlled,
+        tone: reviewQueueControlled ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Inbox-to-order linkage",
+        detail: "At least one intake row should link to a local order before calling the intake workflow ready.",
+        evidence: linkedOrderCount > 0 ? "\(linkedOrderCount) intake row\(linkedOrderCount == 1 ? "" : "s") linked to local orders." : "No intake row is linked to an order yet.",
+        isComplete: linkedOrderCount > 0,
+        tone: linkedOrderCount > 0 ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Parser diagnostics controlled",
+        detail: "High-severity parser diagnostics should be handled before relying on automated order/tracking extraction.",
+        evidence: "\(parserIssueCount) parser diagnostic\(parserIssueCount == 1 ? "" : "s"); \(criticalParserIssueCount) high priority.",
+        isComplete: parserIssuesControlled,
+        tone: parserIssuesControlled ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Duplicate metadata retained",
+        detail: "Provider message IDs should remain available so repeated refreshes do not create duplicate Inbox work.",
+        evidence: duplicateTraceCount > 0 ? "\(duplicateTraceCount) ingest metadata record\(duplicateTraceCount == 1 ? "" : "s") retained." : "No ingest metadata is retained yet.",
+        isComplete: duplicateTraceCount > 0,
+        tone: duplicateTraceCount > 0 ? "success" : "attention"
+      )
+    ]
+
+    let completedCount = checks.filter(\.isComplete).count
+    let verdict: String
+    let tone: String
+    if completedCount == checks.count {
+      verdict = "Mailbox intake quality is ready"
+      tone = "success"
+    } else if completedCount >= 6 {
+      verdict = "Mailbox intake quality is usable with review"
+      tone = "attention"
+    } else {
+      verdict = "Mailbox intake quality needs attention"
+      tone = "warning"
+    }
+
+    return SpaceMailQACheckSummary(
+      verdict: verdict,
+      detail: "\(completedCount) of \(checks.count) intake quality checks are complete across captured mailbox rows.",
+      completedCount: completedCount,
+      totalCount: checks.count,
+      tone: tone,
+      checks: checks
+    )
+  }
+
   var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
     let historyPairs = spaceMailIMAPConnections.flatMap { connection in
       connection.refreshHistory.map { entry in

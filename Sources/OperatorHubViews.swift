@@ -288,6 +288,7 @@ struct InboxView: View {
         inboxSummaryPanel
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
+        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
         mailboxHealthPanel
         missingOrderDiagnosticPanel

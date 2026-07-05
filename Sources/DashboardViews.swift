@@ -496,6 +496,7 @@ struct DashboardView: View {
         header
         dailyStartDecisionPanel
         inboxTriageQualityPanel
+        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         dailyFlowCheckpointPanel
         liveMailboxStatusPanel
         MVPDevelopmentStatusPanel(store: store)
