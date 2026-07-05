@@ -1199,6 +1199,7 @@ struct DashboardView: View {
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)

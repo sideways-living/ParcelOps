@@ -3907,6 +3907,116 @@ struct GmailRefreshTrendCard: View {
   }
 }
 
+struct MailboxProviderSetupChecklistCard: View {
+  var summary: MailboxProviderSetupChecklistSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var providerColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.tone == "success" ? "Ready" : "Review", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
+        ForEach(summary.providers) { provider in
+          VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: provider.symbol)
+                .foregroundStyle(color(for: provider.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(provider.providerName)
+                  .font(.subheadline.weight(.semibold))
+                Text(provider.status)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(color(for: provider.tone))
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer()
+            }
+
+            Text(provider.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+              ForEach(provider.checks) { check in
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: check.isComplete ? "checkmark.circle.fill" : check.symbol)
+                    .foregroundStyle(color(for: check.tone))
+                    .frame(width: 20)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(check.title)
+                      .font(.caption.weight(.semibold))
+                    Text(check.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+              }
+            }
+
+            Label(provider.nextAction, systemImage: "arrow.forward.circle.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: provider.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: provider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Checklist status is computed from saved local provider setup, auth/credential state, and manual refresh evidence. It does not sign in, fetch mail, or change mailbox data.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MailboxProviderComparisonCard: View {
   var summary: MailboxProviderComparisonSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

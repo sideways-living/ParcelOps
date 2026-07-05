@@ -384,6 +384,7 @@ struct IntegrationsView: View {
               .fixedSize(horizontal: false, vertical: true)
 
             MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+            MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
             MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
             SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)

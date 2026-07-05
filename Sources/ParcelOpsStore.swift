@@ -2255,6 +2255,159 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderSetupChecklistSummary: MailboxProviderSetupChecklistSummary {
+    func hasUsefulText(_ value: String) -> Bool {
+      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && value != "Never"
+        && value.localizedCaseInsensitiveCompare("unknown") != .orderedSame
+    }
+
+    func credentialLooksReady(_ value: String) -> Bool {
+      value.localizedCaseInsensitiveContains("available")
+        || value.localizedCaseInsensitiveContains("ready")
+        || value.localizedCaseInsensitiveContains("keychain")
+        || value.localizedCaseInsensitiveContains("managed")
+    }
+
+    let spaceMail = spaceMailIMAPConnections.first
+    let gmail = gmailMailboxConnections.first
+    let gmailReadiness = gmail.map(gmailOAuthReadinessSummary(for:))
+    let gmailAuth = gmail.map(gmailAuthSessionState(for:))
+
+    let spaceMailChecks = [
+      MailboxProviderSetupChecklistItem(
+        title: "Setup record",
+        detail: spaceMail == nil ? "Add a SpaceMail IMAP placeholder before testing real refresh." : "\(spaceMail?.displayName ?? "SpaceMail") is saved locally.",
+        isComplete: spaceMail != nil,
+        tone: spaceMail == nil ? "warning" : "success",
+        symbol: "server.rack"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Host, port, security, folder",
+        detail: spaceMail == nil ? "Needs host, port 993, SSL/TLS, and INBOX or selected folder." : "\(spaceMail?.imapHost ?? ""):\(spaceMail?.imapPort ?? "") • \(spaceMail?.securityMode ?? "") • \(spaceMail?.folderName ?? "")",
+        isComplete: spaceMail.map { hasUsefulText($0.imapHost) && hasUsefulText($0.imapPort) && hasUsefulText($0.securityMode) && hasUsefulText($0.folderName) } ?? false,
+        tone: spaceMail.map { hasUsefulText($0.imapHost) && hasUsefulText($0.imapPort) && hasUsefulText($0.securityMode) && hasUsefulText($0.folderName) } == true ? "success" : "attention",
+        symbol: "checklist.checked"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Keychain credential",
+        detail: spaceMail?.credentialStorageStatus ?? "Password reference is not configured.",
+        isComplete: spaceMail.map { credentialLooksReady($0.credentialStorageStatus) } ?? false,
+        tone: spaceMail.map { credentialLooksReady($0.credentialStorageStatus) } == true ? "success" : "warning",
+        symbol: "key.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Mailbox mode",
+        detail: spaceMail?.mailboxMode.rawValue ?? "Choose dedicated or mixed mailbox filtering.",
+        isComplete: spaceMail != nil,
+        tone: spaceMail == nil ? "attention" : "success",
+        symbol: "line.3.horizontal.decrease.circle"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Manual refresh evidence",
+        detail: spaceMail == nil ? "No SpaceMail refresh has run." : "Last refresh: \(spaceMail?.lastManualRefreshDate ?? "Never"). \(spaceMail?.lastRefreshSummary ?? "")",
+        isComplete: spaceMail.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        tone: spaceMail.map { $0.lastManualRefreshDate != "Never" } == true ? "success" : "attention",
+        symbol: "arrow.clockwise.circle.fill"
+      )
+    ]
+
+    let gmailChecks = [
+      MailboxProviderSetupChecklistItem(
+        title: "Setup record",
+        detail: gmail == nil ? "Add Gmail only for Gmail-hosted mailboxes." : "\(gmail?.displayName ?? "Gmail") is saved locally.",
+        isComplete: gmail != nil,
+        tone: gmail == nil ? "neutral" : "success",
+        symbol: "envelope.badge.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "OAuth placeholders",
+        detail: gmailReadiness?.missingFields.isEmpty == true ? "Google Cloud OAuth setup is complete enough for sign-in testing." : (gmailReadiness?.missingFields.prefix(3).joined(separator: ", ") ?? "OAuth client, callback scheme, scopes, and consent notes are not configured."),
+        isComplete: gmailReadiness?.isReady == true,
+        tone: gmailReadiness?.isReady == true ? "success" : (gmail == nil ? "neutral" : "warning"),
+        symbol: "person.badge.key.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Auth session",
+        detail: gmailAuth == nil ? "No Gmail auth state yet." : "Status: \(gmailAuth?.status.rawValue ?? "Unknown").",
+        isComplete: gmailAuth?.status == .connected,
+        tone: gmailAuth?.status == .connected ? "success" : (gmail == nil ? "neutral" : "attention"),
+        symbol: "person.crop.circle.badge.checkmark"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Read-only scopes",
+        detail: gmail?.requestedScopesSummary ?? "Plan gmail.readonly before real Gmail refresh.",
+        isComplete: gmail?.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") == true
+          || gmail?.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata") == true,
+        tone: (gmail?.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") == true
+          || gmail?.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata") == true) ? "success" : (gmail == nil ? "neutral" : "attention"),
+        symbol: "lock.doc.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Manual refresh evidence",
+        detail: gmail == nil ? "No Gmail refresh has run." : "Last refresh: \(gmail?.lastManualRefreshDate ?? "Never"). \(gmail?.lastRefreshSummary ?? "")",
+        isComplete: gmail.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        tone: gmail.map { $0.lastManualRefreshDate != "Never" } == true ? "success" : (gmail == nil ? "neutral" : "attention"),
+        symbol: "arrow.clockwise.circle.fill"
+      )
+    ]
+
+    func providerTone(for checks: [MailboxProviderSetupChecklistItem], optional: Bool = false) -> String {
+      let incompleteRequired = checks.filter { !$0.isComplete && $0.tone != "neutral" }.count
+      if optional && checks.allSatisfy({ $0.tone == "neutral" || !$0.isComplete }) {
+        return "neutral"
+      }
+      if checks.contains(where: { !$0.isComplete && $0.tone == "warning" }) {
+        return "warning"
+      }
+      return incompleteRequired == 0 ? "success" : "attention"
+    }
+
+    let spaceMailTone = providerTone(for: spaceMailChecks)
+    let gmailTone = providerTone(for: gmailChecks, optional: gmail == nil)
+    let providers = [
+      MailboxProviderSetupChecklistProvider(
+        providerName: "SpaceMail IMAP",
+        status: spaceMailTone == "success" ? "Ready for manual read-only refresh" : "Setup needs attention",
+        detail: "Use for SpaceMail or generic IMAP mailboxes. Passwords stay in Keychain, not JSON.",
+        nextAction: spaceMailTone == "success" ? "Run real SpaceMail refresh when checking new mail." : "Confirm setup fields and Keychain credential before refreshing.",
+        tone: spaceMailTone,
+        symbol: "server.rack",
+        checks: spaceMailChecks
+      ),
+      MailboxProviderSetupChecklistProvider(
+        providerName: "Gmail",
+        status: gmail == nil ? "Optional, not configured" : (gmailTone == "success" ? "Ready for Gmail sign-in/refresh checks" : "Gmail setup needs attention"),
+        detail: "Use only for Gmail-hosted mailboxes. OAuth/token values are not stored in JSON.",
+        nextAction: gmail == nil ? "Leave Gmail unconfigured unless a Gmail mailbox is needed." : "Complete OAuth/client setup before real Gmail refresh testing.",
+        tone: gmailTone,
+        symbol: "g.circle.fill",
+        checks: gmailChecks
+      )
+    ]
+
+    let requiredChecks = spaceMailChecks + (gmail == nil ? [] : gmailChecks)
+    let completedChecks = requiredChecks.filter(\.isComplete).count
+    let totalChecks = requiredChecks.count
+    let requiredWarnings = providers.flatMap(\.checks).filter { !$0.isComplete && $0.tone == "warning" }.count
+    let refreshEvidence = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let summaryTone = requiredWarnings > 0 ? "warning" : (refreshEvidence ? "success" : "attention")
+
+    return MailboxProviderSetupChecklistSummary(
+      title: summaryTone == "success" ? "Provider setup checklist is usable" : "Provider setup checklist needs review",
+      detail: "Compare SpaceMail and Gmail prerequisites before running manual mailbox refreshes. This checklist reads local setup state only.",
+      tone: summaryTone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Configured", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty ? "warning" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: completedChecks == totalChecks ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(requiredWarnings)", tone: requiredWarnings == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Refresh evidence", value: refreshEvidence ? "Yes" : "No", tone: refreshEvidence ? "success" : "attention")
+      ],
+      providers: providers
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

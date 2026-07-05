@@ -2157,6 +2157,34 @@ struct MailboxOperatorDecisionItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxProviderSetupChecklistSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var providers: [MailboxProviderSetupChecklistProvider]
+}
+
+struct MailboxProviderSetupChecklistProvider: Identifiable, Hashable {
+  var id: String { providerName }
+  var providerName: String
+  var status: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var symbol: String
+  var checks: [MailboxProviderSetupChecklistItem]
+}
+
+struct MailboxProviderSetupChecklistItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var isComplete: Bool
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String
