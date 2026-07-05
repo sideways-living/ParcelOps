@@ -982,6 +982,150 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderHandoffPacketSummary: MailboxProviderHandoffPacketSummary {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let queue = mailboxProviderTestQueueSummary
+    let handoff = mailboxOperationsHandoffSummary
+    let decision = mailboxOperatorDecisionSummary
+    let blockers = mailboxReleaseBlockerSummary
+    let timeline = mailboxRunTimelineSummary
+    let releasePlan = mailboxReleaseTestPlanSummary
+    let generatedDate = Self.auditTimestamp()
+    let openQueueItems = queue.items.filter { !$0.isComplete }
+    let warningCount = openQueueItems.filter { $0.tone == "warning" }.count
+    let attentionCount = openQueueItems.filter { $0.tone == "attention" }.count
+    let openInboxCount = reviewIntakeEmails.count
+    let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
+    let inboxOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+
+    let providerLines = comparison.providers.map { provider in
+      "\(provider.providerName): \(provider.statusTitle). \(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blockers. Next: \(provider.nextAction)"
+    }
+    let setupLines = setup.providers.map { provider in
+      let incomplete = provider.checks.filter { !$0.isComplete }.map(\.title)
+      return "\(provider.providerName): \(provider.status). \(incomplete.isEmpty ? "All setup checks complete." : "Missing: \(incomplete.joined(separator: ", ")).")"
+    }
+    let queueLines = openQueueItems.prefix(8).map { item in
+      "\(item.providerName) / \(item.phase): \(item.title). Next: \(item.nextAction)"
+    }
+    let blockerLines = blockers.blockers.prefix(6).map { blocker in
+      "\(blocker.source): \(blocker.title). Next: \(blocker.nextAction)"
+    }
+    let handoffLines = handoff.lines.map { line in
+      "\(line.title): \(line.detail)"
+    }
+    let releaseLines = releasePlan.steps.filter { !$0.isComplete }.prefix(6).map { step in
+      "\(step.title): \(step.nextAction)"
+    }
+
+    let sections = [
+      MailboxProviderHandoffPacketSection(
+        title: "Provider state",
+        detail: comparison.detail,
+        tone: comparison.tone,
+        symbol: "envelope.badge.fill",
+        lines: providerLines.isEmpty ? ["No mailbox provider setup is configured."] : providerLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Setup readiness",
+        detail: setup.detail,
+        tone: setup.tone,
+        symbol: "checklist.checked",
+        lines: setupLines.isEmpty ? ["No setup checklist evidence is available."] : setupLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Next test queue",
+        detail: queue.detail,
+        tone: queue.tone,
+        symbol: "list.bullet.clipboard.fill",
+        lines: queueLines.isEmpty ? ["No open provider test queue items."] : queueLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Release blockers",
+        detail: blockers.detail,
+        tone: blockers.tone,
+        symbol: "exclamationmark.triangle.fill",
+        lines: blockerLines.isEmpty ? ["No mailbox release blockers are currently promoted."] : blockerLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Operator handoff",
+        detail: handoff.detail,
+        tone: handoff.tone,
+        symbol: "arrow.left.arrow.right.square.fill",
+        lines: handoffLines.isEmpty ? ["No handoff lines are currently promoted."] : handoffLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Release test plan",
+        detail: releasePlan.detail,
+        tone: releasePlan.tone,
+        symbol: "checkmark.seal.fill",
+        lines: releaseLines.isEmpty ? ["Release test plan has no incomplete local steps."] : releaseLines
+      )
+    ]
+
+    let title: String
+    let detail: String
+    let tone: String
+    if warningCount > 0 || blockers.tone == "warning" {
+      title = "Mailbox provider handoff has blockers"
+      detail = "Resolve warning items before treating mailbox provider intake as release-ready."
+      tone = "warning"
+    } else if attentionCount > 0 || openInboxCount > 0 || openTaskCount > 0 {
+      title = "Mailbox provider handoff needs operator review"
+      detail = "There is open Inbox, queue, task, or handoff work for the next operator."
+      tone = "attention"
+    } else if timeline.entries.isEmpty {
+      title = "Mailbox provider handoff needs run evidence"
+      detail = "Provider setup exists, but the next packet should include a manual refresh run."
+      tone = "neutral"
+    } else {
+      title = "Mailbox provider handoff is ready"
+      detail = "Provider setup, refresh evidence, release blockers, and handoff checks are clear enough for hands-on review."
+      tone = "success"
+    }
+
+    let reportLines = [
+      title,
+      detail,
+      "Generated: \(generatedDate)",
+      "Recommended provider path: \(comparison.recommendedProvider)",
+      "Primary decision: \(decision.title). \(decision.primaryAction)",
+      "Open queue items: \(openQueueItems.count)",
+      "Open Inbox rows: \(openInboxCount)",
+      "Linked intake orders: \(linkedOrderCount)",
+      "Inbox-created orders: \(inboxOrderCount)",
+      "Open task/handoff items: \(openTaskCount)",
+      "",
+      "Sections:"
+    ] + sections.flatMap { section in
+      ["", "\(section.title): \(section.detail)"] + section.lines.map { "- \($0)" }
+    } + [
+      "",
+      "Boundaries:",
+      "- This packet is computed from local JSON-backed records.",
+      "- It does not run mailbox refreshes, read credentials, call external services, send email, create notifications, or mutate mailbox messages."
+    ]
+
+    return MailboxProviderHandoffPacketSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      generatedDate: generatedDate,
+      reportText: reportLines.joined(separator: "\n"),
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Providers", value: comparison.recommendedProvider, tone: comparison.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Open queue", value: "\(openQueueItems.count)", tone: openQueueItems.isEmpty ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Inbox", value: "\(openInboxCount)", tone: openInboxCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxOrderCount)", tone: linkedOrderCount + inboxOrderCount > 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Tasks", value: "\(openTaskCount)", tone: openTaskCount == 0 ? "success" : "attention")
+      ],
+      sections: sections
+    )
+  }
+
   var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
@@ -10376,6 +10520,63 @@ final class ParcelOpsStore {
     addReviewTask(
       task,
       summary: "Review task created from mailbox provider test queue."
+    )
+  }
+
+  func createReviewTaskFromMailboxProviderHandoffPacket() {
+    let packet = mailboxProviderHandoffPacketSummary
+    let taskPriority: TaskPriority
+    switch packet.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = packet.tone == "success" ? "Confirm mailbox provider handoff packet" : "Review mailbox provider handoff packet"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-handoff-packet"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = packet.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing mailbox provider handoff packet task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current mailbox provider handoff packet. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: packet.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-handoff-packet",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from mailbox provider handoff packet."
     )
   }
 

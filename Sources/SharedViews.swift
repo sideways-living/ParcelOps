@@ -3294,6 +3294,139 @@ struct MailboxProviderTestQueueCard: View {
   }
 }
 
+struct MailboxProviderHandoffPacketCard: View {
+  var packet: MailboxProviderHandoffPacketSummary
+  var store: ParcelOpsStore?
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var feedbackMessage: String?
+
+  private var color: Color {
+    color(for: packet.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "doc.text.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(packet.title)
+            .font(.headline)
+          Text(packet.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Generated \(packet.generatedDate)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+        }
+        Spacer()
+        Badge("Handoff", color: color)
+      }
+
+      MetricStrip(items: packet.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if let store {
+        CompactActionRow {
+          Button("Create handoff task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderHandoffPacket()
+            feedbackMessage = "Mailbox provider handoff task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text(feedbackMessage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(packet.sections) { section in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: section.symbol)
+                .foregroundStyle(color(for: section.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(section.title)
+                  .font(.caption.weight(.semibold))
+                Text(section.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(Array(section.lines.prefix(4).enumerated()), id: \.offset) { _, line in
+                Text(line)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: section.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This packet is generated from local JSON-backed state only. It does not refresh mailboxes, read credentials, send messages, call external services, or modify mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

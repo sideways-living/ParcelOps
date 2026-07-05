@@ -2179,6 +2179,25 @@ struct MailboxProviderTestQueueItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxProviderHandoffPacketSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var generatedDate: String
+  var reportText: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var sections: [MailboxProviderHandoffPacketSection]
+}
+
+struct MailboxProviderHandoffPacketSection: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var tone: String
+  var symbol: String
+  var lines: [String]
+}
+
 struct MailboxProviderSetupChecklistSummary: Hashable {
   var title: String
   var detail: String
