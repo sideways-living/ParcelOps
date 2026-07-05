@@ -1527,6 +1527,123 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailReleaseReadinessSnapshot: SpaceMailReleaseSnapshot {
+    let handoff = gmailShiftHandoffSummary
+    let healthSummaries = gmailIntakeHealthSummaries
+    let readinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
+    let setupTestPlans = gmailMailboxConnections.map(gmailSetupTestChecklist(for:))
+    let setupBlockers = readinessSummaries.filter { !$0.isReady }.count
+    let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let fetchedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+    let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let parserDiagnostics = gmailMailboxConnections.reduce(0) { count, connection in
+      let sourceIDs = Set(mailboxIngestRecords.filter { $0.sourceMailboxID == connection.id }.compactMap(\.intakeEmailID))
+      return count + intakeParserDiagnostics.filter { sourceIDs.contains($0.intakeEmailID) }.count
+    }
+    let latestRefresh = gmailMailboxConnections
+      .filter { $0.lastManualRefreshDate != "Never" }
+      .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
+      .first
+    let generatedDate = Date.now.formatted(date: .abbreviated, time: .shortened)
+    let completedSetupSteps = setupTestPlans.reduce(0) { $0 + $1.completedCount }
+    let totalSetupSteps = setupTestPlans.reduce(0) { $0 + $1.totalCount }
+    let openHandoffLines = handoff.handoffLines.filter { $0.tone == "attention" || $0.tone == "warning" }.count
+
+    let verdict: String
+    let detail: String
+    let tone: String
+    if gmailMailboxConnections.isEmpty {
+      verdict = "Gmail release snapshot: optional path not configured"
+      detail = "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace. SpaceMail can remain the primary mailbox intake path."
+      tone = "neutral"
+    } else if setupBlockers == 0 && signedInCount > 0 && fetchedCount > 0 && openHandoffLines == 0 {
+      verdict = "Gmail release snapshot: ready for supervised testing"
+      detail = "Gmail setup, sign-in, read-only refresh evidence, and handoff checks are clear enough for a focused hands-on pass."
+      tone = "success"
+    } else if setupBlockers == 0 && signedInCount > 0 {
+      verdict = "Gmail release snapshot: usable with review"
+      detail = "Gmail setup and sign-in are ready. Complete manual refresh review, uncertain-message review, or parser checks before relying on it."
+      tone = "attention"
+    } else {
+      verdict = "Gmail release snapshot: setup still needed"
+      detail = "Complete Google Cloud OAuth setup, compiled callback readiness, and real Google sign-in before running live Gmail refresh."
+      tone = "warning"
+    }
+
+    let latestRefreshLine = latestRefresh.map {
+      "\($0.displayName): \($0.lastRefreshSummary.isEmpty ? $0.connectionStatus : $0.lastRefreshSummary)"
+    } ?? "No real Gmail refresh has been recorded yet."
+    let readinessLines = readinessSummaries.map { summary in
+      "- \(summary.statusText). Missing/blocking: \(summary.missingFields.isEmpty ? "none" : summary.missingFields.joined(separator: ", ")). Compiled client: \(summary.compiledClientIDStatus). Callback: \(summary.compiledCallbackSchemeStatus)."
+    }
+    let healthLines = healthSummaries.map { summary in
+      "- \(summary.displayName): \(summary.verdict). \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.filteredCount) filtered, \(summary.uncertainCount + summary.pendingUncertainReviewCount) uncertain."
+    }
+    let handoffLines = handoff.handoffLines.map { "- \($0.title): \($0.detail)" }
+    let reportLines = [
+      "ParcelOps Gmail local release snapshot",
+      "Generated: \(generatedDate)",
+      "",
+      "Verdict: \(verdict)",
+      "Detail: \(detail)",
+      "",
+      "Gmail setup records: \(gmailMailboxConnections.count)",
+      "Setup test steps: \(completedSetupSteps)/\(max(totalSetupSteps, 1))",
+      "OAuth readiness blockers: \(setupBlockers)",
+      "Connected Google sign-ins: \(signedInCount)",
+      "Latest refresh: \(latestRefreshLine)",
+      "",
+      "Refresh counts:",
+      "Fetched: \(fetchedCount)",
+      "Imported to Inbox: \(importedCount)",
+      "Duplicates: \(duplicateCount)",
+      "Filtered non-order: \(filteredCount)",
+      "Uncertain needing review: \(uncertainCount)",
+      "Parser diagnostics: \(parserDiagnostics)",
+      "",
+      "Readiness:",
+      readinessLines.isEmpty ? "- No Gmail setup records are configured." : readinessLines.joined(separator: "\n"),
+      "",
+      "Health:",
+      healthLines.isEmpty ? "- No Gmail health summaries are available." : healthLines.joined(separator: "\n"),
+      "",
+      "Handoff:",
+      handoffLines.joined(separator: "\n"),
+      "",
+      "Release boundaries:",
+      "- Gmail refresh is explicit, manual, and read-only.",
+      "- Gmail API requests must not delete, move, mark read, send, or modify mailbox messages.",
+      "- Google access tokens, refresh tokens, auth codes, callback URLs, client secrets, passwords, raw Gmail API responses, and full message bodies must not be stored in JSON or Audit.",
+      "- Mixed mailbox filtering stays local and should keep non-order mail out of primary Inbox.",
+      "",
+      "Recommended Gmail test:",
+      "1. Confirm Google Cloud iOS OAuth client and compiled callback scheme.",
+      "2. Run Test real Google sign-in.",
+      "3. Run real Gmail refresh manually.",
+      "4. Review imported, uncertain, and filtered examples.",
+      "5. Create or link one order from confirmed Inbox intake and confirm Dashboard, Orders, Workbench, Tasks, and Audit."
+    ]
+
+    return SpaceMailReleaseSnapshot(
+      verdict: verdict,
+      detail: detail,
+      generatedDate: generatedDate,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(setupBlockers)", tone: setupBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount == 0 ? "success" : "attention")
+      ],
+      reportText: reportLines.joined(separator: "\n")
+    )
+  }
+
   var gmailRefreshTrendSummary: GmailRefreshTrendSummary {
     let gmailEvents = auditEvents.filter { event in
       event.entityType == .gmailMailboxConnection
