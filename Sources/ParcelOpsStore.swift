@@ -12265,12 +12265,14 @@ final class ParcelOpsStore {
 
   func createReviewTaskFromGmailOAuthPlan(_ connection: GmailMailboxConnection) {
     let plan = gmailOAuthImplementationPlan(for: connection)
+    let readiness = gmailOAuthReadinessSummary(for: connection)
+    let blockers = readiness.missingFields.isEmpty ? "No current readiness blockers." : "Current readiness blockers: \(readiness.missingFields.joined(separator: ", "))."
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      label: "\(connection.displayName) Gmail OAuth plan",
-      summary: "Review Gmail OAuth implementation plan. \(plan.statusText). \(plan.items.filter { !$0.isComplete }.map(\.title).joined(separator: ", "))",
-      priority: plan.completedCount < plan.totalCount ? .high : .normal,
+      label: "\(connection.displayName) Gmail config handoff",
+      summary: "Review Gmail setup before real sign-in. \(plan.statusText). \(readiness.statusText). \(blockers) Compiled client: \(readiness.compiledClientIDStatus). Compiled callback: \(readiness.compiledCallbackSchemeStatus).",
+      priority: readiness.isReady && plan.completedCount == plan.totalCount ? .normal : .high,
       assignee: "Operations"
     )
     logAudit(
@@ -12278,8 +12280,8 @@ final class ParcelOpsStore {
       entityType: .gmailMailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
-      summary: "Review task created from Gmail OAuth implementation plan.",
-      afterDetail: gmailOAuthImplementationPlanAuditDetail(plan)
+      summary: "Review task created from Gmail setup handoff.",
+      afterDetail: "\(gmailOAuthImplementationPlanAuditDetail(plan))\nReadiness: \(readiness.statusText)\nMissing or blocked setup: \(readiness.missingFields.isEmpty ? "none" : readiness.missingFields.joined(separator: ", "))\nExpected callback scheme: \(readiness.expectedCallbackScheme)\nCompiled client ID status: \(readiness.compiledClientIDStatus)\nCompiled callback scheme status: \(readiness.compiledCallbackSchemeStatus)\nNo Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, or mailbox mutation occurred."
     )
   }
 

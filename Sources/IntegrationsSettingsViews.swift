@@ -1933,7 +1933,7 @@ struct GmailMailboxConnectionRow: View {
             Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
             Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
             Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
-            Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
+            Button("Create setup task", systemImage: "checklist", action: onCreatePlanTask)
           }
         }
         VStack(alignment: .leading, spacing: 6) {
