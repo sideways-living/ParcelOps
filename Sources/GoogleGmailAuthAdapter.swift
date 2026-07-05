@@ -145,9 +145,14 @@ struct GoogleGmailAuthClient: GmailAuthClient {
   @MainActor
   private func signIn(connection: GmailMailboxConnection, scopes: [String]) async throws -> GIDSignInResult {
     try await withCheckedThrowingContinuation { continuation in
+      let completion = GoogleGmailSignInCompletion(continuation)
+      Task {
+        try? await Task.sleep(nanoseconds: 90_000_000_000)
+        completion.resume(throwing: GoogleGmailAuthError.signInTimedOut)
+      }
       #if os(iOS)
       guard let presenter = Self.activeViewController() else {
-        continuation.resume(throwing: GoogleGmailAuthError.missingPresentationSurface)
+        completion.resume(throwing: GoogleGmailAuthError.missingPresentationSurface)
         return
       }
       GIDSignIn.sharedInstance.signIn(
@@ -156,18 +161,18 @@ struct GoogleGmailAuthClient: GmailAuthClient {
         additionalScopes: scopes
       ) { result, error in
         if let error {
-          continuation.resume(throwing: error)
+          completion.resume(throwing: error)
           return
         }
         guard let result else {
-          continuation.resume(throwing: GoogleGmailAuthError.missingSignInResult)
+          completion.resume(throwing: GoogleGmailAuthError.missingSignInResult)
           return
         }
-        continuation.resume(returning: result)
+        completion.resume(returning: result)
       }
       #elseif os(macOS)
       guard let presenter = Self.activeWindow() else {
-        continuation.resume(throwing: GoogleGmailAuthError.missingPresentationSurface)
+        completion.resume(throwing: GoogleGmailAuthError.missingPresentationSurface)
         return
       }
       GIDSignIn.sharedInstance.signIn(
@@ -176,17 +181,17 @@ struct GoogleGmailAuthClient: GmailAuthClient {
         additionalScopes: scopes
       ) { result, error in
         if let error {
-          continuation.resume(throwing: error)
+          completion.resume(throwing: error)
           return
         }
         guard let result else {
-          continuation.resume(throwing: GoogleGmailAuthError.missingSignInResult)
+          completion.resume(throwing: GoogleGmailAuthError.missingSignInResult)
           return
         }
-        continuation.resume(returning: result)
+        completion.resume(returning: result)
       }
       #else
-      continuation.resume(throwing: GoogleGmailAuthError.unsupportedPlatform)
+      completion.resume(throwing: GoogleGmailAuthError.unsupportedPlatform)
       #endif
     }
   }
@@ -209,6 +214,9 @@ struct GoogleGmailAuthClient: GmailAuthClient {
   private func authFailureDetail(for error: Error) -> String {
     let nsError = error as NSError
     let suffix = "No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+    if let localError = error as? GoogleGmailAuthError, localError == .signInTimedOut {
+      return "Google sign-in timed out before GoogleSignIn returned a completion. Bring ParcelOps forward, confirm the browser callback returned to the app, and try again. \(suffix)"
+    }
     if error is GoogleGmailAuthError {
       return "Missing presentation surface: ParcelOps could not find an active app window or view controller for Google sign-in. Bring the app window forward and try again. \(suffix)"
     }
@@ -378,5 +386,38 @@ private enum GmailReadinessValidator {
 enum GoogleGmailAuthError: Error {
   case missingPresentationSurface
   case missingSignInResult
+  case signInTimedOut
   case unsupportedPlatform
 }
+
+#if canImport(GoogleSignIn)
+private final class GoogleGmailSignInCompletion: @unchecked Sendable {
+  private let lock = NSLock()
+  private var didResume = false
+  private var continuation: CheckedContinuation<GIDSignInResult, Error>?
+
+  init(_ continuation: CheckedContinuation<GIDSignInResult, Error>) {
+    self.continuation = continuation
+  }
+
+  func resume(returning result: GIDSignInResult) {
+    guard let continuation = takeContinuation() else { return }
+    continuation.resume(returning: result)
+  }
+
+  func resume(throwing error: Error) {
+    guard let continuation = takeContinuation() else { return }
+    continuation.resume(throwing: error)
+  }
+
+  private func takeContinuation() -> CheckedContinuation<GIDSignInResult, Error>? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !didResume else { return nil }
+    didResume = true
+    let continuation = continuation
+    self.continuation = nil
+    return continuation
+  }
+}
+#endif
