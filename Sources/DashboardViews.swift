@@ -1204,6 +1204,7 @@ struct DashboardView: View {
         SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
         MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
         MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
+        MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
 
         CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)

@@ -2964,6 +2964,102 @@ struct MailboxRunTimelineCard: View {
   }
 }
 
+struct MailboxReleaseTestPlanCard: View {
+  var summary: MailboxReleaseTestPlanSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 280), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checkmark.rectangle.stack.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Test plan", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(summary.steps) { step in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.symbol)
+                .foregroundStyle(color(for: step.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(step.title)
+                  .font(.caption.weight(.semibold))
+                  .fixedSize(horizontal: false, vertical: true)
+                Text(step.isComplete ? "Evidence present" : "Needs action")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(color(for: step.tone))
+              }
+            }
+
+            Text(step.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Text(step.evidence)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: step.tone))
+              .fixedSize(horizontal: false, vertical: true)
+
+            Label(step.nextAction, systemImage: "arrow.forward.circle.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: step.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: step.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This test plan reads existing local mailbox, Inbox, order, task, and Audit state. It does not run mailbox refresh, change credentials, mutate mailbox messages, call external services, or create background jobs.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

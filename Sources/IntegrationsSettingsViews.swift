@@ -389,6 +389,7 @@ struct IntegrationsView: View {
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
             MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
+            MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)

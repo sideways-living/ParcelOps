@@ -2020,6 +2020,128 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxReleaseTestPlanSummary: MailboxReleaseTestPlanSummary {
+    let providerQA = mailboxProviderQACheckSummary
+    let intakeQA = mailboxIntakeQualitySummary
+    let blockers = mailboxReleaseBlockerSummary
+    let timeline = mailboxRunTimelineSummary
+    let handoff = mailboxOperationsHandoffSummary
+
+    let providerReady = providerQA.tone == "success" || providerQA.completedCount >= max(providerQA.totalCount - 1, 1)
+    let hasRunEvidence = !timeline.entries.isEmpty
+    let hasCleanRun = timeline.entries.contains { $0.tone == "success" || $0.tone == "attention" }
+    let hasImportedOrUncertain = mailboxRunTimelineSummary.metrics.contains { metric in
+      (metric.title == "Imported" || metric.title == "Uncertain") && Int(metric.value) ?? 0 > 0
+    }
+    let hasInboxReview = !reviewIntakeEmails.isEmpty || intakeEmails.contains { $0.reviewState == .reviewed || $0.reviewState == .ignored }
+    let hasOrderHandoff = orders.contains { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder }
+      || intakeEmails.contains { $0.linkedOrderID != nil }
+    let hasAuditTrail = auditEvents.contains { event in
+      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order, .reviewTask].contains(event.entityType)
+    }
+    let hasNoReleaseBlockers = blockers.blockers.filter { $0.tone == "warning" }.isEmpty
+    let intakeReady = intakeQA.tone == "success" || intakeQA.completedCount >= max(intakeQA.totalCount - 2, 1)
+
+    let steps = [
+      MailboxReleaseTestPlanStep(
+        title: "1. Provider setup",
+        detail: "Confirm at least one mailbox provider has setup, credential/sign-in evidence, and read-only boundaries.",
+        evidence: "\(providerQA.completedCount) of \(providerQA.totalCount) provider QA checks complete.",
+        nextAction: providerReady ? "Provider setup evidence is sufficient for a supervised test." : "Finish the highest-priority provider QA item.",
+        isComplete: providerReady,
+        tone: providerReady ? "success" : "warning",
+        symbol: "server.rack"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "2. Manual refresh run",
+        detail: "Run or review one explicit read-only SpaceMail or Gmail refresh.",
+        evidence: hasRunEvidence ? "\(timeline.entries.count) recent mailbox run\(timeline.entries.count == 1 ? "" : "s") available." : "No mailbox run timeline entry exists yet.",
+        nextAction: hasCleanRun ? "Use the latest run to test Inbox triage." : "Run one manual provider refresh; keep mock refresh separate from real refresh.",
+        isComplete: hasRunEvidence && hasCleanRun,
+        tone: hasRunEvidence && hasCleanRun ? "success" : "attention",
+        symbol: "clock.arrow.circlepath"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "3. Intake quality",
+        detail: "Check imported, duplicate, filtered, uncertain, and parser outcomes before creating operational work.",
+        evidence: "\(intakeQA.completedCount) of \(intakeQA.totalCount) intake QA checks complete.",
+        nextAction: intakeReady ? "Review any visible parser or uncertain items, then continue." : "Use Mailbox Monitor to review parser diagnostics and uncertain messages.",
+        isComplete: intakeReady,
+        tone: intakeReady ? "success" : "attention",
+        symbol: "doc.text.magnifyingglass"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "4. Inbox triage",
+        detail: "Confirm one imported or reviewable mailbox message can be reviewed, ignored, linked, or converted locally.",
+        evidence: hasImportedOrUncertain ? "Latest run has imported or uncertain review work." : "\(reviewIntakeEmails.count) Inbox row\(reviewIntakeEmails.count == 1 ? "" : "s") currently need review.",
+        nextAction: hasInboxReview ? "Open Inbox or Mailbox Monitor and complete one local triage decision." : "Send or use a known test order email, refresh, then triage the row.",
+        isComplete: hasInboxReview,
+        tone: hasInboxReview ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "5. Order handoff",
+        detail: "Create or link one local order from confirmed intake and verify it appears in Orders, Dashboard, Workbench, and Tasks context.",
+        evidence: hasOrderHandoff ? "Inbox/order source trail exists." : "No Inbox-created or linked order evidence yet.",
+        nextAction: hasOrderHandoff ? "Open Orders and confirm the source trail." : "Use Inbox Create order or Link order on a confirmed intake row.",
+        isComplete: hasOrderHandoff,
+        tone: hasOrderHandoff ? "success" : "attention",
+        symbol: "shippingbox.fill"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "6. Release blockers",
+        detail: "Confirm the release blocker queue has no high-priority warnings.",
+        evidence: "\(blockers.blockers.filter { $0.tone == "warning" }.count) warning blocker\(blockers.blockers.filter { $0.tone == "warning" }.count == 1 ? "" : "s") and \(blockers.blockers.filter { $0.tone == "attention" }.count) review item\(blockers.blockers.filter { $0.tone == "attention" }.count == 1 ? "" : "s").",
+        nextAction: hasNoReleaseBlockers ? "Track remaining review items as follow-up if needed." : "Resolve the warning blockers before release-candidate testing.",
+        isComplete: hasNoReleaseBlockers,
+        tone: hasNoReleaseBlockers ? "success" : "warning",
+        symbol: "exclamationmark.octagon.fill"
+      ),
+      MailboxReleaseTestPlanStep(
+        title: "7. Audit and persistence",
+        detail: "Confirm local actions are visible in Audit and persist after reopening the app.",
+        evidence: hasAuditTrail ? "\(auditEvents.count) audit event\(auditEvents.count == 1 ? "" : "s") available." : "No mailbox/intake/order audit trail evidence yet.",
+        nextAction: hasAuditTrail ? "Quit and reopen the app, then confirm the same local records remain." : "Complete one triage or release follow-up action to generate audit evidence.",
+        isComplete: hasAuditTrail,
+        tone: hasAuditTrail ? "success" : "attention",
+        symbol: "list.clipboard.fill"
+      )
+    ]
+
+    let completedCount = steps.filter(\.isComplete).count
+    let warningCount = steps.filter { !$0.isComplete && $0.tone == "warning" }.count
+    let title: String
+    let detail: String
+    let tone: String
+    if completedCount == steps.count {
+      title = "Mailbox release test plan is ready"
+      detail = "All mailbox release test steps have local evidence. Run the hands-on pass and record any real operator issues."
+      tone = "success"
+    } else if warningCount > 0 {
+      title = "Mailbox release test plan has blockers"
+      detail = "\(completedCount) of \(steps.count) steps have evidence. Resolve warning steps before treating mailbox intake as release-ready."
+      tone = "warning"
+    } else {
+      title = "Mailbox release test plan is in progress"
+      detail = "\(completedCount) of \(steps.count) steps have evidence. Complete the remaining local checks during the next hands-on pass."
+      tone = "attention"
+    }
+
+    return MailboxReleaseTestPlanSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Steps", value: "\(completedCount)/\(steps.count)", tone: tone),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Runs", value: "\(timeline.entries.count)", tone: timeline.entries.isEmpty ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Handoff", value: handoff.tone == "success" || handoff.tone == "neutral" ? "Ready" : "Review", tone: handoff.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Audit", value: "\(auditEvents.count)", tone: auditEvents.isEmpty ? "attention" : "success")
+      ],
+      steps: steps
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
