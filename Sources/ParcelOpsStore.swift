@@ -1427,6 +1427,198 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderReleaseGateSummary: MailboxProviderReleaseGateSummary {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let queue = mailboxProviderTestQueueSummary
+    let handoffPacket = mailboxProviderHandoffPacketSummary
+    let troubleshooting = mailboxProviderTroubleshootingSummary
+    let blockers = mailboxReleaseBlockerSummary
+    let releasePlan = mailboxReleaseTestPlanSummary
+    let timeline = mailboxRunTimelineSummary
+    let providerCount = spaceMailIMAPConnections.count + gmailMailboxConnections.count
+    let setupIncompleteCount = setup.providers.reduce(0) { $0 + $1.checks.filter { !$0.isComplete }.count }
+    let openQueueCount = queue.items.filter { !$0.isComplete }.count
+    let warningTroubleCount = troubleshooting.issues.filter { $0.tone == "warning" }.count
+    let attentionTroubleCount = troubleshooting.issues.filter { $0.tone == "attention" }.count
+    let warningBlockerCount = blockers.blockers.filter { $0.tone == "warning" }.count
+    let reviewBlockerCount = blockers.blockers.filter { $0.tone == "attention" }.count
+    let releaseIncompleteCount = releasePlan.steps.filter { !$0.isComplete }.count
+    let openInboxCount = reviewIntakeEmails.count
+    let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
+    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let openTaskHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let refreshEvidenceCount = timeline.entries.count
+    let fetchedCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    let importedCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    let filteredCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    let duplicateCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    let uncertainCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let generatedDate = Self.auditTimestamp()
+
+    let gates = [
+      MailboxProviderReleaseGateItem(
+        title: "Provider configured",
+        requirement: "At least one mailbox provider path is configured.",
+        evidence: "\(providerCount) provider setup\(providerCount == 1 ? "" : "s") saved. Recommended path: \(comparison.recommendedProvider).",
+        nextAction: "Add SpaceMail or Gmail setup before release testing.",
+        isPassed: providerCount > 0,
+        tone: providerCount > 0 ? "success" : "warning",
+        symbol: "envelope.badge.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Setup checklist complete enough",
+        requirement: "Provider setup checks should not have unresolved warning blockers.",
+        evidence: "\(setupIncompleteCount) incomplete setup check\(setupIncompleteCount == 1 ? "" : "s").",
+        nextAction: "Use the provider setup checklist and fix missing credential/OAuth/readiness values.",
+        isPassed: setupIncompleteCount == 0,
+        tone: setupIncompleteCount == 0 ? "success" : warningBlockerCount == 0 ? "attention" : "warning",
+        symbol: "checklist.checked"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Manual refresh evidence exists",
+        requirement: "Release testing should include at least one manual read-only provider refresh result.",
+        evidence: "\(refreshEvidenceCount) run timeline entr\(refreshEvidenceCount == 1 ? "y" : "ies"), \(fetchedCount) fetched message\(fetchedCount == 1 ? "" : "s").",
+        nextAction: "Run the active provider's explicit manual refresh when test mailbox access is available.",
+        isPassed: refreshEvidenceCount > 0 || fetchedCount > 0,
+        tone: refreshEvidenceCount > 0 || fetchedCount > 0 ? "success" : "attention",
+        symbol: "arrow.clockwise.circle"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Mailbox noise is controlled",
+        requirement: "Mixed mailbox filtering and duplicate prevention should avoid flooding Inbox.",
+        evidence: "\(filteredCount) filtered, \(duplicateCount) duplicate, \(uncertainCount) uncertain, \(importedCount) imported.",
+        nextAction: "Review uncertain examples and filtered reason labels if Inbox is noisy.",
+        isPassed: uncertainCount == 0 || importedCount > 0 || filteredCount + duplicateCount > 0,
+        tone: uncertainCount == 0 ? "success" : importedCount > 0 ? "attention" : "neutral",
+        symbol: "line.3.horizontal.decrease.circle"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Inbox triage is actionable",
+        requirement: "Imported intake should be reviewable, ignorable, linkable, or convertible to an order.",
+        evidence: "\(openInboxCount) open intake row\(openInboxCount == 1 ? "" : "s"), \(linkedOrderCount) linked intake order\(linkedOrderCount == 1 ? "" : "s"), \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s").",
+        nextAction: "Use Inbox or Mailbox Monitor to review, ignore, link, or create orders from confirmed intake.",
+        isPassed: openInboxCount == 0 || linkedOrderCount + inboxCreatedOrderCount > 0,
+        tone: openInboxCount == 0 || linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Order handoff is visible",
+        requirement: "At least one confirmed intake-to-order path should appear across Orders, Dashboard, Workbench, Tasks, and Audit.",
+        evidence: "\(linkedOrderCount + inboxCreatedOrderCount) local order handoff record\(linkedOrderCount + inboxCreatedOrderCount == 1 ? "" : "s").",
+        nextAction: "Create or link one confirmed order from Inbox, then verify the source trail in Orders.",
+        isPassed: linkedOrderCount + inboxCreatedOrderCount > 0 || importedCount == 0,
+        tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : importedCount == 0 ? "neutral" : "attention",
+        symbol: "shippingbox.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Diagnostics are not blocking",
+        requirement: "Troubleshooting should have no warning diagnostics before release-candidate use.",
+        evidence: "\(warningTroubleCount) warning diagnostic\(warningTroubleCount == 1 ? "" : "s"), \(attentionTroubleCount) review diagnostic\(attentionTroubleCount == 1 ? "" : "s").",
+        nextAction: "Open the troubleshooting guide and resolve warning diagnostics.",
+        isPassed: warningTroubleCount == 0,
+        tone: warningTroubleCount == 0 ? (attentionTroubleCount == 0 ? "success" : "attention") : "warning",
+        symbol: "stethoscope"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Release blockers are clear",
+        requirement: "Mailbox release blocker queue should not contain warning blockers.",
+        evidence: "\(warningBlockerCount) warning blocker\(warningBlockerCount == 1 ? "" : "s"), \(reviewBlockerCount) review blocker\(reviewBlockerCount == 1 ? "" : "s").",
+        nextAction: "Resolve warning blockers before relying on mailbox intake.",
+        isPassed: warningBlockerCount == 0,
+        tone: warningBlockerCount == 0 ? (reviewBlockerCount == 0 ? "success" : "attention") : "warning",
+        symbol: "exclamationmark.triangle.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Operator follow-up is assigned",
+        requirement: "Open provider queue and handoff work should either be assigned as tasks or intentionally left open.",
+        evidence: "\(openQueueCount) open provider queue item\(openQueueCount == 1 ? "" : "s"), \(openTaskHandoffCount) task/handoff attention item\(openTaskHandoffCount == 1 ? "" : "s").",
+        nextAction: "Create a provider queue, diagnostic, or handoff task if work needs to carry over.",
+        isPassed: openQueueCount == 0 || openTaskHandoffCount > 0,
+        tone: openQueueCount == 0 ? "success" : openTaskHandoffCount > 0 ? "attention" : "warning",
+        symbol: "checklist"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Release test plan is current",
+        requirement: "Mailbox release test plan should not have incomplete warning steps.",
+        evidence: "\(releasePlan.steps.count - releaseIncompleteCount)/\(releasePlan.steps.count) release test step\(releasePlan.steps.count == 1 ? "" : "s") complete. Handoff packet: \(handoffPacket.title).",
+        nextAction: "Complete remaining release test plan steps during hands-on QA.",
+        isPassed: releaseIncompleteCount == 0 || releasePlan.tone != "warning",
+        tone: releaseIncompleteCount == 0 ? "success" : releasePlan.tone,
+        symbol: "checkmark.seal.fill"
+      )
+    ]
+
+    let warningCount = gates.filter { !$0.isPassed && $0.tone == "warning" }.count
+    let attentionCount = gates.filter { !$0.isPassed && $0.tone == "attention" }.count
+    let passedCount = gates.filter(\.isPassed).count
+
+    let title: String
+    let detail: String
+    let verdict: String
+    let tone: String
+    if warningCount > 0 {
+      title = "Mailbox provider release gate is blocked"
+      detail = "\(warningCount) gate\(warningCount == 1 ? "" : "s") must be resolved before treating mailbox provider intake as release-ready."
+      verdict = "Blocked"
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Mailbox provider release gate needs review"
+      detail = "\(attentionCount) gate\(attentionCount == 1 ? "" : "s") need operator review or explicit acceptance."
+      verdict = "Review"
+      tone = "attention"
+    } else if passedCount == gates.count {
+      title = "Mailbox provider release gate is ready"
+      detail = "All provider release gates pass from current local evidence."
+      verdict = "Ready"
+      tone = "success"
+    } else {
+      title = "Mailbox provider release gate is pending evidence"
+      detail = "\(passedCount) of \(gates.count) gates pass; remaining gates need more local evidence."
+      verdict = "Pending"
+      tone = "neutral"
+    }
+
+    let reportLines = [
+      title,
+      detail,
+      "Verdict: \(verdict)",
+      "Generated: \(generatedDate)",
+      "Provider path: \(comparison.recommendedProvider)",
+      ""
+    ] + gates.map { gate in
+      "\(gate.isPassed ? "PASS" : "OPEN") - \(gate.title)\nRequirement: \(gate.requirement)\nEvidence: \(gate.evidence)\nNext: \(gate.nextAction)"
+    } + [
+      "",
+      "Boundaries:",
+      "- Local-only release gate computed from JSON-backed app state.",
+      "- No mailbox refresh, credential read, external service call, outbound email, notification, or mailbox mutation occurs."
+    ]
+
+    return MailboxProviderReleaseGateSummary(
+      title: title,
+      detail: detail,
+      verdict: verdict,
+      tone: tone,
+      generatedDate: generatedDate,
+      reportText: reportLines.joined(separator: "\n\n"),
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Verdict", value: verdict, tone: tone),
+        SpaceMailReleaseSnapshotMetric(title: "Passed", value: "\(passedCount)/\(gates.count)", tone: passedCount == gates.count ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxCreatedOrderCount)", tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "neutral")
+      ],
+      gates: gates
+    )
+  }
+
   var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
@@ -10935,6 +11127,63 @@ final class ParcelOpsStore {
     addReviewTask(
       task,
       summary: "Review task created from mailbox provider troubleshooting summary."
+    )
+  }
+
+  func createReviewTaskFromMailboxProviderReleaseGate() {
+    let gate = mailboxProviderReleaseGateSummary
+    let taskPriority: TaskPriority
+    switch gate.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = gate.tone == "success" ? "Confirm mailbox provider release gate" : "Resolve mailbox provider release gate"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-release-gate"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = gate.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing mailbox provider release gate task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current mailbox provider release gate. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: gate.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-release-gate",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from mailbox provider release gate."
     )
   }
 

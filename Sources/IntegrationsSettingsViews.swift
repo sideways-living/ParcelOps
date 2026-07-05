@@ -383,6 +383,7 @@ struct IntegrationsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
+            MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
             MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
             MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
             MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)

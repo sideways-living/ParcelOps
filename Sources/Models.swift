@@ -2219,6 +2219,28 @@ struct MailboxProviderTroubleshootingIssue: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxProviderReleaseGateSummary: Hashable {
+  var title: String
+  var detail: String
+  var verdict: String
+  var tone: String
+  var generatedDate: String
+  var reportText: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var gates: [MailboxProviderReleaseGateItem]
+}
+
+struct MailboxProviderReleaseGateItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var requirement: String
+  var evidence: String
+  var nextAction: String
+  var isPassed: Bool
+  var tone: String
+  var symbol: String
+}
+
 struct MailboxProviderSetupChecklistSummary: Hashable {
   var title: String
   var detail: String

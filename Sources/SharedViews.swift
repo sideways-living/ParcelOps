@@ -3577,6 +3577,155 @@ struct MailboxProviderTroubleshootingCard: View {
   }
 }
 
+struct MailboxProviderReleaseGateCard: View {
+  var summary: MailboxProviderReleaseGateSummary
+  var store: ParcelOpsStore?
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var feedbackMessage: String?
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)]
+  }
+
+  private var visibleGates: [MailboxProviderReleaseGateItem] {
+    Array(summary.gates.prefix(horizontalSizeClass == .compact ? 5 : 8))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checkmark.seal.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Generated \(summary.generatedDate)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+        }
+        Spacer()
+        Badge(summary.verdict, color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if let store {
+        CompactActionRow {
+          Button("Create gate task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderReleaseGate()
+            feedbackMessage = "Mailbox provider release gate task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text(feedbackMessage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(visibleGates) { gate in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: gate.isPassed ? "checkmark.circle.fill" : gate.symbol)
+                .foregroundStyle(color(for: gate.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(gate.title)
+                  .font(.caption.weight(.semibold))
+                  .fixedSize(horizontal: false, vertical: true)
+                Text(gate.isPassed ? "Pass" : "Open")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(color(for: gate.tone))
+              }
+            }
+
+            Text("Requirement: \(gate.requirement)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text("Evidence: \(gate.evidence)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            if !gate.isPassed {
+              Label(gate.nextAction, systemImage: "arrow.forward.circle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color(for: gate.tone))
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: gate.tone).opacity(gate.isPassed ? 0.05 : 0.1), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if summary.gates.count > visibleGates.count {
+        Text("\(summary.gates.count - visibleGates.count) additional gate\(summary.gates.count - visibleGates.count == 1 ? "" : "s") hidden from this compact view.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+
+      Text("This release gate is computed from local JSON-backed provider, Inbox, task, audit, and release state. It does not run refreshes, read credentials, call external services, or mutate mailbox data.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
