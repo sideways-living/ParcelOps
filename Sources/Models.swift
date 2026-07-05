@@ -2038,6 +2038,7 @@ struct MailboxProviderComparisonSummary: Hashable {
   var recommendedProvider: String
   var metrics: [SpaceMailReleaseSnapshotMetric]
   var providers: [MailboxProviderComparisonItem]
+  var actionItems: [MailboxProviderActionItem]
 }
 
 struct MailboxProviderComparisonItem: Identifiable, Hashable {
@@ -2052,6 +2053,16 @@ struct MailboxProviderComparisonItem: Identifiable, Hashable {
   var importedCount: Int
   var blockedCount: Int
   var uncertainCount: Int
+}
+
+struct MailboxProviderActionItem: Identifiable, Hashable {
+  var id: String { providerName + title }
+  var providerName: String
+  var title: String
+  var detail: String
+  var priority: String
+  var tone: String
+  var symbol: String
 }
 
 struct SpaceMailShiftHandoffSummary: Hashable {

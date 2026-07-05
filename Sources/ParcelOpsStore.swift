@@ -421,6 +421,7 @@ final class ParcelOpsStore {
     let title: String
     let detail: String
     let tone: String
+    var actionItems: [MailboxProviderActionItem] = []
     if !anyProviderConfigured {
       title = "Choose a mailbox provider"
       detail = "SpaceMail and Gmail both feed the same local Inbox intake path, but no provider setup exists yet."
@@ -441,6 +442,115 @@ final class ParcelOpsStore {
       title = "Mailbox providers are ready for testing"
       detail = "Provider setup exists, but the next proof point is a manual read-only refresh."
       tone = "neutral"
+    }
+
+    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty {
+      actionItems.append(
+        MailboxProviderActionItem(
+          providerName: "Mailbox",
+          title: "Choose SpaceMail or Gmail",
+          detail: "Add the provider that hosts the mailbox you want ParcelOps to read manually.",
+          priority: "1",
+          tone: "warning",
+          symbol: "envelope.badge.fill"
+        )
+      )
+    }
+
+    if !spaceMailIMAPConnections.isEmpty {
+      if spaceMailCredentialBlockers > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "SpaceMail",
+            title: "Set SpaceMail credential",
+            detail: "A Keychain password reference is needed before real IMAP refresh can be relied on.",
+            priority: "1",
+            tone: "warning",
+            symbol: "key.fill"
+          )
+        )
+      } else if spaceMailImported > 0 || spaceMailUncertain > 0 || spaceMailParserIssues > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "SpaceMail",
+            title: "Review SpaceMail intake",
+            detail: "Confirm imported rows, uncertain previews, and parser diagnostics before creating orders.",
+            priority: "1",
+            tone: "attention",
+            symbol: "tray.full.fill"
+          )
+        )
+      } else if spaceMailFetched == 0 && spaceMailFiltered == 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "SpaceMail",
+            title: "Run first SpaceMail refresh",
+            detail: "Use the explicit manual read-only refresh after confirming host, folder, and credential.",
+            priority: "2",
+            tone: "attention",
+            symbol: "arrow.clockwise.circle.fill"
+          )
+        )
+      } else {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "SpaceMail",
+            title: "Monitor SpaceMail refreshes",
+            detail: "Current evidence is quiet; refresh manually when new order mail is expected.",
+            priority: "3",
+            tone: "success",
+            symbol: "checkmark.seal.fill"
+          )
+        )
+      }
+    }
+
+    if !gmailMailboxConnections.isEmpty {
+      if gmailSetupBlockers > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Gmail",
+            title: "Finish Gmail setup",
+            detail: "Resolve readiness, callback, OAuth, or sign-in blockers before using real Gmail refresh.",
+            priority: "1",
+            tone: "warning",
+            symbol: "person.crop.circle.badge.exclamationmark.fill"
+          )
+        )
+      } else if gmailImported > 0 || gmailUncertain > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Gmail",
+            title: "Review Gmail intake",
+            detail: "Confirm Gmail-origin Inbox rows and uncertain previews before creating orders.",
+            priority: "1",
+            tone: "attention",
+            symbol: "tray.full.fill"
+          )
+        )
+      } else if gmailFetched == 0 && gmailFiltered == 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Gmail",
+            title: "Run first Gmail refresh",
+            detail: "Use the explicit manual read-only Gmail refresh only for Google-hosted mailboxes.",
+            priority: "2",
+            tone: "attention",
+            symbol: "arrow.clockwise.circle.fill"
+          )
+        )
+      } else {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Gmail",
+            title: "Monitor Gmail refreshes",
+            detail: "Current evidence is quiet; refresh manually when checking the Google-hosted mailbox.",
+            priority: "3",
+            tone: "success",
+            symbol: "checkmark.seal.fill"
+          )
+        )
+      }
     }
 
     return MailboxProviderComparisonSummary(
@@ -481,7 +591,13 @@ final class ParcelOpsStore {
           blockedCount: gmailSetupBlockers,
           uncertainCount: gmailUncertain
         )
-      ]
+      ],
+      actionItems: actionItems.sorted { lhs, rhs in
+        if lhs.priority != rhs.priority {
+          return lhs.priority < rhs.priority
+        }
+        return lhs.providerName < rhs.providerName
+      }
     )
   }
 

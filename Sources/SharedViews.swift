@@ -3533,6 +3533,10 @@ struct MailboxProviderComparisonCard: View {
     [GridItem(.adaptive(minimum: isCompact ? 210 : 260), spacing: 10)]
   }
 
+  private var actionColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 190 : 240), spacing: 10)]
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -3594,6 +3598,43 @@ struct MailboxProviderComparisonCard: View {
           .padding(10)
           .frame(maxWidth: .infinity, alignment: .topLeading)
           .background(color(for: provider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if !summary.actionItems.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Recommended next actions", systemImage: "checklist")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+
+          LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+            ForEach(summary.actionItems) { item in
+              HStack(alignment: .top, spacing: 8) {
+                Text(item.priority)
+                  .font(.caption2.weight(.bold))
+                  .foregroundStyle(.white)
+                  .frame(width: 20, height: 20)
+                  .background(color(for: item.tone), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                  Label(item.title, systemImage: item.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color(for: item.tone))
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(item.providerName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                  Text(item.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(color(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
         }
       }
 
