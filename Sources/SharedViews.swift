@@ -3427,6 +3427,156 @@ struct MailboxProviderHandoffPacketCard: View {
   }
 }
 
+struct MailboxProviderTroubleshootingCard: View {
+  var summary: MailboxProviderTroubleshootingSummary
+  var store: ParcelOpsStore?
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var feedbackMessage: String?
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)]
+  }
+
+  private var visibleIssues: [MailboxProviderTroubleshootingIssue] {
+    Array(summary.issues.prefix(horizontalSizeClass == .compact ? 4 : 6))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "stethoscope")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Diagnostics", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if let store {
+        CompactActionRow {
+          Button("Create diagnostic task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderTroubleshooting()
+            feedbackMessage = "Mailbox provider diagnostic task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text(feedbackMessage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if visibleIssues.isEmpty {
+        Label("No mailbox provider diagnostics are currently promoted.", systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      } else {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+          ForEach(visibleIssues) { issue in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: issue.symbol)
+                  .foregroundStyle(color(for: issue.tone))
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(issue.title)
+                    .font(.caption.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(issue.providerName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(color(for: issue.tone))
+                }
+              }
+
+              Text("Symptom: \(issue.symptom)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text("Likely cause: \(issue.likelyCause)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Label(issue.nextAction, systemImage: "arrow.forward.circle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color(for: issue.tone))
+                .fixedSize(horizontal: false, vertical: true)
+              Text(issue.evidence)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: issue.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
+      if summary.issues.count > visibleIssues.count {
+        Text("\(summary.issues.count - visibleIssues.count) additional diagnostic\(summary.issues.count - visibleIssues.count == 1 ? "" : "s") hidden from this compact view.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+
+      Text("Diagnostics are computed from local setup, auth/session status, refresh summaries, classifier results, parser diagnostics, Inbox state, and release blockers. They do not refresh mailboxes or read credentials.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

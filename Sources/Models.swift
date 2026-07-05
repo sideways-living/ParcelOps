@@ -2198,6 +2198,27 @@ struct MailboxProviderHandoffPacketSection: Identifiable, Hashable {
   var lines: [String]
 }
 
+struct MailboxProviderTroubleshootingSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var reportText: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var issues: [MailboxProviderTroubleshootingIssue]
+}
+
+struct MailboxProviderTroubleshootingIssue: Identifiable, Hashable {
+  var id: String { "\(providerName)-\(title)-\(symptom)" }
+  var providerName: String
+  var title: String
+  var symptom: String
+  var likelyCause: String
+  var nextAction: String
+  var evidence: String
+  var tone: String
+  var symbol: String
+}
+
 struct MailboxProviderSetupChecklistSummary: Hashable {
   var title: String
   var detail: String

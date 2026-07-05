@@ -1126,6 +1126,307 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderTroubleshootingSummary: MailboxProviderTroubleshootingSummary {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let blockers = mailboxReleaseBlockerSummary
+    let spaceMailHealth = spaceMailIntakeHealthSummaries
+    let gmailHealth = gmailIntakeHealthSummaries
+    let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
+    let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
+    let spaceMailFiltered = spaceMailHealth.reduce(0) { $0 + $1.filteredCount }
+    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let spaceMailParserIssues = spaceMailHealth.reduce(0) { $0 + $1.parserIssueCount }
+    let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
+    let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
+    let gmailFiltered = gmailHealth.reduce(0) { $0 + $1.filteredCount }
+    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
+    let inboxOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    var issues: [MailboxProviderTroubleshootingIssue] = []
+
+    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty {
+      issues.append(
+        MailboxProviderTroubleshootingIssue(
+          providerName: "Mailbox",
+          title: "No provider setup exists",
+          symptom: "Mailbox intake cannot fetch real messages.",
+          likelyCause: "Neither SpaceMail nor Gmail has a local provider configuration.",
+          nextAction: "Add the provider that hosts the mailbox, then complete credential or OAuth setup.",
+          evidence: "Provider comparison recommends: \(comparison.recommendedProvider).",
+          tone: "warning",
+          symbol: "envelope.badge.fill"
+        )
+      )
+    }
+
+    for provider in setup.providers {
+      let incompleteChecks = provider.checks.filter { !$0.isComplete }
+      if !incompleteChecks.isEmpty {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: provider.providerName,
+            title: "Setup checklist incomplete",
+            symptom: provider.status,
+            likelyCause: incompleteChecks.prefix(3).map(\.title).joined(separator: ", "),
+            nextAction: provider.nextAction,
+            evidence: "\(incompleteChecks.count) incomplete setup check\(incompleteChecks.count == 1 ? "" : "s").",
+            tone: provider.tone == "success" ? "attention" : provider.tone,
+            symbol: provider.symbol
+          )
+        )
+      }
+    }
+
+    if !spaceMailIMAPConnections.isEmpty {
+      let credentialMissingCount = spaceMailIMAPConnections.filter { connection in
+        !connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+          && !connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+          && !connection.credentialStorageStatus.localizedCaseInsensitiveContains("Keychain")
+      }.count
+      if credentialMissingCount > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "SpaceMail",
+            title: "Credential reference missing",
+            symptom: "Real IMAP refresh cannot authenticate safely.",
+            likelyCause: "SpaceMail password/app-password has not been saved or checked in Keychain.",
+            nextAction: "Use Set/update password or Check credential before running real SpaceMail refresh.",
+            evidence: "\(credentialMissingCount) SpaceMail setup\(credentialMissingCount == 1 ? "" : "s") need credential attention.",
+            tone: "warning",
+            symbol: "key.fill"
+          )
+        )
+      }
+      if credentialMissingCount == 0 && spaceMailFetched == 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "SpaceMail",
+            title: "No refresh evidence",
+            symptom: "SpaceMail is configured but has no fetched message evidence.",
+            likelyCause: "Manual refresh has not been run, or no result has been recorded.",
+            nextAction: "Run real SpaceMail refresh when safe to test the mailbox.",
+            evidence: "Fetched: 0, imported: \(spaceMailImported), filtered: \(spaceMailFiltered).",
+            tone: "attention",
+            symbol: "arrow.clockwise.circle"
+          )
+        )
+      }
+      if spaceMailFetched > 0 && spaceMailImported == 0 && spaceMailFiltered > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "SpaceMail",
+            title: "Refresh found only filtered mail",
+            symptom: "Messages were fetched but none reached Inbox.",
+            likelyCause: "Mixed-mailbox filtering is treating recent messages as non-order mail.",
+            nextAction: "Check filtered examples and classifier inspector before relaxing rules.",
+            evidence: "\(spaceMailFetched) fetched, \(spaceMailFiltered) filtered, \(spaceMailUncertain) uncertain.",
+            tone: "neutral",
+            symbol: "line.3.horizontal.decrease.circle"
+          )
+        )
+      }
+      if spaceMailParserIssues > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "SpaceMail",
+            title: "Parser diagnostics need review",
+            symptom: "Detected order, tracking, merchant, or destination fields may be incomplete.",
+            likelyCause: "Stored subject/body previews do not match the current parser rules.",
+            nextAction: "Review parser diagnostics and reprocess affected intake rows.",
+            evidence: "\(spaceMailParserIssues) SpaceMail parser issue\(spaceMailParserIssues == 1 ? "" : "s").",
+            tone: "attention",
+            symbol: "doc.text.magnifyingglass"
+          )
+        )
+      }
+      if spaceMailUncertain > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "SpaceMail",
+            title: "Uncertain previews pending",
+            symptom: "Order-ish messages are held out of Inbox.",
+            likelyCause: "Classifier found weak order evidence without a strong order or tracking identifier.",
+            nextAction: "Import true order messages or dismiss non-order messages from Mailbox Monitor.",
+            evidence: "\(spaceMailUncertain) uncertain SpaceMail preview\(spaceMailUncertain == 1 ? "" : "s").",
+            tone: "attention",
+            symbol: "questionmark.folder.fill"
+          )
+        )
+      }
+    }
+
+    if !gmailMailboxConnections.isEmpty {
+      if gmailReadinessBlockers > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "OAuth readiness incomplete",
+            symptom: "Real Gmail sign-in or refresh may not run.",
+            likelyCause: "Google Cloud client ID, callback scheme, redirect URI, scopes, or setup notes need review.",
+            nextAction: "Open Gmail setup, fill non-secret OAuth values, and run readiness checks.",
+            evidence: "\(gmailReadinessBlockers) Gmail readiness blocker\(gmailReadinessBlockers == 1 ? "" : "s").",
+            tone: "warning",
+            symbol: "person.badge.key.fill"
+          )
+        )
+      } else if gmailSignedInCount == 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "Google sign-in not connected",
+            symptom: "Real Gmail refresh cannot acquire a usable Gmail API token.",
+            likelyCause: "No connected Google account is recorded in local auth session state.",
+            nextAction: "Run Test real Google sign-in before manual Gmail refresh.",
+            evidence: "\(gmailMailboxConnections.count) Gmail setup\(gmailMailboxConnections.count == 1 ? "" : "s"), 0 connected.",
+            tone: "attention",
+            symbol: "person.crop.circle.badge.questionmark"
+          )
+        )
+      } else if gmailFetched == 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "No Gmail refresh evidence",
+            symptom: "Gmail sign-in exists but no message fetch result is recorded.",
+            likelyCause: "Manual Gmail refresh has not been run after sign-in.",
+            nextAction: "Run real Gmail refresh only when checking a Google-hosted mailbox.",
+            evidence: "\(gmailSignedInCount) signed in, 0 fetched.",
+            tone: "attention",
+            symbol: "arrow.clockwise.circle"
+          )
+        )
+      }
+      if gmailFetched > 0 && gmailImported == 0 && gmailFiltered > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "Gmail refresh found only filtered mail",
+            symptom: "Gmail fetched messages but none reached Inbox.",
+            likelyCause: "Mixed-mailbox filtering is treating recent Gmail messages as non-order mail.",
+            nextAction: "Check Gmail filtered examples and classifier test output.",
+            evidence: "\(gmailFetched) fetched, \(gmailFiltered) filtered, \(gmailUncertain) uncertain.",
+            tone: "neutral",
+            symbol: "line.3.horizontal.decrease.circle"
+          )
+        )
+      }
+      if gmailImported + gmailUncertain > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "Gmail intake needs review",
+            symptom: "Gmail has imported or uncertain mailbox work.",
+            likelyCause: "Recent Gmail refresh produced order-related or ambiguous messages.",
+            nextAction: "Review Gmail-origin Inbox rows and uncertain previews before creating orders.",
+            evidence: "\(gmailImported) imported, \(gmailUncertain) uncertain.",
+            tone: "attention",
+            symbol: "tray.full.fill"
+          )
+        )
+      }
+    }
+
+    if reviewIntakeEmails.isEmpty && linkedOrderCount + inboxOrderCount == 0 && spaceMailImported + gmailImported > 0 {
+      issues.append(
+        MailboxProviderTroubleshootingIssue(
+          providerName: "Orders",
+          title: "Imported mail has no order handoff",
+          symptom: "Imported messages have not produced linked or Inbox-created orders.",
+          likelyCause: "Inbox triage has not confirmed and linked/created order records yet.",
+          nextAction: "Open Inbox or Mailbox Monitor and use Create order or Link order on confirmed intake.",
+          evidence: "\(spaceMailImported + gmailImported) imported, \(linkedOrderCount + inboxOrderCount) order handoff records.",
+          tone: "attention",
+          symbol: "shippingbox.fill"
+        )
+      )
+    }
+
+    for blocker in blockers.blockers.prefix(4) where blocker.tone == "warning" {
+      issues.append(
+        MailboxProviderTroubleshootingIssue(
+          providerName: blocker.source,
+          title: blocker.title,
+          symptom: blocker.detail,
+          likelyCause: "Release blocker queue promoted this as a warning.",
+          nextAction: blocker.nextAction,
+          evidence: "Release blocker tone: \(blocker.tone).",
+          tone: "warning",
+          symbol: blocker.symbol
+        )
+      )
+    }
+
+    let uniqueIssues = Array(
+      Dictionary(grouping: issues, by: { "\($0.providerName)-\($0.title)-\($0.symptom)" })
+        .compactMap { $0.value.first }
+    ).sorted { lhs, rhs in
+      func rank(_ issue: MailboxProviderTroubleshootingIssue) -> Int {
+        if issue.tone == "warning" { return 0 }
+        if issue.tone == "attention" { return 1 }
+        if issue.tone == "neutral" { return 2 }
+        return 3
+      }
+      if rank(lhs) != rank(rhs) { return rank(lhs) < rank(rhs) }
+      if lhs.providerName != rhs.providerName { return lhs.providerName < rhs.providerName }
+      return lhs.title < rhs.title
+    }
+    let warningCount = uniqueIssues.filter { $0.tone == "warning" }.count
+    let attentionCount = uniqueIssues.filter { $0.tone == "attention" }.count
+
+    let title: String
+    let detail: String
+    let tone: String
+    if warningCount > 0 {
+      title = "Mailbox troubleshooting has setup blockers"
+      detail = "\(warningCount) warning diagnostic\(warningCount == 1 ? "" : "s") should be resolved before live mailbox intake is relied on."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Mailbox troubleshooting has review items"
+      detail = "\(attentionCount) diagnostic\(attentionCount == 1 ? "" : "s") need operator review or manual follow-up."
+      tone = "attention"
+    } else if uniqueIssues.isEmpty {
+      title = "Mailbox troubleshooting is clear"
+      detail = "No provider setup, auth, refresh, parser, Inbox, or handoff diagnostics are currently promoted."
+      tone = "success"
+    } else {
+      title = "Mailbox troubleshooting is informational"
+      detail = "Only non-blocking provider notes are currently promoted."
+      tone = "neutral"
+    }
+
+    let reportLines = [
+      title,
+      detail,
+      "Recommended provider path: \(comparison.recommendedProvider)",
+      "Diagnostics: \(uniqueIssues.count)",
+      ""
+    ] + uniqueIssues.map { issue in
+      "\(issue.providerName) - \(issue.title)\nSymptom: \(issue.symptom)\nLikely cause: \(issue.likelyCause)\nNext: \(issue.nextAction)\nEvidence: \(issue.evidence)"
+    } + [
+      "",
+      "Boundaries: local-only diagnostic summary; no mailbox refresh, credential read, external service call, outbound email, notification, or mailbox mutation occurs."
+    ]
+
+    return MailboxProviderTroubleshootingSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      reportText: reportLines.joined(separator: "\n\n"),
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "SpaceMail", value: "\(spaceMailFetched)", tone: spaceMailFetched > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Gmail", value: "\(gmailFetched)", tone: gmailFetched > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Parser", value: "\(spaceMailParserIssues)", tone: spaceMailParserIssues == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxOrderCount)", tone: linkedOrderCount + inboxOrderCount > 0 ? "success" : "attention")
+      ],
+      issues: uniqueIssues
+    )
+  }
+
   var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
@@ -10577,6 +10878,63 @@ final class ParcelOpsStore {
     addReviewTask(
       task,
       summary: "Review task created from mailbox provider handoff packet."
+    )
+  }
+
+  func createReviewTaskFromMailboxProviderTroubleshooting() {
+    let troubleshooting = mailboxProviderTroubleshootingSummary
+    let taskPriority: TaskPriority
+    switch troubleshooting.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = troubleshooting.tone == "success" ? "Confirm mailbox provider diagnostics" : "Resolve mailbox provider diagnostics"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-troubleshooting"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = troubleshooting.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing mailbox provider troubleshooting task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current mailbox provider troubleshooting summary. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: troubleshooting.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-troubleshooting",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from mailbox provider troubleshooting summary."
     )
   }
 

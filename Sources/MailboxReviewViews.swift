@@ -103,6 +103,7 @@ struct MailboxView: View {
         MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
         MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
