@@ -2138,6 +2138,25 @@ struct MailboxReleaseTestPlanStep: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxOperatorDecisionSummary: Hashable {
+  var title: String
+  var detail: String
+  var primaryAction: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var decisions: [MailboxOperatorDecisionItem]
+}
+
+struct MailboxOperatorDecisionItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var action: String
+  var isActive: Bool
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

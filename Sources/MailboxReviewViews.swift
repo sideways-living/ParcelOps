@@ -105,6 +105,7 @@ struct MailboxView: View {
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
         MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
+        MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
         MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
         MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
 

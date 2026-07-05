@@ -388,6 +388,7 @@ struct IntegrationsView: View {
             SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
+            MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
             MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
             MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
 

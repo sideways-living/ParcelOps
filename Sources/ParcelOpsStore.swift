@@ -2142,6 +2142,119 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxOperatorDecisionSummary: MailboxOperatorDecisionSummary {
+    let blockers = mailboxReleaseBlockerSummary
+    let timeline = mailboxRunTimelineSummary
+    let testPlan = mailboxReleaseTestPlanSummary
+    let providerQA = mailboxProviderQACheckSummary
+    let intakeQA = mailboxIntakeQualitySummary
+    let warningBlockers = blockers.blockers.filter { $0.tone == "warning" }.count
+    let reviewBlockers = blockers.blockers.filter { $0.tone == "attention" }.count
+    let hasProviderSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
+    let hasRefreshEvidence = !timeline.entries.isEmpty
+    let openInboxCount = reviewIntakeEmails.count
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count + $1.lastRefreshUncertainCount }
+      + gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    let parserIssueCount = intakeParserDiagnostics.count
+    let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
+    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let latestRunHasAction = timeline.entries.contains { $0.tone == "attention" }
+
+    let decisions = [
+      MailboxOperatorDecisionItem(
+        title: "Fix setup blockers first",
+        detail: "\(warningBlockers) warning blocker\(warningBlockers == 1 ? "" : "s") currently prevent a clean mailbox release pass.",
+        action: "Open the blocker queue and resolve warning items before refreshing again.",
+        isActive: warningBlockers > 0,
+        tone: warningBlockers > 0 ? "warning" : "success",
+        symbol: "exclamationmark.triangle.fill"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Run a manual mailbox refresh",
+        detail: hasRefreshEvidence ? "A refresh timeline exists; run again only when checking for new mail." : "No manual mailbox run is recorded yet.",
+        action: "Use the active provider's explicit manual refresh button. Keep mock refresh separate.",
+        isActive: hasProviderSetup && !hasRefreshEvidence && warningBlockers == 0,
+        tone: hasProviderSetup && !hasRefreshEvidence && warningBlockers == 0 ? "attention" : "neutral",
+        symbol: "clock.arrow.circlepath"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Review imported Inbox work",
+        detail: "\(openInboxCount) Inbox intake row\(openInboxCount == 1 ? "" : "s") need review; latest run action flag: \(latestRunHasAction ? "yes" : "no").",
+        action: "Open Inbox or Mailbox Monitor, then review, ignore, link, or create orders from confirmed rows.",
+        isActive: openInboxCount > 0 || latestRunHasAction,
+        tone: openInboxCount > 0 || latestRunHasAction ? "attention" : "success",
+        symbol: "tray.full.fill"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Review uncertain or parser items",
+        detail: "\(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") and \(parserIssueCount) parser diagnostic\(parserIssueCount == 1 ? "" : "s") are visible.",
+        action: "Import true order messages, dismiss non-order messages, and reprocess parser rows where needed.",
+        isActive: uncertainCount + parserIssueCount > 0,
+        tone: uncertainCount + parserIssueCount > 0 ? "attention" : "success",
+        symbol: "doc.text.magnifyingglass"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Create or verify order handoff",
+        detail: "\(linkedOrderCount) linked intake row\(linkedOrderCount == 1 ? "" : "s"); \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s").",
+        action: "Use Create order or Link order, then confirm Orders and order detail show the source trail.",
+        isActive: linkedOrderCount == 0 && inboxCreatedOrderCount == 0 && openInboxCount > 0,
+        tone: linkedOrderCount == 0 && inboxCreatedOrderCount == 0 ? "attention" : "success",
+        symbol: "shippingbox.fill"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Record release follow-up",
+        detail: "\(reviewBlockers) review item\(reviewBlockers == 1 ? "" : "s"); \(openTaskCount) task or handoff follow-up\(openTaskCount == 1 ? "" : "s") currently open.",
+        action: "Create a mailbox release follow-up task from the snapshot if anything remains for the next session.",
+        isActive: reviewBlockers > 0 && openTaskCount == 0,
+        tone: reviewBlockers > 0 && openTaskCount == 0 ? "attention" : "neutral",
+        symbol: "checklist"
+      )
+    ]
+
+    let activeDecisions = decisions.filter(\.isActive)
+    let primaryAction: String
+    let title: String
+    let detail: String
+    let tone: String
+    if let firstWarning = activeDecisions.first(where: { $0.tone == "warning" }) {
+      primaryAction = firstWarning.action
+      title = "Mailbox decision: stop and fix blockers"
+      detail = firstWarning.detail
+      tone = "warning"
+    } else if let firstActive = activeDecisions.first {
+      primaryAction = firstActive.action
+      title = "Mailbox decision: \(firstActive.title.lowercased())"
+      detail = firstActive.detail
+      tone = firstActive.tone == "success" ? "attention" : firstActive.tone
+    } else if testPlan.tone == "success" {
+      primaryAction = "Run the hands-on release pass, then tag or document the local MVP state."
+      title = "Mailbox decision: ready for release-candidate pass"
+      detail = "Provider setup, intake quality, run timeline, handoff, and blockers do not currently require action."
+      tone = "success"
+    } else {
+      primaryAction = "Review the release test plan and complete the next incomplete step."
+      title = "Mailbox decision: continue readiness checks"
+      detail = testPlan.detail
+      tone = testPlan.tone
+    }
+
+    return MailboxOperatorDecisionSummary(
+      title: title,
+      detail: detail,
+      primaryAction: primaryAction,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Provider QA", value: "\(providerQA.completedCount)/\(providerQA.totalCount)", tone: providerQA.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Intake QA", value: "\(intakeQA.completedCount)/\(intakeQA.totalCount)", tone: intakeQA.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(warningBlockers)", tone: warningBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Inbox", value: "\(openInboxCount)", tone: openInboxCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxCreatedOrderCount)", tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "attention")
+      ],
+      decisions: decisions
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
