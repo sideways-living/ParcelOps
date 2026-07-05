@@ -1664,6 +1664,9 @@ struct GmailOAuthReadinessSummary: Identifiable, Hashable {
   var missingFields: [String]
   var statusText: String
   var detailText: String
+  var compiledClientIDStatus: String = "Compiled GIDClientID not checked"
+  var compiledCallbackSchemeStatus: String = "Compiled callback scheme not checked"
+  var expectedCallbackScheme: String = "Expected callback scheme unknown"
 }
 
 struct GmailOAuthImplementationPlan: Identifiable, Hashable {

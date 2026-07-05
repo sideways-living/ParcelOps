@@ -14630,6 +14630,7 @@ final class ParcelOpsStore {
     let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let redirectValue = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let redirectScheme = gmailRedirectScheme(from: redirectValue)
+    let expectedScheme = gmailExpectedRedirectScheme(for: clientID)
     if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       missingFields.append("Gmail address")
     }
@@ -14653,7 +14654,7 @@ final class ParcelOpsStore {
     } else if !redirectScheme.hasPrefix("com.googleusercontent.apps.") {
       missingFields.append("Gmail callback URL scheme starting with com.googleusercontent.apps.")
     }
-    if let expectedScheme = gmailExpectedRedirectScheme(for: clientID),
+    if let expectedScheme,
        !redirectScheme.isEmpty,
        !gmailCallbackSchemeIsPlaceholder(redirectScheme),
        redirectScheme != expectedScheme {
@@ -14674,18 +14675,34 @@ final class ParcelOpsStore {
       missingFields.append("Read-only Gmail scope")
     }
     let bundleClientID = (Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let compiledClientIDStatus: String
     if bundleClientID.isEmpty {
       missingFields.append("Compiled App Info.plist GIDClientID")
+      compiledClientIDStatus = "Missing compiled GIDClientID"
     } else if gmailClientIDIsPlaceholder(bundleClientID) {
       missingFields.append("Compiled App Info.plist GIDClientID replacing the placeholder")
+      compiledClientIDStatus = "Compiled GIDClientID is still placeholder"
     } else if !clientID.isEmpty, !gmailClientIDIsPlaceholder(clientID), bundleClientID != clientID {
       missingFields.append("Compiled App Info.plist GIDClientID matching this Gmail setup")
+      compiledClientIDStatus = "Compiled GIDClientID does not match saved setup"
+    } else if !clientID.isEmpty, bundleClientID == clientID {
+      compiledClientIDStatus = "Compiled GIDClientID matches saved setup"
+    } else {
+      compiledClientIDStatus = "Compiled GIDClientID present"
     }
     let bundleSchemes = gmailBundleURLSchemes()
+    let compiledCallbackSchemeStatus: String
     if !redirectScheme.isEmpty,
        !gmailCallbackSchemeIsPlaceholder(redirectScheme),
        !bundleSchemes.contains(redirectScheme) {
       missingFields.append("Compiled App Info.plist Gmail callback URL scheme")
+      compiledCallbackSchemeStatus = "Compiled callback scheme does not include saved setup scheme"
+    } else if !redirectScheme.isEmpty, bundleSchemes.contains(redirectScheme) {
+      compiledCallbackSchemeStatus = "Compiled callback scheme includes saved setup scheme"
+    } else if bundleSchemes.isEmpty {
+      compiledCallbackSchemeStatus = "No compiled callback URL schemes found"
+    } else {
+      compiledCallbackSchemeStatus = "Compiled callback URL schemes present"
     }
     if bundleSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme),
        !bundleSchemes.contains(redirectScheme) {
@@ -14702,7 +14719,12 @@ final class ParcelOpsStore {
       isReady: isReady,
       missingFields: missingFields,
       statusText: statusText,
-      detailText: detailText
+      detailText: detailText,
+      compiledClientIDStatus: compiledClientIDStatus,
+      compiledCallbackSchemeStatus: bundleSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme) && !bundleSchemes.contains(redirectScheme)
+        ? "Compiled callback scheme is still placeholder"
+        : compiledCallbackSchemeStatus,
+      expectedCallbackScheme: expectedScheme ?? "Expected callback scheme unknown until a valid Google iOS client ID is saved"
     )
   }
 
