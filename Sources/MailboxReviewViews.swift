@@ -208,6 +208,7 @@ struct MailboxView: View {
           Text("Use this for Gmail or Google Workspace mailboxes that feed Inbox through the same intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          GmailGoogleCloudSetupGuide()
           CompactActionRow {
             Button("Add Gmail setup", systemImage: "plus", action: store.addGmailMailboxConnectionPlaceholder)
               .buttonStyle(.bordered)

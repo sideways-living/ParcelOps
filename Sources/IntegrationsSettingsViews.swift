@@ -578,6 +578,7 @@ struct IntegrationsView: View {
           Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          GmailGoogleCloudSetupGuide()
           CompactActionRow {
             Button("Add Gmail setup", systemImage: "plus") {
               store.addGmailMailboxConnectionPlaceholder()
@@ -2227,6 +2228,97 @@ private struct GmailSetupChecklistStepRow: View {
     }
     .padding(8)
     .background(accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct GmailGoogleCloudSetupGuide: View {
+  private let steps: [(number: String, title: String, detail: String, color: Color)] = [
+    (
+      "1",
+      "Create Google OAuth client",
+      "Use Google Cloud Console OAuth client type iOS. Bundle ID must be app.bitrig.parcelops. Do not create or enter a client secret.",
+      .blue
+    ),
+    (
+      "2",
+      "Copy non-secret values",
+      "Save the iOS client ID ending in .apps.googleusercontent.com and its reversed URL scheme beginning com.googleusercontent.apps.",
+      .teal
+    ),
+    (
+      "3",
+      "Update compiled app config",
+      "Project.json and App/Info.plist must use the same GIDClientID and URL scheme before real Google sign-in can callback.",
+      .orange
+    ),
+    (
+      "4",
+      "Use read-only Gmail access",
+      "Use gmail.readonly or gmail.metadata only. Real refresh stays manual, fetches previews, and does not mutate mailbox messages.",
+      .green
+    )
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Google setup before real Gmail sign-in")
+            .font(.caption.weight(.semibold))
+          Text("These are local setup checks only. ParcelOps does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, or full Gmail message bodies in JSON or Audit.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 185) {
+        ForEach(steps, id: \.number) { step in
+          GmailGoogleCloudSetupStep(number: step.number, title: step.title, detail: step.detail, color: step.color)
+        }
+      }
+
+      Text("Recommended sequence: save the Gmail setup record, run Check readiness, test real Google sign-in, then run manual real Gmail refresh. Keep mock refresh available for local workflow testing.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct GmailGoogleCloudSetupStep: View {
+  var number: String
+  var title: String
+  var detail: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(color.opacity(0.16))
+          .frame(width: 22, height: 22)
+        Text(number)
+          .font(.caption2.weight(.bold))
+          .foregroundStyle(color)
+      }
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(8)
+    .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
