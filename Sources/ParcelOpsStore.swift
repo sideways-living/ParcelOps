@@ -315,6 +315,176 @@ final class ParcelOpsStore {
     gmailMailboxConnections.map(gmailIntakeHealthSummary(for:))
   }
 
+  var mailboxProviderComparisonSummary: MailboxProviderComparisonSummary {
+    let spaceMailSummaries = spaceMailIntakeHealthSummaries
+    let gmailSummaries = gmailIntakeHealthSummaries
+
+    let spaceMailFetched = spaceMailSummaries.reduce(0) { $0 + $1.fetchedCount }
+    let spaceMailImported = spaceMailSummaries.reduce(0) { $0 + $1.importedCount }
+    let spaceMailFiltered = spaceMailSummaries.reduce(0) { $0 + $1.filteredCount }
+    let spaceMailUncertain = spaceMailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let spaceMailParserIssues = spaceMailSummaries.reduce(0) { $0 + $1.parserIssueCount }
+    let spaceMailCredentialBlockers = spaceMailIMAPConnections.filter { connection in
+      !connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        && !connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+        && !connection.credentialStorageStatus.localizedCaseInsensitiveContains("Keychain")
+    }.count
+    let spaceMailSetupBlockers = spaceMailIMAPConnections.isEmpty ? 1 : 0
+    let spaceMailBlocked = spaceMailSetupBlockers + spaceMailCredentialBlockers
+
+    let gmailFetched = gmailSummaries.reduce(0) { $0 + $1.fetchedCount }
+    let gmailImported = gmailSummaries.reduce(0) { $0 + $1.importedCount }
+    let gmailFiltered = gmailSummaries.reduce(0) { $0 + $1.filteredCount }
+    let gmailUncertain = gmailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let gmailSetupBlockers = gmailMailboxConnections.isEmpty ? 0 : gmailReadinessBlockers + (gmailSignedInCount == 0 ? 1 : 0)
+
+    let spaceMailStatusTitle: String
+    let spaceMailDetail: String
+    let spaceMailNextAction: String
+    let spaceMailTone: String
+    if spaceMailIMAPConnections.isEmpty {
+      spaceMailStatusTitle = "SpaceMail not configured"
+      spaceMailDetail = "Add SpaceMail when the mailbox is hosted by SpaceMail or another IMAP provider."
+      spaceMailNextAction = "Add SpaceMail setup and store the password reference in Keychain."
+      spaceMailTone = "warning"
+    } else if spaceMailCredentialBlockers > 0 {
+      spaceMailStatusTitle = "SpaceMail credential needed"
+      spaceMailDetail = "\(spaceMailCredentialBlockers) SpaceMail setup\(spaceMailCredentialBlockers == 1 ? "" : "s") still need a usable Keychain credential reference."
+      spaceMailNextAction = "Set/check the SpaceMail credential, then run manual read-only refresh."
+      spaceMailTone = "attention"
+    } else if spaceMailImported > 0 || spaceMailUncertain > 0 || spaceMailParserIssues > 0 {
+      spaceMailStatusTitle = "SpaceMail has operator work"
+      spaceMailDetail = "\(spaceMailImported) imported, \(spaceMailUncertain) uncertain, and \(spaceMailParserIssues) parser issue\(spaceMailParserIssues == 1 ? "" : "s") across configured SpaceMail mailboxes."
+      spaceMailNextAction = "Review Inbox intake, uncertain previews, and parser diagnostics."
+      spaceMailTone = "attention"
+    } else if spaceMailFiltered > 0 || spaceMailFetched > 0 {
+      spaceMailStatusTitle = "SpaceMail filtering is active"
+      spaceMailDetail = "\(spaceMailFetched) fetched with \(spaceMailFiltered) filtered non-order message\(spaceMailFiltered == 1 ? "" : "s") kept out of Inbox."
+      spaceMailNextAction = "Run manual refresh when new order mail is expected."
+      spaceMailTone = "success"
+    } else {
+      spaceMailStatusTitle = "SpaceMail ready"
+      spaceMailDetail = "SpaceMail is configured, but no refresh evidence is active yet."
+      spaceMailNextAction = "Run manual read-only SpaceMail refresh from Mailbox Monitor."
+      spaceMailTone = "neutral"
+    }
+
+    let gmailStatusTitle: String
+    let gmailDetail: String
+    let gmailNextAction: String
+    let gmailTone: String
+    if gmailMailboxConnections.isEmpty {
+      gmailStatusTitle = "Gmail optional"
+      gmailDetail = "Add Gmail only for mailboxes hosted by Gmail or Google Workspace."
+      gmailNextAction = "Leave Gmail alone unless an operator needs a Google-hosted mailbox."
+      gmailTone = "neutral"
+    } else if gmailSetupBlockers > 0 {
+      gmailStatusTitle = "Gmail setup or sign-in blocked"
+      gmailDetail = "\(gmailSetupBlockers) Gmail blocker\(gmailSetupBlockers == 1 ? "" : "s") need setup, callback, OAuth, or sign-in attention."
+      gmailNextAction = "Open Gmail setup, run readiness checks, then test Google sign-in."
+      gmailTone = "warning"
+    } else if gmailImported > 0 || gmailUncertain > 0 {
+      gmailStatusTitle = "Gmail has operator work"
+      gmailDetail = "\(gmailImported) imported and \(gmailUncertain) uncertain Gmail message\(gmailUncertain == 1 ? "" : "s") need local review."
+      gmailNextAction = "Review Gmail-origin Inbox rows and uncertain Gmail previews."
+      gmailTone = "attention"
+    } else if gmailFiltered > 0 || gmailFetched > 0 {
+      gmailStatusTitle = "Gmail filtering is active"
+      gmailDetail = "\(gmailFetched) fetched with \(gmailFiltered) filtered non-order message\(gmailFiltered == 1 ? "" : "s") kept out of Inbox."
+      gmailNextAction = "Run manual Gmail refresh only when checking a Google-hosted mailbox."
+      gmailTone = "success"
+    } else {
+      gmailStatusTitle = "Gmail ready for first refresh"
+      gmailDetail = "Gmail setup is connected with no current intake evidence."
+      gmailNextAction = "Run manual read-only Gmail refresh when needed."
+      gmailTone = "neutral"
+    }
+
+    let anyProviderConfigured = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
+    let anyProviderBlocked = spaceMailBlocked > 0 || gmailSetupBlockers > 0
+    let anyOperatorWork = spaceMailImported + gmailImported + spaceMailUncertain + gmailUncertain + spaceMailParserIssues > 0
+    let anyRefreshEvidence = spaceMailFetched + gmailFetched + spaceMailFiltered + gmailFiltered > 0
+
+    let recommendedProvider: String
+    if !spaceMailIMAPConnections.isEmpty && !gmailMailboxConnections.isEmpty {
+      recommendedProvider = "SpaceMail + Gmail"
+    } else if !spaceMailIMAPConnections.isEmpty {
+      recommendedProvider = "SpaceMail"
+    } else if !gmailMailboxConnections.isEmpty {
+      recommendedProvider = "Gmail"
+    } else {
+      recommendedProvider = "Add provider"
+    }
+
+    let title: String
+    let detail: String
+    let tone: String
+    if !anyProviderConfigured {
+      title = "Choose a mailbox provider"
+      detail = "SpaceMail and Gmail both feed the same local Inbox intake path, but no provider setup exists yet."
+      tone = "warning"
+    } else if anyOperatorWork {
+      title = "Mailbox intake needs operator review"
+      detail = "Provider setup is working enough to surface imported, uncertain, or parser review work."
+      tone = "attention"
+    } else if anyProviderBlocked {
+      title = "Mailbox setup has blockers"
+      detail = "At least one configured provider needs credentials, readiness, or sign-in attention before it can be relied on."
+      tone = "warning"
+    } else if anyRefreshEvidence {
+      title = "Mailbox intake is quiet"
+      detail = "Manual refresh evidence exists, and current provider filters are keeping non-order mail out of Inbox."
+      tone = "success"
+    } else {
+      title = "Mailbox providers are ready for testing"
+      detail = "Provider setup exists, but the next proof point is a manual read-only refresh."
+      tone = "neutral"
+    }
+
+    return MailboxProviderComparisonSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      recommendedProvider: recommendedProvider,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: anyProviderConfigured ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported)", tone: (spaceMailImported + gmailImported) > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered)", tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain)", tone: (spaceMailUncertain + gmailUncertain) > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers)", tone: (spaceMailBlocked + gmailSetupBlockers) > 0 ? "warning" : "success")
+      ],
+      providers: [
+        MailboxProviderComparisonItem(
+          providerName: "SpaceMail",
+          statusTitle: spaceMailStatusTitle,
+          detail: spaceMailDetail,
+          nextAction: spaceMailNextAction,
+          tone: spaceMailTone,
+          symbol: "server.rack",
+          fetchedCount: spaceMailFetched,
+          importedCount: spaceMailImported,
+          blockedCount: spaceMailBlocked,
+          uncertainCount: spaceMailUncertain
+        ),
+        MailboxProviderComparisonItem(
+          providerName: "Gmail",
+          statusTitle: gmailStatusTitle,
+          detail: gmailDetail,
+          nextAction: gmailNextAction,
+          tone: gmailTone,
+          symbol: "envelope.badge.shield.half.filled",
+          fetchedCount: gmailFetched,
+          importedCount: gmailImported,
+          blockedCount: gmailSetupBlockers,
+          uncertainCount: gmailUncertain
+        )
+      ]
+    )
+  }
+
   var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
     let historyPairs = spaceMailIMAPConnections.flatMap { connection in
       connection.refreshHistory.map { entry in

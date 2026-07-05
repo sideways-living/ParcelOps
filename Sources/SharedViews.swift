@@ -3517,6 +3517,110 @@ struct GmailRefreshTrendCard: View {
   }
 }
 
+struct MailboxProviderComparisonCard: View {
+  var summary: MailboxProviderComparisonSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var providerColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 210 : 260), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "arrow.left.arrow.right.circle.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.recommendedProvider, color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
+        ForEach(summary.providers) { provider in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: provider.symbol)
+                .foregroundStyle(color(for: provider.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(provider.providerName)
+                  .font(.subheadline.weight(.semibold))
+                Text(provider.statusTitle)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(color(for: provider.tone))
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer()
+              Badge(provider.blockedCount > 0 ? "Needs setup" : "Available", color: color(for: provider.tone))
+            }
+
+            Text(provider.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            MetricStrip(items: [
+              ("Fetched", "\(provider.fetchedCount)", provider.fetchedCount > 0 ? .blue : .secondary),
+              ("Imported", "\(provider.importedCount)", provider.importedCount > 0 ? .green : .secondary),
+              ("Uncertain", "\(provider.uncertainCount)", provider.uncertainCount > 0 ? .orange : .secondary),
+              ("Blockers", "\(provider.blockedCount)", provider.blockedCount > 0 ? .red : .green)
+            ])
+
+            Label(provider.nextAction, systemImage: provider.blockedCount > 0 ? "wrench.and.screwdriver.fill" : "arrow.forward.circle.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: provider.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: provider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Provider comparison is local operator guidance only. SpaceMail and Gmail refreshes remain explicit, manual, read-only actions.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailOperatorGuidanceStack: View {
   var store: ParcelOpsStore
   var showTestRun: Bool = true

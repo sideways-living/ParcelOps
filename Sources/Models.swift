@@ -2031,6 +2031,29 @@ struct GmailRefreshTrendEntry: Identifiable, Hashable {
   var tone: String
 }
 
+struct MailboxProviderComparisonSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var recommendedProvider: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var providers: [MailboxProviderComparisonItem]
+}
+
+struct MailboxProviderComparisonItem: Identifiable, Hashable {
+  var id: String { providerName }
+  var providerName: String
+  var statusTitle: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var symbol: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var blockedCount: Int
+  var uncertainCount: Int
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

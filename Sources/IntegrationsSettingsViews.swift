@@ -383,6 +383,8 @@ struct IntegrationsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
+            MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)

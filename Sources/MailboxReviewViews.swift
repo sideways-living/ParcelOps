@@ -99,6 +99,8 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
+        MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+
         MailboxSpaceMailReadinessPanel(store: store)
 
         MailboxSpaceMailRunbookPanel(store: store)
