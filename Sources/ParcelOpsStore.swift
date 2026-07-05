@@ -1644,6 +1644,175 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailReleaseBlockerSummary: MailboxReleaseBlockerSummary {
+    let readinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
+    let setupPlans = gmailMailboxConnections.map(gmailSetupTestChecklist(for:))
+    let healthSummaries = gmailIntakeHealthSummaries
+    let handoff = gmailShiftHandoffSummary
+    let actionPlan = gmailPostRefreshActionPlan
+    var blockers: [MailboxReleaseBlockerItem] = []
+
+    if gmailMailboxConnections.isEmpty {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Gmail setup",
+          title: "Gmail path is optional",
+          detail: "No Gmail or Google Workspace mailbox setup is configured.",
+          nextAction: "Add Gmail setup only when a mailbox is hosted by Gmail or Google Workspace.",
+          tone: "neutral",
+          symbol: "envelope.badge.shield.half.filled"
+        )
+      )
+    }
+
+    for readiness in readinessSummaries where !readiness.isReady {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Gmail OAuth readiness",
+          title: readiness.statusText,
+          detail: readiness.missingFields.isEmpty
+            ? "\(readiness.compiledClientIDStatus). \(readiness.compiledCallbackSchemeStatus)."
+            : "Missing or blocked: \(readiness.missingFields.prefix(4).joined(separator: ", ")). \(readiness.compiledClientIDStatus). \(readiness.compiledCallbackSchemeStatus).",
+          nextAction: "Edit the Gmail setup, save non-secret Google OAuth values, then run Check readiness.",
+          tone: "warning",
+          symbol: "person.badge.key.fill"
+        )
+      )
+    }
+
+    for connection in gmailMailboxConnections {
+      let authState = gmailAuthSessionState(for: connection)
+      if authState.status != .connected {
+        blockers.append(
+          MailboxReleaseBlockerItem(
+            source: connection.displayName,
+            title: "Google sign-in not connected",
+            detail: "Current auth status: \(authState.status.rawValue). Signed-in account: \(authState.signedInAccount).",
+            nextAction: "Run Test real Google sign-in before running real Gmail refresh.",
+            tone: readinessSummaries.first(where: { $0.connectionID == connection.id })?.isReady == true ? "attention" : "warning",
+            symbol: "person.crop.circle.badge.questionmark"
+          )
+        )
+      }
+
+      if connection.lastManualRefreshDate == "Never" {
+        blockers.append(
+          MailboxReleaseBlockerItem(
+            source: connection.displayName,
+            title: "No real Gmail refresh evidence",
+            detail: "This setup has not recorded a manual real Gmail refresh result.",
+            nextAction: "After setup and sign-in are ready, run manual read-only Gmail refresh.",
+            tone: authState.status == .connected ? "attention" : "neutral",
+            symbol: "arrow.clockwise.circle"
+          )
+        )
+      }
+    }
+
+    for plan in setupPlans {
+      for item in plan.items where !item.isComplete {
+        blockers.append(
+          MailboxReleaseBlockerItem(
+            source: "Gmail setup test",
+            title: item.title,
+            detail: item.detail,
+            nextAction: item.nextAction,
+            tone: item.title.localizedCaseInsensitiveContains("sign-in") || item.title.localizedCaseInsensitiveContains("refresh") ? "attention" : "warning",
+            symbol: item.symbolName
+          )
+        )
+      }
+    }
+
+    for summary in healthSummaries where summary.tone == "warning" || summary.tone == "attention" {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: summary.displayName,
+          title: summary.verdict,
+          detail: summary.detail,
+          nextAction: summary.nextAction,
+          tone: summary.tone,
+          symbol: summary.tone == "warning" ? "exclamationmark.triangle.fill" : "tray.full.fill"
+        )
+      )
+    }
+
+    for line in handoff.handoffLines where line.tone == "warning" || line.tone == "attention" {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Gmail handoff",
+          title: line.title,
+          detail: line.detail,
+          nextAction: "Resolve this handoff item or leave a local follow-up task before relying on Gmail intake.",
+          tone: line.tone,
+          symbol: line.symbol
+        )
+      )
+    }
+
+    for item in actionPlan.items where item.tone == "warning" || item.tone == "attention" {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Gmail action queue",
+          title: item.title,
+          detail: item.detail,
+          nextAction: item.actionLabel,
+          tone: item.tone,
+          symbol: item.symbol
+        )
+      )
+    }
+
+    let uniqueBlockers = Array(
+      Dictionary(grouping: blockers, by: { "\($0.source)-\($0.title)-\($0.detail)" })
+        .compactMap { $0.value.first }
+        .sorted { lhs, rhs in
+          let lhsRank = lhs.tone == "warning" ? 0 : lhs.tone == "attention" ? 1 : lhs.tone == "neutral" ? 2 : 3
+          let rhsRank = rhs.tone == "warning" ? 0 : rhs.tone == "attention" ? 1 : rhs.tone == "neutral" ? 2 : 3
+          if lhsRank != rhsRank { return lhsRank < rhsRank }
+          return lhs.source < rhs.source
+        }
+    )
+    let warningCount = uniqueBlockers.filter { $0.tone == "warning" }.count
+    let attentionCount = uniqueBlockers.filter { $0.tone == "attention" }.count
+    let setupSteps = setupPlans.reduce(0) { $0 + $1.completedCount }
+    let setupTotal = setupPlans.reduce(0) { $0 + $1.totalCount }
+
+    let title: String
+    let detail: String
+    let tone: String
+    if gmailMailboxConnections.isEmpty {
+      title = "Gmail release blockers are optional"
+      detail = "No Gmail mailbox is configured. This is acceptable when SpaceMail remains the active provider."
+      tone = "neutral"
+    } else if warningCount > 0 {
+      title = "Gmail release has blocking setup items"
+      detail = "\(warningCount) setup blocker\(warningCount == 1 ? "" : "s") should be resolved before live Gmail testing."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Gmail release needs operator review"
+      detail = "\(attentionCount) Gmail item\(attentionCount == 1 ? "" : "s") should be reviewed before relying on the Gmail path."
+      tone = "attention"
+    } else {
+      title = "Gmail release blockers are clear"
+      detail = "Gmail setup, sign-in, refresh, and handoff checks do not currently show release blockers."
+      tone = "success"
+    }
+
+    return MailboxReleaseBlockerSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Setup", value: "\(setupSteps)/\(max(setupTotal, 1))", tone: setupTotal == 0 || setupSteps == setupTotal ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count)", tone: gmailMailboxConnections.isEmpty || gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected } ? "success" : "attention")
+      ],
+      blockers: Array(uniqueBlockers.prefix(8))
+    )
+  }
+
   var gmailRefreshTrendSummary: GmailRefreshTrendSummary {
     let gmailEvents = auditEvents.filter { event in
       event.entityType == .gmailMailboxConnection
