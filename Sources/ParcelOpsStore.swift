@@ -723,6 +723,114 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailShiftHandoffSummary: GmailShiftHandoffSummary {
+    let gmailMailboxIDs = Set(gmailMailboxConnections.map(\.id))
+    let gmailIngestRecords = mailboxIngestRecords.filter { gmailMailboxIDs.contains($0.sourceMailboxID) }
+    let linkedIntakeIDs = Set(gmailIngestRecords.compactMap(\.intakeEmailID))
+    let linkedGmailIntake = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }
+    let reviewGmailIntake = linkedGmailIntake.filter { $0.reviewState == .needsReview }
+    let parserDiagnostics = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+    let filteredCount = gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    let fetchedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+    let filteredLastRefreshCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainLastRefreshCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
+    let readinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let latestRefresh = gmailMailboxConnections
+      .filter { $0.lastManualRefreshDate != "Never" }
+      .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
+      .first
+    let lastRefreshText = latestRefresh.map {
+      "\($0.displayName) refreshed \($0.lastManualRefreshDate): \($0.lastRefreshSummary.isEmpty ? $0.connectionStatus : $0.lastRefreshSummary)"
+    } ?? "No real Gmail refresh has been recorded."
+
+    let lines = [
+      GmailShiftHandoffLine(
+        title: "Setup readiness",
+        detail: readinessBlockers == 0
+          ? "Gmail setup fields and compiled callback checks are clear."
+          : "\(readinessBlockers) Gmail setup\(readinessBlockers == 1 ? "" : "s") still have OAuth, callback, scope, or compiled app blockers.",
+        tone: readinessBlockers == 0 ? "success" : "warning",
+        symbol: "person.badge.key.fill"
+      ),
+      GmailShiftHandoffLine(
+        title: "Google sign-in",
+        detail: signedInCount == 0
+          ? "No Gmail setup currently has a connected Google sign-in session."
+          : "\(signedInCount) Gmail setup\(signedInCount == 1 ? "" : "s") have connected sign-in state for manual read-only refresh.",
+        tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention",
+        symbol: "person.crop.circle.badge.checkmark"
+      ),
+      GmailShiftHandoffLine(
+        title: "Latest refresh",
+        detail: "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicates, \(filteredLastRefreshCount) filtered, \(uncertainLastRefreshCount) uncertain.",
+        tone: fetchedCount == 0 ? "attention" : "neutral",
+        symbol: "clock.arrow.circlepath"
+      ),
+      GmailShiftHandoffLine(
+        title: "Inbox review",
+        detail: reviewGmailIntake.isEmpty
+          ? "No Gmail-linked intake rows currently need primary Inbox review."
+          : "\(reviewGmailIntake.count) Gmail-linked intake row\(reviewGmailIntake.count == 1 ? "" : "s") need review.",
+        tone: reviewGmailIntake.isEmpty ? "success" : "attention",
+        symbol: "tray.full.fill"
+      ),
+      GmailShiftHandoffLine(
+        title: "Parser checks",
+        detail: parserDiagnostics.isEmpty
+          ? "No Gmail-linked parser diagnostics are open."
+          : "\(parserDiagnostics.count) Gmail parser diagnostic\(parserDiagnostics.count == 1 ? "" : "s") need field confirmation.",
+        tone: parserDiagnostics.isEmpty ? "success" : "warning",
+        symbol: "text.magnifyingglass"
+      ),
+      GmailShiftHandoffLine(
+        title: "Mixed mailbox review",
+        detail: uncertainCount == 0 && filteredCount == 0
+          ? "No uncertain or filtered Gmail preview reviews are waiting."
+          : "\(uncertainCount) uncertain and \(filteredCount) filtered Gmail preview\(uncertainCount + filteredCount == 1 ? "" : "s") are available for review.",
+        tone: uncertainCount > 0 ? "attention" : "neutral",
+        symbol: "questionmark.folder.fill"
+      )
+    ]
+
+    let openLineCount = lines.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+    let title: String
+    let detail: String
+    let tone: String
+    if gmailMailboxConnections.isEmpty {
+      title = "Gmail handoff unavailable"
+      detail = "Add Gmail only for mailboxes hosted by Gmail or Google Workspace."
+      tone = "neutral"
+    } else if openLineCount == 0 {
+      title = "Gmail handoff is clear"
+      detail = "No immediate Gmail setup, refresh, parser, or mixed-mailbox follow-up is open."
+      tone = "success"
+    } else {
+      title = "Gmail handoff needs attention"
+      detail = "\(openLineCount) Gmail handoff area\(openLineCount == 1 ? "" : "s") should be checked before relying on Gmail intake."
+      tone = lines.contains { $0.tone == "warning" } ? "warning" : "attention"
+    }
+
+    return GmailShiftHandoffSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      lastRefreshText: lastRefreshText,
+      keyCounts: [
+        SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(readinessBlockers)", tone: readinessBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "success")
+      ],
+      handoffLines: lines
+    )
+  }
+
   var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

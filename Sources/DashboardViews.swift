@@ -1507,6 +1507,7 @@ struct DashboardView: View {
             SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
             CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries, store: store)
             CompactIntakeList(emails: store.newestIntakeEmails, store: store)

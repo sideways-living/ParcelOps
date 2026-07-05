@@ -1997,6 +1997,23 @@ struct GmailPostRefreshActionItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct GmailShiftHandoffSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var lastRefreshText: String
+  var keyCounts: [SpaceMailReleaseSnapshotMetric]
+  var handoffLines: [GmailShiftHandoffLine]
+}
+
+struct GmailShiftHandoffLine: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

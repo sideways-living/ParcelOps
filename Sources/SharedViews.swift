@@ -3230,6 +3230,80 @@ struct SpaceMailShiftHandoffCard: View {
   }
 }
 
+struct GmailShiftHandoffCard: View {
+  var summary: GmailShiftHandoffSummary
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(summary.lastRefreshText)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Gmail handoff", color: color)
+      }
+
+      MetricStrip(items: summary.keyCounts.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(summary.handoffLines) { line in
+          VStack(alignment: .leading, spacing: 6) {
+            Label(line.title, systemImage: line.symbol)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: line.tone))
+            Text(line.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: line.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Gmail remains explicit, manual, and read-only. Use this handoff to decide whether to fix setup, sign in, refresh, or review imported/uncertain messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailRefreshTrendCard: View {
   var summary: SpaceMailRefreshTrendSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

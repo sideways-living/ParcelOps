@@ -106,6 +106,7 @@ struct MailboxView: View {
         MailboxGmailReadinessPanel(store: store)
 
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
 
         GmailOperationsRunbook()
 
@@ -297,8 +298,9 @@ struct MailboxView: View {
             )
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+            GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
 
-            Text("Provider rows summarize the latest SpaceMail and Gmail outcomes. The SpaceMail trend shows recent IMAP refresh history; Gmail status is shown in the Gmail setup row until a dedicated Gmail trend is needed. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
+            Text("Provider rows summarize the latest SpaceMail and Gmail outcomes. SpaceMail trend history and Gmail handoff status are shown here so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
