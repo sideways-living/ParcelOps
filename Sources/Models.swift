@@ -2082,6 +2082,24 @@ struct MailboxOperationsHandoffLine: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxReleaseBlockerSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var blockers: [MailboxReleaseBlockerItem]
+}
+
+struct MailboxReleaseBlockerItem: Identifiable, Hashable {
+  var id: String { source + title + detail }
+  var source: String
+  var title: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var symbol: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

@@ -1817,6 +1817,109 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxReleaseBlockerSummary: MailboxReleaseBlockerSummary {
+    let providerQA = mailboxProviderQACheckSummary
+    let intakeQuality = mailboxIntakeQualitySummary
+    let comparison = mailboxProviderComparisonSummary
+    let handoff = mailboxOperationsHandoffSummary
+    var blockers: [MailboxReleaseBlockerItem] = []
+
+    for check in providerQA.checks where !check.isComplete {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Provider QA",
+          title: check.title,
+          detail: check.evidence,
+          nextAction: check.detail,
+          tone: check.tone == "success" ? "neutral" : check.tone,
+          symbol: check.tone == "warning" ? "exclamationmark.triangle.fill" : "wrench.and.screwdriver.fill"
+        )
+      )
+    }
+
+    for check in intakeQuality.checks where !check.isComplete {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Intake quality",
+          title: check.title,
+          detail: check.evidence,
+          nextAction: check.detail,
+          tone: check.tone == "success" ? "neutral" : check.tone,
+          symbol: check.tone == "warning" ? "exclamationmark.triangle.fill" : "doc.text.magnifyingglass"
+        )
+      )
+    }
+
+    for item in comparison.actionItems.prefix(4) {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: item.providerName,
+          title: item.title,
+          detail: item.detail,
+          nextAction: "Complete this provider action before treating mailbox intake as release-ready.",
+          tone: item.tone,
+          symbol: item.symbol
+        )
+      )
+    }
+
+    for line in handoff.lines where line.tone == "warning" || line.tone == "attention" {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Operator handoff",
+          title: line.title,
+          detail: line.detail,
+          nextAction: "Clear this handoff item or create a follow-up task from the release snapshot.",
+          tone: line.tone,
+          symbol: line.symbol
+        )
+      )
+    }
+
+    let warningCount = blockers.filter { $0.tone == "warning" }.count
+    let attentionCount = blockers.filter { $0.tone == "attention" }.count
+    let uniqueBlockers = Array(
+      Dictionary(grouping: blockers, by: { "\($0.source)-\($0.title)-\($0.detail)" })
+        .compactMap { $0.value.first }
+        .sorted { lhs, rhs in
+          let lhsRank = lhs.tone == "warning" ? 0 : lhs.tone == "attention" ? 1 : 2
+          let rhsRank = rhs.tone == "warning" ? 0 : rhs.tone == "attention" ? 1 : 2
+          if lhsRank != rhsRank { return lhsRank < rhsRank }
+          return lhs.source < rhs.source
+        }
+    )
+
+    let title: String
+    let detail: String
+    let tone: String
+    if warningCount > 0 {
+      title = "Mailbox release has blocking items"
+      detail = "\(warningCount) high-priority blocker\(warningCount == 1 ? "" : "s") should be resolved before release-candidate testing."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Mailbox release needs operator review"
+      detail = "\(attentionCount) review item\(attentionCount == 1 ? "" : "s") should be handled or tracked as follow-up before relying on mailbox results."
+      tone = "attention"
+    } else {
+      title = "Mailbox release blockers are clear"
+      detail = "Provider setup, intake quality, and handoff checks do not currently show release blockers."
+      tone = "success"
+    }
+
+    return MailboxReleaseBlockerSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Provider QA", value: "\(providerQA.completedCount)/\(providerQA.totalCount)", tone: providerQA.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Intake QA", value: "\(intakeQuality.completedCount)/\(intakeQuality.totalCount)", tone: intakeQuality.tone)
+      ],
+      blockers: Array(uniqueBlockers.prefix(8))
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

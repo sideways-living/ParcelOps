@@ -2770,6 +2770,104 @@ struct SpaceMailReleaseSnapshotCard: View {
   }
 }
 
+struct MailboxReleaseBlockerCard: View {
+  var summary: MailboxReleaseBlockerSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 210 : 260), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: summary.tone == "success" ? "checkmark.seal.fill" : "exclamationmark.octagon.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.tone == "success" ? "Clear" : "Review", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if summary.blockers.isEmpty {
+        Label("No mailbox release blockers are currently promoted from provider QA, intake quality, or handoff checks.", systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+          ForEach(summary.blockers) { blocker in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: blocker.symbol)
+                  .foregroundStyle(color(for: blocker.tone))
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(blocker.title)
+                    .font(.caption.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(blocker.source)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(color(for: blocker.tone))
+                }
+              }
+
+              Text(blocker.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Label(blocker.nextAction, systemImage: "arrow.forward.circle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color(for: blocker.tone))
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: blocker.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
+      Text("This queue is computed from existing local provider, intake, and handoff checks. It does not fetch mail, mutate mailboxes, or contact external services.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
