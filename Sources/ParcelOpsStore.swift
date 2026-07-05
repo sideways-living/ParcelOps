@@ -612,23 +612,20 @@ final class ParcelOpsStore {
     let latestImportedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let latestFilteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
     let latestUncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
+    let readinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
+    let setupBlockers = readinessSummaries.filter { !$0.isReady }
     let connectedAuthCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
-    let setupIssueCount = gmailMailboxConnections.filter { connection in
-      connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || (!connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly")
-          && !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata"))
-    }.count
+    let setupIssueCount = setupBlockers.count
+    let firstSetupBlocker = setupBlockers.first
+    let setupBlockerPreview = firstSetupBlocker?.missingFields.prefix(3).joined(separator: ", ")
 
     let items = [
       GmailPostRefreshActionItem(
         title: "Finish setup and sign-in",
         count: setupIssueCount + max(0, gmailMailboxConnections.count - connectedAuthCount),
         detail: setupIssueCount == 0 && connectedAuthCount > 0
-          ? "Gmail setup values and sign-in state are ready for manual refresh."
-          : "Confirm address, labels, OAuth client, redirect/scheme, read-only scope, and Google sign-in before real refresh.",
+          ? "Gmail setup values, compiled app callback configuration, and sign-in state are ready for manual refresh."
+          : "Resolve Gmail setup blockers before real refresh: \(setupBlockerPreview ?? "complete Google sign-in").",
         actionLabel: setupIssueCount == 0 && connectedAuthCount > 0 ? "Setup ready" : "Review Gmail setup",
         tone: setupIssueCount == 0 && connectedAuthCount > 0 ? "success" : "warning",
         symbol: "person.badge.key.fill"
@@ -695,6 +692,11 @@ final class ParcelOpsStore {
       detail = "Add a Gmail setup only when a mailbox is hosted by Gmail or Google Workspace."
       primaryAction = "Add Gmail setup"
       tone = "neutral"
+    } else if let firstSetupBlocker {
+      title = "Gmail setup blockers need review"
+      detail = "\(firstSetupBlocker.statusText). \(firstSetupBlocker.compiledClientIDStatus). \(firstSetupBlocker.compiledCallbackSchemeStatus)."
+      primaryAction = "Review Gmail setup"
+      tone = "warning"
     } else if latestFetchedCount == 0 && !gmailMailboxConnections.contains(where: { $0.lastManualRefreshDate != "Never" }) {
       title = "Gmail ready for setup checks"
       detail = "No real refresh evidence is recorded yet. Finish setup, test Google sign-in, then run manual read-only refresh."
@@ -1462,6 +1464,8 @@ final class ParcelOpsStore {
     let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
     let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
     let status = connection.connectionStatus
+    let readiness = gmailOAuthReadinessSummary(for: connection)
+    let authState = gmailAuthSessionState(for: connection)
     let uncertainCount = connection.lastRefreshUncertainCount ?? 0
     let pendingUncertainCount = connection.uncertainMessages?.count ?? 0
 
@@ -1470,14 +1474,24 @@ final class ParcelOpsStore {
     let nextAction: String
     let tone: String
 
-    if status.localizedCaseInsensitiveContains("Auth required") ||
+    if !readiness.isReady {
+      verdict = "Gmail setup blocked"
+      detail = "\(readiness.statusText). \(readiness.compiledClientIDStatus). \(readiness.compiledCallbackSchemeStatus)."
+      nextAction = "Open Mailbox Monitor or Settings, fix the Gmail setup blockers, then run Check readiness before sign-in."
+      tone = "warning"
+    } else if authState.status != .connected && connection.lastRefreshFetchedCount == 0 {
+      verdict = "Gmail sign-in needed"
+      detail = "Gmail setup and compiled callback checks are ready, but the mailbox is not signed in for the read-only refresh path."
+      nextAction = "Run Test real Google sign-in, then run manual read-only Gmail refresh."
+      tone = "attention"
+    } else if status.localizedCaseInsensitiveContains("Auth required") ||
       status.localizedCaseInsensitiveContains("Consent required") ||
       status.localizedCaseInsensitiveContains("API rejected") ||
       status.localizedCaseInsensitiveContains("Network failed") ||
       status.localizedCaseInsensitiveContains("not configured") {
       verdict = "Gmail setup needs attention"
-      detail = "The latest Gmail state did not reach a clean read-only refresh."
-      nextAction = "Check OAuth client, URL scheme, read-only Gmail scope, consent screen, then test Google sign-in."
+      detail = "The latest Gmail state did not reach a clean read-only refresh even though setup readiness checks passed."
+      nextAction = "Check Google consent, sign in again, then run manual read-only Gmail refresh."
       tone = "warning"
     } else if connection.lastRefreshFetchedCount == 0 && connection.lastManualRefreshDate == "Never" {
       verdict = "Ready for Gmail setup"

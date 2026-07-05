@@ -101,6 +101,9 @@ struct DashboardView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.gmailIntakeHealthSummaries.first
   }
+  private var gmailSetupBlockerCount: Int {
+    store.gmailMailboxConnections.filter { !store.gmailOAuthReadinessSummary(for: $0).isReady }.count
+  }
   private var pendingGmailUncertainReviewCount: Int {
     store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
   }
@@ -1177,6 +1180,7 @@ struct DashboardView: View {
           }
 
           MetricStrip(items: [
+            ("Gmail setup", "\(gmailSetupBlockerCount)", gmailSetupBlockerCount > 0 ? .orange : .green),
             ("Gmail fetched", "\(latestGmailSummary?.fetchedCount ?? 0)", (latestGmailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
             ("Gmail imported", "\(latestGmailSummary?.importedCount ?? 0)", (latestGmailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
