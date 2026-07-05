@@ -120,6 +120,7 @@ struct MailboxView: View {
         GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
         MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+        MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
         GmailOperationsRunbook()
@@ -315,6 +316,7 @@ struct MailboxView: View {
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
             MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+            MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
             Text("Provider rows summarize the latest SpaceMail and Gmail outcomes. SpaceMail trend history, Gmail handoff, and Gmail trend status are shown here so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")

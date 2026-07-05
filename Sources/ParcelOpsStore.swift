@@ -1813,6 +1813,119 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailOperatorDecisionSummary: MailboxOperatorDecisionSummary {
+    let blockers = gmailReleaseBlockerSummary
+    let actionPlan = gmailPostRefreshActionPlan
+    let warningBlockers = blockers.blockers.filter { $0.tone == "warning" }.count
+    let reviewBlockers = blockers.blockers.filter { $0.tone == "attention" }.count
+    let setupCount = gmailMailboxConnections.count
+    let readinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let fetchedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+    let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let openActionItems = actionPlan.items.filter { $0.tone == "warning" || $0.tone == "attention" }
+
+    let decisions = [
+      MailboxOperatorDecisionItem(
+        title: "Leave Gmail optional",
+        detail: "No Gmail setup is configured. SpaceMail can remain the active mailbox path.",
+        action: "Only add Gmail when a mailbox is hosted by Gmail or Google Workspace.",
+        isActive: setupCount == 0,
+        tone: setupCount == 0 ? "neutral" : "success",
+        symbol: "envelope.badge.shield.half.filled"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Fix Gmail setup blockers",
+        detail: "\(readinessBlockers) setup readiness item\(readinessBlockers == 1 ? "" : "s") and \(warningBlockers) warning blocker\(warningBlockers == 1 ? "" : "s") remain.",
+        action: "Edit Gmail setup, confirm OAuth values, then rerun readiness before sign-in or refresh.",
+        isActive: setupCount > 0 && (readinessBlockers > 0 || warningBlockers > 0),
+        tone: setupCount > 0 && (readinessBlockers > 0 || warningBlockers > 0) ? "warning" : "success",
+        symbol: "person.badge.key.fill"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Test Google sign-in",
+        detail: "Gmail setup exists, but no connected Google account is available.",
+        action: "Run Test real Google sign-in, then confirm Audit records a connected identity without token values.",
+        isActive: setupCount > 0 && readinessBlockers == 0 && signedInCount == 0,
+        tone: setupCount > 0 && readinessBlockers == 0 && signedInCount == 0 ? "attention" : "neutral",
+        symbol: "person.crop.circle.badge.checkmark"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Run manual Gmail refresh",
+        detail: signedInCount > 0 ? "A Google account is connected; no real Gmail fetch evidence is recorded yet." : "Manual refresh waits until sign-in is connected.",
+        action: "Use Run real Gmail refresh only when you need to test a Google-hosted mailbox.",
+        isActive: setupCount > 0 && signedInCount > 0 && fetchedCount == 0,
+        tone: setupCount > 0 && signedInCount > 0 && fetchedCount == 0 ? "attention" : "neutral",
+        symbol: "arrow.clockwise.circle"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Review Gmail intake",
+        detail: "\(importedCount) imported row\(importedCount == 1 ? "" : "s") and \(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") need operator review.",
+        action: "Open Inbox or Mailbox Monitor, then review, import, dismiss, link, or create orders from Gmail rows.",
+        isActive: importedCount + uncertainCount > 0,
+        tone: importedCount + uncertainCount > 0 ? "attention" : "success",
+        symbol: "tray.full.fill"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Check filtered Gmail examples",
+        detail: "\(filteredCount) filtered non-order message\(filteredCount == 1 ? "" : "s") and \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s") are recorded.",
+        action: "Use filtered examples only for classifier tuning; keep non-order mail out of primary Inbox.",
+        isActive: setupCount > 0 && importedCount == 0 && uncertainCount == 0 && filteredCount > 0,
+        tone: setupCount > 0 && importedCount == 0 && uncertainCount == 0 && filteredCount > 0 ? "neutral" : "success",
+        symbol: "line.3.horizontal.decrease.circle"
+      ),
+      MailboxOperatorDecisionItem(
+        title: "Record Gmail follow-up",
+        detail: "\(reviewBlockers) review blocker\(reviewBlockers == 1 ? "" : "s") and \(openActionItems.count) action-plan item\(openActionItems.count == 1 ? "" : "s") remain.",
+        action: "Create a local task only for items that need a later Gmail setup or refresh pass.",
+        isActive: setupCount > 0 && warningBlockers == 0 && reviewBlockers + openActionItems.count > 0,
+        tone: setupCount > 0 && warningBlockers == 0 && reviewBlockers + openActionItems.count > 0 ? "attention" : "neutral",
+        symbol: "checklist"
+      )
+    ]
+
+    let activeDecisions = decisions.filter(\.isActive)
+    let primaryAction: String
+    let title: String
+    let detail: String
+    let tone: String
+    if let warning = activeDecisions.first(where: { $0.tone == "warning" }) {
+      primaryAction = warning.action
+      title = "Gmail decision: fix setup blockers"
+      detail = warning.detail
+      tone = "warning"
+    } else if let active = activeDecisions.first {
+      primaryAction = active.action
+      title = "Gmail decision: \(active.title.lowercased())"
+      detail = active.detail
+      tone = active.tone == "success" ? "attention" : active.tone
+    } else {
+      primaryAction = "No Gmail action is required unless a Google-hosted mailbox becomes part of the active intake path."
+      title = "Gmail decision: path is quiet"
+      detail = "Gmail setup, sign-in, refresh, filtering, and intake review do not currently require operator action."
+      tone = "success"
+    }
+
+    return MailboxOperatorDecisionSummary(
+      title: title,
+      detail: detail,
+      primaryAction: primaryAction,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(setupCount)", tone: setupCount == 0 ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: setupCount == 0 || signedInCount > 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningBlockers)", tone: warningBlockers == 0 ? "success" : "warning")
+      ],
+      decisions: decisions
+    )
+  }
+
   var gmailRefreshTrendSummary: GmailRefreshTrendSummary {
     let gmailEvents = auditEvents.filter { event in
       event.entityType == .gmailMailboxConnection

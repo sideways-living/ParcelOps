@@ -1521,6 +1521,7 @@ struct DashboardView: View {
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
             MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+            MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries, store: store)
