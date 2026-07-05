@@ -745,6 +745,150 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
+    let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
+    let hasGmailSetup = !gmailMailboxConnections.isEmpty
+    let hasSpaceMailCredential = spaceMailIMAPConnections.contains { connection in
+      connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+        || connection.credentialStorageStatus.localizedCaseInsensitiveContains("Keychain")
+    }
+    let hasGmailConnectedAuth = gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected }
+    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
+    let hasManualRefreshEvidence = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasDuplicateEvidence = !mailboxIngestRecords.isEmpty
+      || spaceMailIMAPConnections.contains { $0.lastRefreshDuplicateCount > 0 }
+      || gmailMailboxConnections.contains { $0.lastRefreshDuplicateCount > 0 }
+    let hasMixedFilteringEvidence = spaceMailIMAPConnections.contains { connection in
+      connection.mailboxMode == .mixedFiltered
+        && (connection.lastRefreshFilteredNonOrderCount > 0
+          || !connection.filteredMessages.isEmpty
+          || !connection.uncertainMessages.isEmpty
+          || !connection.lastRefreshReasonBreakdown.isEmpty)
+    } || gmailMailboxConnections.contains { connection in
+      connection.mailboxMode == .mixedFiltered
+        && (connection.lastRefreshFilteredNonOrderCount > 0
+          || connection.filteredMessages?.isEmpty == false
+          || connection.uncertainMessages?.isEmpty == false
+          || connection.lastRefreshFilteredExamples?.isEmpty == false
+          || connection.lastRefreshUncertainExamples?.isEmpty == false)
+    }
+    let hasReadOnlyAuditEvidence = auditEvents.contains { event in
+      let detail = event.afterDetail ?? ""
+      return detail.localizedCaseInsensitiveContains("read-only")
+        || detail.localizedCaseInsensitiveContains("No mailbox item was deleted")
+        || detail.localizedCaseInsensitiveContains("No mailbox items were deleted")
+        || detail.localizedCaseInsensitiveContains("No mailbox mutation")
+    }
+    let hasSecretBoundaryEvidence = auditEvents.contains { event in
+      let detail = event.afterDetail ?? ""
+      return detail.localizedCaseInsensitiveContains("No password")
+        || detail.localizedCaseInsensitiveContains("No token")
+        || detail.localizedCaseInsensitiveContains("not stored in JSON")
+        || detail.localizedCaseInsensitiveContains("not logged")
+    }
+    let gmailSetupBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let providerSplitClear = hasSpaceMailSetup || hasGmailSetup
+    let importedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+
+    let providerEvidence: String
+    if hasSpaceMailSetup && hasGmailSetup {
+      providerEvidence = "SpaceMail and Gmail setup records both exist."
+    } else if hasSpaceMailSetup {
+      providerEvidence = "SpaceMail setup exists; Gmail remains optional unless needed."
+    } else if hasGmailSetup {
+      providerEvidence = "Gmail setup exists; SpaceMail remains optional unless needed."
+    } else {
+      providerEvidence = "No SpaceMail or Gmail provider setup exists."
+    }
+
+    let checks = [
+      SpaceMailQACheck(
+        title: "Provider split is explicit",
+        detail: "Operators can see whether SpaceMail, Gmail, or both are the active mailbox paths.",
+        evidence: providerEvidence,
+        isComplete: providerSplitClear,
+        tone: providerSplitClear ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Credential or sign-in boundary",
+        detail: "A provider has safe credential/sign-in evidence before real refresh is expected to work.",
+        evidence: hasCredentialOrAuth ? "SpaceMail credential or Gmail connected auth evidence exists." : "Set SpaceMail Keychain credential or complete Gmail sign-in before real refresh.",
+        isComplete: hasCredentialOrAuth,
+        tone: hasCredentialOrAuth ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Manual refresh only",
+        detail: "Refresh evidence comes from explicit operator action, not background sync.",
+        evidence: hasManualRefreshEvidence ? "Manual refresh evidence exists for at least one provider." : "Run one manual provider refresh to prove the boundary.",
+        isComplete: hasManualRefreshEvidence,
+        tone: hasManualRefreshEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Read-only mailbox boundary",
+        detail: "Audit evidence should state that mailbox items are not deleted, moved, marked read, sent, or modified.",
+        evidence: hasReadOnlyAuditEvidence ? "Read-only/no-mutation audit evidence exists." : "Run a refresh and confirm Audit records the no-mutation boundary.",
+        isComplete: hasReadOnlyAuditEvidence,
+        tone: hasReadOnlyAuditEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Secrets stay out of JSON and Audit",
+        detail: "Audit evidence should state that passwords, tokens, auth strings, and secret values are not logged or persisted.",
+        evidence: hasSecretBoundaryEvidence ? "Secret-boundary audit evidence exists." : "Run credential/sign-in/refresh checks and confirm safe secret-boundary copy appears.",
+        isComplete: hasSecretBoundaryEvidence,
+        tone: hasSecretBoundaryEvidence ? "success" : "warning"
+      ),
+      SpaceMailQACheck(
+        title: "Duplicate-safe intake",
+        detail: "Provider message IDs should prevent duplicate Inbox rows while preserving local refresh metadata.",
+        evidence: hasDuplicateEvidence ? "\(mailboxIngestRecords.count) ingest record\(mailboxIngestRecords.count == 1 ? "" : "s") or duplicate refresh evidence exists." : "Run refresh twice against the same mailbox to prove duplicate handling.",
+        isComplete: hasDuplicateEvidence,
+        tone: hasDuplicateEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Mixed mailbox filtering",
+        detail: "Mixed mailboxes should keep non-order messages out of Inbox and surface uncertain messages separately.",
+        evidence: hasMixedFilteringEvidence ? "\(filteredCount) filtered and \(importedCount) imported message\(filteredCount + importedCount == 1 ? "" : "s") recorded across providers." : "Run refresh/classifier checks until filtered or uncertain evidence is visible.",
+        isComplete: hasMixedFilteringEvidence,
+        tone: hasMixedFilteringEvidence ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Gmail readiness blockers visible",
+        detail: "If Gmail is configured, OAuth/readiness blockers should be visible before relying on Gmail refresh.",
+        evidence: !hasGmailSetup ? "Gmail is not configured, so no Gmail blockers apply." : "\(gmailSetupBlockers) Gmail readiness blocker\(gmailSetupBlockers == 1 ? "" : "s") currently visible.",
+        isComplete: !hasGmailSetup || gmailSetupBlockers == 0,
+        tone: !hasGmailSetup || gmailSetupBlockers == 0 ? "success" : "warning"
+      )
+    ]
+
+    let completedCount = checks.filter(\.isComplete).count
+    let verdict: String
+    let tone: String
+    if completedCount == checks.count {
+      verdict = "Mailbox provider QA boundaries complete"
+      tone = "success"
+    } else if completedCount >= 6 {
+      verdict = "Mailbox provider QA boundaries mostly ready"
+      tone = "attention"
+    } else {
+      verdict = "Mailbox provider QA boundaries need review"
+      tone = "warning"
+    }
+
+    return SpaceMailQACheckSummary(
+      verdict: verdict,
+      detail: "\(completedCount) of \(checks.count) provider boundary checks are complete for SpaceMail/Gmail intake.",
+      completedCount: completedCount,
+      totalCount: checks.count,
+      tone: tone,
+      checks: checks
+    )
+  }
+
   var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
     let historyPairs = spaceMailIMAPConnections.flatMap { connection in
       connection.refreshHistory.map { entry in

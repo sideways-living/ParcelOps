@@ -385,6 +385,7 @@ struct IntegrationsView: View {
 
             MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
             MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
+            SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
