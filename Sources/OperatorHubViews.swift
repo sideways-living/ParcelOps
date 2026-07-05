@@ -8,6 +8,7 @@ struct InboxView: View {
   @State private var triageGroupFilter: InboxTriageGroupFilter = .all
   @State private var triageSourceFilter: InboxTriageSourceFilter = .all
   @State private var triageQualityFilter: InboxTriageQualityFilter = .all
+  @State private var providerReleaseGateFeedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -286,6 +287,7 @@ struct InboxView: View {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         inboxSummaryPanel
+        mailboxProviderReleaseGatePanel
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
@@ -377,6 +379,116 @@ struct InboxView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private var mailboxProviderReleaseGatePanel: some View {
+    let gate = store.mailboxProviderReleaseGateSummary
+    let color = mailboxProviderReleaseGateColor(for: gate.tone)
+    let openGates = gate.gates.filter { !$0.isPassed }
+
+    return SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gate.tone == "success" ? "checkmark.seal.fill" : gate.tone == "warning" ? "exclamationmark.triangle.fill" : "checklist")
+            .foregroundStyle(color)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gate.title)
+              .font(.headline)
+            Text(gate.detail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(gate.verdict, color: color)
+        }
+
+        MetricStrip(items: gate.metrics.dropFirst().map { metric in
+          (metric.title, metric.value, mailboxProviderReleaseGateColor(for: metric.tone))
+        })
+
+        if openGates.isEmpty {
+          Label("Provider setup, refresh evidence, Inbox handoff, diagnostics, blockers, and release plan checks currently pass from local evidence.", systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Open gate actions", systemImage: "arrow.forward.circle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color)
+            ForEach(Array(openGates.prefix(3)), id: \.title) { item in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.symbol)
+                  .foregroundStyle(mailboxProviderReleaseGateColor(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(item.title)
+                    .font(.caption.weight(.semibold))
+                  Text(item.nextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(mailboxProviderReleaseGateColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        if let providerReleaseGateFeedbackMessage {
+          Label(providerReleaseGateFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        CompactActionRow {
+          Button("Create gate task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderReleaseGate()
+            providerReleaseGateFeedbackMessage = "Mailbox provider release gate task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Settings", systemImage: "gearshape.2.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        Text("Inbox uses this gate as context only. It does not fetch mail, read credentials, change classifier rules, or mutate mailbox messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func mailboxProviderReleaseGateColor(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
     }
   }
 
