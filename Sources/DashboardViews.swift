@@ -1200,7 +1200,7 @@ struct DashboardView: View {
 
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
         MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-        MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary)
+        MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
         SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)

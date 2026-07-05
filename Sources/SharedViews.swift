@@ -3156,7 +3156,9 @@ struct MailboxOperatorDecisionCard: View {
 
 struct MailboxProviderTestQueueCard: View {
   var summary: MailboxProviderTestQueueSummary
+  var store: ParcelOpsStore?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var feedbackMessage: String?
 
   private var color: Color {
     color(for: summary.tone)
@@ -3191,6 +3193,37 @@ struct MailboxProviderTestQueueCard: View {
       MetricStrip(items: summary.metrics.map { metric in
         (metric.title, metric.value, color(for: metric.tone))
       })
+
+      if let store {
+        CompactActionRow {
+          Button("Create queue follow-up", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderTestQueue()
+            feedbackMessage = "Mailbox provider queue follow-up task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if let feedbackMessage {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+          Text(feedbackMessage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
         ForEach(visibleItems) { item in

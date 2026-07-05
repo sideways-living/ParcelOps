@@ -10308,6 +10308,77 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromMailboxProviderTestQueue() {
+    let queue = mailboxProviderTestQueueSummary
+    let taskPriority: TaskPriority
+    switch queue.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = queue.tone == "success" ? "Confirm mailbox provider test queue" : "Resolve mailbox provider test queue"
+    let itemLines = queue.items.prefix(12).map { item in
+      "- \(item.providerName) / \(item.phase): \(item.title). Next: \(item.nextAction). Evidence: \(item.evidence)"
+    }
+    let metricLines = queue.metrics.map { "\($0.title): \($0.value)" }
+    let summaryLines = [
+      queue.title,
+      queue.detail,
+      "Current provider path: \(queue.currentProvider)",
+      "Metrics: \(metricLines.joined(separator: ", "))",
+      "Open queue items:"
+    ] + itemLines + [
+      "This task is local-only. It does not run provider refreshes, store credentials, call external services, or mutate mailbox messages."
+    ]
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-test-queue"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = summaryLines.joined(separator: "\n")
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing mailbox provider test queue review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current mailbox provider test queue. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: summaryLines.joined(separator: "\n"),
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-test-queue",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from mailbox provider test queue."
+    )
+  }
+
   func updateReviewTask(_ task: ReviewTask) {
     guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
     let beforeDetail = reviewTasks[index].auditDetail
