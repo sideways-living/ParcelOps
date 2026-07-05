@@ -1719,6 +1719,104 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxReleaseReadinessSnapshot: SpaceMailReleaseSnapshot {
+    let providerQA = mailboxProviderQACheckSummary
+    let intakeQuality = mailboxIntakeQualitySummary
+    let handoff = mailboxOperationsHandoffSummary
+    let comparison = mailboxProviderComparisonSummary
+    let generatedDate = Date.now.formatted(date: .abbreviated, time: .shortened)
+    let completedChecks = providerQA.completedCount + intakeQuality.completedCount
+    let totalChecks = providerQA.totalCount + intakeQuality.totalCount
+    let providerBlockers = comparison.providers.reduce(0) { $0 + $1.blockedCount }
+    let handoffAttention = handoff.lines.filter { $0.tone == "attention" || $0.tone == "warning" }.count
+    let totalFetched = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let totalImported = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let totalFiltered = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let totalUncertain = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount + $1.uncertainMessages.count }
+      + gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
+
+    let verdict: String
+    let detail: String
+    let tone: String
+    if providerQA.tone == "success" && intakeQuality.tone == "success" && providerBlockers == 0 && handoffAttention == 0 {
+      verdict = "Mailbox release snapshot: ready for supervised testing"
+      detail = "Provider boundaries, intake quality, and handoff status are complete enough for a focused hands-on mailbox test."
+      tone = "success"
+    } else if completedChecks >= max(totalChecks - 3, 1) && providerBlockers == 0 {
+      verdict = "Mailbox release snapshot: usable with review"
+      detail = "\(completedChecks) of \(totalChecks) provider and intake checks are complete. Clear handoff or parser review items before relying on results."
+      tone = "attention"
+    } else {
+      verdict = "Mailbox release snapshot: not ready yet"
+      detail = "\(completedChecks) of \(totalChecks) provider and intake checks are complete. Finish setup, refresh, and intake quality checks first."
+      tone = "warning"
+    }
+
+    let providerLines = comparison.providers.map { provider in
+      "- \(provider.providerName): \(provider.statusTitle); \(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blockers."
+    }
+    let handoffLines = handoff.lines.map { "- \($0.title): \($0.detail)" }
+    let reportLines = [
+      "ParcelOps mailbox release readiness snapshot",
+      "Generated: \(generatedDate)",
+      "",
+      "Verdict: \(verdict)",
+      "Detail: \(detail)",
+      "",
+      "Recommended provider path: \(comparison.recommendedProvider)",
+      "Provider QA: \(providerQA.completedCount)/\(providerQA.totalCount) - \(providerQA.verdict)",
+      "Intake quality: \(intakeQuality.completedCount)/\(intakeQuality.totalCount) - \(intakeQuality.verdict)",
+      "Handoff: \(handoff.title) - \(handoff.detail)",
+      "",
+      "Provider status:",
+      providerLines.joined(separator: "\n"),
+      "",
+      "Mailbox counts:",
+      "Fetched: \(totalFetched)",
+      "Imported: \(totalImported)",
+      "Filtered non-order: \(totalFiltered)",
+      "Uncertain: \(totalUncertain)",
+      "Parser diagnostics: \(intakeParserDiagnostics.count)",
+      "Inbox rows linked to orders: \(linkedOrderCount)",
+      "",
+      "Current handoff lines:",
+      handoffLines.joined(separator: "\n"),
+      "",
+      "Release boundaries:",
+      "- SpaceMail and Gmail refreshes are explicit, manual, and read-only.",
+      "- No background sync, notifications, outbound email sending, Shopify, carrier APIs, OCR, scanners, calendars, or file pickers are active.",
+      "- Passwords, tokens, auth strings, and full message bodies should not be stored in ParcelOps JSON or Audit.",
+      "- Mixed-mailbox filtering is local only and should keep non-order mail out of primary Inbox.",
+      "",
+      "Recommended release-candidate test:",
+      "1. Run the active provider manual refresh.",
+      "2. Confirm the refresh summary, provider QA, and intake quality cards.",
+      "3. Import or dismiss uncertain messages.",
+      "4. Create or link one order from confirmed Inbox intake.",
+      "5. Confirm Dashboard, Workbench, Tasks, and Audit show the handoff."
+    ]
+
+    return SpaceMailReleaseSnapshot(
+      verdict: verdict,
+      detail: detail,
+      generatedDate: generatedDate,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: tone),
+        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: providerBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(totalFetched)", tone: totalFetched > 0 ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(totalImported)", tone: totalImported > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(totalFiltered)", tone: totalFiltered > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Handoff", value: "\(handoffAttention)", tone: handoffAttention == 0 ? "success" : "attention")
+      ],
+      reportText: reportLines.joined(separator: "\n")
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

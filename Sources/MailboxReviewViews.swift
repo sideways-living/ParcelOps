@@ -103,6 +103,7 @@ struct MailboxView: View {
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+        SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot)
 
         MailboxSpaceMailReadinessPanel(store: store)
 
