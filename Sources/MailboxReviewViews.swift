@@ -101,6 +101,7 @@ struct MailboxView: View {
 
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
         MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
+        MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary)
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)

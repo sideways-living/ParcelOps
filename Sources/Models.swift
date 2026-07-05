@@ -2157,6 +2157,28 @@ struct MailboxOperatorDecisionItem: Identifiable, Hashable {
   var symbol: String
 }
 
+struct MailboxProviderTestQueueSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var currentProvider: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var items: [MailboxProviderTestQueueItem]
+}
+
+struct MailboxProviderTestQueueItem: Identifiable, Hashable {
+  var id: String { "\(providerName)-\(title)-\(phase)" }
+  var providerName: String
+  var phase: String
+  var title: String
+  var detail: String
+  var nextAction: String
+  var evidence: String
+  var isComplete: Bool
+  var tone: String
+  var symbol: String
+}
+
 struct MailboxProviderSetupChecklistSummary: Hashable {
   var title: String
   var detail: String

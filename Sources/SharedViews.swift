@@ -3154,6 +3154,113 @@ struct MailboxOperatorDecisionCard: View {
   }
 }
 
+struct MailboxProviderTestQueueCard: View {
+  var summary: MailboxProviderTestQueueSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)]
+  }
+
+  private var visibleItems: [MailboxProviderTestQueueItem] {
+    Array(summary.items.prefix(horizontalSizeClass == .compact ? 5 : 8))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.currentProvider, color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(visibleItems) { item in
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: item.isComplete ? "checkmark.circle.fill" : item.symbol)
+                .foregroundStyle(color(for: item.tone))
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(item.providerName) • \(item.phase)")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(color(for: item.tone))
+              }
+              Spacer()
+            }
+
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(for: item.tone))
+              .fixedSize(horizontal: false, vertical: true)
+
+            Text(item.evidence)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: item.tone).opacity(item.isComplete ? 0.05 : 0.1), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if summary.items.count > visibleItems.count {
+        Text("\(summary.items.count - visibleItems.count) additional completed or lower-priority provider check\(summary.items.count - visibleItems.count == 1 ? "" : "s") hidden from this compact view.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+
+      Text("This queue is computed from local setup, credential, sign-in, refresh, Inbox, parser, and order-handoff state. It does not connect to providers or mutate mailbox data.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailPostRefreshActionCard: View {
   var plan: SpaceMailPostRefreshActionPlan
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

@@ -745,6 +745,243 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxProviderTestQueueSummary: MailboxProviderTestQueueSummary {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let handoff = mailboxOperationsHandoffSummary
+    let releasePlan = mailboxReleaseTestPlanSummary
+    let decision = mailboxOperatorDecisionSummary
+    let spaceMailHealth = spaceMailIntakeHealthSummaries
+    let gmailHealth = gmailIntakeHealthSummaries
+    let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
+    let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
+    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
+    let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
+    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let parserIssueCount = intakeParserDiagnostics.count
+    let openInboxCount = reviewIntakeEmails.count
+    let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
+    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    var items: [MailboxProviderTestQueueItem] = []
+
+    for provider in setup.providers {
+      let incompleteChecks = provider.checks.filter { !$0.isComplete }
+      if incompleteChecks.isEmpty {
+        items.append(
+          MailboxProviderTestQueueItem(
+            providerName: provider.providerName,
+            phase: "Setup",
+            title: "\(provider.providerName) setup verified",
+            detail: provider.detail,
+            nextAction: provider.nextAction,
+            evidence: "\(provider.checks.count) setup check\(provider.checks.count == 1 ? "" : "s") complete.",
+            isComplete: true,
+            tone: "success",
+            symbol: provider.symbol
+          )
+        )
+      } else {
+        for check in incompleteChecks.prefix(3) {
+          items.append(
+            MailboxProviderTestQueueItem(
+              providerName: provider.providerName,
+              phase: "Setup",
+              title: check.title,
+              detail: check.detail,
+              nextAction: provider.nextAction,
+              evidence: "Setup checklist item is not complete.",
+              isComplete: false,
+              tone: check.tone,
+              symbol: check.symbol
+            )
+          )
+        }
+      }
+    }
+
+    for provider in comparison.providers {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: provider.providerName,
+          phase: "Provider status",
+          title: provider.statusTitle,
+          detail: provider.detail,
+          nextAction: provider.nextAction,
+          evidence: "\(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blocker\(provider.blockedCount == 1 ? "" : "s").",
+          isComplete: provider.tone == "success" || provider.tone == "neutral",
+          tone: provider.tone,
+          symbol: provider.symbol
+        )
+      )
+    }
+
+    if !spaceMailIMAPConnections.isEmpty {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "SpaceMail",
+          phase: "Refresh",
+          title: spaceMailFetched > 0 ? "SpaceMail refresh evidence exists" : "Run SpaceMail manual refresh",
+          detail: spaceMailFetched > 0 ? "SpaceMail has real or mock refresh evidence available for operator review." : "SpaceMail is configured but needs a manual read-only refresh proof point.",
+          nextAction: spaceMailFetched > 0 ? "Review imported, uncertain, filtered, and duplicate results." : "Run real SpaceMail refresh from Mailbox Monitor when new order mail is expected.",
+          evidence: "\(spaceMailFetched) fetched, \(spaceMailImported) imported, \(spaceMailUncertain) uncertain.",
+          isComplete: spaceMailFetched > 0,
+          tone: spaceMailFetched > 0 ? (spaceMailImported + spaceMailUncertain > 0 ? "attention" : "success") : "attention",
+          symbol: "server.rack"
+        )
+      )
+    }
+
+    if !gmailMailboxConnections.isEmpty {
+      let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Gmail",
+          phase: "Refresh",
+          title: gmailFetched > 0 ? "Gmail refresh evidence exists" : signedInCount > 0 ? "Run Gmail manual refresh" : "Test Google sign-in",
+          detail: gmailFetched > 0 ? "Gmail has refresh evidence available for operator review." : signedInCount > 0 ? "A Google account is connected, but no Gmail fetch evidence is recorded yet." : "Gmail setup exists but needs a connected Google sign-in before real refresh.",
+          nextAction: gmailFetched > 0 ? "Review Gmail imported, uncertain, filtered, and duplicate results." : signedInCount > 0 ? "Run real Gmail refresh when checking a Google-hosted mailbox." : "Run Test real Google sign-in before refresh.",
+          evidence: "\(signedInCount) signed in, \(gmailFetched) fetched, \(gmailImported) imported, \(gmailUncertain) uncertain.",
+          isComplete: gmailFetched > 0,
+          tone: gmailFetched > 0 ? (gmailImported + gmailUncertain > 0 ? "attention" : "success") : "attention",
+          symbol: "envelope.badge.shield.half.filled"
+        )
+      )
+    }
+
+    if openInboxCount > 0 {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Inbox",
+          phase: "Triage",
+          title: "Review mailbox-created intake",
+          detail: "\(openInboxCount) intake row\(openInboxCount == 1 ? "" : "s") still need operator review.",
+          nextAction: "Open Inbox, then review, ignore, link, or create orders from confirmed rows.",
+          evidence: "\(linkedOrderCount) linked intake row\(linkedOrderCount == 1 ? "" : "s"), \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s").",
+          isComplete: false,
+          tone: "attention",
+          symbol: "tray.full.fill"
+        )
+      )
+    } else {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Inbox",
+          phase: "Triage",
+          title: "Inbox triage is clear",
+          detail: "No forwarded intake rows currently need review.",
+          nextAction: "Run a manual provider refresh when new mailbox activity is expected.",
+          evidence: "\(linkedOrderCount) linked intake row\(linkedOrderCount == 1 ? "" : "s"), \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s").",
+          isComplete: true,
+          tone: "success",
+          symbol: "tray.fill"
+        )
+      )
+    }
+
+    if parserIssueCount > 0 {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Parser",
+          phase: "Quality",
+          title: "Review parser diagnostics",
+          detail: "\(parserIssueCount) parser diagnostic\(parserIssueCount == 1 ? "" : "s") may affect order, tracking, merchant, or destination detection.",
+          nextAction: "Open Mailbox Monitor parser diagnostics and reprocess rows after parser fixes.",
+          evidence: "Diagnostics are local and based on stored previews only.",
+          isComplete: false,
+          tone: "attention",
+          symbol: "doc.text.magnifyingglass"
+        )
+      )
+    }
+
+    for step in releasePlan.steps where !step.isComplete {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Release",
+          phase: "QA",
+          title: step.title,
+          detail: step.detail,
+          nextAction: step.nextAction,
+          evidence: step.evidence,
+          isComplete: false,
+          tone: step.tone,
+          symbol: step.symbol
+        )
+      )
+    }
+
+    for item in decision.decisions where item.isActive {
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Decision",
+          phase: "Next action",
+          title: item.title,
+          detail: item.detail,
+          nextAction: item.action,
+          evidence: "Pulled from the active mailbox operator decision summary.",
+          isComplete: false,
+          tone: item.tone,
+          symbol: item.symbol
+        )
+      )
+    }
+
+    let sortedItems = items.sorted { lhs, rhs in
+      func rank(_ item: MailboxProviderTestQueueItem) -> Int {
+        if item.tone == "warning" { return 0 }
+        if item.tone == "attention" && !item.isComplete { return 1 }
+        if !item.isComplete { return 2 }
+        if item.tone == "neutral" { return 3 }
+        return 4
+      }
+      if rank(lhs) != rank(rhs) { return rank(lhs) < rank(rhs) }
+      if lhs.providerName != rhs.providerName { return lhs.providerName < rhs.providerName }
+      return lhs.title < rhs.title
+    }
+    let openCount = sortedItems.filter { !$0.isComplete }.count
+    let warningCount = sortedItems.filter { $0.tone == "warning" && !$0.isComplete }.count
+    let attentionCount = sortedItems.filter { $0.tone == "attention" && !$0.isComplete }.count
+    let evidenceCount = spaceMailFetched + gmailFetched + linkedOrderCount + inboxCreatedOrderCount
+
+    let title: String
+    let detail: String
+    let tone: String
+    if warningCount > 0 {
+      title = "Mailbox provider test queue has blockers"
+      detail = "\(warningCount) blocking provider test item\(warningCount == 1 ? "" : "s") should be resolved before treating mailbox intake as release-ready."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Mailbox provider test queue needs review"
+      detail = "\(attentionCount) provider test item\(attentionCount == 1 ? "" : "s") still need operator action or review."
+      tone = "attention"
+    } else if evidenceCount > 0 {
+      title = "Mailbox provider test queue is mostly clear"
+      detail = "Provider setup, refresh evidence, Inbox triage, and order handoff are available for release-candidate review."
+      tone = "success"
+    } else {
+      title = "Mailbox provider test queue is waiting for first evidence"
+      detail = "Run the next provider setup or manual refresh step to build local test evidence."
+      tone = "neutral"
+    }
+
+    return MailboxProviderTestQueueSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      currentProvider: comparison.recommendedProvider,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Open", value: "\(openCount)", tone: openCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Inbox", value: "\(openInboxCount)", tone: openInboxCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Evidence", value: "\(evidenceCount)", tone: evidenceCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Handoff", value: handoff.tone == "success" || handoff.tone == "neutral" ? "Clear" : "Review", tone: handoff.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Release", value: "\(releasePlan.steps.filter(\.isComplete).count)/\(releasePlan.steps.count)", tone: releasePlan.tone)
+      ],
+      items: sortedItems
+    )
+  }
+
   var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
