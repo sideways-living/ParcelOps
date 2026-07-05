@@ -1201,7 +1201,7 @@ struct DashboardView: View {
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
         MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
         SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
-        SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot)
+        SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
 
         CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)

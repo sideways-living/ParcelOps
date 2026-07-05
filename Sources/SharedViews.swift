@@ -2658,6 +2658,7 @@ struct SpaceMailQACheckCard: View {
 struct SpaceMailReleaseSnapshotCard: View {
   var snapshot: SpaceMailReleaseSnapshot
   var store: ParcelOpsStore?
+  var usesMailboxReleaseTask = false
   @State private var feedbackMessage: String?
 
   private var color: Color {
@@ -2691,9 +2692,14 @@ struct SpaceMailReleaseSnapshotCard: View {
 
       if let store {
         CompactActionRow {
-          Button("Create release follow-up", systemImage: "checklist") {
-            store.createReviewTaskFromSpaceMailReleaseSnapshot()
-            feedbackMessage = "Release snapshot follow-up task created. Check Tasks."
+          Button(usesMailboxReleaseTask ? "Create mailbox release follow-up" : "Create release follow-up", systemImage: "checklist") {
+            if usesMailboxReleaseTask {
+              store.createReviewTaskFromMailboxReleaseReadinessSnapshot()
+              feedbackMessage = "Mailbox release readiness follow-up task created. Check Tasks."
+            } else {
+              store.createReviewTaskFromSpaceMailReleaseSnapshot()
+              feedbackMessage = "Release snapshot follow-up task created. Check Tasks."
+            }
           }
           .buttonStyle(.bordered)
 

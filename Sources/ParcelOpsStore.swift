@@ -9024,6 +9024,63 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromMailboxReleaseReadinessSnapshot() {
+    let snapshot = mailboxReleaseReadinessSnapshot
+    let taskPriority: TaskPriority
+    switch snapshot.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = snapshot.tone == "success" ? "Confirm mailbox release readiness" : "Resolve mailbox release readiness gaps"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-release-readiness"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = snapshot.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing mailbox release readiness review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current mailbox release readiness snapshot. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: snapshot.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-release-readiness",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from mailbox release readiness snapshot."
+    )
+  }
+
   func updateReviewTask(_ task: ReviewTask) {
     guard let index = reviewTasks.firstIndex(where: { $0.id == task.id }) else { return }
     let beforeDetail = reviewTasks[index].auditDetail
