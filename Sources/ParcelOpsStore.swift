@@ -831,6 +831,106 @@ final class ParcelOpsStore {
     )
   }
 
+  var gmailRefreshTrendSummary: GmailRefreshTrendSummary {
+    let gmailEvents = auditEvents.filter { event in
+      event.entityType == .gmailMailboxConnection
+        && (
+          event.summary.localizedCaseInsensitiveContains("Gmail refresh")
+            || event.summary.localizedCaseInsensitiveContains("Gmail mailbox fetch")
+            || event.summary.localizedCaseInsensitiveContains("Gmail setup")
+            || event.afterDetail?.localizedCaseInsensitiveContains("Gmail refresh") == true
+        )
+    }
+    let recentEvents = Array(gmailEvents.prefix(8))
+    let fetchedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+    let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+    let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
+    let pendingUncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+    let readinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
+    let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let actionableCount = importedCount + pendingUncertainCount
+
+    let title: String
+    let detail: String
+    let tone: String
+    if gmailMailboxConnections.isEmpty {
+      title = "No Gmail refresh trend yet"
+      detail = "Add Gmail only for mailboxes hosted by Gmail or Google Workspace."
+      tone = "neutral"
+    } else if readinessBlockers > 0 {
+      title = "Gmail refresh trend blocked by setup"
+      detail = "\(readinessBlockers) Gmail setup\(readinessBlockers == 1 ? "" : "s") need readiness fixes before real refresh should be relied on."
+      tone = "warning"
+    } else if signedInCount == 0 {
+      title = "Gmail refresh trend waiting for sign-in"
+      detail = "Gmail setup is present, but no connected Google sign-in is available for manual read-only refresh."
+      tone = "attention"
+    } else if recentEvents.isEmpty && fetchedCount == 0 {
+      title = "Gmail refresh trend pending"
+      detail = "Run a manual Gmail refresh to build local evidence across imports, duplicates, filtered messages, and uncertain reviews."
+      tone = "attention"
+    } else if actionableCount > 0 {
+      title = "Gmail refresh trend has actionable intake"
+      detail = "\(importedCount) imported and \(pendingUncertainCount) uncertain Gmail preview\(pendingUncertainCount == 1 ? "" : "s") need operator review."
+      tone = "attention"
+    } else if filteredCount > 0 && importedCount == 0 {
+      title = "Gmail filter trend is stable"
+      detail = "Latest Gmail activity mostly filtered mixed-mailbox non-order messages out of Inbox."
+      tone = "success"
+    } else {
+      title = "Gmail refresh trend is quiet"
+      detail = "Recent Gmail activity has no current Inbox intake or uncertain review work."
+      tone = "neutral"
+    }
+
+    let entries = recentEvents.prefix(6).map { event in
+      let afterDetail = event.afterDetail ?? ""
+      let eventTone: String
+      if event.summary.localizedCaseInsensitiveContains("failed")
+        || event.summary.localizedCaseInsensitiveContains("blocked")
+        || afterDetail.localizedCaseInsensitiveContains("Status: Auth required")
+        || afterDetail.localizedCaseInsensitiveContains("Status: API rejected") {
+        eventTone = "warning"
+      } else if afterDetail.localizedCaseInsensitiveContains("Imported: 0")
+        && afterDetail.localizedCaseInsensitiveContains("Filtered non-order:") {
+        eventTone = "success"
+      } else if afterDetail.localizedCaseInsensitiveContains("Imported:")
+        || afterDetail.localizedCaseInsensitiveContains("Uncertain:") {
+        eventTone = "attention"
+      } else {
+        eventTone = "neutral"
+      }
+
+      return GmailRefreshTrendEntry(
+        id: event.id,
+        timestamp: event.timestamp,
+        displayName: event.entityLabel,
+        status: event.action.rawValue,
+        detail: event.summary,
+        tone: eventTone
+      )
+    }
+
+    return GmailRefreshTrendSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Events", value: "\(recentEvents.count)", tone: recentEvents.isEmpty ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(readinessBlockers)", tone: readinessBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Duplicates", value: "\(duplicateCount)", tone: duplicateCount > 0 ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(pendingUncertainCount + uncertainCount)", tone: pendingUncertainCount + uncertainCount > 0 ? "attention" : "success")
+      ],
+      entries: entries
+    )
+  }
+
   var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

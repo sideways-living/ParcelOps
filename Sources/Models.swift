@@ -2014,6 +2014,23 @@ struct GmailShiftHandoffLine: Identifiable, Hashable {
   var symbol: String
 }
 
+struct GmailRefreshTrendSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var entries: [GmailRefreshTrendEntry]
+}
+
+struct GmailRefreshTrendEntry: Identifiable, Hashable {
+  var id: UUID
+  var timestamp: String
+  var displayName: String
+  var status: String
+  var detail: String
+  var tone: String
+}
+
 struct SpaceMailShiftHandoffSummary: Hashable {
   var title: String
   var detail: String

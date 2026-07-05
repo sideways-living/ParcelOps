@@ -385,8 +385,9 @@ struct IntegrationsView: View {
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
+            GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
-            Text("Recent manual refresh and Gmail handoff status are shown here so setup decisions can be based on imported, filtered, duplicate, uncertain, setup, and sign-in counts instead of Audit detail alone.")
+            Text("Recent manual refresh, Gmail handoff, and Gmail trend status are shown here so setup decisions can be based on imported, filtered, duplicate, uncertain, setup, and sign-in counts instead of Audit detail alone.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)

@@ -3408,6 +3408,115 @@ struct SpaceMailRefreshTrendCard: View {
   }
 }
 
+struct GmailRefreshTrendCard: View {
+  var summary: GmailRefreshTrendSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var visibleEntries: [GmailRefreshTrendEntry] {
+    Array(summary.entries.prefix(isCompact ? 3 : 6))
+  }
+
+  private var hiddenEntryCount: Int {
+    max(0, summary.entries.count - visibleEntries.count)
+  }
+
+  private var entryColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "chart.line.uptrend.xyaxis")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Gmail trend", color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      if summary.entries.isEmpty {
+        MVPEmptyState(
+          title: "No Gmail refresh evidence yet",
+          detail: "Gmail setup, sign-in, and refresh events will appear here after the explicit local actions run.",
+          symbol: "clock.arrow.circlepath"
+        )
+      } else {
+        LazyVGrid(columns: entryColumns, alignment: .leading, spacing: 10) {
+          ForEach(visibleEntries) { entry in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .top, spacing: 8) {
+                Text(entry.timestamp)
+                  .font(.caption.weight(.semibold))
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Badge(entry.status, color: color(for: entry.tone))
+              }
+              Text(entry.displayName)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Text(entry.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: entry.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        if hiddenEntryCount > 0 {
+          Text("\(hiddenEntryCount) older Gmail event\(hiddenEntryCount == 1 ? "" : "s") hidden here. Open Audit for full detail.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      Text("Trend entries use safe Audit summaries only. Gmail remains manual and read-only; token values, headers, and full message bodies are not shown here.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailOperatorGuidanceStack: View {
   var store: ParcelOpsStore
   var showTestRun: Bool = true
