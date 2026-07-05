@@ -1920,6 +1920,106 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxRunTimelineSummary: MailboxRunTimelineSummary {
+    let spaceMailEntries = spaceMailIMAPConnections.flatMap { connection in
+      connection.refreshHistory.prefix(5).map { entry in
+        MailboxRunTimelineEntry(
+          id: "spacemail-\(entry.id.uuidString)",
+          provider: "SpaceMail",
+          timestamp: entry.timestamp,
+          title: connection.displayName,
+          detail: "\(entry.fetchedCount) fetched, \(entry.importedCount) imported, \(entry.duplicateCount) duplicates, \(entry.filteredNonOrderCount) filtered, \(entry.uncertainCount) uncertain.",
+          outcome: entry.status,
+          tone: entry.importedCount > 0 || entry.uncertainCount > 0 ? "attention" : (entry.status.localizedCaseInsensitiveContains("success") || entry.filteredNonOrderCount > 0 || entry.duplicateCount > 0 ? "success" : "warning"),
+          symbol: "server.rack"
+        )
+      }
+    }
+
+    let gmailEvents = auditEvents.filter { event in
+      event.entityType == .gmailMailboxConnection
+        && (
+          event.summary.localizedCaseInsensitiveContains("Gmail refresh")
+            || event.summary.localizedCaseInsensitiveContains("Gmail mailbox fetch")
+            || event.afterDetail?.localizedCaseInsensitiveContains("Gmail refresh") == true
+        )
+    }
+    let gmailEntries = gmailEvents.prefix(8).map { event in
+      let detail = event.afterDetail ?? ""
+      let tone: String
+      if event.summary.localizedCaseInsensitiveContains("failed")
+        || event.summary.localizedCaseInsensitiveContains("blocked")
+        || detail.localizedCaseInsensitiveContains("Status: Auth required")
+        || detail.localizedCaseInsensitiveContains("Status: API rejected") {
+        tone = "warning"
+      } else if detail.localizedCaseInsensitiveContains("Imported: 0")
+        && detail.localizedCaseInsensitiveContains("Filtered non-order:") {
+        tone = "success"
+      } else if detail.localizedCaseInsensitiveContains("Imported:")
+        || detail.localizedCaseInsensitiveContains("Uncertain:") {
+        tone = "attention"
+      } else {
+        tone = "neutral"
+      }
+      return MailboxRunTimelineEntry(
+        id: "gmail-\(event.id.uuidString)",
+        provider: "Gmail",
+        timestamp: event.timestamp,
+        title: event.entityLabel,
+        detail: event.summary,
+        outcome: event.action.rawValue,
+        tone: tone,
+        symbol: "envelope.badge.shield.half.filled"
+      )
+    }
+
+    let entries = Array((spaceMailEntries + gmailEntries).sorted { $0.timestamp > $1.timestamp }.prefix(8))
+    let importedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+    let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount + $1.uncertainMessages.count }
+      + gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let warningCount = entries.filter { $0.tone == "warning" }.count
+    let attentionCount = entries.filter { $0.tone == "attention" }.count
+
+    let title: String
+    let detail: String
+    let tone: String
+    if entries.isEmpty {
+      title = "Mailbox run timeline is empty"
+      detail = "Run a manual SpaceMail or Gmail refresh to build handoff history."
+      tone = "attention"
+    } else if warningCount > 0 {
+      title = "Mailbox run timeline has failed or blocked runs"
+      detail = "\(warningCount) recent run\(warningCount == 1 ? "" : "s") need setup or auth review before relying on mailbox intake."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Mailbox run timeline has operator work"
+      detail = "\(attentionCount) recent run\(attentionCount == 1 ? "" : "s") produced imported or uncertain work for Inbox review."
+      tone = "attention"
+    } else {
+      title = "Mailbox run timeline is stable"
+      detail = "Recent refreshes show no unresolved imported or uncertain mailbox work."
+      tone = "success"
+    }
+
+    return MailboxRunTimelineSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Runs", value: "\(entries.count)", tone: entries.isEmpty ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "success")
+      ],
+      entries: entries
+    )
+  }
+
   var localDataHygieneSummary: LocalDataHygieneSummary {
     func isPlaceholder(_ value: String) -> Bool {
       let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
