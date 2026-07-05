@@ -3662,6 +3662,85 @@ struct MailboxProviderComparisonCard: View {
   }
 }
 
+struct MailboxOperationsHandoffCard: View {
+  var summary: MailboxOperationsHandoffSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 240), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "person.2.wave.2.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(summary.lastEvidenceText, color: color)
+      }
+
+      MetricStrip(items: summary.metrics.map { metric in
+        (metric.title, metric.value, color(for: metric.tone))
+      })
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(summary.lines) { line in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: line.symbol)
+              .foregroundStyle(color(for: line.tone))
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(line.title)
+                .font(.caption.weight(.semibold))
+              Text(line.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: line.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This handoff brief is computed from local Inbox, parser, provider setup, and refresh evidence. It does not fetch, mutate, or send mailbox data.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailOperatorGuidanceStack: View {
   var store: ParcelOpsStore
   var showTestRun: Bool = true

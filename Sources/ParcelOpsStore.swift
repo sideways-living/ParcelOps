@@ -601,6 +601,150 @@ final class ParcelOpsStore {
     )
   }
 
+  var mailboxOperationsHandoffSummary: MailboxOperationsHandoffSummary {
+    let comparison = mailboxProviderComparisonSummary
+    let spaceMailSummaries = spaceMailIntakeHealthSummaries
+    let gmailSummaries = gmailIntakeHealthSummaries
+
+    let importedCount = spaceMailSummaries.reduce(0) { $0 + $1.importedCount }
+      + gmailSummaries.reduce(0) { $0 + $1.importedCount }
+    let filteredCount = spaceMailSummaries.reduce(0) { $0 + $1.filteredCount }
+      + gmailSummaries.reduce(0) { $0 + $1.filteredCount }
+    let duplicateCount = spaceMailSummaries.reduce(0) { $0 + $1.duplicateCount }
+      + gmailSummaries.reduce(0) { $0 + $1.duplicateCount }
+    let uncertainCount = spaceMailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+      + gmailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let parserIssueCount = intakeParserDiagnostics.count
+    let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
+    var unresolvedIntakeCount = 0
+    for email in intakeEmails where email.reviewState != .reviewed && email.reviewState != .ignored {
+      unresolvedIntakeCount += 1
+    }
+    let providerBlockers = comparison.providers.reduce(0) { $0 + $1.blockedCount }
+    let latestDates = (spaceMailSummaries.map(\.lastRefreshDate) + gmailSummaries.map(\.lastRefreshDate))
+      .filter { !$0.isEmpty && $0 != "Never" }
+    let lastEvidenceText = latestDates.first ?? "No real mailbox refresh evidence yet"
+
+    var lines: [MailboxOperationsHandoffLine] = []
+    if providerBlockers > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Provider setup blockers",
+          detail: "\(providerBlockers) setup, credential, readiness, or sign-in blocker\(providerBlockers == 1 ? "" : "s") should be resolved before relying on live mailbox intake.",
+          tone: "warning",
+          symbol: "exclamationmark.triangle.fill"
+        )
+      )
+    }
+    if importedCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Imported intake ready",
+          detail: "\(importedCount) imported message\(importedCount == 1 ? "" : "s") should be reviewed in Inbox and linked or converted to orders.",
+          tone: "attention",
+          symbol: "tray.full.fill"
+        )
+      )
+    }
+    if uncertainCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Uncertain mailbox previews",
+          detail: "\(uncertainCount) uncertain mixed-mailbox preview\(uncertainCount == 1 ? "" : "s") remain out of Inbox until an operator imports or dismisses them.",
+          tone: "attention",
+          symbol: "questionmark.folder.fill"
+        )
+      )
+    }
+    if parserIssueCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Parser review needed",
+          detail: "\(parserIssueCount) local parser diagnostic\(parserIssueCount == 1 ? "" : "s") should be checked before trusting detected order, tracking, or destination fields.",
+          tone: "attention",
+          symbol: "doc.text.magnifyingglass"
+        )
+      )
+    }
+    if unresolvedIntakeCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Inbox triage still open",
+          detail: "\(unresolvedIntakeCount) intake row\(unresolvedIntakeCount == 1 ? "" : "s") remain open or need review in primary Inbox triage.",
+          tone: "attention",
+          symbol: "envelope.open.fill"
+        )
+      )
+    }
+    if linkedOrderCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Inbox-to-order trail exists",
+          detail: "\(linkedOrderCount) intake row\(linkedOrderCount == 1 ? "" : "s") already link to local order context.",
+          tone: "success",
+          symbol: "shippingbox.fill"
+        )
+      )
+    }
+    if filteredCount > 0 || duplicateCount > 0 {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "Mailbox noise controlled",
+          detail: "\(filteredCount) filtered and \(duplicateCount) duplicate message\(filteredCount + duplicateCount == 1 ? "" : "s") were kept from creating duplicate Inbox work.",
+          tone: "success",
+          symbol: "line.3.horizontal.decrease.circle.fill"
+        )
+      )
+    }
+    if lines.isEmpty {
+      lines.append(
+        MailboxOperationsHandoffLine(
+          title: "No mailbox handoff work",
+          detail: "No imported, uncertain, parser, provider, or duplicate mailbox work is currently promoted for operator handoff.",
+          tone: "neutral",
+          symbol: "checkmark.circle.fill"
+        )
+      )
+    }
+
+    let title: String
+    let detail: String
+    let tone: String
+    if providerBlockers > 0 {
+      title = "Mailbox handoff has setup blockers"
+      detail = "Resolve provider setup before depending on live intake results."
+      tone = "warning"
+    } else if importedCount + uncertainCount + parserIssueCount + unresolvedIntakeCount > 0 {
+      title = "Mailbox handoff has operator work"
+      detail = "Inbox, uncertain review, or parser follow-up should be handled before the next refresh cycle."
+      tone = "attention"
+    } else if filteredCount + duplicateCount > 0 {
+      title = "Mailbox handoff is stable"
+      detail = "Recent mailbox activity is mostly filtered or duplicate-safe, with no promoted order work."
+      tone = "success"
+    } else {
+      title = "Mailbox handoff is quiet"
+      detail = "Provider setup is ready or optional, and there is no current mailbox work to hand over."
+      tone = "neutral"
+    }
+
+    return MailboxOperationsHandoffSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      lastEvidenceText: lastEvidenceText,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Open intake", value: "\(unresolvedIntakeCount)", tone: unresolvedIntakeCount > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Parser", value: "\(parserIssueCount)", tone: parserIssueCount > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(providerBlockers)", tone: providerBlockers > 0 ? "warning" : "success")
+      ],
+      lines: Array(lines.prefix(6))
+    )
+  }
+
   var spaceMailRefreshTrendSummary: SpaceMailRefreshTrendSummary {
     let historyPairs = spaceMailIMAPConnections.flatMap { connection in
       connection.refreshHistory.map { entry in

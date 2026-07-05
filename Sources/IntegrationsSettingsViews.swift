@@ -384,6 +384,7 @@ struct IntegrationsView: View {
               .fixedSize(horizontal: false, vertical: true)
 
             MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+            MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)

@@ -1198,6 +1198,7 @@ struct DashboardView: View {
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
 
         CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
