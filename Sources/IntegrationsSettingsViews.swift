@@ -1543,6 +1543,39 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background((connection.lastRefreshUncertainCount ?? 0) > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail troubleshooting runbook", systemImage: "wrench.and.screwdriver.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailTroubleshootingTone)
+        Text("Follow these local checks in order when Gmail setup, sign-in, refresh, filtering, or Inbox handoff does not behave as expected.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        ForEach(Array(gmailTroubleshootingSteps.enumerated()), id: \.offset) { _, step in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: step.symbol)
+              .foregroundStyle(step.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(step.title)
+                .font(.caption.weight(.semibold))
+              Text(step.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .background(step.color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+        Text("Safe boundary: this runbook does not fetch mail, open sign-in, read credentials, store tokens, or mutate Gmail messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailTroubleshootingTone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
       if let messages = connection.uncertainMessages, !messages.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           Label("Review uncertain Gmail messages", systemImage: "questionmark.folder.fill")
@@ -2219,6 +2252,123 @@ struct GmailMailboxConnectionRow: View {
     if connection.connectionStatus.localizedCaseInsensitiveContains("Mock Gmail") { return "Mock Gmail" }
     if connection.connectionStatus.localizedCaseInsensitiveContains("readiness") { return "Readiness" }
     return "No refresh"
+  }
+
+  private var gmailTroubleshootingTone: Color {
+    if hasMissingCoreGmailSetup || !readiness.isReady { return .orange }
+    if authState.status != .connected { return .orange }
+    if gmailRefreshGuidanceColor == .orange { return .orange }
+    if (connection.lastRefreshUncertainCount ?? 0) > 0 { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailTroubleshootingSteps: [(title: String, detail: String, symbol: String, color: Color)] {
+    var steps: [(title: String, detail: String, symbol: String, color: Color)] = []
+    let missingText = readiness.missingFields.joined(separator: " ")
+
+    if hasMissingCoreGmailSetup {
+      steps.append((
+        "Finish editable Gmail setup",
+        "Add the Gmail address, label list, Google iOS OAuth client ID, reversed callback scheme, read-only scope, and consent notes. Keep client secrets out of ParcelOps.",
+        "pencil.and.list.clipboard",
+        .orange
+      ))
+    }
+
+    if missingText.localizedCaseInsensitiveContains("Compiled") || !readiness.isReady {
+      steps.append((
+        "Verify compiled app values",
+        "Project.json and App/Info.plist must compile the same GIDClientID and callback scheme saved in this setup record. Regenerate/rebuild after changing them.",
+        "app.badge.checkmark",
+        missingText.localizedCaseInsensitiveContains("Compiled") ? .orange : .secondary
+      ))
+    }
+
+    if authState.status != .connected {
+      steps.append((
+        "Run explicit Google sign-in",
+        "Use Test real Google sign-in after compiled values match. The callback should return to ParcelOps without starting a Gmail refresh.",
+        "person.badge.key",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      steps.append((
+        "Refresh the Google session",
+        "Run Test real Google sign-in again, confirm the mailbox account, then retry the manual real Gmail refresh.",
+        "arrow.triangle.2.circlepath",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      steps.append((
+        "Check Gmail consent",
+        "Confirm the Google Cloud OAuth consent screen and the signed-in account allow gmail.readonly or gmail.metadata before retrying.",
+        "checkmark.shield",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      steps.append((
+        "Check label names",
+        "Use INBOX or an exact existing Gmail label. The refresh uses read-only message preview calls and will not mark or move mail.",
+        "tag.slash",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      steps.append((
+        "Open Audit diagnostics",
+        "Audit carries safe HTTP/error details and response previews only. It should not include auth headers, raw tokens, full request URLs, or full message bodies.",
+        "exclamationmark.triangle",
+        .orange
+      ))
+    }
+
+    if (connection.lastRefreshUncertainCount ?? 0) > 0 || !(connection.uncertainMessages ?? []).isEmpty {
+      steps.append((
+        "Review uncertain previews",
+        "Uncertain Gmail previews stay out of Inbox until imported. Import genuine order mail, dismiss non-order mail, or create a task.",
+        "questionmark.folder.fill",
+        .orange
+      ))
+    }
+
+    if connection.lastRefreshImportedCount > 0 {
+      steps.append((
+        "Continue in Inbox",
+        "\(connection.lastRefreshImportedCount) Gmail intake row\(connection.lastRefreshImportedCount == 1 ? "" : "s") imported. Review, create/link orders, or task from Inbox.",
+        "tray.and.arrow.down.fill",
+        .green
+      ))
+    }
+
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      steps.append((
+        "Filtered mail is not Inbox work",
+        "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered. Use examples only when investigating a missed order email.",
+        "line.3.horizontal.decrease.circle",
+        .teal
+      ))
+    }
+
+    if steps.isEmpty {
+      steps.append((
+        "Ready for the next manual check",
+        "Run real Gmail refresh when you want to fetch up to 10 read-only message previews, or run mock refresh for local workflow testing.",
+        "checkmark.seal.fill",
+        .green
+      ))
+    }
+
+    return Array(steps.prefix(6))
   }
 
   private func gmailClassifierDecisionColor(_ decision: String) -> Color {
