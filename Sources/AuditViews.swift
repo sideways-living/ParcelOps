@@ -20,7 +20,7 @@ struct AuditView: View {
     searchMatchedEvents.filter { event in
       let matchesAction = selectedAction == nil || event.action == selectedAction
       let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
-      let matchesDiagnosticMode = showTechnicalDiagnostics || !event.isTechnicalSpaceMailDiagnostic
+      let matchesDiagnosticMode = showTechnicalDiagnostics || !event.isTechnicalMailboxDiagnostic
       return matchesAction && matchesEntity && matchesDiagnosticMode
     }
   }
@@ -29,12 +29,12 @@ struct AuditView: View {
     searchMatchedEvents.filter { event in
       let matchesAction = selectedAction == nil || event.action == selectedAction
       let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
-      return matchesAction && matchesEntity && event.isTechnicalSpaceMailDiagnostic
+      return matchesAction && matchesEntity && event.isTechnicalMailboxDiagnostic
     }.count
   }
 
   private var visibleActivityEvents: [AuditEvent] {
-    showTechnicalDiagnostics ? searchMatchedEvents : searchMatchedEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+    showTechnicalDiagnostics ? searchMatchedEvents : searchMatchedEvents.filter { !$0.isTechnicalMailboxDiagnostic }
   }
 
   private var recentEvents: [AuditEvent] {
@@ -81,7 +81,7 @@ struct AuditView: View {
     inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
-  private var spaceMailEvidenceEvents: [AuditEvent] {
+  private var mailboxEvidenceEvents: [AuditEvent] {
     searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
         || event.entityType == .gmailMailboxConnection
@@ -91,8 +91,8 @@ struct AuditView: View {
     }
   }
 
-  private var visibleSpaceMailEvidenceEvents: [AuditEvent] {
-    showTechnicalDiagnostics ? spaceMailEvidenceEvents : spaceMailEvidenceEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+  private var visibleMailboxEvidenceEvents: [AuditEvent] {
+    showTechnicalDiagnostics ? mailboxEvidenceEvents : mailboxEvidenceEvents.filter { !$0.isTechnicalMailboxDiagnostic }
   }
 
   private var mailboxProviderReleaseGateEvents: [AuditEvent] {
@@ -100,11 +100,11 @@ struct AuditView: View {
   }
 
   private var visibleMailboxProviderReleaseGateEvents: [AuditEvent] {
-    showTechnicalDiagnostics ? mailboxProviderReleaseGateEvents : mailboxProviderReleaseGateEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+    showTechnicalDiagnostics ? mailboxProviderReleaseGateEvents : mailboxProviderReleaseGateEvents.filter { !$0.isTechnicalMailboxDiagnostic }
   }
 
   private var hiddenTechnicalDiagnosticCount: Int {
-    searchMatchedEvents.filter(\.isTechnicalSpaceMailDiagnostic).count
+    searchMatchedEvents.filter(\.isTechnicalMailboxDiagnostic).count
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -216,7 +216,7 @@ struct AuditView: View {
     if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty {
       return "Check mailbox provider release gate"
     }
-    if !spaceMailEvidenceEvents.isEmpty {
+    if !mailboxEvidenceEvents.isEmpty {
       return "Check the latest mailbox intake result"
     }
     if !inboxDispatchHandoffEvents.isEmpty {
@@ -241,7 +241,7 @@ struct AuditView: View {
     if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty {
       return "Use the release gate focus to confirm whether SpaceMail, Gmail, Inbox intake, task follow-up, and provider evidence are ready for operator testing."
     }
-    if !spaceMailEvidenceEvents.isEmpty {
+    if !mailboxEvidenceEvents.isEmpty {
       return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across SpaceMail and Gmail."
     }
     if !inboxDispatchHandoffEvents.isEmpty {
@@ -262,7 +262,7 @@ struct AuditView: View {
   private var auditNextCheckSymbol: String {
     if !mvpFollowUpEvents.isEmpty { return "checkmark.rectangle.stack.fill" }
     if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty { return "checkmark.seal.fill" }
-    if !spaceMailEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
+    if !mailboxEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
     if !inboxDispatchHandoffEvents.isEmpty { return "arrow.triangle.2.circlepath.circle.fill" }
     if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
     if !workflowEvents.isEmpty { return "checklist" }
@@ -282,9 +282,9 @@ struct AuditView: View {
       (
         "Mailbox refresh evidence",
         "SpaceMail, Gmail, or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
-        spaceMailEvidenceEvents.count,
+        mailboxEvidenceEvents.count,
         "server.rack",
-        spaceMailEvidenceEvents.isEmpty ? .orange : .teal
+        mailboxEvidenceEvents.isEmpty ? .orange : .teal
       ),
       (
         "Inbox-to-order handoff",
@@ -433,7 +433,7 @@ struct AuditView: View {
         MetricStrip(items: [
           ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
           ("Release gate", "\(mailboxProviderReleaseGateEvents.count)", mailboxProviderReleaseGateEvents.isEmpty ? color(for: store.mailboxProviderReleaseGateSummary.tone) : .orange),
-          ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+          ("Mailbox evidence", "\(mailboxEvidenceEvents.count)", mailboxEvidenceEvents.isEmpty ? .secondary : .teal),
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
           ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple),
@@ -535,7 +535,7 @@ struct AuditView: View {
         ("Workflow", "\(workflowEvents.count)", .teal),
         ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
         ("Release gate", store.mailboxProviderReleaseGateSummary.verdict, color(for: store.mailboxProviderReleaseGateSummary.tone)),
-        ("Mailbox", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
+        ("Mailbox", "\(mailboxEvidenceEvents.count)", mailboxEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .green : .purple),
@@ -934,7 +934,7 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Mailbox intake evidence", detail: "Credential, sign-in, refresh, filtering, parser, and local intake events for SpaceMail and Gmail setup.", events: visibleSpaceMailEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          AuditFeedSection(title: "Mailbox intake evidence", detail: "Credential, sign-in, refresh, filtering, parser, and local intake events for SpaceMail and Gmail setup.", events: visibleMailboxEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1347,7 +1347,7 @@ private extension AuditEvent {
       || searchableText.localizedCaseInsensitiveContains("mailbox-provider-release-gate")
   }
 
-  var isTechnicalSpaceMailDiagnostic: Bool {
+  var isTechnicalMailboxDiagnostic: Bool {
     guard entityType == .spaceMailIMAPConnection
       || entityType == .gmailMailboxConnection
       || entityType == .intakeEmail
