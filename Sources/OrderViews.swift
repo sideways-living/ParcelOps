@@ -88,6 +88,72 @@ struct OrdersView: View {
   private var mailboxDuplicateCount: Int {
     (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
   }
+  private var orderMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
+    var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
+
+    if let summary = latestSpaceMailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.importedCount > 0 {
+        status = "\(summary.importedCount) imported"
+        detail = "Open Inbox and create or link orders from the imported SpaceMail rows."
+        color = .green
+      } else if uncertain > 0 {
+        status = "\(uncertain) uncertain"
+        detail = "Review uncertain SpaceMail previews in Mailbox Monitor before expecting Orders to change."
+        color = .orange
+      } else if summary.duplicateCount > 0 {
+        status = "\(summary.duplicateCount) duplicate"
+        detail = "SpaceMail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
+        color = .teal
+      } else if summary.filteredCount > 0 {
+        status = "\(summary.filteredCount) filtered"
+        detail = "Mixed-mailbox filtering kept non-order SpaceMail out of Inbox and Orders."
+        color = .teal
+      } else {
+        status = "\(summary.fetchedCount) fetched"
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("SpaceMail", status, detail, "server.rack", color))
+    }
+
+    if let summary = latestGmailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.importedCount > 0 {
+        status = "\(summary.importedCount) imported"
+        detail = "Open Inbox and create or link orders from the imported Gmail rows."
+        color = .green
+      } else if uncertain > 0 {
+        status = "\(uncertain) uncertain"
+        detail = "Review uncertain Gmail previews in Mailbox Monitor before expecting Orders to change."
+        color = .orange
+      } else if summary.duplicateCount > 0 {
+        status = "\(summary.duplicateCount) duplicate"
+        detail = "Gmail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
+        color = .teal
+      } else if summary.filteredCount > 0 {
+        status = "\(summary.filteredCount) filtered"
+        detail = "Gmail filtering kept non-order mail out of Inbox and Orders."
+        color = .teal
+      } else {
+        status = "\(summary.fetchedCount) fetched"
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("Gmail", status, detail, "envelope.badge.shield.half.filled", color))
+    }
+
+    if rows.isEmpty {
+      rows.append(("Mailbox", "No refresh yet", "Run a manual SpaceMail or Gmail refresh, then create or link confirmed order rows from Inbox.", "envelope.badge.fill", .secondary))
+    }
+    return rows
+  }
 
   var body: some View {
     @Bindable var store = store
@@ -151,6 +217,38 @@ struct OrdersView: View {
           ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
           ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange)
         ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Mailbox provider handoff", systemImage: "point.3.connected.trianglepath.dotted")
+            .font(.subheadline.weight(.semibold))
+          Text("Orders only changes after an imported Inbox row is created or linked as an order. Provider rows explain why the latest mailbox refresh did or did not create order work.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(orderMailboxProviderRows, id: \.provider) { row in
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: row.symbol)
+                .foregroundStyle(row.color)
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Badge(row.status, color: row.color)
+                }
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         if inboxCreatedOrderItems.isEmpty {
           OrdersInboxHandoffEmptyState(
