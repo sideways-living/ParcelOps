@@ -4567,7 +4567,7 @@ struct GmailRefreshTrendCard: View {
         }
       }
 
-      Text("Trend entries use safe Audit summaries only. Gmail remains manual and read-only; token values, headers, and full message bodies are not shown here.")
+      Text("Trend entries use saved Gmail setup summaries plus safe Audit evidence. Gmail remains manual and read-only; token values, headers, and full message bodies are not shown here.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

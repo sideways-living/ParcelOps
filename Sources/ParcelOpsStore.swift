@@ -2957,7 +2957,32 @@ final class ParcelOpsStore {
       tone = "neutral"
     }
 
-    let entries = recentEvents.prefix(6).map { event in
+    let connectionEntries = gmailMailboxConnections.map { connection in
+      let health = gmailIntakeHealthSummary(for: connection)
+      let entryTone: String
+      if health.tone == "warning" {
+        entryTone = "warning"
+      } else if (connection.lastRefreshUncertainCount ?? 0) > 0 || (connection.uncertainMessages?.isEmpty == false) {
+        entryTone = "attention"
+      } else if connection.lastRefreshImportedCount > 0 {
+        entryTone = "attention"
+      } else if connection.lastRefreshFilteredNonOrderCount > 0 || connection.lastRefreshDuplicateCount > 0 {
+        entryTone = "success"
+      } else {
+        entryTone = health.tone
+      }
+
+      return GmailRefreshTrendEntry(
+        id: connection.id,
+        timestamp: connection.lastManualRefreshDate,
+        displayName: connection.displayName,
+        status: connection.connectionStatus,
+        detail: "\(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount ?? 0) uncertain. \(health.nextAction)",
+        tone: entryTone
+      )
+    }
+
+    let eventEntries = recentEvents.prefix(6).map { event in
       let afterDetail = event.afterDetail ?? ""
       let eventTone: String
       if event.summary.localizedCaseInsensitiveContains("failed")
@@ -2984,6 +3009,7 @@ final class ParcelOpsStore {
         tone: eventTone
       )
     }
+    let entries = Array((connectionEntries + eventEntries).prefix(8))
 
     return GmailRefreshTrendSummary(
       title: title,
