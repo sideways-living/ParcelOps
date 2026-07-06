@@ -95,6 +95,14 @@ struct AuditView: View {
     showTechnicalDiagnostics ? spaceMailEvidenceEvents : spaceMailEvidenceEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
   }
 
+  private var mailboxProviderReleaseGateEvents: [AuditEvent] {
+    searchMatchedEvents.filter(\.isMailboxProviderReleaseGateEvent)
+  }
+
+  private var visibleMailboxProviderReleaseGateEvents: [AuditEvent] {
+    showTechnicalDiagnostics ? mailboxProviderReleaseGateEvents : mailboxProviderReleaseGateEvents.filter { !$0.isTechnicalSpaceMailDiagnostic }
+  }
+
   private var hiddenTechnicalDiagnosticCount: Int {
     searchMatchedEvents.filter(\.isTechnicalSpaceMailDiagnostic).count
   }
@@ -205,6 +213,9 @@ struct AuditView: View {
     if !mvpFollowUpEvents.isEmpty {
       return "Review MVP test and release follow-ups"
     }
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty {
+      return "Check mailbox provider release gate"
+    }
     if !spaceMailEvidenceEvents.isEmpty {
       return "Check the latest mailbox intake result"
     }
@@ -227,6 +238,9 @@ struct AuditView: View {
     if !mvpFollowUpEvents.isEmpty {
       return "Start with local data hygiene, operator test-session, and release snapshot tasks so readiness gaps stay visible in Tasks instead of being buried in Audit."
     }
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty {
+      return "Use the release gate focus to confirm whether SpaceMail, Gmail, Inbox intake, task follow-up, and provider evidence are ready for operator testing."
+    }
     if !spaceMailEvidenceEvents.isEmpty {
       return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across SpaceMail and Gmail."
     }
@@ -247,6 +261,7 @@ struct AuditView: View {
 
   private var auditNextCheckSymbol: String {
     if !mvpFollowUpEvents.isEmpty { return "checkmark.rectangle.stack.fill" }
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty { return "checkmark.seal.fill" }
     if !spaceMailEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
     if !inboxDispatchHandoffEvents.isEmpty { return "arrow.triangle.2.circlepath.circle.fill" }
     if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
@@ -352,6 +367,7 @@ struct AuditView: View {
         header
 
         auditNextCheckPanel
+        mailboxProviderReleaseGateAuditPanel
         auditEvidenceChecklistPanel
 
         MVPWorkflowGuide(
@@ -416,6 +432,7 @@ struct AuditView: View {
 
         MetricStrip(items: [
           ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
+          ("Release gate", "\(mailboxProviderReleaseGateEvents.count)", mailboxProviderReleaseGateEvents.isEmpty ? color(for: store.mailboxProviderReleaseGateSummary.tone) : .orange),
           ("Mailbox evidence", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
@@ -517,6 +534,7 @@ struct AuditView: View {
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
         ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
+        ("Release gate", store.mailboxProviderReleaseGateSummary.verdict, color(for: store.mailboxProviderReleaseGateSummary.tone)),
         ("Mailbox", "\(spaceMailEvidenceEvents.count)", spaceMailEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
@@ -526,6 +544,77 @@ struct AuditView: View {
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
       ])
+    }
+  }
+
+  private var mailboxProviderReleaseGateAuditPanel: some View {
+    SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
+
+        CompactActionRow {
+          Button("Create gate task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxProviderReleaseGate()
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        if visibleMailboxProviderReleaseGateEvents.isEmpty {
+          Label("No release-gate audit events yet. Create or refresh the gate task when you want a local review trail for provider readiness.", systemImage: "list.clipboard")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Recent release-gate audit trail", systemImage: "clock.arrow.circlepath")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: store.mailboxProviderReleaseGateSummary.tone))
+
+            ForEach(visibleMailboxProviderReleaseGateEvents.prefix(3)) { event in
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: event.entityType.symbol)
+                  .foregroundStyle(event.action.color)
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(event.entityLabel)
+                    .font(.caption.weight(.semibold))
+                  Text(event.summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(event.timestamp)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(event.action.color)
+                }
+                Spacer(minLength: 8)
+                Badge(event.action.rawValue, color: event.action.color)
+              }
+              .padding(10)
+              .background(event.action.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Audit focus: this is a local evidence view for provider readiness. It does not run mailbox refreshes, read credentials, call external services, or mutate mailbox messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
@@ -838,6 +927,10 @@ struct AuditView: View {
           }
 
           AuditFeedSection(title: "MVP test and release follow-up", detail: "Local tasks created from data hygiene, operator test-session, or release snapshot evidence.", events: visibleMVPFollowUpEvents, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
+          AuditFeedSection(title: "Mailbox provider release gate", detail: "Release-gate task creation, refreshes, reviews, and provider-readiness actions for SpaceMail, Gmail, Inbox evidence, and operator follow-up.", events: visibleMailboxProviderReleaseGateEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1234,6 +1327,24 @@ private extension AuditEvent {
       || searchableText.localizedCaseInsensitiveContains("spacemail-release-snapshot")
       || searchableText.localizedCaseInsensitiveContains("operator-test-session")
       || searchableText.localizedCaseInsensitiveContains("local-data-hygiene")
+  }
+
+  var isMailboxProviderReleaseGateEvent: Bool {
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? "",
+      entityType.rawValue,
+      action.rawValue
+    ].joined(separator: " ")
+
+    return searchableText.localizedCaseInsensitiveContains("mailbox provider release gate")
+      || searchableText.localizedCaseInsensitiveContains("mailbox provider gate")
+      || searchableText.localizedCaseInsensitiveContains("mailbox release gate")
+      || searchableText.localizedCaseInsensitiveContains("provider release gate")
+      || searchableText.localizedCaseInsensitiveContains("release gate task")
+      || searchableText.localizedCaseInsensitiveContains("mailbox-provider-release-gate")
   }
 
   var isTechnicalSpaceMailDiagnostic: Bool {
