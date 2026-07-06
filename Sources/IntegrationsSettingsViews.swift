@@ -36,46 +36,6 @@ struct IntegrationsView: View {
     }
   }
 
-  private var microsoftSetupCount: Int {
-    store.microsoft365MailboxConnections.count
-  }
-
-  private var microsoftConnectedCount: Int {
-    store.microsoft365MailboxConnections.filter {
-      $0.connectionStatus.localizedCaseInsensitiveContains("connected")
-        || $0.connectionStatus.localizedCaseInsensitiveContains("real graph")
-    }.count
-  }
-
-  private var spaceMailLivePathDetail: String {
-    if hasGmailSetup && !hasSpaceMailSetup {
-      if let latestGmailSummary {
-        return "\(latestGmailSummary.displayName): \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.uncertainCount + latestGmailSummary.pendingUncertainReviewCount) uncertain. \(latestGmailSummary.nextAction)"
-      }
-      return "Gmail setup exists for Google-hosted mailboxes. Finish setup/sign-in, then use manual read-only Gmail refresh when needed."
-    }
-    if !hasSpaceMailSetup {
-      return "No live mailbox setup exists yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before treating planning-only providers as daily intake paths."
-    }
-    if !hasSpaceMailCredentialReference {
-      return "SpaceMail setup exists, but the Keychain credential is not ready. Add or check the credential before running the real manual refresh."
-    }
-    if let latestSpaceMailSummary {
-      return "\(latestSpaceMailSummary.displayName): \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.uncertainCount + latestSpaceMailSummary.pendingUncertainReviewCount) uncertain. \(latestSpaceMailSummary.nextAction)"
-    }
-    return "SpaceMail is configured and ready for an explicit manual refresh. No refresh history is recorded yet."
-  }
-
-  private var providerPriorityTone: Color {
-    if hasGmailSetup && !hasGmailCoreSetup { return .orange }
-    if hasGmailSetup && !hasGmailConnectedAuth { return .orange }
-    if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
-    if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
-    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 { return .orange }
-    return .green
-  }
-
   private var recommendedSetupTitle: String {
     if !hasSpaceMailSetup && !hasGmailSetup {
       return "Start with mailbox setup"
@@ -194,87 +154,6 @@ struct IntegrationsView: View {
     ].filter(\.self).count
   }
 
-  private var providerPriorityPanel: some View {
-    SettingsPanel(title: "Mailbox provider status", symbol: "point.3.connected.trianglepath.dotted") {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .top, spacing: 10) {
-          Image(systemName: hasGmailSetup && !hasSpaceMailSetup ? "envelope.badge.shield.half.filled" : "server.rack")
-            .font(.title3)
-            .foregroundStyle(providerPriorityTone)
-            .frame(width: 28)
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Use SpaceMail or Gmail as the live mailbox path")
-              .font(.headline)
-            Text(spaceMailLivePathDetail)
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-        }
-
-        MetricStrip(items: [
-          ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : .secondary),
-          ("SpaceMail credential", hasSpaceMailCredentialReference ? "Keychain" : hasSpaceMailSetup ? "Needed" : "N/A", hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary),
-          ("Gmail", hasGmailSetup ? "Configured" : "Not set", hasGmailSetup ? .green : .secondary),
-          ("Google sign-in", hasGmailConnectedAuth ? "Connected" : hasGmailSetup ? "Needed" : "N/A", hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary),
-          ("M365 records", "\(microsoftSetupCount)", microsoftSetupCount == 0 ? .secondary : .teal),
-          ("M365 ready", "\(microsoftConnectedCount)", microsoftConnectedCount == 0 ? .secondary : .orange)
-        ])
-
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
-          ProviderPriorityStep(
-            title: "IMAP path",
-            detail: "SpaceMail supports manual read-only IMAP refresh with a Keychain password and mixed-mailbox filtering.",
-            symbol: "server.rack",
-            color: hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? .green : .orange) : .secondary
-          )
-          ProviderPriorityStep(
-            title: "Gmail path",
-            detail: "Gmail/Google Workspace supports manual read-only refresh after Google sign-in and Gmail setup are ready.",
-            symbol: "envelope.badge.shield.half.filled",
-            color: hasGmailSetup ? (hasGmailConnectedAuth ? .green : .orange) : .secondary
-          )
-          ProviderPriorityStep(
-            title: "Advanced testing",
-            detail: "Microsoft 365 remains available for OAuth/Graph experiments, but it should not block SpaceMail or Gmail intake.",
-            symbol: "mail.stack.fill",
-            color: microsoftSetupCount == 0 ? .secondary : .teal
-          )
-          ProviderPriorityStep(
-            title: "Planning only",
-            detail: "Shopify, folders, carrier, scanner, OCR, notifications, calendars, and background sync are still not live paths.",
-            symbol: "lock.shield.fill",
-            color: .secondary
-          )
-        }
-
-        Text("Operational rule: run the relevant mailbox provider manually, review imported/uncertain/filtered outcomes, then move real order work through Inbox, Orders, Workbench, Dispatch, Tasks, and Audit. Treat non-mailbox providers as optional setup unless deliberately reactivated.")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(providerPriorityTone)
-          .fixedSize(horizontal: false, vertical: true)
-
-        CompactActionRow {
-          NavigationLink {
-            MailboxView(store: store)
-          } label: {
-            Label("Open Mailbox Monitor", systemImage: "server.rack")
-          }
-          NavigationLink {
-            InboxView(store: store)
-          } label: {
-            Label("Open Inbox", systemImage: "tray.full.fill")
-          }
-          NavigationLink {
-            AuditView(store: store)
-          } label: {
-            Label("Open Audit", systemImage: "list.clipboard.fill")
-          }
-        }
-        .buttonStyle(.bordered)
-      }
-    }
-  }
-
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -383,31 +262,11 @@ struct IntegrationsView: View {
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
 
-            MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-            MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
-            MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-            MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
-            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-            MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
-            MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
-            SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
-            SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
-            MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-            MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
-            MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
-            MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
-
-            SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-            GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
-            SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
-            MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
-            MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
-            GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-
-            Text("Recent manual refresh, Gmail handoff, and Gmail trend status are shown here so setup decisions can be based on imported, filtered, duplicate, uncertain, setup, and sign-in counts instead of Audit detail alone.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
+            MailboxProviderOperatorReadinessStack(
+              store: store,
+              title: "Provider readiness for setup decisions",
+              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, Gmail, SpaceMail, or parser behavior needs investigation."
+            )
 
             CompactActionRow {
               NavigationLink {
@@ -431,7 +290,6 @@ struct IntegrationsView: View {
             SettingsReleaseCandidateCard(store: store)
           }
         }
-          providerPriorityPanel
         }
 
         if showsLocalDataSafety {
@@ -797,28 +655,6 @@ struct IntegrationsView: View {
 }
 
 struct SetupEditorSafetyItem: View {
-  var title: String
-  var detail: String
-  var symbol: String
-  var color: Color
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 7) {
-      Label(title, systemImage: symbol)
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(color)
-      Text(detail)
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .padding(10)
-    .frame(maxWidth: .infinity, alignment: .topLeading)
-    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-  }
-}
-
-struct ProviderPriorityStep: View {
   var title: String
   var detail: String
   var symbol: String
