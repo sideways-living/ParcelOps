@@ -11297,6 +11297,12 @@ final class ParcelOpsStore {
 
   func createReviewTaskFromMailboxProviderReleaseGate() {
     let gate = mailboxProviderReleaseGateSummary
+    let primaryOpenGate = gate.gates.sorted { left, right in
+      let leftRank = mailboxProviderReleaseGateTaskRank(left)
+      let rightRank = mailboxProviderReleaseGateTaskRank(right)
+      if leftRank != rightRank { return leftRank < rightRank }
+      return left.title < right.title
+    }.first { !$0.isPassed }
     let taskPriority: TaskPriority
     switch gate.tone {
     case "warning":
@@ -11307,7 +11313,22 @@ final class ParcelOpsStore {
       taskPriority = .low
     }
 
-    let taskTitle = gate.tone == "success" ? "Confirm mailbox provider release gate" : "Resolve mailbox provider release gate"
+    let taskTitle = gate.tone == "success"
+      ? "Confirm mailbox provider release gate"
+      : "Resolve mailbox provider gate: \(primaryOpenGate?.title ?? gate.verdict)"
+    let taskSummaryPrefix: String
+    if let primaryOpenGate {
+      taskSummaryPrefix = [
+        "Primary open gate: \(primaryOpenGate.title)",
+        "Next action: \(primaryOpenGate.nextAction)",
+        "Requirement: \(primaryOpenGate.requirement)",
+        "Evidence: \(primaryOpenGate.evidence)",
+        ""
+      ].joined(separator: "\n")
+    } else {
+      taskSummaryPrefix = ""
+    }
+    let taskSummary = taskSummaryPrefix + gate.reportText
     if let existingIndex = reviewTasks.firstIndex(where: {
       $0.linkedEntityType == .integration
         && $0.linkedEntityID == "mailbox-provider-release-gate"
@@ -11315,7 +11336,7 @@ final class ParcelOpsStore {
     }) {
       let beforeDetail = reviewTasks[existingIndex].auditDetail
       reviewTasks[existingIndex].title = taskTitle
-      reviewTasks[existingIndex].summary = gate.reportText
+      reviewTasks[existingIndex].summary = taskSummary
       reviewTasks[existingIndex].priority = taskPriority
       reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
       reviewTasks[existingIndex].assignee = "ParcelOps Operations"
@@ -11335,7 +11356,7 @@ final class ParcelOpsStore {
 
     let task = ReviewTask(
       title: taskTitle,
-      summary: gate.reportText,
+      summary: taskSummary,
       linkedEntityType: .integration,
       linkedEntityID: "mailbox-provider-release-gate",
       priority: taskPriority,
@@ -11350,6 +11371,13 @@ final class ParcelOpsStore {
       task,
       summary: "Review task created from mailbox provider release gate."
     )
+  }
+
+  private func mailboxProviderReleaseGateTaskRank(_ gate: MailboxProviderReleaseGateItem) -> Int {
+    if !gate.isPassed && gate.tone == "warning" { return 0 }
+    if !gate.isPassed && gate.tone == "attention" { return 1 }
+    if !gate.isPassed { return 2 }
+    return 3
   }
 
   func updateReviewTask(_ task: ReviewTask) {
