@@ -1365,6 +1365,8 @@ struct OperationsWorkbenchView: View {
       AccountsView(store: store)
     case .vendorProfile:
       VendorProfilesView(store: store)
+    case .mailboxProviderGate:
+      SettingsView(store: store)
     case .setupPlaceholder:
       SettingsView(store: store)
     }

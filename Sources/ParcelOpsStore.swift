@@ -5171,6 +5171,7 @@ final class ParcelOpsStore {
       + dispatchChecklistWorkbenchItems()
       + accountWorkbenchItems()
       + vendorProfileWorkbenchItems()
+      + mailboxProviderReleaseGateWorkbenchItems()
       + localDataHygieneWorkbenchItems()
       + setupPlaceholderWorkbenchItems())
       .sorted { lhs, rhs in
@@ -7389,6 +7390,52 @@ final class ParcelOpsStore {
       }
 
     return mailboxItems + shopifyItems + folderItems + sourceItems
+  }
+
+  private func mailboxProviderReleaseGateWorkbenchItems() -> [WorkbenchItem] {
+    let gate = mailboxProviderReleaseGateSummary
+    guard gate.tone != "success" else { return [] }
+
+    let openGateTitles = gate.gates
+      .filter { !$0.isPassed }
+      .prefix(3)
+      .map(\.title)
+      .joined(separator: ", ")
+    let nextAction = gate.gates.first { !$0.isPassed }?.nextAction ?? "Create a release gate task or confirm the provider evidence."
+
+    let priority: String
+    let status: String
+    let dueDate: String
+    if gate.tone == "warning" {
+      priority = "High"
+      status = "Blocked"
+      dueDate = "Today"
+    } else if gate.tone == "attention" {
+      priority = "Medium"
+      status = "Needs review"
+      dueDate = "Before next test pass"
+    } else {
+      priority = "Normal"
+      status = "Pending evidence"
+      dueDate = "Before release candidate"
+    }
+
+    return [
+      WorkbenchItem(
+        id: "mailbox-provider-release-gate",
+        title: gate.title,
+        summary: "\(gate.detail) Open gates: \(openGateTitles.isEmpty ? "pending evidence" : openGateTitles).",
+        linkedEntityType: .integration,
+        linkedEntityID: "mailbox-provider-release-gate",
+        prioritySeverity: priority,
+        status: status,
+        assignee: "ParcelOps Operations",
+        dueDateText: dueDate,
+        reviewState: .needsReview,
+        source: .mailboxProviderGate,
+        suggestedNextAction: nextAction
+      )
+    ]
   }
 
   private func localDataHygieneWorkbenchItems() -> [WorkbenchItem] {
@@ -14602,6 +14649,15 @@ final class ParcelOpsStore {
       if let profile = vendorProfiles.first(where: { $0.id.uuidString == item.linkedEntityID }) {
         markVendorProfileReviewed(profile)
       }
+    case .mailboxProviderGate:
+      logAudit(
+        action: .reviewed,
+        entityType: .settings,
+        entityID: item.linkedEntityID,
+        entityLabel: item.title,
+        summary: "Mailbox provider release gate workbench item reviewed locally.",
+        afterDetail: "\(item.status): \(item.summary)\nNext action at review time: \(item.suggestedNextAction)\nNo mailbox was fetched, no credential was changed, and no provider configuration was modified."
+      )
     case .setupPlaceholder:
       if item.linkedEntityID == "local-data-hygiene" {
         logAudit(
