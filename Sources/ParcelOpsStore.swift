@@ -7514,12 +7514,20 @@ final class ParcelOpsStore {
     let gate = mailboxProviderReleaseGateSummary
     guard gate.tone != "success" else { return [] }
 
-    let openGateTitles = gate.gates
+    let openGates = gate.gates
       .filter { !$0.isPassed }
+      .sorted { left, right in
+        let leftRank = mailboxProviderReleaseGateTaskRank(left)
+        let rightRank = mailboxProviderReleaseGateTaskRank(right)
+        if leftRank != rightRank { return leftRank < rightRank }
+        return left.title < right.title
+      }
+
+    let openGateTitles = openGates
       .prefix(3)
       .map(\.title)
       .joined(separator: ", ")
-    let nextAction = gate.gates.first { !$0.isPassed }?.nextAction ?? "Create a release gate task or confirm the provider evidence."
+    let nextAction = openGates.first?.nextAction ?? "Create a release gate task or confirm the provider evidence."
 
     let priority: String
     let status: String
