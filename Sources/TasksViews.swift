@@ -102,6 +102,22 @@ struct TasksView: View {
     gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
   }
 
+  private var gmailSetupCount: Int {
+    store.gmailMailboxConnections.count
+  }
+
+  private var gmailReadySetupCount: Int {
+    store.gmailMailboxConnections.filter { store.gmailOAuthReadinessSummary(for: $0).isReady }.count
+  }
+
+  private var gmailConnectedAuthCount: Int {
+    store.gmailMailboxConnections.filter { store.gmailAuthSessionState(for: $0).status == .connected }.count
+  }
+
+  private var gmailManualRefreshCount: Int {
+    store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+  }
+
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -865,6 +881,23 @@ struct TasksView: View {
           ("Warnings", "\(gmailWarningCount)", gmailWarningCount > 0 ? .orange : .green)
         ])
 
+        MetricStrip(items: [
+          ("Setups", "\(gmailSetupCount)", gmailSetupCount > 0 ? .blue : .secondary),
+          ("Ready", "\(gmailReadySetupCount)", gmailReadySetupCount == gmailSetupCount && gmailSetupCount > 0 ? .green : gmailSetupCount > 0 ? .orange : .secondary),
+          ("Signed in", "\(gmailConnectedAuthCount)", gmailConnectedAuthCount > 0 ? .green : gmailSetupCount > 0 ? .orange : .secondary),
+          ("Refresh seen", "\(gmailManualRefreshCount)", gmailManualRefreshCount > 0 ? .green : gmailConnectedAuthCount > 0 ? .orange : .secondary)
+        ])
+
+        if gmailSetupCount > 0 && (gmailReadySetupCount < gmailSetupCount || gmailConnectedAuthCount == 0 || gmailManualRefreshCount == 0) {
+          Label(gmailReadinessTaskHint, systemImage: "arrow.triangle.2.circlepath.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         if !gmailHealthSummaries.isEmpty {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(gmailHealthSummaries.prefix(3)) { summary in
@@ -940,6 +973,19 @@ struct TasksView: View {
     if pendingFilteredGmailCount > 0 { return "Gmail filtered examples are reviewable" }
     if gmailWarningCount > 0 { return "Gmail setup or intake needs review" }
     return "Gmail has no assigned task pressure"
+  }
+
+  private var gmailReadinessTaskHint: String {
+    if gmailReadySetupCount < gmailSetupCount {
+      return "Finish Gmail setup and callback readiness before assigning refresh follow-up."
+    }
+    if gmailConnectedAuthCount == 0 {
+      return "Run Test real Google sign-in in Mailbox Monitor before assigning real Gmail refresh work."
+    }
+    if gmailManualRefreshCount == 0 {
+      return "Run one manual read-only Gmail refresh before treating Gmail as a live intake source."
+    }
+    return "Review Gmail setup and refresh evidence in Mailbox Monitor before assigning follow-up."
   }
 
   private var gmailTaskContextSymbol: String {
