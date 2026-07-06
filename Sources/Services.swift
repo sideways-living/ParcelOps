@@ -610,10 +610,11 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       let errorBody = try? JSONDecoder().decode(GmailErrorEnvelope.self, from: data)
       let status = statusForHTTP(httpResponse.statusCode, error: errorBody)
       let reason = errorBody?.error.message ?? "No safe Gmail API error message returned."
+      let reasonLabels = gmailErrorReasonLabels(errorBody, statusCode: httpResponse.statusCode)
       let diagnosticLines = gmailHTTPDiagnosticLines(response: httpResponse, data: data)
       throw RealGmailMailboxError(
         status: status,
-        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Message: \(String(reason.prefix(240))). \(gmailHTTPRemediation(for: httpResponse.statusCode))\n\(diagnosticLines.joined(separator: "\n"))\nNo authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
+        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Reason labels: \(reasonLabels.joined(separator: ", ")). Message: \(String(reason.prefix(240))). \(gmailHTTPRemediation(for: httpResponse.statusCode, reasonLabels: reasonLabels))\n\(diagnosticLines.joined(separator: "\n"))\nNo authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
       )
     }
 
@@ -661,7 +662,24 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     return .networkFailed
   }
 
-  private func gmailHTTPRemediation(for statusCode: Int) -> String {
+  private func gmailHTTPRemediation(for statusCode: Int, reasonLabels: [String] = []) -> String {
+    let labelSet = Set(reasonLabels.map { $0.lowercased() })
+    if labelSet.contains("gmail api disabled") {
+      return "Enable Gmail API for the Google Cloud project, wait for propagation, then retry the manual read-only refresh."
+    }
+    if labelSet.contains("insufficient scope") || labelSet.contains("missing gmail readonly scope") {
+      return "Run Test real Google sign-in again and consent to gmail.readonly or gmail.metadata before retrying refresh."
+    }
+    if labelSet.contains("invalid credentials") || labelSet.contains("invalid token") {
+      return "Run Test real Google sign-in again so GoogleSignIn can refresh the SDK-managed account token."
+    }
+    if labelSet.contains("label query problem") {
+      return "Check the configured Gmail label. Use INBOX for the primary inbox or an existing Gmail label name."
+    }
+    if labelSet.contains("rate limited") {
+      return "Gmail rate limited the manual request. Wait before retrying; do not add background polling."
+    }
+
     switch statusCode {
     case 401:
       return "Run Test real Google sign-in again, confirm the signed-in account, and verify Gmail readonly/metadata consent."
@@ -694,6 +712,48 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       "Gmail auth challenge: \(authSummary)",
       "Gmail response preview: \(bodyPreview)"
     ]
+  }
+
+  private func gmailErrorReasonLabels(_ envelope: GmailErrorEnvelope?, statusCode: Int) -> [String] {
+    var labels: [String] = []
+    let status = envelope?.error.status?.lowercased() ?? ""
+    let message = envelope?.error.message?.lowercased() ?? ""
+    let detailReasons = envelope?.error.errors?.map { $0.reason.lowercased() } ?? []
+    let detailDomains = envelope?.error.errors?.map { $0.domain.lowercased() } ?? []
+    let combined = ([status, message] + detailReasons + detailDomains).joined(separator: " ")
+
+    if combined.contains("accessnotconfigured") || combined.contains("api has not been used") || combined.contains("disabled") {
+      labels.append("Gmail API disabled")
+    }
+    if combined.contains("insufficientpermissions") || combined.contains("insufficient permission") || combined.contains("insufficient authentication scopes") {
+      labels.append("Insufficient scope")
+    }
+    if combined.contains("gmail.readonly") || combined.contains("gmail.metadata") {
+      labels.append("Missing Gmail readonly scope")
+    }
+    if combined.contains("autherror") || combined.contains("invalid credentials") || combined.contains("login required") {
+      labels.append("Invalid credentials")
+    }
+    if combined.contains("invalid_token") || combined.contains("token expired") {
+      labels.append("Invalid token")
+    }
+    if combined.contains("notfound") || combined.contains("label") && statusCode == 404 {
+      labels.append("Label query problem")
+    }
+    if combined.contains("ratelimitexceeded") || combined.contains("userratelimitexceeded") || combined.contains("quota") || statusCode == 429 {
+      labels.append("Rate limited")
+    }
+    if combined.contains("forbidden") || statusCode == 403 {
+      labels.append("Forbidden")
+    }
+    if statusCode == 401 {
+      labels.append("Auth challenge")
+    }
+    if labels.isEmpty {
+      labels.append(envelope?.error.status ?? "HTTP \(statusCode)")
+    }
+
+    return Array(NSOrderedSet(array: labels)).compactMap { $0 as? String }
   }
 
   private func sanitizedAuthenticateSummary(_ value: String) -> String {
@@ -770,6 +830,15 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     var code: Int?
     var message: String?
     var status: String?
+    var errors: [GmailErrorDetail]?
+  }
+
+  private struct GmailErrorDetail: Decodable {
+    var domain: String
+    var reason: String
+    var message: String?
+    var locationType: String?
+    var location: String?
   }
 
   private struct RealGmailMailboxError: Error {
