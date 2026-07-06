@@ -1414,6 +1414,11 @@ private struct MailboxGmailReadinessPanel: View {
     return store.gmailAuthSessionState(for: connection)
   }
 
+  private var primaryReadiness: GmailOAuthReadinessSummary? {
+    guard let connection = primaryConnection else { return nil }
+    return store.gmailOAuthReadinessSummary(for: connection)
+  }
+
   private var hasSetup: Bool {
     primaryConnection != nil
   }
@@ -1423,6 +1428,21 @@ private struct MailboxGmailReadinessPanel: View {
     return hasMailboxBasics(connection)
       && hasOAuthPlaceholders(connection)
       && hasReadOnlyScope(connection)
+  }
+
+  private var hasCompiledCallbackReadiness: Bool {
+    primaryReadiness?.isReady == true
+  }
+
+  private var compiledCallbackBlockerText: String {
+    guard let readiness = primaryReadiness else {
+      return "No Gmail setup record is available."
+    }
+    if readiness.isReady {
+      return "Compiled app callback values match the saved Gmail setup."
+    }
+    let blockers = readiness.missingFields.prefix(4).joined(separator: ", ")
+    return blockers.isEmpty ? readiness.detailText : blockers
   }
 
   private var hasConnectedAuth: Bool {
@@ -1478,7 +1498,7 @@ private struct MailboxGmailReadinessPanel: View {
     }
 
     let mailboxBasicsReady = hasMailboxBasics(connection)
-    let oauthReady = hasOAuthPlaceholders(connection) && hasReadOnlyScope(connection)
+    let savedOAuthFieldsReady = hasOAuthPlaceholders(connection) && hasReadOnlyScope(connection)
     let latestResultText = "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered, \(pendingUncertainCount) uncertain."
     return [
       GmailReadinessChecklistItem(
@@ -1489,9 +1509,15 @@ private struct MailboxGmailReadinessPanel: View {
       ),
       GmailReadinessChecklistItem(
         title: "OAuth app values",
-        detail: oauthReady ? "Client ID, reversed URL scheme, and read-only Gmail scope are present." : "Add Google Cloud iOS OAuth client ID, reversed URL scheme, and gmail.readonly or gmail.metadata.",
+        detail: savedOAuthFieldsReady ? "Google iOS client ID, reversed URL scheme, and read-only Gmail scope are saved." : "Add Google Cloud iOS OAuth client ID, reversed URL scheme, and gmail.readonly or gmail.metadata.",
         symbol: "key.fill",
-        isComplete: oauthReady
+        isComplete: savedOAuthFieldsReady
+      ),
+      GmailReadinessChecklistItem(
+        title: "Compiled callback",
+        detail: compiledCallbackBlockerText,
+        symbol: "app.badge.checkmark",
+        isComplete: hasCompiledCallbackReadiness
       ),
       GmailReadinessChecklistItem(
         title: "Google sign-in",
@@ -1521,7 +1547,7 @@ private struct MailboxGmailReadinessPanel: View {
   }
 
   private var readinessTone: Color {
-    if !hasSetup || !hasCoreSetup || !hasConnectedAuth || warningCount > 0 || pendingUncertainCount > 0 { return .orange }
+    if !hasSetup || !hasCoreSetup || !hasCompiledCallbackReadiness || !hasConnectedAuth || warningCount > 0 || pendingUncertainCount > 0 { return .orange }
     if importedCount > 0 { return .green }
     if filteredCount > 0 { return .teal }
     return .secondary
@@ -1530,6 +1556,7 @@ private struct MailboxGmailReadinessPanel: View {
   private var readinessTitle: String {
     if !hasSetup { return "Gmail setup is optional" }
     if !hasCoreSetup { return "Finish Gmail setup details" }
+    if !hasCompiledCallbackReadiness { return "Fix Gmail callback readiness before sign-in" }
     if !hasConnectedAuth { return "Test Google sign-in before Gmail refresh" }
     if warningCount > 0 { return "Gmail setup or refresh needs review" }
     if pendingUncertainCount > 0 { return "Review uncertain Gmail previews" }
@@ -1545,6 +1572,9 @@ private struct MailboxGmailReadinessPanel: View {
     }
     if !hasCoreSetup {
       return "Add mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not add secrets or token values."
+    }
+    if !hasCompiledCallbackReadiness {
+      return "Saved Gmail fields must match the compiled App Info.plist client ID and callback scheme before real sign-in and refresh will be reliable."
     }
     if !hasConnectedAuth {
       return "Use the explicit Google sign-in test in the Gmail setup row. ParcelOps records only non-secret status and keeps refresh manual."
@@ -1590,6 +1620,7 @@ private struct MailboxGmailReadinessPanel: View {
 
         MetricStrip(items: [
           ("Setup", hasCoreSetup ? "Ready" : hasSetup ? "Missing" : "Optional", hasCoreSetup ? .green : hasSetup ? .orange : .secondary),
+          ("Callback", hasCompiledCallbackReadiness ? "Ready" : hasSetup ? "Blocked" : "N/A", hasCompiledCallbackReadiness ? .green : hasSetup ? .orange : .secondary),
           ("Sign-in", primaryAuthState?.status.rawValue ?? "Not configured", hasConnectedAuth ? .green : .orange),
           ("Fetched", "\(fetchedCount)", fetchedCount > 0 ? .blue : .secondary),
           ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
