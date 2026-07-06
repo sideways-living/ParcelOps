@@ -198,6 +198,70 @@ private struct SearchReadinessPanel: View {
     (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
   }
 
+  private var providerRecoveryRows: [(label: String, status: String, detail: String, symbol: String, color: Color)] {
+    var rows: [(label: String, status: String, detail: String, symbol: String, color: Color)] = []
+
+    if let summary = latestSpaceMailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.importedCount > 0 {
+        status = "\(summary.importedCount) imported"
+        detail = "Search Inbox intake, linked orders, and audit events for SpaceMail source evidence."
+        color = .green
+      } else if uncertain > 0 {
+        status = "\(uncertain) uncertain"
+        detail = "Open Mailbox Monitor to import or dismiss uncertain SpaceMail previews before searching Inbox."
+        color = .orange
+      } else if summary.filteredCount > 0 {
+        status = "\(summary.filteredCount) filtered"
+        detail = "Filtered SpaceMail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
+        color = .teal
+      } else if summary.duplicateCount > 0 {
+        status = "\(summary.duplicateCount) duplicate"
+        detail = "Duplicate SpaceMail rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
+        color = .teal
+      } else {
+        status = "\(summary.fetchedCount) fetched"
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("SpaceMail", status, detail, "server.rack", color))
+    }
+
+    if let summary = latestGmailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.importedCount > 0 {
+        status = "\(summary.importedCount) imported"
+        detail = "Search Inbox intake, linked orders, and audit events for Gmail source evidence."
+        color = .green
+      } else if uncertain > 0 {
+        status = "\(uncertain) uncertain"
+        detail = "Open Mailbox Monitor to import or dismiss uncertain Gmail previews before searching Inbox."
+        color = .orange
+      } else if summary.filteredCount > 0 {
+        status = "\(summary.filteredCount) filtered"
+        detail = "Filtered Gmail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
+        color = .teal
+      } else if summary.duplicateCount > 0 {
+        status = "\(summary.duplicateCount) duplicate"
+        detail = "Duplicate Gmail rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
+        color = .teal
+      } else {
+        status = "\(summary.fetchedCount) fetched"
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("Gmail", status, detail, "envelope.badge.shield.half.filled", color))
+    }
+
+    return rows
+  }
+
   private var tone: Color {
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty || uncertainMailboxCount > 0 || parserIssueCount > 0 { return .orange }
     if inboxCreatedOrderCount > 0 || importedCount > 0 { return .green }
@@ -255,6 +319,38 @@ private struct SearchReadinessPanel: View {
           ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
           ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green)
         ])
+
+        if !providerRecoveryRows.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox provider recovery")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+              ForEach(providerRecoveryRows, id: \.label) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                      Text(row.label)
+                        .font(.caption.weight(.semibold))
+                      Spacer(minLength: 8)
+                      Badge(row.status, color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+        }
 
         if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
