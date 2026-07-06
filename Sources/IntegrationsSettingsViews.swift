@@ -474,6 +474,7 @@ struct IntegrationsView: View {
               implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
               setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
+              labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
@@ -1143,6 +1144,7 @@ struct GmailMailboxConnectionRow: View {
   var implementationPlan: GmailOAuthImplementationPlan
   var setupTestChecklist: GmailSetupTestChecklist
   var releaseSelfCheck: GmailReleaseSelfCheckSummary
+  var labelReadiness: GmailLabelReadinessSummary
   var authState: GmailAuthSessionState
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
@@ -1182,6 +1184,7 @@ struct GmailMailboxConnectionRow: View {
     implementationPlan: GmailOAuthImplementationPlan,
     setupTestChecklist: GmailSetupTestChecklist,
     releaseSelfCheck: GmailReleaseSelfCheckSummary,
+    labelReadiness: GmailLabelReadinessSummary,
     authState: GmailAuthSessionState,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
@@ -1214,6 +1217,7 @@ struct GmailMailboxConnectionRow: View {
     self.implementationPlan = implementationPlan
     self.setupTestChecklist = setupTestChecklist
     self.releaseSelfCheck = releaseSelfCheck
+    self.labelReadiness = labelReadiness
     self.authState = authState
     self.onSave = onSave
     self.onReviewed = onReviewed
@@ -1275,6 +1279,36 @@ struct GmailMailboxConnectionRow: View {
       Text("Credential storage: \(connection.credentialStorageStatus)")
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: labelReadiness.tone == "success" ? "tag.fill" : "tag.slash.fill")
+            .foregroundStyle(color(forReleaseTone: labelReadiness.tone))
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Gmail label readiness")
+              .font(.caption.weight(.semibold))
+            Text(labelReadiness.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(labelReadiness.nextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(forReleaseTone: labelReadiness.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(labelReadiness.status, color: color(forReleaseTone: labelReadiness.tone))
+        }
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("Primary: \(labelReadiness.primaryLabel)", color: color(forReleaseTone: labelReadiness.tone))
+          Badge(labelReadiness.refreshMode, color: .teal)
+          Badge("\(labelReadiness.labelCount) label\(labelReadiness.labelCount == 1 ? "" : "s") saved", color: labelReadiness.labelCount > 1 ? .orange : .secondary)
+          Badge("Manual refresh", color: .blue)
+        }
+      }
+      .padding(10)
+      .background(color(forReleaseTone: labelReadiness.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 10) {
         HStack(alignment: .top, spacing: 10) {

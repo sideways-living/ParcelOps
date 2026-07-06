@@ -226,6 +226,7 @@ struct MailboxView: View {
               implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
               setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
+              labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)

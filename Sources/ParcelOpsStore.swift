@@ -4559,6 +4559,70 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailLabelReadinessSummary(for connection: GmailMailboxConnection) -> GmailLabelReadinessSummary {
+    let labels = connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    let primaryLabel = labels.first ?? "INBOX"
+    let normalizedPrimary = primaryLabel.uppercased()
+    let systemLabelAliases: [String: String] = [
+      "INBOX": "INBOX",
+      "UNREAD": "UNREAD",
+      "IMPORTANT": "IMPORTANT",
+      "STARRED": "STARRED",
+      "SENT": "SENT",
+      "DRAFT": "DRAFT",
+      "TRASH": "TRASH",
+      "SPAM": "SPAM",
+      "CATEGORY_PERSONAL": "CATEGORY_PERSONAL",
+      "CATEGORY_SOCIAL": "CATEGORY_SOCIAL",
+      "CATEGORY_PROMOTIONS": "CATEGORY_PROMOTIONS",
+      "CATEGORY_UPDATES": "CATEGORY_UPDATES",
+      "CATEGORY_FORUMS": "CATEGORY_FORUMS",
+      "PROMOTIONS": "CATEGORY_PROMOTIONS",
+      "UPDATES": "CATEGORY_UPDATES",
+      "SOCIAL": "CATEGORY_SOCIAL",
+      "FORUMS": "CATEGORY_FORUMS",
+      "PERSONAL": "CATEGORY_PERSONAL"
+    ]
+    let refreshMode = systemLabelAliases[normalizedPrimary].map { "System label \($0)" } ?? "Custom label search"
+
+    if labels.isEmpty {
+      return GmailLabelReadinessSummary(
+        status: "Label missing",
+        primaryLabel: "INBOX",
+        labelCount: 0,
+        refreshMode: "Default would be INBOX",
+        detail: "Real Gmail refresh needs a monitored label. Use INBOX for the whole mailbox or a Gmail label such as Order Updates for a focused feed.",
+        nextAction: "Edit setup and add the exact Gmail label to check.",
+        tone: "warning"
+      )
+    }
+
+    if labels.count > 1 {
+      return GmailLabelReadinessSummary(
+        status: "Primary label selected",
+        primaryLabel: primaryLabel,
+        labelCount: labels.count,
+        refreshMode: refreshMode,
+        detail: "Real Gmail refresh currently reads one label per manual run. It will use '\(primaryLabel)' first; the other configured labels are setup notes only.",
+        nextAction: "Put the label you want fetched first, or run separate setup records for separate labels.",
+        tone: "attention"
+      )
+    }
+
+    return GmailLabelReadinessSummary(
+      status: "Label ready",
+      primaryLabel: primaryLabel,
+      labelCount: labels.count,
+      refreshMode: refreshMode,
+      detail: "Real Gmail refresh will use '\(primaryLabel)' for the read-only message list request.",
+      nextAction: "Run real refresh after Google sign-in and Gmail read-only consent are ready.",
+      tone: "success"
+    )
+  }
+
   func spaceMailAssignedFollowUpSummaries(for connection: SpaceMailIMAPConnection) -> [String] {
     let connectionID = connection.id.uuidString
     let taskSummaries = reviewTasks

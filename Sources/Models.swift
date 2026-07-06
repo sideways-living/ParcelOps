@@ -2054,6 +2054,16 @@ struct GmailRefreshTrendEntry: Identifiable, Hashable {
   var tone: String
 }
 
+struct GmailLabelReadinessSummary: Hashable {
+  var status: String
+  var primaryLabel: String
+  var labelCount: Int
+  var refreshMode: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+}
+
 struct MailboxProviderComparisonSummary: Hashable {
   var title: String
   var detail: String
