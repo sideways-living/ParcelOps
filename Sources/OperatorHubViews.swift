@@ -555,6 +555,28 @@ struct InboxView: View {
     return .secondary
   }
 
+  private var missingOrderProviderBreakdown: [(provider: String, detail: String, color: Color)] {
+    var rows: [(provider: String, detail: String, color: Color)] = []
+
+    if let latestSpaceMailSummary {
+      rows.append((
+        "SpaceMail",
+        "\(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.duplicateCount) duplicate, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain.",
+        latestSpaceMailSummary.importedCount > 0 ? .green : (latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) > 0 ? .orange : latestSpaceMailSummary.filteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    if let latestGmailSummary {
+      rows.append((
+        "Gmail",
+        "\(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.duplicateCount) duplicate, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain.",
+        latestGmailSummary.importedCount > 0 ? .green : (latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) > 0 ? .orange : latestGmailSummary.filteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    return rows
+  }
+
   private var missingOrderDiagnosticPanel: some View {
     SettingsPanel(title: "Expected order missing?", symbol: "magnifyingglass.circle.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -582,6 +604,29 @@ struct InboxView: View {
           ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary),
           ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .green)
         ])
+
+        if !missingOrderProviderBreakdown.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 220), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(missingOrderProviderBreakdown, id: \.provider) { row in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : "server.rack")
+                  .foregroundStyle(row.color)
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
 
         CompactMetadataGrid(minimumWidth: isCompact ? 150 : 180) {
           inboxDiagnosticStep(
