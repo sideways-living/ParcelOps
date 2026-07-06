@@ -3626,6 +3626,10 @@ struct MailboxProviderReleaseGateCard: View {
     }
   }
 
+  private var primaryOpenGate: MailboxProviderReleaseGateItem? {
+    prioritizedGates.first { !$0.isPassed }
+  }
+
   private func gatePriority(_ gate: MailboxProviderReleaseGateItem) -> Int {
     if !gate.isPassed && gate.tone == "warning" { return 0 }
     if !gate.isPassed && gate.tone == "attention" { return 1 }
@@ -3723,6 +3727,23 @@ struct MailboxProviderReleaseGateCard: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if let primaryOpenGate {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Primary open gate", systemImage: primaryOpenGate.symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color(for: primaryOpenGate.tone))
+          Text(primaryOpenGate.title)
+            .font(.subheadline.weight(.semibold))
+          Text(primaryOpenGate.nextAction)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color(for: primaryOpenGate.tone).opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
       }
 
       LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
