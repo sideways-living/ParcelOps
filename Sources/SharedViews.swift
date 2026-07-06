@@ -3702,6 +3702,30 @@ struct MailboxProviderReleaseGateCard: View {
           .foregroundStyle(.secondary)
       }
 
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label("Selectable gate handoff", systemImage: "doc.text.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Spacer()
+          Badge(summary.verdict, color: color)
+        }
+
+        Text("Use this local report when handing off provider readiness, release blockers, Inbox/order evidence, and next actions. It is generated from persisted local state only.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Text(summary.reportText)
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
       Text("This release gate is computed from local JSON-backed provider, Inbox, task, audit, and release state. It does not run refreshes, read credentials, call external services, or mutate mailbox data.")
         .font(.caption2)
         .foregroundStyle(.secondary)
