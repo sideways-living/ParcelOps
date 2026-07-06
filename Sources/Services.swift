@@ -3,7 +3,7 @@ import Network
 import Security
 
 #if canImport(GoogleSignIn)
-import GoogleSignIn
+@preconcurrency import GoogleSignIn
 #endif
 
 protocol MailboxIngestionService {
@@ -361,7 +361,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     }
 
     #if canImport(GoogleSignIn)
-    let tokenResult = await acquireAccessToken()
+    let tokenResult = await acquireAccessToken(connection: connection)
     guard let accessToken = tokenResult.accessToken else {
       return GmailMailboxFetchResult(
         status: tokenResult.status,
@@ -414,14 +414,21 @@ struct RealGmailMailboxClient: GmailMailboxClient {
   }
 
   @MainActor
-  private func acquireAccessToken() async -> TokenResult {
-    guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
+  private func acquireAccessToken(connection: GmailMailboxConnection) async -> TokenResult {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !clientID.isEmpty {
+      GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+    }
+
+    let restoreResult = await currentOrRestoredGoogleUser()
+    guard let currentUser = restoreResult.user else {
       return TokenResult(
         status: .authRequired,
         accessToken: nil,
-        detail: "Real Gmail refresh requires a signed-in Google account. Run Test real Google sign-in first. No Gmail API request was made and no mailbox item was changed."
+        detail: "\(restoreResult.detail) Real Gmail refresh requires a signed-in Google account. Run Test real Google sign-in first. No Gmail API request was made and no mailbox item was changed."
       )
     }
+    let restoreDetail = restoreResult.detail
 
     return await withCheckedContinuation { continuation in
       currentUser.refreshTokensIfNeeded { user, error in
@@ -429,7 +436,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
           continuation.resume(returning: TokenResult(
             status: .authRequired,
             accessToken: nil,
-            detail: "GoogleSignIn could not refresh an in-memory access token: \(Self.safeErrorSummary(error)). Run Test real Google sign-in again and confirm read-only Gmail consent. No Gmail API request was made and no token value was logged or stored."
+            detail: "\(restoreDetail) GoogleSignIn could not refresh an in-memory access token: \(Self.safeErrorSummary(error)). Run Test real Google sign-in again and confirm read-only Gmail consent. No Gmail API request was made and no token value was logged or stored."
           ))
           return
         }
@@ -442,7 +449,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
           continuation.resume(returning: TokenResult(
             status: .consentRequired,
             accessToken: nil,
-            detail: "GoogleSignIn has a signed-in account, but the current session does not report a read-only Gmail scope. Run Test real Google sign-in again and consent to Gmail readonly/metadata access. No Gmail API request was made and no token value was logged or stored."
+            detail: "\(restoreDetail) GoogleSignIn has a signed-in account, but the current session does not report a read-only Gmail scope. Run Test real Google sign-in again and consent to Gmail readonly/metadata access. No Gmail API request was made and no token value was logged or stored."
           ))
           return
         }
@@ -450,15 +457,55 @@ struct RealGmailMailboxClient: GmailMailboxClient {
           continuation.resume(returning: TokenResult(
             status: .tokenMissing,
             accessToken: nil,
-            detail: "GoogleSignIn did not provide an in-memory access token. Run Test real Google sign-in again. No Gmail API request was made and no token value was logged or stored."
+            detail: "\(restoreDetail) GoogleSignIn did not provide an in-memory access token. Run Test real Google sign-in again. No Gmail API request was made and no token value was logged or stored."
           ))
           return
         }
         continuation.resume(returning: TokenResult(
           status: .success,
           accessToken: token,
-          detail: "GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value."
+          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value."
         ))
+      }
+    }
+  }
+
+  @MainActor
+  private func currentOrRestoredGoogleUser() async -> (user: GIDGoogleUser?, detail: String) {
+    if let currentUser = GIDSignIn.sharedInstance.currentUser {
+      return (
+        currentUser,
+        "GoogleSignIn current user was already available in memory."
+      )
+    }
+
+    guard GIDSignIn.sharedInstance.hasPreviousSignIn() else {
+      return (
+        nil,
+        "GoogleSignIn has no previous cached sign-in to restore."
+      )
+    }
+
+    return await withCheckedContinuation { continuation in
+      GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+        if let error {
+          continuation.resume(returning: (
+            nil,
+            "GoogleSignIn previous sign-in restore failed safely: \(Self.safeErrorSummary(error))."
+          ))
+          return
+        }
+        if let user {
+          continuation.resume(returning: (
+            user,
+            "GoogleSignIn restored a previous signed-in account from its SDK-managed cache before manual refresh."
+          ))
+        } else {
+          continuation.resume(returning: (
+            nil,
+            "GoogleSignIn previous sign-in restore completed without a user."
+          ))
+        }
       }
     }
   }

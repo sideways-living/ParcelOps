@@ -15528,8 +15528,8 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: "Never",
       lastSuccessfulAuthDate: "Never",
       tokenStoreStatus: "Token storage not configured",
-      tokenStoreDetail: "Gmail token storage is not implemented. ParcelOps does not create, read, write, delete, store, or log Google access tokens or refresh tokens.",
-      detailText: "Gmail is not connected for this setup record. Mock auth can test UI states, but real Google sign-in and Gmail API access are not implemented."
+      tokenStoreDetail: "ParcelOps custom Gmail token storage is not implemented. GoogleSignIn may manage its own SDK cache after real sign-in, but ParcelOps does not create, read, write, delete, store, or log Google access tokens or refresh tokens.",
+      detailText: "Gmail is not connected for this setup record. Mock auth can test UI states. Real Google sign-in and manual read-only Gmail refresh are available only after the compiled app client ID and callback scheme match the saved Gmail setup."
     )
   }
 
