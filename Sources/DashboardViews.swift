@@ -344,14 +344,14 @@ struct DashboardView: View {
   }
   private var visibleDashboardMatchCount: Int {
     [
-      dashboardMatches("inbox", "mailbox", "spacemail", "email", "parser", "import", "acceptance", "triage", "intake"),
+      dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "email", "parser", "import", "acceptance", "triage", "intake"),
       dashboardMatches("orders", "order", "tracking", "customer", "destination", "inbox-created"),
       dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
       dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened"),
       dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
       dashboardMatches("settings", "setup", "placeholder", "shopify", "folder", "login", "local-only"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
-      dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance"),
+      dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "parser", "import", "acceptance"),
       dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination"),
       dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened"),
       dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high"),
@@ -1381,7 +1381,7 @@ struct DashboardView: View {
         )
 
         FilterControlGrid {
-          TextField("Find daily work: Inbox, SpaceMail, orders, dispatch, tasks", text: $dashboardSearchText)
+          TextField("Find daily work: Inbox, mailbox, Gmail, orders, dispatch, tasks", text: $dashboardSearchText)
             .textFieldStyle(.roundedBorder)
           Badge("\(visibleDashboardMatchCount) daily areas", color: visibleDashboardMatchCount == 0 ? .orange : .blue)
           if !normalizedDashboardSearch.isEmpty {
@@ -1395,18 +1395,18 @@ struct DashboardView: View {
         if visibleDashboardMatchCount == 0 {
           MVPEmptyState(
             title: "No daily areas match",
-            detail: "Clear the Dashboard filter or try Inbox, SpaceMail, order, dispatch, task, workbench, or audit.",
+            detail: "Clear the Dashboard filter or try Inbox, mailbox, Gmail, order, dispatch, task, workbench, or audit.",
             symbol: "magnifyingglass"
           )
         }
 
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 12) {
-          if dashboardMatches("inbox", "mailbox", "spacemail", "email", "parser", "import", "acceptance", "triage", "intake") {
+          if dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "email", "parser", "import", "acceptance", "triage", "intake") {
             OperatorDashboardCard(
               title: "Inbox",
               count: incomingAttentionCount,
-              detail: "SpaceMail refresh results, imported order emails, uncertain mixed-mailbox messages, parser checks, and staged intake waiting for triage.",
-              nextAction: incomingAttentionCount == 0 ? "Review SpaceMail status" : "Triage SpaceMail intake",
+              detail: "SpaceMail or Gmail refresh results, imported order emails, uncertain mixed-mailbox messages, parser checks, and staged intake waiting for triage.",
+              nextAction: incomingAttentionCount == 0 ? "Review mailbox status" : "Triage mailbox intake",
               symbol: "tray.full.fill",
               tint: incomingAttentionCount == 0 ? .green : .orange
             ) {
@@ -1495,7 +1495,7 @@ struct DashboardView: View {
       }
 
       LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
-        if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "parser", "import", "acceptance") {
+        if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "parser", "import", "acceptance") {
           AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
             MetricStrip(items: [
               ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
