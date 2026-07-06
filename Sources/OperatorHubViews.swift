@@ -2317,6 +2317,53 @@ struct DispatchView: View {
       + store.dispatchReadinessChecklists.filter { $0.checklistStatus == .ready }.count
   }
 
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var dispatchMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
+    var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
+
+    if let summary = latestSpaceMailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      if summary.importedCount > 0 {
+        rows.append(("SpaceMail", "\(summary.importedCount) imported", "Imported SpaceMail rows can become dispatch work only after Inbox creates or links an order.", "server.rack", .green))
+      } else if uncertain > 0 {
+        rows.append(("SpaceMail", "\(uncertain) uncertain", "Review uncertain SpaceMail previews before expecting dispatch setup for those messages.", "server.rack", .orange))
+      } else if summary.filteredCount > 0 {
+        rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered SpaceMail stayed out of Inbox, Orders, and Dispatch.", "server.rack", .teal))
+      } else if summary.duplicateCount > 0 {
+        rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail does not create new dispatch setup unless an existing order is linked.", "server.rack", .teal))
+      } else {
+        rows.append(("SpaceMail", "\(summary.fetchedCount) fetched", summary.nextAction, "server.rack", .secondary))
+      }
+    }
+
+    if let summary = latestGmailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      if summary.importedCount > 0 {
+        rows.append(("Gmail", "\(summary.importedCount) imported", "Imported Gmail rows can become dispatch work only after Inbox creates or links an order.", "envelope.badge.shield.half.filled", .green))
+      } else if uncertain > 0 {
+        rows.append(("Gmail", "\(uncertain) uncertain", "Review uncertain Gmail previews before expecting dispatch setup for those messages.", "envelope.badge.shield.half.filled", .orange))
+      } else if summary.filteredCount > 0 {
+        rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered Gmail stayed out of Inbox, Orders, and Dispatch.", "envelope.badge.shield.half.filled", .teal))
+      } else if summary.duplicateCount > 0 {
+        rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail does not create new dispatch setup unless an existing order is linked.", "envelope.badge.shield.half.filled", .teal))
+      } else {
+        rows.append(("Gmail", "\(summary.fetchedCount) fetched", summary.nextAction, "envelope.badge.shield.half.filled", .secondary))
+      }
+    }
+
+    if rows.isEmpty {
+      rows.append(("Mailbox", "No provider refresh", "Dispatch setup starts after Inbox creates or links an order from SpaceMail or Gmail intake.", "envelope.badge.fill", .secondary))
+    }
+    return rows
+  }
+
   private var reopenedInboxDispatchHandoffCount: Int {
     store.shipmentManifestRecords.filter { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }.count
       + store.dispatchReadinessChecklists.filter { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }.count
@@ -2525,6 +2572,38 @@ struct DispatchView: View {
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
           ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
         ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Mailbox provider dispatch context", systemImage: "point.3.connected.trianglepath.dotted")
+            .font(.subheadline.weight(.semibold))
+          Text("Dispatch should only act on orders that already came through Inbox or were linked manually. Provider rows explain why latest mailbox refreshes did or did not create dispatch setup work.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(dispatchMailboxProviderRows, id: \.provider) { row in
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: row.symbol)
+                .foregroundStyle(row.color)
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Badge(row.status, color: row.color)
+                }
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         CompactActionRow {
           NavigationLink {
