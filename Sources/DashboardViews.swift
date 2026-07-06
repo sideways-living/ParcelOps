@@ -187,6 +187,50 @@ struct DashboardView: View {
     let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
     return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
   }
+  private var dashboardMailboxProviderRows: [(title: String, value: String, detail: String, color: Color)] {
+    let spaceMailReviewCount = (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)
+    let spaceMailValue: String
+    let spaceMailDetail: String
+    if let summary = latestSpaceMailSummary {
+      spaceMailValue = "\(summary.importedCount) imported"
+      if summary.importedCount > 0 {
+        spaceMailDetail = "\(summary.displayName) produced order intake on the latest read-only refresh."
+      } else if spaceMailReviewCount > 0 {
+        spaceMailDetail = "\(spaceMailReviewCount) uncertain SpaceMail preview\(spaceMailReviewCount == 1 ? "" : "s") need review in Mailbox Monitor."
+      } else if summary.filteredCount > 0 {
+        spaceMailDetail = "\(summary.filteredCount) mixed-mailbox message\(summary.filteredCount == 1 ? "" : "s") filtered out of Inbox."
+      } else {
+        spaceMailDetail = summary.nextAction
+      }
+    } else {
+      spaceMailValue = hasSpaceMailSetup ? "Ready" : "Missing"
+      spaceMailDetail = hasSpaceMailSetup ? "Set or check the credential, then run a manual SpaceMail refresh." : "Add SpaceMail when this mailbox is hosted by IMAP."
+    }
+
+    let gmailValue: String
+    let gmailDetail: String
+    if let summary = latestGmailSummary {
+      gmailValue = "\(summary.importedCount) imported"
+      if summary.importedCount > 0 {
+        gmailDetail = "\(summary.displayName) produced order intake on the latest Gmail pass."
+      } else if pendingGmailUncertainReviewCount > 0 {
+        gmailDetail = "\(pendingGmailUncertainReviewCount) uncertain Gmail preview\(pendingGmailUncertainReviewCount == 1 ? "" : "s") need review in Mailbox Monitor."
+      } else if pendingGmailFilteredReviewCount > 0 || summary.filteredCount > 0 {
+        let filtered = max(pendingGmailFilteredReviewCount, summary.filteredCount)
+        gmailDetail = "\(filtered) Gmail filtered preview\(filtered == 1 ? "" : "s") stayed out of Inbox."
+      } else {
+        gmailDetail = summary.nextAction
+      }
+    } else {
+      gmailValue = store.gmailMailboxConnections.isEmpty ? "Missing" : "Setup"
+      gmailDetail = store.gmailMailboxConnections.isEmpty ? "Add Gmail only for mailboxes hosted by Gmail or Google Workspace." : "Check Gmail readiness or run the mock/manual provider flow from Mailbox Monitor."
+    }
+
+    return [
+      ("SpaceMail", spaceMailValue, spaceMailDetail, latestSpaceMailTone),
+      ("Gmail", gmailValue, gmailDetail, latestGmailTone)
+    ]
+  }
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
@@ -1167,6 +1211,29 @@ struct DashboardView: View {
           ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary),
           ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
         ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Provider breakdown", systemImage: "square.stack.3d.up.fill")
+            .font(.subheadline.weight(.semibold))
+
+          ForEach(dashboardMailboxProviderRows, id: \.title) { row in
+            HStack(alignment: .top, spacing: 10) {
+              Badge(row.title, color: row.color)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(row.value)
+                  .font(.caption.weight(.semibold))
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         VStack(alignment: .leading, spacing: 8) {
           HStack(alignment: .top, spacing: 12) {
