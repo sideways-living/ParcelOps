@@ -3614,7 +3614,24 @@ struct MailboxProviderReleaseGateCard: View {
   }
 
   private var visibleGates: [MailboxProviderReleaseGateItem] {
-    Array(summary.gates.prefix(horizontalSizeClass == .compact ? 5 : 8))
+    Array(prioritizedGates.prefix(horizontalSizeClass == .compact ? 5 : 8))
+  }
+
+  private var prioritizedGates: [MailboxProviderReleaseGateItem] {
+    summary.gates.sorted { left, right in
+      let leftRank = gatePriority(left)
+      let rightRank = gatePriority(right)
+      if leftRank != rightRank { return leftRank < rightRank }
+      return left.title < right.title
+    }
+  }
+
+  private func gatePriority(_ gate: MailboxProviderReleaseGateItem) -> Int {
+    if !gate.isPassed && gate.tone == "warning" { return 0 }
+    if !gate.isPassed && gate.tone == "attention" { return 1 }
+    if !gate.isPassed { return 2 }
+    if gate.tone == "attention" { return 3 }
+    return 4
   }
 
   var body: some View {
