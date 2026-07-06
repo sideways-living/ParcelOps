@@ -1198,6 +1198,8 @@ struct DashboardView: View {
         .padding(10)
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
+
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
         MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
