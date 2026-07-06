@@ -261,6 +261,7 @@ struct TasksView: View {
         inboxParserTaskContextPanel
         gmailTaskContextPanel
         mvpValidationPanel
+        mailboxProviderTaskPanel
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
         draftFollowUpPanel
@@ -989,6 +990,54 @@ struct TasksView: View {
     }.count
   }
 
+  private var mailboxProviderFollowUpItems: [TaskQueueItem] {
+    queueItems.filter { $0.isMailboxProviderFollowUp }
+  }
+
+  @ViewBuilder
+  private var mailboxProviderTaskPanel: some View {
+    if !mailboxProviderFollowUpItems.isEmpty {
+      SettingsPanel(title: "Mailbox provider follow-up", symbol: "checkmark.seal.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("These tasks were created from provider release gates, provider test queues, handoff packets, troubleshooting, or mailbox release readiness. Use the release gate and Mailbox Monitor before closing them.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Provider tasks", "\(mailboxProviderFollowUpItems.count)", .purple),
+            ("Overdue", "\(mailboxProviderFollowUpItems.filter(\.isOverdue).count)", mailboxProviderFollowUpItems.contains(where: \.isOverdue) ? .red : .green),
+            ("Blocked", "\(mailboxProviderFollowUpItems.filter { $0.status == .blocked }.count)", mailboxProviderFollowUpItems.contains { $0.status == .blocked } ? .red : .green),
+            ("Needs review", "\(mailboxProviderFollowUpItems.filter { $0.reviewState != .accepted }.count)", mailboxProviderFollowUpItems.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          ForEach(mailboxProviderFollowUpItems.prefix(4)) { item in
+            TaskQueueRow(item: item, store: store)
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              OperationsWorkbenchView(store: store)
+            } label: {
+              Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
   private var spaceMailAssignedFollowUpItems: [TaskQueueItem] {
     queueItems.filter { item in
       item.isSpaceMailFollowUp
@@ -1273,9 +1322,37 @@ private struct TaskQueueItem: Identifiable {
       || searchableText.contains("mvp release")
   }
 
+  var isMailboxProviderFollowUp: Bool {
+    guard linkedEntityType == .integration else { return false }
+    if linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider") { return true }
+    if linkedEntityID.localizedCaseInsensitiveContains("mailbox-release") { return true }
+
+    let searchableText = [
+      title,
+      summary,
+      nextAction,
+      linkedEntityID
+    ].joined(separator: " ").localizedLowercase
+
+    return searchableText.contains("mailbox provider")
+      || searchableText.contains("provider release")
+      || searchableText.contains("release gate")
+      || searchableText.contains("provider test queue")
+      || searchableText.contains("mailbox release")
+  }
+
   static func task(_ task: ReviewTask) -> TaskQueueItem {
     let isSpaceMailFollowUp = task.title.localizedCaseInsensitiveContains("spacemail")
       || task.summary.localizedCaseInsensitiveContains("spacemail")
+    let isMailboxProviderFollowUp = task.linkedEntityType == .integration
+      && (
+        task.linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider")
+          || task.linkedEntityID.localizedCaseInsensitiveContains("mailbox-release")
+          || task.title.localizedCaseInsensitiveContains("mailbox provider")
+          || task.summary.localizedCaseInsensitiveContains("mailbox provider")
+          || task.title.localizedCaseInsensitiveContains("release gate")
+          || task.summary.localizedCaseInsensitiveContains("release gate")
+      )
     let isMVPFollowUp = task.linkedEntityType == .integration
       && [
         "local-data-hygiene",
@@ -1285,7 +1362,7 @@ private struct TaskQueueItem: Identifiable {
     return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
       source: .task(task),
-      sourceLabel: isMVPFollowUp ? "MVP follow-up" : isSpaceMailFollowUp ? "SpaceMail task" : "Task",
+      sourceLabel: isMailboxProviderFollowUp ? "Provider task" : isMVPFollowUp ? "MVP follow-up" : isSpaceMailFollowUp ? "SpaceMail task" : "Task",
       title: task.title,
       summary: task.summary,
       linkedEntityType: task.linkedEntityType,
@@ -1296,7 +1373,9 @@ private struct TaskQueueItem: Identifiable {
       status: task.status,
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
-      nextAction: isSpaceMailFollowUp
+      nextAction: isMailboxProviderFollowUp
+        ? "Open the release gate and Mailbox Monitor, then complete or refresh this provider follow-up"
+        : isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then complete or draft follow-up"
         : isMVPFollowUp
         ? "Complete this validation task or create a draft if someone needs the result"
@@ -1305,7 +1384,7 @@ private struct TaskQueueItem: Identifiable {
         : task.isPartialInboxOrderFollowUp
         ? "Open the order, confirm missing fields, then complete this handoff"
         : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isMVPFollowUp ? 7 : isSpaceMailFollowUp ? 6 : 0)
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isMailboxProviderFollowUp ? 8 : isMVPFollowUp ? 7 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
@@ -1366,6 +1445,7 @@ private struct TaskQueueItem: Identifiable {
     case .task(let task):
       if task.isReopenedInboxDispatchHandoff { return "Reopened dispatch handoff" }
       if task.isPartialInboxOrderFollowUp { return "Verify Inbox-created order" }
+      if isMailboxProviderFollowUp { return "Mailbox provider follow-up" }
       if isSpaceMailFollowUp { return "SpaceMail follow-up" }
       if isMVPFollowUp { return "MVP validation follow-up" }
       if isOverdue { return "Task is overdue" }
@@ -1389,6 +1469,9 @@ private struct TaskQueueItem: Identifiable {
       }
       if task.isPartialInboxOrderFollowUp {
         return "Confirm the missing order, tracking, or destination details on the linked Inbox-created order before completing this task."
+      }
+      if isMailboxProviderFollowUp {
+        return "Use the mailbox provider release gate and Mailbox Monitor to confirm the provider path is ready before completing this task."
       }
       if isSpaceMailFollowUp {
         return "Use Mailbox Monitor or Inbox to inspect the source refresh/intake context, then complete the task or create a draft for follow-up."
@@ -1427,6 +1510,7 @@ private struct TaskQueueItem: Identifiable {
     if status == .blocked { return "Blocked" }
     if isOverdue { return "Overdue" }
     if status == .completed { return reviewState == .accepted ? "Done" : "Review" }
+    if isMailboxProviderFollowUp { return "Provider" }
     if isSpaceMailFollowUp { return "SpaceMail" }
     if isMVPFollowUp { return "MVP" }
     switch source {
@@ -1443,6 +1527,7 @@ private struct TaskQueueItem: Identifiable {
     if isOverdue { return .red }
     if status == .completed && reviewState == .accepted { return .green }
     if status == .completed { return .orange }
+    if isMailboxProviderFollowUp { return .purple }
     if isSpaceMailFollowUp { return .teal }
     if isMVPFollowUp { return .purple }
     switch source {
@@ -1458,6 +1543,7 @@ private struct TaskQueueItem: Identifiable {
     if status == .blocked { return "xmark.octagon.fill" }
     if isOverdue { return "clock.badge.exclamationmark.fill" }
     if status == .completed { return reviewState == .accepted ? "checkmark.seal.fill" : "checkmark.shield.fill" }
+    if isMailboxProviderFollowUp { return "checkmark.seal.fill" }
     if isSpaceMailFollowUp { return "server.rack" }
     if isMVPFollowUp { return "checklist.checked" }
     switch source {
