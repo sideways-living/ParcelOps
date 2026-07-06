@@ -72,12 +72,45 @@ struct TimelineView: View {
     }
   }
 
+  private var mailboxProviderTimelineRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+
+    for email in store.intakeEmails {
+      let summary = store.intakeSourceSummary(for: email)
+      counts[summary.label, default: 0] += 1
+      tones[summary.label] = summary.tone
+    }
+
+    return counts
+      .map { label, count in
+        let tone = tones[label] ?? ""
+        let detail: String
+        switch tone {
+        case "spacemail":
+          detail = "SpaceMail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up."
+        case "gmail":
+          detail = "Gmail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up."
+        case "mock":
+          detail = "Mock mailbox intake supports local workflow testing. Confirm live work against SpaceMail or Gmail when available."
+        default:
+          detail = "Local mailbox intake can appear across the timeline once it is linked to an order or follow-up record."
+        }
+        return (label: label, count: count, detail: detail, symbol: providerSymbol(for: tone, label: label), color: providerColor(for: tone))
+      }
+      .sorted { lhs, rhs in
+        if lhs.count != rhs.count { return lhs.count > rhs.count }
+        return lhs.label < rhs.label
+      }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
         filters
         inboxSourceTrailTimelinePanel
+        mailboxProviderTimelinePanel
         inboxDispatchTimelinePanel
 
         SettingsPanel(title: "Timeline results", symbol: "calendar.badge.clock") {
@@ -271,6 +304,45 @@ struct TimelineView: View {
     }
   }
 
+  @ViewBuilder
+  private var mailboxProviderTimelinePanel: some View {
+    if !mailboxProviderTimelineRows.isEmpty {
+      SettingsPanel(title: "Mailbox provider timeline context", symbol: "point.3.connected.trianglepath.dotted") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this when tracing where a timeline item came from. Provider labels are local source context only; Timeline never mutates mailbox messages.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+            ForEach(mailboxProviderTimelineRows, id: \.label) { row in
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: row.symbol)
+                  .foregroundStyle(row.color)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  HStack(alignment: .firstTextBaseline) {
+                    Text(row.label)
+                      .font(.caption.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Badge("\(row.count) intake", color: row.color)
+                  }
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     entityFilter = nil
     riskFilter = nil
@@ -338,6 +410,29 @@ struct TimelineView: View {
     searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func providerColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "gmail": return .blue
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
+  }
+
+  private func providerSymbol(for tone: String, label: String) -> String {
+    if tone == "gmail" || label.localizedCaseInsensitiveContains("Gmail") {
+      return "envelope.badge.shield.half.filled"
+    }
+    if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
+      return "server.rack"
+    }
+    if tone == "mock" {
+      return "testtube.2"
+    }
+    return "envelope.open.fill"
   }
 
   private func sourceTrailCount(for order: TrackedOrder) -> Int {
