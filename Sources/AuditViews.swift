@@ -392,7 +392,7 @@ struct AuditView: View {
         activityFeed
 
         SettingsPanel(title: "Detailed audit log", symbol: "line.3.horizontal.decrease.circle.fill") {
-          Text("Filter local audit history for a specific action or record type. Technical SpaceMail diagnostics stay hidden here too unless Show technical diagnostics is enabled.")
+          Text("Filter local audit history for a specific action or record type. Technical mailbox diagnostics stay hidden here too unless Show technical diagnostics is enabled.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
@@ -964,7 +964,7 @@ struct AuditView: View {
 
   private var filterBar: some View {
     FilterControlGrid {
-      TextField("Search audit, SpaceMail, order, tracking, parser reason, or record ID", text: $auditSearchText)
+      TextField("Search audit, mailbox, Gmail, order, tracking, parser reason, or record ID", text: $auditSearchText)
         .textFieldStyle(.roundedBorder)
 
       Picker("Action", selection: $selectedAction) {
