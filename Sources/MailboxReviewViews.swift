@@ -99,37 +99,17 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
-        SpaceMailPrimaryStatusStrip(store: store, title: "Provider intake at a glance")
-
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-        MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
-        MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-        MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
-        MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
-        SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
-        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
-        SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
-        MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-        MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
-        MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
-        MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
+        MailboxProviderOperatorReadinessStack(
+          store: store,
+          title: "Provider intake at a glance",
+          detail: "Start here to decide whether SpaceMail or Gmail is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness."
+        )
 
         MailboxSpaceMailReadinessPanel(store: store)
 
         MailboxSpaceMailRunbookPanel(store: store)
 
         MailboxGmailReadinessPanel(store: store)
-
-        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-        GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
-        SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
-        MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
-        MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
-        GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-
-        GmailOperationsRunbook()
 
         SpaceMailOperatorGuidanceStack(store: store)
 

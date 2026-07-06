@@ -5237,6 +5237,88 @@ struct SpaceMailPrimaryStatusStrip: View {
   }
 }
 
+struct MailboxProviderOperatorReadinessStack: View {
+  var store: ParcelOpsStore
+  var title: String = "Provider intake at a glance"
+  var detail: String = "Use this as the operator-level mailbox provider summary. Detailed setup, QA, troubleshooting, and release evidence is still available below."
+  var showAdvancedEvidence: Bool = true
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      SettingsPanel(title: title, symbol: "point.3.connected.trianglepath.dotted") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text(detail)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
+          MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Inbox", systemImage: "tray.full.fill")
+            }
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      if showAdvancedEvidence {
+        DisclosureGroup {
+          VStack(alignment: .leading, spacing: 12) {
+            MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
+            MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
+            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+            MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+            MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
+            SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
+            SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+            SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
+            MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
+            MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
+            MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
+            SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
+            MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+            MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
+            GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+            GmailOperationsRunbook()
+          }
+          .padding(.top, 10)
+        } label: {
+          Label("Advanced provider evidence, QA, and runbooks", systemImage: "doc.text.magnifyingglass")
+            .font(.headline)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+      }
+    }
+  }
+}
+
 struct OperatorSupportSnapshotCard: View {
   var store: ParcelOpsStore
   var title: String = "Operator support snapshot"

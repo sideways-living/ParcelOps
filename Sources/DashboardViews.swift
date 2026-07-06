@@ -1198,35 +1198,11 @@ struct DashboardView: View {
         .padding(10)
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-        SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
-
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-        MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
-        MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-        MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
-        MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
-        SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
-        SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
-        MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-        MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
-        MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
-        MailboxReleaseTestPlanCard(summary: store.mailboxReleaseTestPlanSummary)
-
-        CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-
-        DisclosureGroup {
-          GmailOperationsRunbook()
-            .padding(.top, 8)
-        } label: {
-          Label("Gmail operator runbook", systemImage: "envelope.badge.shield.half.filled")
-            .font(.subheadline.weight(.semibold))
-        }
-        .padding(12)
-        .background(.background, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+        MailboxProviderOperatorReadinessStack(
+          store: store,
+          title: "Combined provider intake",
+          detail: "Use this compact provider summary as the Dashboard entry point. Open advanced evidence only when release gates, setup, Gmail, SpaceMail, or parser decisions need investigation."
+        )
 
         DisclosureGroup {
           SpaceMailOperationsRunbook()
