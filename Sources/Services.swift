@@ -600,9 +600,9 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
     let response: GmailMessageResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "messages.get")
     let headers = response.payload?.headers ?? []
-    let subject = header("Subject", in: headers) ?? "(No subject)"
-    let sender = header("From", in: headers) ?? connection.emailAddress
-    let received = header("Date", in: headers) ?? response.safeInternalDateText
+    let subject = gmailHeader("Subject", in: headers) ?? "(No subject)"
+    let sender = gmailHeader("From", in: headers) ?? connection.emailAddress
+    let received = gmailHeader("Date", in: headers) ?? response.safeInternalDateText
     let messageID = header("Message-ID", in: headers)?.trimmingCharacters(in: .whitespacesAndNewlines)
     let providerID = messageID?.isEmpty == false
       ? "gmail-message-id-\(stableProviderComponent(messageID!))"
@@ -673,6 +673,19 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
   private func header(_ name: String, in headers: [GmailHeader]) -> String? {
     headers.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.value
+  }
+
+  private func gmailHeader(_ name: String, in headers: [GmailHeader]) -> String? {
+    guard let value = header(name, in: headers) else { return nil }
+    return cleanGmailHeaderValue(value)
+  }
+
+  private func cleanGmailHeaderValue(_ value: String) -> String {
+    decodeMalformedEncodedWordPrefixIfNeeded(decodeEncodedWords(in: value))
+      .replacingOccurrences(of: "\r\n", with: " ")
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func stableProviderComponent(_ value: String) -> String {
@@ -814,6 +827,89 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       .replacingOccurrences(of: "\n", with: " ")
       .replacingOccurrences(of: "\r", with: " ")
     return String(redacted.prefix(limit))
+  }
+
+  private func decodeEncodedWords(in value: String) -> String {
+    let pattern = #"=\?([^?]+)\?([BbQq])\?([^?]+)\?="#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return value }
+    var result = value
+    let matches = regex.matches(in: value, range: NSRange(value.startIndex..<value.endIndex, in: value)).reversed()
+    for match in matches {
+      guard let fullRange = Range(match.range(at: 0), in: value),
+            let charsetRange = Range(match.range(at: 1), in: value),
+            let markerRange = Range(match.range(at: 2), in: value),
+            let payloadRange = Range(match.range(at: 3), in: value) else { continue }
+      let charset = String(value[charsetRange])
+      let marker = String(value[markerRange])
+      let payload = String(value[payloadRange])
+      let replacement: String?
+      if marker.caseInsensitiveCompare("B") == .orderedSame {
+        replacement = Data(base64Encoded: payload).flatMap { string(from: $0, charset: charset) }
+      } else {
+        replacement = decodeRFC2047QEncodedWord(payload, charset: charset)
+      }
+      guard let replacement else { continue }
+      result.replaceSubrange(fullRange, with: replacement)
+    }
+    return result
+  }
+
+  private func decodeMalformedEncodedWordPrefixIfNeeded(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let pattern = #"^=\?([^?]+)\?([Qq])\?(.+)$"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)),
+          let charsetRange = Range(match.range(at: 1), in: trimmed),
+          let payloadRange = Range(match.range(at: 3), in: trimmed) else {
+      return value
+    }
+
+    var payload = String(trimmed[payloadRange])
+    if payload.hasSuffix("?=") {
+      payload.removeLast(2)
+    }
+    if payload.hasSuffix("=") {
+      payload.removeLast()
+    }
+    return decodeRFC2047QEncodedWord(payload, charset: String(trimmed[charsetRange])) ?? value
+  }
+
+  private func decodeRFC2047QEncodedWord(_ payload: String, charset: String) -> String? {
+    var bytes: [UInt8] = []
+    let scalars = Array(payload.utf8)
+    var index = 0
+    while index < scalars.count {
+      if scalars[index] == 95 {
+        bytes.append(32)
+        index += 1
+      } else if scalars[index] == 61, index + 2 < scalars.count,
+                let decoded = UInt8(String(bytes: [scalars[index + 1], scalars[index + 2]], encoding: .utf8) ?? "", radix: 16) {
+        bytes.append(decoded)
+        index += 3
+      } else {
+        bytes.append(scalars[index])
+        index += 1
+      }
+    }
+    return string(from: Data(bytes), charset: charset)
+  }
+
+  private func string(from data: Data, charset: String) -> String? {
+    let normalized = charset
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: "_", with: "-")
+    switch normalized {
+    case "utf-8", "utf8":
+      return String(data: data, encoding: .utf8)
+    case "iso-8859-1", "latin1", "latin-1":
+      return String(data: data, encoding: .isoLatin1)
+    case "us-ascii", "ascii":
+      return String(data: data, encoding: .ascii)
+    default:
+      return String(data: data, encoding: .utf8)
+        ?? String(data: data, encoding: .isoLatin1)
+    }
   }
 
   private static func safeErrorSummary(_ error: Error) -> String {
