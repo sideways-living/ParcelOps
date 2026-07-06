@@ -18282,6 +18282,128 @@ final class ParcelOpsStore {
     )
   }
 
+  func gmailReleaseSelfCheckSummary(for connection: GmailMailboxConnection) -> GmailReleaseSelfCheckSummary {
+    let readiness = gmailOAuthReadinessSummary(for: connection)
+    let authState = gmailAuthSessionState(for: connection)
+    let setupChecklist = gmailSetupTestChecklist(for: connection)
+    let health = gmailIntakeHealthSummary(for: connection)
+    let hasSignedIn = authState.status == .connected
+    let hasRealRefreshEvidence = connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail") ||
+      connection.lastManualRefreshDate != "Never"
+    let hasRefreshOutcome = connection.lastRefreshFetchedCount > 0 ||
+      connection.lastRefreshImportedCount > 0 ||
+      connection.lastRefreshDuplicateCount > 0 ||
+      connection.lastRefreshFilteredNonOrderCount > 0 ||
+      (connection.lastRefreshUncertainCount ?? 0) > 0 ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("No messages")
+    let pendingUncertain = connection.uncertainMessages?.count ?? 0
+    let pendingFiltered = connection.filteredMessages?.count ?? 0
+    let hasClassifierEvidence = connection.classifierTestResults?.isEmpty == false ||
+      connection.lastRefreshFilteredExamples?.isEmpty == false ||
+      connection.lastRefreshUncertainExamples?.isEmpty == false ||
+      connection.lastRefreshFilteredNonOrderCount > 0 ||
+      (connection.lastRefreshUncertainCount ?? 0) > 0
+    let hasAuditEvidence = auditEvents.contains { event in
+      event.entityType == .gmailMailboxConnection &&
+        (event.entityID == connection.id.uuidString || event.entityLabel == connection.displayName)
+    }
+    let hasActionableReview = connection.lastRefreshImportedCount > 0 || pendingUncertain > 0
+    let filteredReviewStateClear = pendingUncertain == 0 && pendingFiltered == 0
+
+    let items = [
+      GmailReleaseSelfCheckItem(
+        title: "Setup and callback",
+        detail: readiness.isReady ? "Gmail address, labels, OAuth client ID, callback scheme, scope, consent notes, and compiled callback checks are ready." : readiness.detailText,
+        nextAction: readiness.isReady ? "No setup action needed before sign-in." : "Use Edit setup and update compiled plist/project values before live testing.",
+        isComplete: readiness.isReady,
+        tone: readiness.isReady ? "success" : "warning",
+        symbolName: "gearshape.2.fill"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Google sign-in",
+        detail: hasSignedIn ? "GoogleSignIn reports a connected account: \(authState.signedInAccount)." : "No connected Google session is recorded for this Gmail setup.",
+        nextAction: hasSignedIn ? "Proceed to manual read-only Gmail refresh." : "Run Test real Google sign-in from the Gmail setup row.",
+        isComplete: hasSignedIn,
+        tone: hasSignedIn ? "success" : "attention",
+        symbolName: "person.badge.key"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Manual read-only refresh",
+        detail: hasRefreshOutcome ? "\(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount ?? 0) uncertain." : "No completed real Gmail refresh outcome is recorded yet.",
+        nextAction: hasRefreshOutcome ? "Use Inbox or Mailbox Monitor for the next local action." : "Run real Gmail refresh after sign-in, or use mock refresh for workflow testing.",
+        isComplete: hasRefreshOutcome,
+        tone: hasRefreshOutcome ? "success" : hasRealRefreshEvidence ? "attention" : "neutral",
+        symbolName: "tray.and.arrow.down"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Mixed-mailbox filtering",
+        detail: connection.mailboxMode == .mixedFiltered
+          ? (hasClassifierEvidence ? "Mixed Gmail filtering has refresh or classifier evidence. Pending uncertain: \(pendingUncertain); filtered review examples: \(pendingFiltered)." : "Mixed Gmail mode is selected, but no classifier evidence has been recorded yet.")
+          : "Dedicated Gmail mode is selected; fetched messages pass directly to intake duplicate/import handling.",
+        nextAction: connection.mailboxMode == .mixedFiltered && !hasClassifierEvidence ? "Run the Gmail classifier suite before relying on mixed-mailbox filtering." : filteredReviewStateClear ? "No filter review is currently blocking the path." : "Review or dismiss uncertain/filtered examples in Mailbox Monitor.",
+        isComplete: connection.mailboxMode == .dedicatedOrderMailbox || (hasClassifierEvidence && filteredReviewStateClear),
+        tone: filteredReviewStateClear ? (hasClassifierEvidence || connection.mailboxMode == .dedicatedOrderMailbox ? "success" : "attention") : "attention",
+        symbolName: "line.3.horizontal.decrease.circle"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Inbox handoff",
+        detail: health.detail,
+        nextAction: health.nextAction,
+        isComplete: health.tone != "warning" && (connection.lastRefreshImportedCount > 0 || hasRefreshOutcome),
+        tone: health.tone == "warning" ? "warning" : health.tone,
+        symbolName: "tray.full.fill"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Audit evidence",
+        detail: hasAuditEvidence ? "Audit contains Gmail setup, sign-in, refresh, or review evidence for this mailbox." : "No Gmail audit evidence is recorded for this setup yet.",
+        nextAction: hasAuditEvidence ? "Use Audit only when detailed diagnostics are needed." : "Run a readiness check, sign-in test, mock refresh, or real refresh to create audit evidence.",
+        isComplete: hasAuditEvidence,
+        tone: hasAuditEvidence ? "success" : "neutral",
+        symbolName: "list.clipboard.fill"
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    let blockingCount = items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    let attentionCount = items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    let verdict: String
+    let tone: String
+    let nextAction: String
+    if blockingCount > 0 {
+      verdict = "Gmail release blocked"
+      tone = "warning"
+      nextAction = items.first { !$0.isComplete && $0.tone == "warning" }?.nextAction ?? "Fix Gmail setup blockers."
+    } else if attentionCount > 0 {
+      verdict = "Gmail needs operator action"
+      tone = "attention"
+      nextAction = items.first { !$0.isComplete && $0.tone == "attention" }?.nextAction ?? "Complete the next Gmail setup action."
+    } else if hasActionableReview {
+      verdict = "Gmail created review work"
+      tone = "attention"
+      nextAction = "Review imported or uncertain Gmail messages before calling the path complete."
+    } else if completedCount == items.count {
+      verdict = "Gmail path ready"
+      tone = "success"
+      nextAction = "Run manual refresh only when you want to check for new Gmail order updates."
+    } else {
+      verdict = "Gmail path partially ready"
+      tone = "neutral"
+      nextAction = items.first { !$0.isComplete }?.nextAction ?? "Continue Gmail setup testing."
+    }
+
+    return GmailReleaseSelfCheckSummary(
+      connectionID: connection.id,
+      title: "Gmail release self-check",
+      verdict: verdict,
+      detail: "\(completedCount)/\(items.count) checks complete. Setup checklist: \(setupChecklist.statusText). Latest health: \(health.verdict).",
+      nextAction: nextAction,
+      tone: tone,
+      completedCount: completedCount,
+      totalCount: items.count,
+      items: items
+    )
+  }
+
   private func gmailRedirectScheme(from value: String) -> String {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {

@@ -473,6 +473,7 @@ struct IntegrationsView: View {
               readiness: store.gmailOAuthReadinessSummary(for: connection),
               implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
               setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
+              releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
@@ -1139,6 +1140,7 @@ struct GmailMailboxConnectionRow: View {
   var readiness: GmailOAuthReadinessSummary
   var implementationPlan: GmailOAuthImplementationPlan
   var setupTestChecklist: GmailSetupTestChecklist
+  var releaseSelfCheck: GmailReleaseSelfCheckSummary
   var authState: GmailAuthSessionState
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
@@ -1176,6 +1178,7 @@ struct GmailMailboxConnectionRow: View {
     readiness: GmailOAuthReadinessSummary,
     implementationPlan: GmailOAuthImplementationPlan,
     setupTestChecklist: GmailSetupTestChecklist,
+    releaseSelfCheck: GmailReleaseSelfCheckSummary,
     authState: GmailAuthSessionState,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
@@ -1206,6 +1209,7 @@ struct GmailMailboxConnectionRow: View {
     self.readiness = readiness
     self.implementationPlan = implementationPlan
     self.setupTestChecklist = setupTestChecklist
+    self.releaseSelfCheck = releaseSelfCheck
     self.authState = authState
     self.onSave = onSave
     self.onReviewed = onReviewed
@@ -1313,6 +1317,60 @@ struct GmailMailboxConnectionRow: View {
       }
       .padding(10)
       .background(gmailOperatorNextColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: releaseSelfCheck.tone == "success" ? "checkmark.seal.fill" : "exclamationmark.shield.fill")
+            .foregroundStyle(releaseSelfCheckColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(releaseSelfCheck.title)
+              .font(.subheadline.weight(.semibold))
+            Text(releaseSelfCheck.detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(releaseSelfCheck.nextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(releaseSelfCheckColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(releaseSelfCheck.verdict, color: releaseSelfCheckColor)
+        }
+        MetricStrip(items: [
+          ("Checks", "\(releaseSelfCheck.completedCount)/\(releaseSelfCheck.totalCount)", releaseSelfCheckColor),
+          ("Setup", readiness.isReady ? "Ready" : "Blocked", readiness.isReady ? .green : .orange),
+          ("Sign-in", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", connection.lastManualRefreshDate == "Never" ? "Not run" : "Recorded", connection.lastManualRefreshDate == "Never" ? .secondary : .teal)
+        ])
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+          ForEach(releaseSelfCheck.items) { item in
+            VStack(alignment: .leading, spacing: 5) {
+              Label(item.title, systemImage: item.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(forReleaseTone: item.tone))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text(item.nextAction)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color(forReleaseTone: item.tone))
+                .lineLimit(2)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(forReleaseTone: item.tone).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        Text("This is a local release gate only. It does not open Google sign-in, fetch Gmail, store token values, or change mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(releaseSelfCheckColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 8) {
         Label("Latest Gmail refresh", systemImage: "tray.and.arrow.down")
@@ -1979,6 +2037,23 @@ struct GmailMailboxConnectionRow: View {
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
     return .secondary
+  }
+
+  private var releaseSelfCheckColor: Color {
+    color(forReleaseTone: releaseSelfCheck.tone)
+  }
+
+  private func color(forReleaseTone tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
   }
 
   private var gmailClassifierColor: Color {
