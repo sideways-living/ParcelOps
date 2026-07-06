@@ -888,6 +888,32 @@ final class ParcelOpsStore {
 
     if !gmailMailboxConnections.isEmpty {
       let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+      let compiledConfigBlockers = gmailMailboxConnections.filter { connection in
+        let readiness = gmailOAuthReadinessSummary(for: connection)
+        return readiness.missingFields.contains { field in
+          field.localizedCaseInsensitiveContains("Compiled App Info.plist")
+            || field.localizedCaseInsensitiveContains("compiled")
+        }
+      }
+      if !compiledConfigBlockers.isEmpty {
+        let blockerDetails = compiledConfigBlockers.prefix(3).map { connection in
+          let readiness = gmailOAuthReadinessSummary(for: connection)
+          return "\(connection.displayName): \(readiness.compiledClientIDStatus); \(readiness.compiledCallbackSchemeStatus)"
+        }
+        items.append(
+          MailboxProviderTestQueueItem(
+            providerName: "Gmail",
+            phase: "Compile config",
+            title: "Rebuild app with Gmail OAuth values",
+            detail: "Saved Gmail setup values do not yet match the compiled app configuration required by GoogleSignIn callback handling.",
+            nextAction: "Update Project.json and App/Info.plist with the Google iOS OAuth client ID and reversed callback scheme, regenerate/rebuild, then rerun readiness.",
+            evidence: blockerDetails.joined(separator: " | "),
+            isComplete: false,
+            tone: "warning",
+            symbol: "app.badge.checkmark"
+          )
+        )
+      }
       items.append(
         MailboxProviderTestQueueItem(
           providerName: "Gmail",
@@ -1313,6 +1339,29 @@ final class ParcelOpsStore {
     }
 
     if !gmailMailboxConnections.isEmpty {
+      let compiledConfigBlockers = gmailMailboxConnections.compactMap { connection -> String? in
+        let readiness = gmailOAuthReadinessSummary(for: connection)
+        let hasCompiledBlocker = readiness.missingFields.contains { field in
+          field.localizedCaseInsensitiveContains("Compiled App Info.plist")
+            || field.localizedCaseInsensitiveContains("compiled")
+        }
+        guard hasCompiledBlocker else { return nil }
+        return "\(connection.displayName): \(readiness.compiledClientIDStatus); \(readiness.compiledCallbackSchemeStatus)"
+      }
+      if !compiledConfigBlockers.isEmpty {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "Compiled Gmail app config mismatch",
+            symptom: "GoogleSignIn callback or real Gmail sign-in may fail even when local setup fields look filled in.",
+            likelyCause: "Project.json and App/Info.plist still contain placeholder or mismatched GIDClientID / URL scheme values.",
+            nextAction: "Compile the app with the saved Google iOS OAuth client ID and reversed callback scheme, then rerun Gmail readiness.",
+            evidence: compiledConfigBlockers.prefix(3).joined(separator: " | "),
+            tone: "warning",
+            symbol: "app.badge.checkmark"
+          )
+        )
+      }
       if gmailReadinessBlockers > 0 {
         issues.append(
           MailboxProviderTroubleshootingIssue(
