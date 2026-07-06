@@ -17,7 +17,7 @@ struct DashboardView: View {
     Array(repeating: GridItem(.flexible(), spacing: 14), count: isCompact ? 1 : 2)
   }
   private var incomingAttentionCount: Int {
-    store.reviewIntakeEmails.count + spaceMailHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
+    store.reviewIntakeEmails.count + mailboxHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
   }
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
@@ -94,6 +94,14 @@ struct DashboardView: View {
     store.spaceMailIntakeHealthSummaries.filter {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
     }.count
+  }
+  private var gmailHealthAttentionCount: Int {
+    store.gmailIntakeHealthSummaries.filter {
+      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
+    }.count
+  }
+  private var mailboxHealthAttentionCount: Int {
+    spaceMailHealthAttentionCount + gmailHealthAttentionCount
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
@@ -1492,7 +1500,7 @@ struct DashboardView: View {
             MetricStrip(items: [
               ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
               ("Emails", "\(store.reviewIntakeEmails.count)", .blue),
-              ("Mailbox", "\(spaceMailHealthAttentionCount)", spaceMailHealthAttentionCount == 0 ? .green : .orange),
+              ("Mailbox", "\(mailboxHealthAttentionCount)", mailboxHealthAttentionCount == 0 ? .green : .orange),
               ("Parser QA", spaceMailParserSuiteChecks.isEmpty ? "Not run" : "\(spaceMailParserSuitePasses.count)/\(spaceMailParserSuiteChecks.count)", spaceMailParserQATone),
               ("Imports", "\(store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count)", .purple),
               ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
@@ -1506,7 +1514,7 @@ struct DashboardView: View {
             MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-            CompactSpaceMailHealthList(summaries: store.spaceMailIntakeHealthSummaries, store: store)
+            CompactMailboxHealthList(spaceMailSummaries: store.spaceMailIntakeHealthSummaries, gmailSummaries: store.gmailIntakeHealthSummaries, store: store)
             CompactIntakeList(emails: store.newestIntakeEmails, store: store)
           }
         }
@@ -2647,31 +2655,45 @@ struct CompactIntakeList: View {
   }
 }
 
-struct CompactSpaceMailHealthList: View {
-  var summaries: [SpaceMailIntakeHealthSummary]
+struct CompactMailboxHealthList: View {
+  var spaceMailSummaries: [SpaceMailIntakeHealthSummary]
+  var gmailSummaries: [GmailIntakeHealthSummary]
   var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Mailbox intake health", symbol: "server.rack") {
-      if summaries.isEmpty {
+      if spaceMailSummaries.isEmpty && gmailSummaries.isEmpty {
         NavigationLink {
           MailboxView(store: store)
         } label: {
           CompactRow(
-            title: "No SpaceMail mailbox",
-            detail: "Add a SpaceMail setup when you are ready to use real IMAP intake.",
+            title: "No mailbox refresh summary",
+            detail: "Add SpaceMail or Gmail setup when you are ready to test real mailbox intake.",
             badge: "Setup",
             color: .secondary
           )
         }
         .buttonStyle(.plain)
       } else {
-        ForEach(summaries.prefix(3)) { summary in
+        ForEach(spaceMailSummaries.prefix(2)) { summary in
           NavigationLink {
             MailboxView(store: store)
           } label: {
             CompactRow(
-              title: summary.verdict,
+              title: "SpaceMail: \(summary.verdict)",
+              detail: "\(summary.displayName) • \(summary.nextAction)",
+              badge: "\(summary.importedCount) in / \(summary.filteredCount) filtered",
+              color: color(for: summary)
+            )
+          }
+          .buttonStyle(.plain)
+        }
+        ForEach(gmailSummaries.prefix(2)) { summary in
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            CompactRow(
+              title: "Gmail: \(summary.verdict)",
               detail: "\(summary.displayName) • \(summary.nextAction)",
               badge: "\(summary.importedCount) in / \(summary.filteredCount) filtered",
               color: color(for: summary)
@@ -2684,6 +2706,19 @@ struct CompactSpaceMailHealthList: View {
   }
 
   private func color(for summary: SpaceMailIntakeHealthSummary) -> Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
+    }
+  }
+
+  private func color(for summary: GmailIntakeHealthSummary) -> Color {
     switch summary.tone {
     case "success":
       return .green
