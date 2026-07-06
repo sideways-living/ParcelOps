@@ -45,7 +45,7 @@ struct GoogleGmailAuthAdapter {
     let handled = GIDSignIn.sharedInstance.handle(url)
     return handled
       ? "Gmail callback URL scheme detected and forwarded to GoogleSignIn. No Gmail API mailbox fetch was started by this callback."
-      : "Gmail callback URL scheme detected, but GoogleSignIn did not match it to an active sign-in session. Real Gmail sign-in is not enabled yet."
+      : "Gmail callback URL scheme detected, but GoogleSignIn did not match it to an active sign-in session. Check that the compiled callback URL scheme matches the saved Gmail setup and retry the explicit real sign-in test."
     #else
     return "Gmail callback URL scheme detected, but GoogleSignIn is not linked in this build."
     #endif

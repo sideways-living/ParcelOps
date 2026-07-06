@@ -1785,6 +1785,16 @@ struct GmailMailboxConnectionRow: View {
             .font(.caption2)
             .foregroundStyle(readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? .green : .orange)
             .fixedSize(horizontal: false, vertical: true)
+          Text("Compile-time handoff: update Project.json and App/Info.plist with the same Google iOS OAuth client ID and reversed URL scheme saved here, then regenerate/rebuild the Xcode project. Bundle ID must remain app.bitrig.parcelops; never add a Google client secret.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if !readiness.isReady {
+            Text("Before real sign-in can be reliable: \(readiness.missingFields.prefix(5).joined(separator: ", "))\(readiness.missingFields.count > 5 ? ", ..." : "")")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
         .padding(8)
         .background((readiness.isReady ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
