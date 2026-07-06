@@ -99,6 +99,8 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
+        SpaceMailPrimaryStatusStrip(store: store, title: "Provider intake at a glance")
+
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
         MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
