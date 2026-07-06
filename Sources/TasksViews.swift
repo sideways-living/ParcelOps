@@ -121,6 +121,89 @@ struct TasksView: View {
     store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
   }
 
+  private var mailboxFetchedCount: Int {
+    spaceMailFetchedCount + gmailFetchedCount
+  }
+
+  private var mailboxImportedCount: Int {
+    spaceMailImportedCount + gmailImportedCount
+  }
+
+  private var mailboxFilteredCount: Int {
+    spaceMailFilteredCount + gmailFilteredCount
+  }
+
+  private var mailboxUncertainCount: Int {
+    spaceMailUncertainCount + gmailUncertainCount
+  }
+
+  private var mailboxWarningCount: Int {
+    gmailWarningCount + spaceMailParserIssueCount
+  }
+
+  private var mailboxTaskReadinessTone: Color {
+    if mailboxWarningCount > 0 { return .orange }
+    if mailboxUncertainCount > 0 || pendingMailboxReviewCount > 0 { return .teal }
+    if mailboxImportedCount > 0 || readyInboxLinkCount > 0 { return .green }
+    if mailboxFilteredCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var mailboxTaskReadinessTitle: String {
+    if mailboxWarningCount > 0 { return "Mailbox setup or parser context needs review" }
+    if mailboxUncertainCount > 0 || pendingMailboxReviewCount > 0 { return "Mailbox review belongs in Mailbox Monitor first" }
+    if mailboxImportedCount > 0 || readyInboxLinkCount > 0 { return "Imported mailbox work belongs in Inbox first" }
+    if mailboxFilteredCount > 0 { return "Mixed-mailbox filtering is keeping Tasks clean" }
+    return "Mailbox intake has no task pressure"
+  }
+
+  private var mailboxTaskReadinessDetail: String {
+    if mailboxWarningCount > 0 {
+      return "\(mailboxWarningCount) mailbox warning or parser context item\(mailboxWarningCount == 1 ? "" : "s") should be checked before creating assigned task backlog."
+    }
+    if mailboxUncertainCount > 0 || pendingMailboxReviewCount > 0 {
+      let count = max(mailboxUncertainCount, pendingMailboxReviewCount)
+      return "\(count) uncertain or filtered message preview\(count == 1 ? "" : "s") are review context. Import or dismiss them locally before creating follow-up tasks."
+    }
+    if mailboxImportedCount > 0 || readyInboxLinkCount > 0 {
+      let count = max(mailboxImportedCount, readyInboxLinkCount)
+      return "\(count) mailbox intake item\(count == 1 ? "" : "s") should be triaged in Inbox and converted into orders before task ownership is needed."
+    }
+    if mailboxFilteredCount > 0 {
+      return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox, so they should not appear as task work unless manually promoted."
+    }
+    return "Manual mailbox refreshes have not produced assigned follow-up. Use Mailbox Monitor only when setup, refresh, or classifier checks are needed."
+  }
+
+  private var mailboxTaskRoutingItems: [(title: String, detail: String, symbol: String, color: Color)] {
+    [
+      (
+        "Setup and refresh",
+        "Use Mailbox Monitor for SpaceMail/Gmail credentials, sign-in, labels, manual refresh, and classifier diagnostics.",
+        "server.rack",
+        mailboxWarningCount > 0 ? .orange : .teal
+      ),
+      (
+        "Imported mail",
+        "Use Inbox to review detected order fields and create or link local orders before assigning follow-up.",
+        "tray.full.fill",
+        mailboxImportedCount > 0 || readyInboxLinkCount > 0 ? .green : .secondary
+      ),
+      (
+        "Uncertain mail",
+        "Use Mailbox Monitor to import or dismiss uncertain previews. They stay out of Inbox until an operator chooses.",
+        "questionmark.folder.fill",
+        mailboxUncertainCount > 0 ? .orange : .secondary
+      ),
+      (
+        "Assigned ownership",
+        "Create Tasks only when a named owner, due date, blocker, or handoff is needed after mailbox review.",
+        "checklist",
+        intakeLinkedTaskItems.isEmpty ? .secondary : .purple
+      )
+    ]
+  }
+
   private var intakeLinkedTaskItems: [TaskQueueItem] {
     queueItems.filter { item in
       item.linkedEntityType == .intakeEmail
@@ -258,6 +341,7 @@ struct TasksView: View {
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel
+        mailboxIntakeTaskReadinessPanel
         inboxParserTaskContextPanel
         gmailTaskContextPanel
         mvpValidationPanel
@@ -593,6 +677,79 @@ struct TasksView: View {
             MailboxView(store: store)
           } label: {
             Label("Open Mailbox Monitor", systemImage: "server.rack")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var mailboxIntakeTaskReadinessPanel: some View {
+    SettingsPanel(title: "Mailbox intake task readiness", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: mailboxTaskReadinessTone == .green ? "checkmark.circle.fill" : "arrow.triangle.branch")
+            .font(.title3)
+            .foregroundStyle(mailboxTaskReadinessTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(mailboxTaskReadinessTitle)
+              .font(.headline)
+            Text(mailboxTaskReadinessDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(mailboxFetchedCount)", mailboxFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(mailboxImportedCount)", mailboxImportedCount > 0 ? .green : .secondary),
+          ("Ready Inbox", "\(readyInboxLinkCount)", readyInboxLinkCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount > 0 ? .teal : .secondary),
+          ("Warnings", "\(mailboxWarningCount)", mailboxWarningCount > 0 ? .orange : .green),
+          ("Assigned", "\(intakeLinkedTaskItems.count)", intakeLinkedTaskItems.isEmpty ? .secondary : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(Array(mailboxTaskRoutingItems.enumerated()), id: \.offset) { _, item in
+            VStack(alignment: .leading, spacing: 6) {
+              Label(item.title, systemImage: item.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(item.color)
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("This panel is a routing check, not an automation. ParcelOps still requires an operator to import, dismiss, link, create an order, or create a task locally.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(mailboxTaskReadinessTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
           }
         }
         .buttonStyle(.bordered)
