@@ -75,6 +75,35 @@ struct IntegrationsView: View {
     }
     return "Run real Gmail refresh manually when checking a Google-hosted mailbox."
   }
+  private var providerChoiceRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {
+    [
+      (
+        "SpaceMail / IMAP",
+        hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? "Ready for manual refresh" : "Credential needed") : "Not configured",
+        hasSpaceMailSetup
+          ? "Use for SpaceMail or other IMAP mailboxes. Real refresh is manual, read-only, and uses the Keychain credential prompt."
+          : "Choose this when the mailbox provider gives IMAP host, port, SSL/TLS, username, and folder settings.",
+        "server.rack",
+        hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? .green : .orange) : .secondary
+      ),
+      (
+        "Gmail / Google Workspace",
+        hasGmailSetup ? (hasGmailConnectedAuth ? "Signed in" : "Sign-in/setup needed") : "Not configured",
+        hasGmailSetup
+          ? gmailSetupNextAction
+          : "Choose this only when the mailbox is hosted by Gmail or Google Workspace. It uses Google sign-in planning and the same Inbox intake path.",
+        "envelope.badge.shield.half.filled",
+        hasGmailSetup ? (hasGmailConnectedAuth && gmailSetupBlockerCount == 0 ? .green : .orange) : .secondary
+      ),
+      (
+        "Microsoft 365",
+        store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : "Configured",
+        "Keep this as a secondary provider path unless the mailbox is actually Microsoft-hosted. Graph refresh stays explicit and read-only.",
+        "mail.stack.fill",
+        store.microsoft365MailboxConnections.isEmpty ? .secondary : .blue
+      )
+    ]
+  }
 
   private var recommendedSetupTitle: String {
     if !hasSpaceMailSetup && !hasGmailSetup {
@@ -291,6 +320,38 @@ struct IntegrationsView: View {
               ("Imported", "\((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
               ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", (((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) > 0) ? .orange : .secondary)
             ])
+
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Choose the mailbox provider path", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.subheadline.weight(.semibold))
+              Text("Use one provider path per mailbox. SpaceMail/IMAP and Gmail are the practical daily paths; Microsoft 365 remains available only when a mailbox is actually hosted there.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              ForEach(providerChoiceRows, id: \.title) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                      Text(row.title)
+                        .font(.caption.weight(.semibold))
+                      Badge(row.status, color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 0)
+                }
+              }
+            }
+            .padding(10)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
             if hasGmailSetup {
               VStack(alignment: .leading, spacing: 8) {
