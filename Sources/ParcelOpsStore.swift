@@ -3198,6 +3198,7 @@ final class ParcelOpsStore {
     let intakeQuality = mailboxIntakeQualitySummary
     let comparison = mailboxProviderComparisonSummary
     let handoff = mailboxOperationsHandoffSummary
+    let gmailBlockers = gmailReleaseBlockerSummary.blockers.filter { $0.tone == "warning" || $0.tone == "attention" }
     var blockers: [MailboxReleaseBlockerItem] = []
 
     for check in providerQA.checks where !check.isComplete {
@@ -3252,6 +3253,19 @@ final class ParcelOpsStore {
       )
     }
 
+    for blocker in gmailBlockers {
+      blockers.append(
+        MailboxReleaseBlockerItem(
+          source: "Gmail: \(blocker.source)",
+          title: blocker.title,
+          detail: blocker.detail,
+          nextAction: blocker.nextAction,
+          tone: blocker.tone,
+          symbol: blocker.symbol
+        )
+      )
+    }
+
     let warningCount = blockers.filter { $0.tone == "warning" }.count
     let attentionCount = blockers.filter { $0.tone == "attention" }.count
     let uniqueBlockers = Array(
@@ -3290,7 +3304,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Provider QA", value: "\(providerQA.completedCount)/\(providerQA.totalCount)", tone: providerQA.tone),
-        SpaceMailReleaseSnapshotMetric(title: "Intake QA", value: "\(intakeQuality.completedCount)/\(intakeQuality.totalCount)", tone: intakeQuality.tone)
+        SpaceMailReleaseSnapshotMetric(title: "Intake QA", value: "\(intakeQuality.completedCount)/\(intakeQuality.totalCount)", tone: intakeQuality.tone),
+        SpaceMailReleaseSnapshotMetric(title: "Gmail", value: "\(gmailBlockers.count)", tone: gmailBlockers.contains { $0.tone == "warning" } ? "warning" : gmailBlockers.isEmpty ? "success" : "attention")
       ],
       blockers: Array(uniqueBlockers.prefix(8))
     )
