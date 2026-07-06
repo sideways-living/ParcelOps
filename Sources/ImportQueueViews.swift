@@ -51,6 +51,50 @@ struct ImportQueueView: View {
       item.sourceType == .forwardedEmail || item.suggestedLinkedOrderID != nil || item.suggestedShipmentGroupID != nil
     }
   }
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+  private var importMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
+    var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
+
+    if let summary = latestSpaceMailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      if summary.importedCount > 0 {
+        rows.append(("SpaceMail", "\(summary.importedCount) imported", "Imported SpaceMail rows should be checked in Inbox before they become staged imports or orders.", "server.rack", .green))
+      } else if uncertain > 0 {
+        rows.append(("SpaceMail", "\(uncertain) uncertain", "Uncertain SpaceMail previews remain in Mailbox Monitor until imported or dismissed.", "server.rack", .orange))
+      } else if summary.filteredCount > 0 {
+        rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered non-order SpaceMail messages should not appear in Import Queue.", "server.rack", .teal))
+      } else if summary.duplicateCount > 0 {
+        rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail messages were already captured; staged imports only change if an existing intake row is promoted.", "server.rack", .teal))
+      } else {
+        rows.append(("SpaceMail", "\(summary.fetchedCount) fetched", summary.nextAction, "server.rack", .secondary))
+      }
+    }
+
+    if let summary = latestGmailSummary {
+      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
+      if summary.importedCount > 0 {
+        rows.append(("Gmail", "\(summary.importedCount) imported", "Imported Gmail rows should be checked in Inbox before they become staged imports or orders.", "envelope.badge.shield.half.filled", .green))
+      } else if uncertain > 0 {
+        rows.append(("Gmail", "\(uncertain) uncertain", "Uncertain Gmail previews remain in Mailbox Monitor until imported or dismissed.", "envelope.badge.shield.half.filled", .orange))
+      } else if summary.filteredCount > 0 {
+        rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered non-order Gmail messages should not appear in Import Queue.", "envelope.badge.shield.half.filled", .teal))
+      } else if summary.duplicateCount > 0 {
+        rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail messages were already captured; staged imports only change if an existing intake row is promoted.", "envelope.badge.shield.half.filled", .teal))
+      } else {
+        rows.append(("Gmail", "\(summary.fetchedCount) fetched", summary.nextAction, "envelope.badge.shield.half.filled", .secondary))
+      }
+    }
+
+    if rows.isEmpty {
+      rows.append(("Mailbox", "No provider refresh", "Run SpaceMail or Gmail refresh first, then promote confirmed intake into Import Queue only when staging is useful.", "envelope.badge.fill", .secondary))
+    }
+    return rows
+  }
 
   var body: some View {
     ScrollView {
@@ -173,6 +217,38 @@ struct ImportQueueView: View {
           Badge("\(blockedCount) blocked", color: blockedCount == 0 ? .green : .orange)
           Badge("\(importItemsNeedingReview.count) needs check", color: importItemsNeedingReview.isEmpty ? .green : .orange)
         }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Mailbox provider source", systemImage: "point.3.connected.trianglepath.dotted")
+            .font(.subheadline.weight(.semibold))
+          Text("Import Queue should only contain staged records that need an extra acceptance step. Provider rows explain which mailbox path produced, filtered, or skipped intake before staging.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(importMailboxProviderRows, id: \.provider) { row in
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: row.symbol)
+                .foregroundStyle(row.color)
+                .frame(width: 22)
+              VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Badge(row.status, color: row.color)
+                }
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         if store.importQueueItems.isEmpty {
           MVPEmptyState(
