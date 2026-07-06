@@ -491,7 +491,7 @@ struct OperationsWorkbenchView: View {
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
-    let mailboxReviewCount = spaceMailUncertainCount + pendingFilteredSpaceMailCount + store.intakeParserDiagnostics.count
+    let mailboxReviewCount = spaceMailUncertainCount + pendingFilteredSpaceMailCount + gmailUncertainCount + pendingGmailFilteredReviewCount + store.intakeParserDiagnostics.count
     let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
     let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
     let taskCount = store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
@@ -513,7 +513,7 @@ struct OperationsWorkbenchView: View {
       ),
       (
         "Mailbox review",
-        "Use Mailbox Monitor for uncertain, filtered, or parser-diagnostic SpaceMail evidence that should not flood Workbench.",
+        "Use Mailbox Monitor for uncertain, filtered, or parser-diagnostic SpaceMail/Gmail evidence that should not flood Workbench.",
         mailboxReviewCount,
         "Mailbox Monitor",
         "server.rack",
