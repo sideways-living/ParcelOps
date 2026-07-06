@@ -160,6 +160,30 @@ struct OperationsWorkbenchView: View {
     gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
   }
 
+  private var mailboxFetchedCount: Int {
+    spaceMailFetchedCount + gmailFetchedCount
+  }
+
+  private var mailboxImportedCount: Int {
+    spaceMailImportedCount + gmailImportedCount
+  }
+
+  private var mailboxFilteredCount: Int {
+    spaceMailFilteredCount + gmailFilteredCount
+  }
+
+  private var mailboxUncertainCount: Int {
+    spaceMailUncertainCount + gmailUncertainCount
+  }
+
+  private var mailboxDuplicateCount: Int {
+    spaceMailDuplicateCount + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var mailboxWarningCount: Int {
+    gmailWarningCount + store.intakeParserDiagnostics.count
+  }
+
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -229,6 +253,57 @@ struct OperationsWorkbenchView: View {
       && spaceMailImportedCount == 0
       && spaceMailUncertainCount == 0
       && spaceMailFilteredCount > 0
+  }
+
+  private var mailboxFilteredOnlyOutcome: Bool {
+    mailboxFetchedCount > 0
+      && mailboxImportedCount == 0
+      && mailboxUncertainCount == 0
+      && mailboxFilteredCount > 0
+  }
+
+  private var mailboxWorkbenchBoundaryTone: String {
+    if mailboxWarningCount > 0 { return "warning" }
+    if mailboxImportedCount > 0 || mailboxUncertainCount > 0 || !inboxCreatedOrders.isEmpty { return "attention" }
+    if mailboxFilteredOnlyOutcome { return "success" }
+    if mailboxFetchedCount > 0 || mailboxDuplicateCount > 0 { return "neutral" }
+    return "neutral"
+  }
+
+  private var mailboxWorkbenchBoundaryTitle: String {
+    if mailboxWarningCount > 0 { return "Mailbox diagnostics need review" }
+    if mailboxImportedCount > 0 { return "Mailbox intake created Inbox work" }
+    if mailboxUncertainCount > 0 { return "Mailbox has uncertain order mail" }
+    if !inboxCreatedOrders.isEmpty { return "Inbox-created orders need follow-up" }
+    if mailboxFilteredOnlyOutcome { return "Mixed mailbox filtering kept Workbench clean" }
+    if mailboxDuplicateCount > 0 { return "Mailbox refresh found existing messages" }
+    if mailboxFetchedCount > 0 { return "Latest refresh created no Workbench work" }
+    return "Mailbox handoff has no current pressure"
+  }
+
+  private var mailboxWorkbenchBoundaryDetail: String {
+    if mailboxWarningCount > 0 {
+      return "\(mailboxWarningCount) mailbox diagnostic or parser issue\(mailboxWarningCount == 1 ? "" : "s") should be reviewed in Mailbox Monitor before creating Workbench exceptions."
+    }
+    if mailboxImportedCount > 0 {
+      return "\(mailboxImportedCount) likely order message\(mailboxImportedCount == 1 ? "" : "s") reached Inbox from SpaceMail or Gmail. Review or create/link orders there before expecting Workbench exceptions."
+    }
+    if mailboxUncertainCount > 0 {
+      return "\(mailboxUncertainCount) ambiguous mailbox preview\(mailboxUncertainCount == 1 ? "" : "s") is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
+    }
+    if !inboxCreatedOrders.isEmpty {
+      return "\(inboxCreatedOrders.count) Inbox-created order\(inboxCreatedOrders.count == 1 ? "" : "s") already exist. Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
+    }
+    if mailboxFilteredOnlyOutcome {
+      return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox. There is no Workbench exception until order mail is imported, promoted, or created."
+    }
+    if mailboxDuplicateCount > 0 {
+      return "\(mailboxDuplicateCount) duplicate mailbox message\(mailboxDuplicateCount == 1 ? "" : "s") were already captured or reviewed. No new Workbench work was created."
+    }
+    if mailboxFetchedCount > 0 {
+      return "The latest mailbox refresh fetched mail but produced no imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
+    }
+    return "Run SpaceMail or Gmail manual refresh from Mailbox Monitor when mailbox intake needs checking."
   }
 
   private var setupPlaceholderReviewItems: [WorkbenchItem] {
@@ -375,10 +450,11 @@ struct OperationsWorkbenchView: View {
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        Text("SpaceMail refresh trend is context for triage. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
+        Text("Mailbox refresh trends are context for triage. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        mailboxWorkbenchBoundary
         spaceMailWorkbenchBoundary
         gmailWorkbenchBoundary
         inboxParserQualityHandoff
@@ -575,6 +651,91 @@ struct OperationsWorkbenchView: View {
             SettingsView(store: store)
           } label: {
             Label("Open Settings", systemImage: "gearshape.2.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var mailboxWorkbenchBoundary: some View {
+    SettingsPanel(title: "Mailbox-to-Workbench overview", symbol: "tray.and.arrow.down.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: mailboxFilteredOnlyOutcome ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .foregroundStyle(color(for: mailboxWorkbenchBoundaryTone))
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(mailboxWorkbenchBoundaryTitle)
+              .font(.headline)
+            Text(mailboxWorkbenchBoundaryDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount == 0 ? .secondary : .orange),
+          ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
+          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .teal),
+          ("Diagnostics", "\(mailboxWarningCount)", mailboxWarningCount == 0 ? .green : .orange),
+          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 240), spacing: 10)], alignment: .leading, spacing: 10) {
+          WorkbenchMailboxRouteCard(
+            title: "Imported mail",
+            detail: "Review in Inbox and create or link orders before treating anything as an exception.",
+            count: mailboxImportedCount,
+            symbol: "tray.full.fill",
+            color: mailboxImportedCount > 0 ? .green : .secondary
+          )
+          WorkbenchMailboxRouteCard(
+            title: "Uncertain mail",
+            detail: "Import or dismiss in Mailbox Monitor. It stays out of Inbox and Workbench until promoted.",
+            count: mailboxUncertainCount,
+            symbol: "questionmark.folder.fill",
+            color: mailboxUncertainCount > 0 ? .orange : .secondary
+          )
+          WorkbenchMailboxRouteCard(
+            title: "Filtered mail",
+            detail: "Counted only for diagnostics. It should not create Workbench pressure unless manually imported.",
+            count: mailboxFilteredCount,
+            symbol: "line.3.horizontal.decrease.circle.fill",
+            color: mailboxFilteredCount > 0 ? .teal : .secondary
+          )
+          WorkbenchMailboxRouteCard(
+            title: "Assigned follow-up",
+            detail: "Only tasks, handoffs, Inbox-created orders, or dispatch gaps should become Workbench work.",
+            count: inboxCreatedOrders.count + mailboxWarningCount,
+            symbol: "checklist",
+            color: inboxCreatedOrders.isEmpty && mailboxWarningCount == 0 ? .secondary : .purple
+          )
+        }
+
+        Text("This overview reads local SpaceMail and Gmail results only. It does not fetch mail, change classifier rules, create records, or mutate mailbox messages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color(for: mailboxWorkbenchBoundaryTone))
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox triage", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Orders", systemImage: "shippingbox.fill")
           }
         }
         .buttonStyle(.bordered)
@@ -2044,6 +2205,37 @@ private struct WorkbenchActionFeedbackPanel: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.green.opacity(0.12))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WorkbenchMailboxRouteCard: View {
+  var title: String
+  var detail: String
+  var count: Int
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: symbol)
+          .foregroundStyle(color)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(count)", color: color)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
