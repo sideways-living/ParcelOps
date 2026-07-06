@@ -4656,6 +4656,36 @@ struct MailboxProviderComparisonCard: View {
         (metric.title, metric.value, color(for: metric.tone))
       })
 
+      if !summary.decisionRules.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Provider decision guide", systemImage: "signpost.right.and.left.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+            ForEach(summary.decisionRules) { rule in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: rule.symbol)
+                  .foregroundStyle(color(for: rule.tone))
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(rule.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color(for: rule.tone))
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(rule.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(color(for: rule.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+
       LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
         ForEach(summary.providers) { provider in
           VStack(alignment: .leading, spacing: 8) {

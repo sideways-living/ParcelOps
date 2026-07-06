@@ -422,6 +422,59 @@ final class ParcelOpsStore {
     let detail: String
     let tone: String
     var actionItems: [MailboxProviderActionItem] = []
+    var decisionRules: [MailboxProviderDecisionRule] = [
+      MailboxProviderDecisionRule(
+        title: "Use the provider that hosts the mailbox",
+        detail: "SpaceMail is for IMAP-hosted mailboxes; Gmail is only for Gmail or Google Workspace mailboxes. Both providers import into the same local Inbox triage flow.",
+        tone: "neutral",
+        symbol: "mail.stack.fill"
+      ),
+      MailboxProviderDecisionRule(
+        title: "Keep mixed mailboxes filtered",
+        detail: "Mixed mailbox mode should filter ordinary personal, newsletter, security, and marketing mail before it reaches Inbox. Import or task only genuine order messages.",
+        tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral",
+        symbol: "line.3.horizontal.decrease.circle"
+      ),
+      MailboxProviderDecisionRule(
+        title: "Use manual refresh as the control point",
+        detail: "SpaceMail and Gmail refreshes stay explicit, read-only, and limited to recent previews. There is no background sync, notification flow, outbound email, or mailbox mutation.",
+        tone: "success",
+        symbol: "hand.tap.fill"
+      )
+    ]
+
+    if !spaceMailIMAPConnections.isEmpty && !gmailMailboxConnections.isEmpty {
+      decisionRules.insert(
+        MailboxProviderDecisionRule(
+          title: "Both providers can run side by side",
+          detail: "Keep SpaceMail and Gmail setup records separate, then compare refresh results here before deciding which mailbox needs operator attention.",
+          tone: "attention",
+          symbol: "arrow.left.arrow.right.circle.fill"
+        ),
+        at: 1
+      )
+    } else if !gmailMailboxConnections.isEmpty {
+      decisionRules.insert(
+        MailboxProviderDecisionRule(
+          title: "Gmail is the active mailbox path",
+          detail: "Complete Google iOS OAuth client, callback scheme, sign-in, and read-only Gmail consent before relying on real Gmail refresh.",
+          tone: gmailSetupBlockers > 0 ? "warning" : "attention",
+          symbol: "envelope.badge.shield.half.filled"
+        ),
+        at: 1
+      )
+    } else if !spaceMailIMAPConnections.isEmpty {
+      decisionRules.insert(
+        MailboxProviderDecisionRule(
+          title: "SpaceMail is the active mailbox path",
+          detail: "Confirm IMAP host, folder, SSL/TLS, and Keychain credential before relying on real SpaceMail refresh.",
+          tone: spaceMailBlocked > 0 ? "warning" : "attention",
+          symbol: "server.rack"
+        ),
+        at: 1
+      )
+    }
+
     if !anyProviderConfigured {
       title = "Choose a mailbox provider"
       detail = "SpaceMail and Gmail both feed the same local Inbox intake path, but no provider setup exists yet."
@@ -566,6 +619,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain)", tone: (spaceMailUncertain + gmailUncertain) > 0 ? "attention" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers)", tone: (spaceMailBlocked + gmailSetupBlockers) > 0 ? "warning" : "success")
       ],
+      decisionRules: Array(decisionRules.prefix(4)),
       providers: [
         MailboxProviderComparisonItem(
           providerName: "SpaceMail",
