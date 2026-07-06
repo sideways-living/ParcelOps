@@ -503,6 +503,8 @@ struct IntegrationsView: View {
               store.markGmailOAuthImplementationPlanReviewed(connection)
             } onCreatePlanTask: {
               store.createReviewTaskFromGmailOAuthPlan(connection)
+            } onCreateReleaseTask: {
+              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
             } onImportUncertain: { message in
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
@@ -1156,6 +1158,7 @@ struct GmailMailboxConnectionRow: View {
   var onTokenClear: () -> Void
   var onReviewPlan: () -> Void
   var onCreatePlanTask: () -> Void
+  var onCreateReleaseTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
   var onCreateUncertainTask: (GmailReviewMessage) -> Void
@@ -1194,6 +1197,7 @@ struct GmailMailboxConnectionRow: View {
     onTokenClear: @escaping () -> Void,
     onReviewPlan: @escaping () -> Void,
     onCreatePlanTask: @escaping () -> Void,
+    onCreateReleaseTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
     onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
@@ -1225,6 +1229,7 @@ struct GmailMailboxConnectionRow: View {
     self.onTokenClear = onTokenClear
     self.onReviewPlan = onReviewPlan
     self.onCreatePlanTask = onCreatePlanTask
+    self.onCreateReleaseTask = onCreateReleaseTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
     self.onCreateUncertainTask = onCreateUncertainTask
@@ -1344,6 +1349,12 @@ struct GmailMailboxConnectionRow: View {
           ("Sign-in", authState.status.rawValue, authState.status == .connected ? .green : .orange),
           ("Refresh", connection.lastManualRefreshDate == "Never" ? "Not run" : "Recorded", connection.lastManualRefreshDate == "Never" ? .secondary : .teal)
         ])
+        CompactActionRow {
+          Button("Create release task", systemImage: "checklist", action: onCreateReleaseTask)
+          Button("Run readiness check", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          Button("Open setup plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
+        }
+        .buttonStyle(.bordered)
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
           ForEach(releaseSelfCheck.items) { item in
             VStack(alignment: .leading, spacing: 5) {

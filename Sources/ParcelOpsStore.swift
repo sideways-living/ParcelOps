@@ -15674,6 +15674,44 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromGmailReleaseSelfCheck(_ connection: GmailMailboxConnection) {
+    let summary = gmailReleaseSelfCheckSummary(for: connection)
+    let openItems = summary.items.filter { !$0.isComplete }
+    let priority: TaskPriority
+    if summary.tone == "warning" {
+      priority = .high
+    } else if summary.tone == "attention" {
+      priority = .normal
+    } else {
+      priority = .low
+    }
+    let taskSummary = [
+      "Review Gmail release self-check for \(connection.displayName).",
+      summary.verdict,
+      summary.detail,
+      "Next action: \(summary.nextAction)",
+      openItems.isEmpty
+        ? "No incomplete self-check items at task creation time."
+        : "Incomplete items: \(openItems.map { "\($0.title) - \($0.nextAction)" }.joined(separator: "; "))"
+    ].joined(separator: " ")
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: "\(connection.displayName) Gmail release self-check",
+      summary: taskSummary,
+      priority: priority,
+      assignee: "Mailbox team"
+    )
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from Gmail release self-check.",
+      afterDetail: "\(gmailReleaseSelfCheckAuditDetail(summary))\nNo Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
   func gmailAuthSessionState(for connection: GmailMailboxConnection) -> GmailAuthSessionState {
     gmailAuthSessionStates[connection.id] ?? GmailAuthSessionState(
       connectionID: connection.id,
@@ -18530,6 +18568,13 @@ final class ParcelOpsStore {
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail)" }
       .joined(separator: "\n")
     return "\(plan.statusText)\n\(itemText)\nNo Google OAuth flow ran from this planning action, no browser auth opened, no access token or refresh token was requested or stored, no Gmail API call was made, and no mailbox item was changed."
+  }
+
+  private func gmailReleaseSelfCheckAuditDetail(_ summary: GmailReleaseSelfCheckSummary) -> String {
+    let itemText = summary.items
+      .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail) Next: \(item.nextAction)" }
+      .joined(separator: "\n")
+    return "\(summary.verdict)\n\(summary.detail)\nNext action: \(summary.nextAction)\n\(itemText)\nThis self-check is computed from local setup, auth state, refresh summaries, review queues, and Audit evidence only."
   }
 
   private func gmailAuthSessionAuditDetail(_ state: GmailAuthSessionState) -> String {
