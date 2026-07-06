@@ -153,6 +153,37 @@ struct TrackingView: View {
           Badge("\(missingTrackingCount) missing tracking", color: missingTrackingCount == 0 ? .green : .orange)
         }
 
+        if !inboxTrackingProviderRows.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox source for tracking checks")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], spacing: 10) {
+              ForEach(inboxTrackingProviderRows, id: \.label) { row in
+                HStack(alignment: .top, spacing: 9) {
+                  Image(systemName: row.label.localizedCaseInsensitiveContains("Gmail") ? "envelope.badge.shield.half.filled" : "tray.and.arrow.down.fill")
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                      Text(row.label)
+                        .font(.caption.weight(.semibold))
+                      Spacer(minLength: 8)
+                      Badge("\(row.count) intake", color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                .padding(9)
+                .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+        }
+
         if inboxOrders.isEmpty {
           Text("No Inbox-created orders are present yet. Create an order from Inbox before checking tracking coverage.")
             .font(.caption)
@@ -206,6 +237,40 @@ struct TrackingView: View {
     return inboxCreatedOrders.filter { !trackingOrderIDs.contains($0.id) }
   }
 
+  private var inboxTrackingProviderRows: [(label: String, count: Int, detail: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+
+    for order in inboxCreatedOrders {
+      for email in linkedIntakeEmails(for: order) {
+        let summary = store.intakeSourceSummary(for: email)
+        counts[summary.label, default: 0] += 1
+        tones[summary.label] = summary.tone
+      }
+    }
+
+    return counts
+      .map { label, count in
+        let tone = tones[label] ?? ""
+        let detail: String
+        switch tone {
+        case "spacemail":
+          detail = "SpaceMail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up."
+        case "gmail":
+          detail = "Gmail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up."
+        case "mock":
+          detail = "Mock mailbox intake supplied local test context. Use real provider refresh before relying on this for live operations."
+        default:
+          detail = "Local mailbox intake supplied order or tracking context. Open the linked order to inspect the source trail."
+        }
+        return (label: label, count: count, detail: detail, color: sourceColor(for: tone))
+      }
+      .sorted { lhs, rhs in
+        if lhs.count != rhs.count { return lhs.count > rhs.count }
+        return lhs.label < rhs.label
+      }
+  }
+
   private var trackingEventsNeedingAction: [CarrierTrackingEvent] {
     trackingEventsLinkedToInboxOrders.filter { event in
       event.severity == .watch || event.severity == .critical || event.reviewState != .accepted
@@ -257,6 +322,16 @@ struct TrackingView: View {
       shipmentGroups.map(\.recipientCustomerSummary).joined(separator: " ")
     ].joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "gmail": return .blue
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
   }
 }
 
