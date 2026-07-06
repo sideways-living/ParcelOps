@@ -209,6 +209,28 @@ struct AuditView: View {
       && mailboxFilteredCount > 0
   }
 
+  private var mailboxAuditProviderBreakdown: [(provider: String, detail: String, color: Color)] {
+    var rows: [(provider: String, detail: String, color: Color)] = []
+
+    if !spaceMailHealthSummaries.isEmpty {
+      rows.append((
+        "SpaceMail",
+        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    if !gmailHealthSummaries.isEmpty {
+      rows.append((
+        "Gmail",
+        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    return rows
+  }
+
   private var auditNextCheckTitle: String {
     if !mvpFollowUpEvents.isEmpty {
       return "Review MVP test and release follow-ups"
@@ -695,6 +717,29 @@ struct AuditView: View {
           ("Parser", "\(spaceMailParserIssueCount)", spaceMailParserIssueCount == 0 ? .secondary : .purple),
           ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange)
         ])
+
+        if !mailboxAuditProviderBreakdown.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(mailboxAuditProviderBreakdown, id: \.provider) { row in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : "server.rack")
+                  .foregroundStyle(row.color)
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(spaceMailPostRefreshPlan.items) { item in
