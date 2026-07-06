@@ -66,17 +66,27 @@ struct OrdersView: View {
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
   }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
   private var pendingUncertainSpaceMailCount: Int {
     latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
   }
-  private var spaceMailFetchedCount: Int {
-    latestSpaceMailSummary?.fetchedCount ?? 0
+  private var pendingUncertainMailboxCount: Int {
+    pendingUncertainSpaceMailCount
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
   }
-  private var spaceMailImportedCount: Int {
-    latestSpaceMailSummary?.importedCount ?? 0
+  private var mailboxFetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
   }
-  private var spaceMailFilteredCount: Int {
-    latestSpaceMailSummary?.filteredCount ?? 0
+  private var mailboxImportedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+  private var mailboxFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+  private var mailboxDuplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
   }
 
   var body: some View {
@@ -136,17 +146,19 @@ struct OrdersView: View {
           ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
           ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
-          ("Mail fetched", "\(spaceMailFetchedCount)", spaceMailFetchedCount == 0 ? .secondary : .blue),
-          ("Mail imported", "\(spaceMailImportedCount)", spaceMailImportedCount == 0 ? .secondary : .green),
-          ("Mail filtered", "\(spaceMailFilteredCount)", spaceMailFilteredCount == 0 ? .secondary : .teal)
+          ("Mail fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
+          ("Mail imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
+          ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
+          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange)
         ])
 
         if inboxCreatedOrderItems.isEmpty {
           OrdersInboxHandoffEmptyState(
-            fetchedCount: spaceMailFetchedCount,
-            importedCount: spaceMailImportedCount,
-            filteredCount: spaceMailFilteredCount,
-            uncertainCount: pendingUncertainSpaceMailCount,
+            fetchedCount: mailboxFetchedCount,
+            importedCount: mailboxImportedCount,
+            filteredCount: mailboxFilteredCount,
+            uncertainCount: pendingUncertainMailboxCount,
+            duplicateCount: mailboxDuplicateCount,
             store: store
           )
         } else {
@@ -477,11 +489,13 @@ private struct OrdersInboxHandoffEmptyState: View {
   var importedCount: Int
   var filteredCount: Int
   var uncertainCount: Int
+  var duplicateCount: Int
   var store: ParcelOpsStore
 
   private var title: String {
     if importedCount > 0 { return "Imported intake is waiting in Inbox" }
-    if uncertainCount > 0 { return "Uncertain SpaceMail needs review" }
+    if uncertainCount > 0 { return "Uncertain mailbox mail needs review" }
+    if duplicateCount > 0 { return "No new mailbox order handoff" }
     if filteredCount > 0 { return "No order mail reached Orders" }
     if fetchedCount > 0 { return "Mailbox refresh found no order handoff" }
     return "No Inbox-created orders yet"
@@ -489,22 +503,26 @@ private struct OrdersInboxHandoffEmptyState: View {
 
   private var detail: String {
     if importedCount > 0 {
-      return "SpaceMail imported likely order mail, but no order has been created or linked yet. Open Inbox, verify the row, then use Create order or Link order."
+      return "A mailbox refresh imported likely order mail, but no order has been created or linked yet. Open Inbox, verify the row, then use Create order or Link order."
     }
     if uncertainCount > 0 {
       return "Mixed-mailbox filtering held possible order mail out of Inbox. Open Mailbox Monitor and import only true order updates."
     }
+    if duplicateCount > 0 {
+      return "The latest mailbox refresh found messages ParcelOps already captured or reviewed. Orders stays unchanged unless a new intake row is imported or an existing row is linked."
+    }
     if filteredCount > 0 {
-      return "The latest SpaceMail refresh mostly filtered non-order mail. Orders stays empty until a confirmed order/tracking message is imported or manually added."
+      return "The latest mailbox refresh mostly filtered non-order mail. Orders stays empty until a confirmed order/tracking message is imported or manually added."
     }
     if fetchedCount > 0 {
       return "A manual mailbox refresh ran, but it did not produce an Inbox order handoff. Send or forward a clear order/tracking test email when testing this path."
     }
-    return "Run SpaceMail refresh or import an intake row first, then create/link an order from Inbox."
+    return "Run SpaceMail or Gmail refresh, or import an intake row first, then create/link an order from Inbox."
   }
 
   private var color: Color {
     if importedCount > 0 || uncertainCount > 0 { return .orange }
+    if duplicateCount > 0 { return .teal }
     if filteredCount > 0 || fetchedCount > 0 { return .teal }
     return .secondary
   }
