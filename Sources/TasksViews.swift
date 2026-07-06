@@ -1483,6 +1483,7 @@ private struct TaskQueueItem: Identifiable {
     guard linkedEntityType == .integration else { return false }
     if linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider") { return true }
     if linkedEntityID.localizedCaseInsensitiveContains("mailbox-release") { return true }
+    if linkedEntityID.localizedCaseInsensitiveContains("gmail") { return true }
 
     let searchableText = [
       title,
@@ -1559,10 +1560,28 @@ private struct TaskQueueItem: Identifiable {
     let isSpaceMailFollowUp = note.title.localizedCaseInsensitiveContains("spacemail")
       || note.summary.localizedCaseInsensitiveContains("spacemail")
       || note.notes.localizedCaseInsensitiveContains("spacemail")
+    let isMailboxProviderFollowUp = note.linkedEntityType == .integration
+      && (
+        note.linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider")
+          || note.linkedEntityID.localizedCaseInsensitiveContains("mailbox-release")
+          || note.linkedEntityID.localizedCaseInsensitiveContains("gmail")
+          || note.title.localizedCaseInsensitiveContains("mailbox provider")
+          || note.summary.localizedCaseInsensitiveContains("mailbox provider")
+          || note.notes.localizedCaseInsensitiveContains("mailbox provider")
+          || note.title.localizedCaseInsensitiveContains("release gate")
+          || note.summary.localizedCaseInsensitiveContains("release gate")
+          || note.notes.localizedCaseInsensitiveContains("release gate")
+          || note.title.localizedCaseInsensitiveContains("release self-check")
+          || note.summary.localizedCaseInsensitiveContains("release self-check")
+          || note.notes.localizedCaseInsensitiveContains("release self-check")
+          || note.title.localizedCaseInsensitiveContains("gmail")
+          || note.summary.localizedCaseInsensitiveContains("gmail")
+          || note.notes.localizedCaseInsensitiveContains("gmail")
+      )
     return TaskQueueItem(
       id: "handoff-\(note.id.uuidString)",
       source: .handoff(note),
-      sourceLabel: isSpaceMailFollowUp ? "SpaceMail handoff" : "Handoff",
+      sourceLabel: isMailboxProviderFollowUp ? "Provider handoff" : isSpaceMailFollowUp ? "SpaceMail handoff" : "Handoff",
       title: note.title,
       summary: note.summary,
       linkedEntityType: note.linkedEntityType,
@@ -1573,10 +1592,12 @@ private struct TaskQueueItem: Identifiable {
       status: note.status,
       reviewState: note.reviewState,
       isOverdue: note.isLocallyOverdue,
-      nextAction: isSpaceMailFollowUp
+      nextAction: isMailboxProviderFollowUp
+        ? "Open Mailbox Monitor for provider setup or refresh context, then acknowledge or complete handoff"
+        : isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then acknowledge or complete handoff"
         : nextAction(status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue, completedVerb: "Reopen if the handoff is active again"),
-      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue) + (isSpaceMailFollowUp ? 6 : 0)
+      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue) + (isMailboxProviderFollowUp ? 8 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
@@ -1620,6 +1641,7 @@ private struct TaskQueueItem: Identifiable {
       if status == .completed { return reviewState == .accepted ? "Task is complete" : "Completed task needs review" }
       return "Owned follow-up work"
     case .handoff:
+      if isMailboxProviderFollowUp { return "Mailbox provider handoff" }
       if isSpaceMailFollowUp { return "SpaceMail shift handoff" }
       if isOverdue { return "Handoff is overdue" }
       if status == .blocked { return "Handoff is blocked" }
@@ -1657,6 +1679,9 @@ private struct TaskQueueItem: Identifiable {
       }
       return "Confirm the linked record context, then complete the task when the owner has finished the work."
     case .handoff:
+      if isMailboxProviderFollowUp {
+        return "Review Mailbox Monitor provider setup, Gmail/SpaceMail refresh evidence, or release gate context before acknowledging/completing this shift note."
+      }
       if isSpaceMailFollowUp {
         return "Review the mailbox refresh or classifier context before acknowledging/completing this shift note."
       }
