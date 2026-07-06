@@ -35,6 +35,46 @@ struct IntegrationsView: View {
         && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
     }
   }
+  private var gmailReadinessSummaries: [GmailOAuthReadinessSummary] {
+    store.gmailMailboxConnections.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+  private var gmailReadySetupCount: Int {
+    gmailReadinessSummaries.filter(\.isReady).count
+  }
+  private var gmailSetupBlockerCount: Int {
+    gmailReadinessSummaries.filter { !$0.isReady }.count
+  }
+  private var gmailCompiledCallbackBlockerCount: Int {
+    gmailReadinessSummaries.filter { summary in
+      summary.compiledClientIDStatus.localizedCaseInsensitiveContains("placeholder")
+        || summary.compiledClientIDStatus.localizedCaseInsensitiveContains("missing")
+        || summary.compiledClientIDStatus.localizedCaseInsensitiveContains("does not match")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("placeholder")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("missing")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("does not include")
+    }.count
+  }
+  private var gmailReadinessBlockerDetails: [String] {
+    store.gmailMailboxConnections.flatMap { connection in
+      let summary = store.gmailOAuthReadinessSummary(for: connection)
+      return summary.missingFields.prefix(3).map { "\(connection.displayName): \($0)" }
+    }
+  }
+  private var gmailSetupNextAction: String {
+    if !hasGmailSetup {
+      return "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace."
+    }
+    if gmailSetupBlockerCount > 0 {
+      return "Open the Gmail setup row, complete the missing non-secret Google fields, then run Check readiness."
+    }
+    if gmailCompiledCallbackBlockerCount > 0 {
+      return "Update Project.json and App/Info.plist to match the saved Google iOS client ID and reversed callback scheme, then rebuild."
+    }
+    if !hasGmailConnectedAuth {
+      return "Run Test real Google sign-in before running real Gmail refresh."
+    }
+    return "Run real Gmail refresh manually when checking a Google-hosted mailbox."
+  }
 
   private var recommendedSetupTitle: String {
     if !hasSpaceMailSetup && !hasGmailSetup {
@@ -251,6 +291,47 @@ struct IntegrationsView: View {
               ("Imported", "\((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
               ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", (((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) > 0) ? .orange : .secondary)
             ])
+
+            if hasGmailSetup {
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: "envelope.badge.shield.half.filled")
+                    .foregroundStyle(gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? .green : .orange)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text("Gmail real-refresh readiness")
+                      .font(.subheadline.weight(.semibold))
+                    Text("This summarizes the saved Gmail setup records against the compiled app callback values before anyone tries sign-in or refresh.")
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer()
+                  Badge(gmailReadySetupCount == store.gmailMailboxConnections.count ? "Ready" : "Check setup", color: gmailReadySetupCount == store.gmailMailboxConnections.count ? .green : .orange)
+                }
+
+                CompactMetadataGrid(minimumWidth: 145) {
+                  Badge("\(gmailReadySetupCount) ready", color: gmailReadySetupCount > 0 ? .green : .secondary)
+                  Badge("\(gmailSetupBlockerCount) setup blockers", color: gmailSetupBlockerCount == 0 ? .green : .orange)
+                  Badge("\(gmailCompiledCallbackBlockerCount) callback blockers", color: gmailCompiledCallbackBlockerCount == 0 ? .green : .orange)
+                  Badge(hasGmailConnectedAuth ? "Google signed in" : "Sign-in needed", color: hasGmailConnectedAuth ? .green : .orange)
+                }
+
+                Text("Next: \(gmailSetupNextAction)")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? .teal : .orange)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(gmailReadinessBlockerDetails.prefix(4), id: \.self) { detail in
+                  Label(detail, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .background((gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            }
 
             SpaceMailPrimaryStatusStrip(store: store, title: "Current SpaceMail intake", showTitle: true)
 
