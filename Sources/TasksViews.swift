@@ -1337,6 +1337,10 @@ private struct TaskQueueItem: Identifiable {
     return searchableText.contains("mailbox provider")
       || searchableText.contains("provider release")
       || searchableText.contains("release gate")
+      || searchableText.contains("release self-check")
+      || searchableText.contains("gmail release self-check")
+      || searchableText.contains("gmail release")
+      || searchableText.contains("gmail setup handoff")
       || searchableText.contains("provider test queue")
       || searchableText.contains("mailbox release")
   }
@@ -1352,6 +1356,12 @@ private struct TaskQueueItem: Identifiable {
           || task.summary.localizedCaseInsensitiveContains("mailbox provider")
           || task.title.localizedCaseInsensitiveContains("release gate")
           || task.summary.localizedCaseInsensitiveContains("release gate")
+          || task.title.localizedCaseInsensitiveContains("release self-check")
+          || task.summary.localizedCaseInsensitiveContains("release self-check")
+          || task.title.localizedCaseInsensitiveContains("Gmail release")
+          || task.summary.localizedCaseInsensitiveContains("Gmail release")
+          || task.title.localizedCaseInsensitiveContains("Gmail setup handoff")
+          || task.summary.localizedCaseInsensitiveContains("Gmail setup handoff")
       )
     let isMVPFollowUp = task.linkedEntityType == .integration
       && [
@@ -1374,7 +1384,7 @@ private struct TaskQueueItem: Identifiable {
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
       nextAction: isMailboxProviderFollowUp
-        ? "Open the release gate and Mailbox Monitor, then complete or refresh this provider follow-up"
+        ? "Open the provider release/self-check context and Mailbox Monitor, then complete or refresh this follow-up"
         : isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then complete or draft follow-up"
         : isMVPFollowUp
@@ -1471,7 +1481,7 @@ private struct TaskQueueItem: Identifiable {
         return "Confirm the missing order, tracking, or destination details on the linked Inbox-created order before completing this task."
       }
       if isMailboxProviderFollowUp {
-        return "Use the mailbox provider release gate and Mailbox Monitor to confirm the provider path is ready before completing this task."
+        return "Use the mailbox provider release gate or Gmail self-check plus Mailbox Monitor to confirm the provider path before completing this task."
       }
       if isSpaceMailFollowUp {
         return "Use Mailbox Monitor or Inbox to inspect the source refresh/intake context, then complete the task or create a draft for follow-up."
