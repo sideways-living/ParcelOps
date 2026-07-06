@@ -3651,6 +3651,34 @@ struct MailboxProviderReleaseGateCard: View {
           .buttonStyle(.bordered)
 
           NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Settings", systemImage: "gearshape.2.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
             TasksView(store: store)
           } label: {
             Label("Open Tasks", systemImage: "checklist")
