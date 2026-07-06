@@ -194,6 +194,38 @@ struct ReturnsClaimsView: View {
         Badge("\(claimsMissingEvidence.count) missing evidence", color: claimsMissingEvidence.isEmpty ? .green : .orange)
       }
 
+      if !claimProviderRows.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Mailbox source for returns and claims")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+            ForEach(claimProviderRows, id: \.label) { row in
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: row.symbol)
+                  .foregroundStyle(row.color)
+                  .frame(width: 22, height: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  HStack {
+                    Text(row.label)
+                      .font(.caption.weight(.semibold))
+                    Spacer()
+                    Badge("\(row.count) intake", color: row.color)
+                  }
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(9)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+
       if inboxCreatedOrders.isEmpty {
         Text("No Inbox-created orders need return or claim checks yet.")
           .font(.caption)
@@ -217,6 +249,45 @@ struct ReturnsClaimsView: View {
           }
         }
       }
+    }
+  }
+
+  private var claimProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+    for order in inboxCreatedOrders {
+      for email in linkedIntakeEmails(for: order) {
+        let summary = store.intakeSourceSummary(for: email)
+        counts[summary.label, default: 0] += 1
+        tones[summary.label] = summary.tone
+      }
+    }
+    return counts.map { label, count in
+      let tone = tones[label] ?? ""
+      let detail: String
+      switch tone {
+      case "spacemail":
+        detail = "SpaceMail intake can create refund, missing-item, or carrier-claim follow-up after an Inbox order is linked or created."
+      case "gmail":
+        detail = "Gmail intake can create refund, missing-item, or return follow-up after an Inbox order is linked or created."
+      case "mock":
+        detail = "Mock mailbox intake supports local return and claim testing. Confirm live provider context before handoff."
+      default:
+        detail = "Local mailbox intake can create return or claim follow-up once linked to an order."
+      }
+      return (
+        label: label,
+        count: count,
+        detail: detail,
+        symbol: providerSymbol(for: tone, label: label),
+        color: sourceColor(for: tone)
+      )
+    }
+    .sorted { lhs, rhs in
+      if lhs.count == rhs.count {
+        return lhs.label < rhs.label
+      }
+      return lhs.count > rhs.count
     }
   }
 
@@ -262,6 +333,34 @@ struct ReturnsClaimsView: View {
     let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil)
     guard let orderID else { return nil }
     return store.orders.first { $0.id == orderID }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "gmail":
+      return .blue
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
+  }
+
+  private func providerSymbol(for tone: String, label: String) -> String {
+    if tone == "gmail" || label.localizedCaseInsensitiveContains("Gmail") {
+      return "envelope.badge.shield.half.filled"
+    }
+    if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
+      return "server.rack"
+    }
+    if tone == "mock" {
+      return "testtube.2"
+    }
+    return "envelope.open.fill"
   }
 
   private func returnClaim(_ claim: ReturnClaimRecord, matches query: String) -> Bool {
@@ -543,6 +642,8 @@ struct ReturnClaimRow: View {
     switch tone {
     case "spacemail":
       return .teal
+    case "gmail":
+      return .blue
     case "mock":
       return .purple
     case "microsoft", "mailbox":
