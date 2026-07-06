@@ -306,6 +306,28 @@ struct OperationsWorkbenchView: View {
     return "Run SpaceMail or Gmail manual refresh from Mailbox Monitor when mailbox intake needs checking."
   }
 
+  private var mailboxProviderWorkbenchBreakdown: [(provider: String, detail: String, color: Color)] {
+    var rows: [(provider: String, detail: String, color: Color)] = []
+
+    if !spaceMailHealthSummaries.isEmpty {
+      rows.append((
+        "SpaceMail",
+        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    if !gmailHealthSummaries.isEmpty {
+      rows.append((
+        "Gmail",
+        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }) duplicate, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : gmailWarningCount > 0 ? .orange : .secondary
+      ))
+    }
+
+    return rows
+  }
+
   private var setupPlaceholderReviewItems: [WorkbenchItem] {
     defaultQueueItems.filter { $0.source == .setupPlaceholder }
   }
@@ -684,6 +706,29 @@ struct OperationsWorkbenchView: View {
           ("Diagnostics", "\(mailboxWarningCount)", mailboxWarningCount == 0 ? .green : .orange),
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .purple)
         ])
+
+        if !mailboxProviderWorkbenchBreakdown.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(mailboxProviderWorkbenchBreakdown, id: \.provider) { row in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : "server.rack")
+                  .foregroundStyle(row.color)
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(row.provider)
+                    .font(.caption.weight(.semibold))
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 240), spacing: 10)], alignment: .leading, spacing: 10) {
           WorkbenchMailboxRouteCard(
