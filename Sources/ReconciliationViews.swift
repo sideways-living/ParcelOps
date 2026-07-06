@@ -57,6 +57,40 @@ struct ReconciliationView: View {
     }
   }
 
+  private var reconciliationProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+
+    for order in inboxCreatedOrders {
+      for email in linkedIntakeEmails(for: order) {
+        let summary = store.intakeSourceSummary(for: email)
+        counts[summary.label, default: 0] += 1
+        tones[summary.label] = summary.tone
+      }
+    }
+
+    return counts
+      .map { label, count in
+        let tone = tones[label] ?? ""
+        let detail: String
+        switch tone {
+        case "spacemail":
+          detail = "SpaceMail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context."
+        case "gmail":
+          detail = "Gmail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context."
+        case "mock":
+          detail = "Mock mailbox intake is local test evidence; confirm live provider context before closing real mismatches."
+        default:
+          detail = "Local mailbox intake can create reconciliation work once linked to an order."
+        }
+        return (label: label, count: count, detail: detail, symbol: providerSymbol(for: tone, label: label), color: providerColor(for: tone))
+      }
+      .sorted { lhs, rhs in
+        if lhs.count != rhs.count { return lhs.count > rhs.count }
+        return lhs.label < rhs.label
+      }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -193,6 +227,38 @@ struct ReconciliationView: View {
           ("Related issues", "\(inboxLinkedReconciliationIssues.count)", inboxLinkedReconciliationIssues.isEmpty ? .secondary : .orange)
         ])
 
+        if !reconciliationProviderRows.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox source for reconciliation")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+              ForEach(reconciliationProviderRows, id: \.label) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                      Text(row.label)
+                        .font(.caption.weight(.semibold))
+                      Spacer(minLength: 8)
+                      Badge("\(row.count) intake", color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+        }
+
         if inboxCreatedOrdersMissingSourceTrail.isEmpty {
           Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
@@ -289,6 +355,29 @@ struct ReconciliationView: View {
     searchParts.append(contentsOf: handoffNotes.map(\.title))
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
+  }
+
+  private func providerColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail": return .teal
+    case "gmail": return .blue
+    case "mock": return .purple
+    case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
+  }
+
+  private func providerSymbol(for tone: String, label: String) -> String {
+    if tone == "gmail" || label.localizedCaseInsensitiveContains("Gmail") {
+      return "envelope.badge.shield.half.filled"
+    }
+    if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
+      return "server.rack"
+    }
+    if tone == "mock" {
+      return "testtube.2"
+    }
+    return "envelope.open.fill"
   }
 
   private func sourceTrailCount(for order: TrackedOrder) -> Int {
