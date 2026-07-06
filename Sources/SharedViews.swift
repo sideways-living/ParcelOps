@@ -3209,6 +3209,27 @@ struct MailboxProviderTestQueueCard: View {
             Label("Open Tasks", systemImage: "checklist")
           }
           .buttonStyle(.bordered)
+
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Settings", systemImage: "gearshape.fill")
+          }
+          .buttonStyle(.bordered)
         }
       }
 
