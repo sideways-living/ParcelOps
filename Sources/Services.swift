@@ -371,22 +371,23 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     }
 
     do {
-      let messages = try await fetchReadOnlyMessages(
+      let outcome = try await fetchReadOnlyMessages(
         accessToken: accessToken,
         connection: connection,
         sourceMailboxID: sourceMailboxID
       )
+      let messages = outcome.messages
       if messages.isEmpty {
         return GmailMailboxFetchResult(
           status: .noMessages,
           messages: [],
-          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
         )
       }
       return GmailMailboxFetchResult(
         status: .success,
         messages: messages,
-        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
       )
     } catch let error as RealGmailMailboxError {
       return GmailMailboxFetchResult(status: error.status, messages: [], detail: error.safeDetail)
@@ -510,11 +511,17 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     }
   }
 
+  private struct ReadOnlyFetchOutcome {
+    var messages: [FetchedMailboxMessage]
+    var profileDetail: String
+  }
+
   private func fetchReadOnlyMessages(
     accessToken: String,
     connection: GmailMailboxConnection,
     sourceMailboxID: UUID
-  ) async throws -> [FetchedMailboxMessage] {
+  ) async throws -> ReadOnlyFetchOutcome {
+    let profileDetail = try await fetchProfileDiagnostic(accessToken: accessToken, connection: connection)
     let messageIDs = try await listMessageIDs(accessToken: accessToken, connection: connection)
     var messages: [FetchedMailboxMessage] = []
     for id in messageIDs.prefix(10) {
@@ -526,7 +533,30 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
       messages.append(message)
     }
-    return messages
+    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail)
+  }
+
+  private func fetchProfileDiagnostic(accessToken: String, connection: GmailMailboxConnection) async throws -> String {
+    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/profile")!
+    components.queryItems = [
+      URLQueryItem(name: "fields", value: "emailAddress,messagesTotal,threadsTotal")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail profile preflight request. No Gmail messages were fetched.")
+    }
+
+    let response: GmailProfileResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "users.profile")
+    let expectedMailbox = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let returnedMailbox = (response.emailAddress ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let mailboxMatch: String
+    if expectedMailbox.isEmpty || returnedMailbox.isEmpty {
+      mailboxMatch = "unable to compare"
+    } else {
+      mailboxMatch = expectedMailbox == returnedMailbox ? "matches configured mailbox" : "differs from configured mailbox"
+    }
+    let totalMessages = response.messagesTotal.map(String.init) ?? "unavailable"
+    let totalThreads = response.threadsTotal.map(String.init) ?? "unavailable"
+    return "Gmail profile preflight succeeded: returned mailbox \(returnedMailbox.isEmpty ? "unavailable" : "present"), mailbox comparison \(mailboxMatch), total messages \(totalMessages), total threads \(totalThreads)."
   }
 
   private func listMessageIDs(accessToken: String, connection: GmailMailboxConnection) async throws -> [String] {
@@ -797,6 +827,12 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
   private struct GmailMessageID: Decodable {
     var id: String
+  }
+
+  private struct GmailProfileResponse: Decodable {
+    var emailAddress: String?
+    var messagesTotal: Int?
+    var threadsTotal: Int?
   }
 
   private struct GmailMessageResponse: Decodable {
