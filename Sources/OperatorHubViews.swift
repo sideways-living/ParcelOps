@@ -820,22 +820,27 @@ private struct InboxSpaceMailDecisionGuide: View {
 
   private var fetchedCount: Int {
     store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
   }
 
   private var importedCount: Int {
     store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
   }
 
   private var duplicateCount: Int {
     store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
   }
 
   private var filteredCount: Int {
     store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
   }
 
   private var uncertainCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
   }
 
   private var parserIssueCount: Int {
@@ -872,7 +877,7 @@ private struct InboxSpaceMailDecisionGuide: View {
 
   private var parserQADetail: String {
     if parserSuiteChecks.isEmpty {
-      return "Run the parser/classifier suite in Mailbox Monitor before relying on live SpaceMail extraction for order and tracking numbers."
+      return "Run the SpaceMail parser/classifier suite in Mailbox Monitor before relying on live IMAP extraction for order and tracking numbers."
     }
     if !parserSuiteFailures.isEmpty {
       return "\(parserSuiteFailures.count) parser expectation failed. Review the sample result before creating orders from similar email text."
@@ -887,12 +892,12 @@ private struct InboxSpaceMailDecisionGuide: View {
 
   private var topActionTitle: String {
     if importedCount > 0 { return "Start with imported intake rows" }
-    if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
+    if uncertainCount > 0 { return "Review uncertain mailbox messages" }
     if parserIssueCount > 0 { return "Open parser diagnostics only for investigation" }
     if filteredCount > 0 { return "Filtered mail stayed out of Inbox" }
     if duplicateCount > 0 { return "Duplicates were already captured" }
     if fetchedCount > 0 { return "Refresh ran with no action needed" }
-    return "Run a manual SpaceMail refresh when ready"
+    return "Run a manual mailbox refresh when ready"
   }
 
   private var topActionDetail: String {
@@ -912,9 +917,9 @@ private struct InboxSpaceMailDecisionGuide: View {
       return "Duplicate prevention avoided repeated Inbox rows. Existing intake can still be refreshed or reprocessed locally."
     }
     if fetchedCount > 0 {
-      return "No imported or uncertain order mail was found in the latest SpaceMail result."
+      return "No imported or uncertain order mail was found in the latest mailbox result."
     }
-    return "Run refresh from Mailbox Monitor after confirming setup and Keychain credential status."
+    return "Run SpaceMail or Gmail refresh from Mailbox Monitor after confirming credential, sign-in, and setup status."
   }
 
   private var topActionColor: Color {
@@ -925,7 +930,7 @@ private struct InboxSpaceMailDecisionGuide: View {
   }
 
   var body: some View {
-    SettingsPanel(title: "SpaceMail triage decision guide", symbol: "signpost.right.fill") {
+    SettingsPanel(title: "Mailbox triage decision guide", symbol: "signpost.right.fill") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: "signpost.right.fill")
@@ -950,7 +955,8 @@ private struct InboxSpaceMailDecisionGuide: View {
           ("Uncertain", "\(uncertainCount)", uncertainCount > 0 ? .orange : .secondary),
           ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
           ("Duplicates", "\(duplicateCount)", duplicateCount > 0 ? .orange : .secondary),
-          ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .secondary)
+          ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .secondary),
+          ("Providers", "\(store.spaceMailIMAPConnections.count + store.gmailMailboxConnections.count)", store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty ? .secondary : .blue)
         ])
 
         HStack(alignment: .top, spacing: 10) {
@@ -1018,7 +1024,7 @@ private struct InboxSpaceMailDecisionGuide: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This guide uses local refresh summaries only. It does not fetch mail, mutate the mailbox, call external classifiers, or send messages.")
+        Text("This guide uses local SpaceMail and Gmail refresh summaries only. It does not fetch mail, mutate the mailbox, call external classifiers, or send messages.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
