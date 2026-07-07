@@ -49,6 +49,7 @@ struct TrackingView: View {
 
         filterBar
         inboxTrackingCoverage
+        mailboxProviderReleaseTrackingPanel
 
         SettingsPanel(title: "Carrier events", symbol: "location.fill.viewfinder") {
           HStack {
@@ -89,6 +90,23 @@ struct TrackingView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  @ViewBuilder
+  private var mailboxProviderReleaseTrackingPanel: some View {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
+      SettingsPanel(title: "Mailbox provider tracking context", symbol: "checkmark.seal.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this before trusting mailbox-derived tracking values as ready for dispatch. It summarizes provider setup, refresh evidence, parser/classifier state, and handoff follow-up without reading mail or changing carrier records.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        }
+      }
     }
   }
 

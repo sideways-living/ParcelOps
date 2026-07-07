@@ -94,6 +94,7 @@ struct ValidationView: View {
         header
         filters
         inboxSourceValidationPanel
+        mailboxProviderReleaseValidationPanel
 
         SettingsPanel(title: "Validation results", symbol: "checkmark.shield.fill") {
           HStack {
@@ -126,6 +127,23 @@ struct ValidationView: View {
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  @ViewBuilder
+  private var mailboxProviderReleaseValidationPanel: some View {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
+      SettingsPanel(title: "Mailbox provider validation context", symbol: "checkmark.seal.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this before closing mailbox-derived validation issues. It shows whether SpaceMail/Gmail setup, refresh evidence, parser checks, classifier review, and handoff follow-up are ready enough for a real operator pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        }
+      }
+    }
   }
 
   private var header: some View {

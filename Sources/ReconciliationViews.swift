@@ -97,6 +97,7 @@ struct ReconciliationView: View {
         header
         filters
         inboxSourceReconciliationPanel
+        mailboxProviderReleaseReconciliationPanel
 
         SettingsPanel(title: "Reconciliation results", symbol: "arrow.triangle.2.circlepath") {
           HStack {
@@ -145,6 +146,23 @@ struct ReconciliationView: View {
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  @ViewBuilder
+  private var mailboxProviderReleaseReconciliationPanel: some View {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
+      SettingsPanel(title: "Mailbox provider reconciliation context", symbol: "checkmark.seal.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this before resolving mailbox-derived mismatches. It keeps provider release gates, handoff notes, parser/classifier evidence, and source-trail follow-up visible beside reconciliation work.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        }
+      }
+    }
   }
 
   private var header: some View {
