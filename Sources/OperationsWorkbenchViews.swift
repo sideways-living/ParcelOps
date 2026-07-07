@@ -965,6 +965,24 @@ struct OperationsWorkbenchView: View {
           ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange)
         ])
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Gmail label handoff", systemImage: gmailLabelWorkbenchStatus == "Label issue" ? "tag.slash.fill" : "tag.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(gmailLabelWorkbenchColor)
+          CompactMetadataGrid(minimumWidth: 145) {
+            Badge("Label: \(gmailWorkbenchPrimaryLabel)", color: gmailLabelWorkbenchColor)
+            Badge(gmailLabelWorkbenchStatus, color: gmailLabelWorkbenchColor)
+            Badge(gmailWorkbenchMailboxModeLabel, color: .teal)
+            Badge(gmailWorkbenchRefreshLabel, color: gmailWorkbenchTone)
+          }
+          Text(gmailLabelWorkbenchDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(gmailLabelWorkbenchColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if gmailClassifierTuningCount > 0 || gmailClassifierHintCount > 0 {
           VStack(alignment: .leading, spacing: 6) {
             Label(gmailClassifierWorkbenchTitle, systemImage: "slider.horizontal.3")
@@ -1072,6 +1090,85 @@ struct OperationsWorkbenchView: View {
       return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the primary path."
     }
     return "Gmail setup exists, but the latest state did not produce imported or uncertain order work."
+  }
+
+  private var gmailWorkbenchConnection: GmailMailboxConnection? {
+    guard let firstSummary = gmailHealthSummaries.first else {
+      return store.gmailMailboxConnections.first
+    }
+    return store.gmailMailboxConnections.first { $0.id == firstSummary.connectionID }
+  }
+
+  private var gmailWorkbenchPrimaryLabel: String {
+    guard let connection = gmailWorkbenchConnection else { return "None" }
+    return connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { !$0.isEmpty } ?? "INBOX"
+  }
+
+  private var gmailWorkbenchMailboxModeLabel: String {
+    gmailWorkbenchConnection?.mailboxMode.rawValue ?? "No Gmail setup"
+  }
+
+  private var gmailWorkbenchRefreshLabel: String {
+    guard let connection = gmailWorkbenchConnection else { return "No refresh" }
+    return connection.lastManualRefreshDate == "Never" ? "No refresh" : connection.lastManualRefreshDate
+  }
+
+  private var gmailLabelWorkbenchStatus: String {
+    guard let connection = gmailWorkbenchConnection else { return "No Gmail setup" }
+    let summary = connection.lastRefreshSummary
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Label not found") ||
+        summary.localizedCaseInsensitiveContains("was not found in safe label metadata") {
+      return "Label issue"
+    }
+    if summary.localizedCaseInsensitiveContains("matched configured label") {
+      return "Custom label resolved"
+    }
+    if summary.localizedCaseInsensitiveContains("used configured label ID directly") {
+      return "Label ID used"
+    }
+    if summary.localizedCaseInsensitiveContains("used system label") || gmailWorkbenchPrimaryLabel.uppercased() == "INBOX" {
+      return "System label direct"
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Label not checked"
+    }
+    return "Audit has label detail"
+  }
+
+  private var gmailLabelWorkbenchDetail: String {
+    switch gmailLabelWorkbenchStatus {
+    case "No Gmail setup":
+      return "Gmail is optional. Add it only for mailboxes hosted by Gmail or Google Workspace."
+    case "Label issue":
+      return "Fix the Gmail label in Mailbox Monitor before turning Gmail refreshes into operational exceptions. Use INBOX or an exact existing Gmail label."
+    case "Custom label resolved":
+      return "The custom Gmail label resolved before message listing. Workbench should only act after Inbox intake, uncertain review, or setup failures create local work."
+    case "Label ID used":
+      return "The configured Gmail label ID was used directly. Refresh remains read-only and manual."
+    case "System label direct":
+      return "System labels such as INBOX are used directly, so label setup is not the current Workbench blocker."
+    case "Label not checked":
+      return "Run Gmail readiness or manual refresh from Mailbox Monitor after sign-in to confirm the label before relying on refresh results."
+    default:
+      return "Open Mailbox Monitor or Audit for safe label-resolution detail. Do not create Workbench work from filtered Gmail alone."
+    }
+  }
+
+  private var gmailLabelWorkbenchColor: Color {
+    switch gmailLabelWorkbenchStatus {
+    case "Label issue":
+      return .orange
+    case "Custom label resolved", "Label ID used", "System label direct":
+      return .green
+    case "Audit has label detail":
+      return .teal
+    default:
+      return .secondary
+    }
   }
 
   private var gmailClassifierWorkbenchTitle: String {
