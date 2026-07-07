@@ -251,14 +251,6 @@ struct MockGmailMailboxClient: GmailMailboxClient {
       )
     }
 
-    if connection.connectionStatus.localizedCaseInsensitiveContains("connected") {
-      return GmailMailboxFetchResult(
-        status: .oauthPlaceholder,
-        messages: [],
-        detail: "Gmail OAuth is still a future boundary in this app. Mock Gmail refresh does not use tokens, Keychain, Google APIs, or mailbox access."
-      )
-    }
-
     if labels.localizedCaseInsensitiveContains("empty") {
       return GmailMailboxFetchResult(
         status: .noMessages,
