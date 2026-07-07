@@ -156,6 +156,38 @@ struct SLAPoliciesView: View {
           Badge("\(store.policiesNeedingReview.count) review", color: store.policiesNeedingReview.isEmpty ? .green : .orange)
         }
 
+        if !slaProviderRows.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox source for SLA policies")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+              ForEach(slaProviderRows, id: \.label) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22, height: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                      Text(row.label)
+                        .font(.caption.weight(.semibold))
+                      Spacer()
+                      Badge("\(row.count) intake", color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+        }
+
         if inboxOrders.isEmpty {
           Text("No Inbox-created orders are present yet. Create an order from Inbox before checking SLA coverage.")
             .font(.caption)
@@ -187,6 +219,73 @@ struct SLAPoliciesView: View {
         }
       }
     }
+  }
+
+  private var slaProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+    for order in inboxCreatedOrders {
+      for email in linkedIntakeEmails(for: order) {
+        let summary = store.intakeSourceSummary(for: email)
+        counts[summary.label, default: 0] += 1
+        tones[summary.label] = summary.tone
+      }
+    }
+    return counts.map { label, count in
+      let tone = tones[label] ?? ""
+      let detail: String
+      switch tone {
+      case "spacemail":
+        detail = "SpaceMail intake can suggest local response, resolution, and escalation policy context for Inbox-created orders."
+      case "gmail":
+        detail = "Gmail intake can suggest local response, resolution, and escalation policy context for Inbox-created orders."
+      case "mock":
+        detail = "Mock mailbox intake supports local SLA testing. Confirm live provider context before relying on policy guidance."
+      default:
+        detail = "Local mailbox intake can suggest SLA policy context once linked to an order."
+      }
+      return (
+        label: label,
+        count: count,
+        detail: detail,
+        symbol: providerSymbol(for: tone, label: label),
+        color: sourceColor(for: tone)
+      )
+    }
+    .sorted { lhs, rhs in
+      if lhs.count == rhs.count {
+        return lhs.label < rhs.label
+      }
+      return lhs.count > rhs.count
+    }
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "gmail":
+      return .blue
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
+  }
+
+  private func providerSymbol(for tone: String, label: String) -> String {
+    if tone == "gmail" || label.localizedCaseInsensitiveContains("Gmail") {
+      return "envelope.badge.shield.half.filled"
+    }
+    if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
+      return "server.rack"
+    }
+    if tone == "mock" {
+      return "testtube.2"
+    }
+    return "envelope.open.fill"
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
@@ -447,10 +546,16 @@ struct SLAPolicyRow: View {
 
   private func sourceColor(for tone: String) -> Color {
     switch tone {
-    case "spacemail": return .teal
-    case "mock": return .purple
-    case "microsoft", "mailbox": return .blue
-    default: return .secondary
+    case "spacemail":
+      return .teal
+    case "gmail":
+      return .blue
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
     }
   }
 }
