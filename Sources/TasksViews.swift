@@ -389,6 +389,7 @@ struct TasksView: View {
         gmailTaskContextPanel
         mvpValidationPanel
         mailboxProviderTaskPanel
+        gmailAssignedFollowUpPanel
         spaceMailTaskEscalationPanel
         spaceMailAssignedFollowUpPanel
         draftFollowUpPanel
@@ -1319,6 +1320,81 @@ struct TasksView: View {
     }
   }
 
+  private var gmailAssignedFollowUpItems: [TaskQueueItem] {
+    queueItems.filter { item in
+      item.isGmailFollowUp
+    }
+  }
+
+  @ViewBuilder
+  private var gmailAssignedFollowUpPanel: some View {
+    if !gmailAssignedFollowUpItems.isEmpty {
+      SettingsPanel(title: "Gmail assigned follow-up", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("These tasks or handoffs reference Gmail setup, Google sign-in, Gmail refresh, classifier review, or Gmail provider release checks. Use Mailbox Monitor for the source evidence, then complete the assigned work here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Assigned", "\(gmailAssignedFollowUpItems.count)", .purple),
+            ("Overdue", "\(gmailAssignedFollowUpItems.filter(\.isOverdue).count)", gmailAssignedFollowUpItems.contains(where: \.isOverdue) ? .red : .green),
+            ("Blocked", "\(gmailAssignedFollowUpItems.filter { $0.status == .blocked }.count)", gmailAssignedFollowUpItems.contains { $0.status == .blocked } ? .red : .green),
+            ("Needs review", "\(gmailAssignedFollowUpItems.filter { $0.reviewState != .accepted }.count)", gmailAssignedFollowUpItems.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(gmailAssignedFollowUpItems.prefix(4)) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(item.sourceLabel, systemImage: item.source.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(item.priority.color)
+                  Spacer()
+                  Badge(item.status.rawValue, color: item.status.color)
+                }
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(item.nextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(item.priority.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Open Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              IntegrationsView(store: store)
+            } label: {
+              Label("Open Settings", systemImage: "gearshape.2.fill")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Check Audit trail", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("Gmail follow-up remains local operator work. This panel does not open Google sign-in, fetch Gmail, store token values, or change mailbox messages.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
   private var spaceMailAssignedFollowUpItems: [TaskQueueItem] {
     queueItems.filter { item in
       item.isSpaceMailFollowUp
@@ -1578,6 +1654,13 @@ private struct TaskQueueItem: Identifiable {
       || nextAction.localizedCaseInsensitiveContains("spacemail")
   }
 
+  var isGmailFollowUp: Bool {
+    title.localizedCaseInsensitiveContains("gmail")
+      || summary.localizedCaseInsensitiveContains("gmail")
+      || nextAction.localizedCaseInsensitiveContains("gmail")
+      || linkedEntityID.localizedCaseInsensitiveContains("gmail")
+  }
+
   var isMVPFollowUp: Bool {
     guard linkedEntityType == .integration else { return false }
 
@@ -1630,6 +1713,9 @@ private struct TaskQueueItem: Identifiable {
   static func task(_ task: ReviewTask) -> TaskQueueItem {
     let isSpaceMailFollowUp = task.title.localizedCaseInsensitiveContains("spacemail")
       || task.summary.localizedCaseInsensitiveContains("spacemail")
+    let isGmailFollowUp = task.linkedEntityID.localizedCaseInsensitiveContains("gmail")
+      || task.title.localizedCaseInsensitiveContains("gmail")
+      || task.summary.localizedCaseInsensitiveContains("gmail")
     let isMailboxProviderFollowUp = task.linkedEntityType == .integration
       && (
         task.linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider")
@@ -1654,7 +1740,7 @@ private struct TaskQueueItem: Identifiable {
     return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
       source: .task(task),
-      sourceLabel: isMailboxProviderFollowUp ? "Provider task" : isMVPFollowUp ? "MVP follow-up" : isSpaceMailFollowUp ? "SpaceMail task" : "Task",
+      sourceLabel: isGmailFollowUp ? "Gmail task" : isMailboxProviderFollowUp ? "Provider task" : isMVPFollowUp ? "MVP follow-up" : isSpaceMailFollowUp ? "SpaceMail task" : "Task",
       title: task.title,
       summary: task.summary,
       linkedEntityType: task.linkedEntityType,
@@ -1666,7 +1752,7 @@ private struct TaskQueueItem: Identifiable {
       reviewState: task.reviewState,
       isOverdue: task.isLocallyOverdue,
       nextAction: isMailboxProviderFollowUp
-        ? "Open the provider release/self-check context and Mailbox Monitor, then complete or refresh this follow-up"
+        ? (isGmailFollowUp ? "Open Gmail setup or release self-check in Mailbox Monitor, then complete or refresh this follow-up" : "Open the provider release/self-check context and Mailbox Monitor, then complete or refresh this follow-up")
         : isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then complete or draft follow-up"
         : isMVPFollowUp
@@ -1676,7 +1762,7 @@ private struct TaskQueueItem: Identifiable {
         : task.isPartialInboxOrderFollowUp
         ? "Open the order, confirm missing fields, then complete this handoff"
         : nextAction(status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue, completedVerb: "Reopen if more work is needed"),
-      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isMailboxProviderFollowUp ? 8 : isMVPFollowUp ? 7 : isSpaceMailFollowUp ? 6 : 0)
+      sortPriority: sortPriority(priority: task.priority, status: task.status, reviewState: task.reviewState, isOverdue: task.isLocallyOverdue) + (task.isReopenedInboxDispatchHandoff ? 12 : task.isPartialInboxOrderFollowUp ? 8 : isGmailFollowUp ? 9 : isMailboxProviderFollowUp ? 8 : isMVPFollowUp ? 7 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
@@ -1684,6 +1770,10 @@ private struct TaskQueueItem: Identifiable {
     let isSpaceMailFollowUp = note.title.localizedCaseInsensitiveContains("spacemail")
       || note.summary.localizedCaseInsensitiveContains("spacemail")
       || note.notes.localizedCaseInsensitiveContains("spacemail")
+    let isGmailFollowUp = note.linkedEntityID.localizedCaseInsensitiveContains("gmail")
+      || note.title.localizedCaseInsensitiveContains("gmail")
+      || note.summary.localizedCaseInsensitiveContains("gmail")
+      || note.notes.localizedCaseInsensitiveContains("gmail")
     let isMailboxProviderFollowUp = note.linkedEntityType == .integration
       && (
         note.linkedEntityID.localizedCaseInsensitiveContains("mailbox-provider")
@@ -1705,7 +1795,7 @@ private struct TaskQueueItem: Identifiable {
     return TaskQueueItem(
       id: "handoff-\(note.id.uuidString)",
       source: .handoff(note),
-      sourceLabel: isMailboxProviderFollowUp ? "Provider handoff" : isSpaceMailFollowUp ? "SpaceMail handoff" : "Handoff",
+      sourceLabel: isGmailFollowUp ? "Gmail handoff" : isMailboxProviderFollowUp ? "Provider handoff" : isSpaceMailFollowUp ? "SpaceMail handoff" : "Handoff",
       title: note.title,
       summary: note.summary,
       linkedEntityType: note.linkedEntityType,
@@ -1717,11 +1807,11 @@ private struct TaskQueueItem: Identifiable {
       reviewState: note.reviewState,
       isOverdue: note.isLocallyOverdue,
       nextAction: isMailboxProviderFollowUp
-        ? "Open Mailbox Monitor for provider setup or refresh context, then acknowledge or complete handoff"
+        ? (isGmailFollowUp ? "Open Mailbox Monitor for Gmail setup, sign-in, or refresh context, then acknowledge or complete handoff" : "Open Mailbox Monitor for provider setup or refresh context, then acknowledge or complete handoff")
         : isSpaceMailFollowUp
         ? "Open Mailbox Monitor for source context, then acknowledge or complete handoff"
         : nextAction(status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue, completedVerb: "Reopen if the handoff is active again"),
-      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue) + (isMailboxProviderFollowUp ? 8 : isSpaceMailFollowUp ? 6 : 0)
+      sortPriority: sortPriority(priority: note.priority, status: note.status, reviewState: note.reviewState, isOverdue: note.isLocallyOverdue) + (isGmailFollowUp ? 9 : isMailboxProviderFollowUp ? 8 : isSpaceMailFollowUp ? 6 : 0)
     )
   }
 
@@ -1757,6 +1847,7 @@ private struct TaskQueueItem: Identifiable {
     case .task(let task):
       if task.isReopenedInboxDispatchHandoff { return "Reopened dispatch handoff" }
       if task.isPartialInboxOrderFollowUp { return "Verify Inbox-created order" }
+      if isGmailFollowUp { return "Gmail follow-up" }
       if isMailboxProviderFollowUp { return "Mailbox provider follow-up" }
       if isSpaceMailFollowUp { return "SpaceMail follow-up" }
       if isMVPFollowUp { return "MVP validation follow-up" }
@@ -1765,6 +1856,7 @@ private struct TaskQueueItem: Identifiable {
       if status == .completed { return reviewState == .accepted ? "Task is complete" : "Completed task needs review" }
       return "Owned follow-up work"
     case .handoff:
+      if isGmailFollowUp { return "Gmail shift handoff" }
       if isMailboxProviderFollowUp { return "Mailbox provider handoff" }
       if isSpaceMailFollowUp { return "SpaceMail shift handoff" }
       if isOverdue { return "Handoff is overdue" }
@@ -1782,6 +1874,9 @@ private struct TaskQueueItem: Identifiable {
       }
       if task.isPartialInboxOrderFollowUp {
         return "Confirm the missing order, tracking, or destination details on the linked Inbox-created order before completing this task."
+      }
+      if isGmailFollowUp {
+        return "Use Gmail setup, sign-in, refresh, classifier, or release self-check context in Mailbox Monitor before completing this task."
       }
       if isMailboxProviderFollowUp {
         return "Use the mailbox provider release gate or Gmail self-check plus Mailbox Monitor to confirm the provider path before completing this task."
@@ -1803,6 +1898,9 @@ private struct TaskQueueItem: Identifiable {
       }
       return "Confirm the linked record context, then complete the task when the owner has finished the work."
     case .handoff:
+      if isGmailFollowUp {
+        return "Review Gmail setup, Google sign-in, refresh evidence, or classifier context before acknowledging/completing this shift note."
+      }
       if isMailboxProviderFollowUp {
         return "Review Mailbox Monitor provider setup, Gmail/SpaceMail refresh evidence, or release gate context before acknowledging/completing this shift note."
       }
@@ -1826,6 +1924,7 @@ private struct TaskQueueItem: Identifiable {
     if status == .blocked { return "Blocked" }
     if isOverdue { return "Overdue" }
     if status == .completed { return reviewState == .accepted ? "Done" : "Review" }
+    if isGmailFollowUp { return "Gmail" }
     if isMailboxProviderFollowUp { return "Provider" }
     if isSpaceMailFollowUp { return "SpaceMail" }
     if isMVPFollowUp { return "MVP" }
@@ -1843,6 +1942,7 @@ private struct TaskQueueItem: Identifiable {
     if isOverdue { return .red }
     if status == .completed && reviewState == .accepted { return .green }
     if status == .completed { return .orange }
+    if isGmailFollowUp { return .teal }
     if isMailboxProviderFollowUp { return .purple }
     if isSpaceMailFollowUp { return .teal }
     if isMVPFollowUp { return .purple }
@@ -1859,6 +1959,7 @@ private struct TaskQueueItem: Identifiable {
     if status == .blocked { return "xmark.octagon.fill" }
     if isOverdue { return "clock.badge.exclamationmark.fill" }
     if status == .completed { return reviewState == .accepted ? "checkmark.seal.fill" : "checkmark.shield.fill" }
+    if isGmailFollowUp { return "envelope.badge.shield.half.filled" }
     if isMailboxProviderFollowUp { return "checkmark.seal.fill" }
     if isSpaceMailFollowUp { return "server.rack" }
     if isMVPFollowUp { return "checklist.checked" }
