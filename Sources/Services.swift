@@ -373,13 +373,13 @@ struct RealGmailMailboxClient: GmailMailboxClient {
         return GmailMailboxFetchResult(
           status: .noMessages,
           messages: [],
-          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
         )
       }
       return GmailMailboxFetchResult(
         status: .success,
         messages: messages,
-        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
       )
     } catch let error as RealGmailMailboxError {
       return GmailMailboxFetchResult(status: error.status, messages: [], detail: error.safeDetail)
@@ -506,6 +506,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
   private struct ReadOnlyFetchOutcome {
     var messages: [FetchedMailboxMessage]
     var profileDetail: String
+    var labelDetail: String
   }
 
   private func fetchReadOnlyMessages(
@@ -514,7 +515,8 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     sourceMailboxID: UUID
   ) async throws -> ReadOnlyFetchOutcome {
     let profileDetail = try await fetchProfileDiagnostic(accessToken: accessToken, connection: connection)
-    let messageIDs = try await listMessageIDs(accessToken: accessToken, connection: connection)
+    let labelResolution = try await resolveLabelID(accessToken: accessToken, label: firstLabel(from: connection))
+    let messageIDs = try await listMessageIDs(accessToken: accessToken, labelID: labelResolution.id)
     var messages: [FetchedMailboxMessage] = []
     for id in messageIDs.prefix(10) {
       let message = try await fetchMessageMetadata(
@@ -525,7 +527,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
       messages.append(message)
     }
-    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail)
+    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail, labelDetail: labelResolution.detail)
   }
 
   private func fetchProfileDiagnostic(accessToken: String, connection: GmailMailboxConnection) async throws -> String {
@@ -551,18 +553,67 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     return "Gmail profile preflight succeeded: returned mailbox \(returnedMailbox.isEmpty ? "unavailable" : "present"), mailbox comparison \(mailboxMatch), total messages \(totalMessages), total threads \(totalThreads)."
   }
 
-  private func listMessageIDs(accessToken: String, connection: GmailMailboxConnection) async throws -> [String] {
-    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages")!
-    var queryItems = [
-      URLQueryItem(name: "maxResults", value: "10"),
-      URLQueryItem(name: "includeSpamTrash", value: "false")
-    ]
-    let label = firstLabel(from: connection)
-    if let systemLabel = systemLabelID(from: label) {
-      queryItems.append(URLQueryItem(name: "labelIds", value: systemLabel))
-    } else if !label.isEmpty {
-      queryItems.append(URLQueryItem(name: "q", value: "label:\(label)"))
+  private struct GmailLabelResolution {
+    var id: String
+    var detail: String
+  }
+
+  private func resolveLabelID(accessToken: String, label: String) async throws -> GmailLabelResolution {
+    let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+    let effectiveLabel = trimmedLabel.isEmpty ? "INBOX" : trimmedLabel
+    if let systemLabel = systemLabelID(from: effectiveLabel) {
+      return GmailLabelResolution(
+        id: systemLabel,
+        detail: "Gmail label resolution used system label \(systemLabel)."
+      )
     }
+
+    if effectiveLabel.localizedCaseInsensitiveContains("label_") {
+      return GmailLabelResolution(
+        id: effectiveLabel,
+        detail: "Gmail label resolution used configured label ID directly. The value was not logged as a mailbox secret."
+      )
+    }
+
+    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/labels")!
+    components.queryItems = [
+      URLQueryItem(name: "fields", value: "labels(id,name,type)")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail labels metadata request. No Gmail messages were fetched.")
+    }
+
+    let response: GmailLabelsResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "labels.list")
+    let normalizedTarget = normalizedLabelName(effectiveLabel)
+    let match = response.labels?.first { label in
+      normalizedLabelName(label.name) == normalizedTarget
+        || normalizedLabelName(label.id) == normalizedTarget
+    }
+    guard let match else {
+      let availableExamples = response.labels?
+        .filter { $0.type?.localizedCaseInsensitiveContains("user") == true || systemLabelID(from: $0.name) != nil }
+        .prefix(6)
+        .map { safeHeaderValue($0.name, limit: 40) }
+        .joined(separator: ", ") ?? "none returned"
+      throw RealGmailMailboxError(
+        status: .labelNotFound,
+        safeDetail: "Gmail label '\(safeHeaderValue(effectiveLabel, limit: 80))' was not found in safe label metadata. Available examples: \(availableExamples). Use INBOX or an existing Gmail label name. No Gmail messages were fetched, and no mailbox item was changed."
+      )
+    }
+
+    return GmailLabelResolution(
+      id: match.id,
+      detail: "Gmail label resolution matched configured label '\(safeHeaderValue(effectiveLabel, limit: 80))' to safe Gmail label metadata. Label type: \(safeHeaderValue(match.type ?? "unknown", limit: 40))."
+    )
+  }
+
+  private func listMessageIDs(accessToken: String, labelID: String) async throws -> [String] {
+    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages")!
+    let queryItems = [
+      URLQueryItem(name: "maxResults", value: "10"),
+      URLQueryItem(name: "includeSpamTrash", value: "false"),
+      URLQueryItem(name: "labelIds", value: labelID)
+    ]
     components.queryItems = queryItems
     guard let url = components.url else {
       throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail list request. No Gmail API call was made.")
@@ -661,6 +712,13 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     let supported = ["INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "TRASH", "SPAM", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"]
     return supported.contains(normalized) ? normalized : nil
+  }
+
+  private func normalizedLabelName(_ value: String) -> String {
+    value
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "\\", with: "")
+      .lowercased()
   }
 
   private func header(_ name: String, in headers: [GmailHeader]) -> String? {
@@ -915,6 +973,16 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
   private struct GmailMessageID: Decodable {
     var id: String
+  }
+
+  private struct GmailLabelsResponse: Decodable {
+    var labels: [GmailLabel]?
+  }
+
+  private struct GmailLabel: Decodable {
+    var id: String
+    var name: String
+    var type: String?
   }
 
   private struct GmailProfileResponse: Decodable {
