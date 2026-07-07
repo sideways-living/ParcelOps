@@ -109,6 +109,10 @@ struct DashboardView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.gmailIntakeHealthSummaries.first
   }
+  private var latestGmailConnection: GmailMailboxConnection? {
+    guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.first }
+    return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
+  }
   private var gmailSetupBlockerCount: Int {
     store.gmailMailboxConnections.filter { !store.gmailOAuthReadinessSummary(for: $0).isReady }.count
   }
@@ -232,6 +236,65 @@ struct DashboardView: View {
     }
     let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
     return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
+  }
+  private var dashboardGmailPrimaryLabel: String {
+    guard let connection = latestGmailConnection else { return "None" }
+    return connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { !$0.isEmpty } ?? "INBOX"
+  }
+  private var dashboardGmailLabelStatus: String {
+    guard let connection = latestGmailConnection else { return "No Gmail setup" }
+    let summary = connection.lastRefreshSummary
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Label not found") ||
+        summary.localizedCaseInsensitiveContains("was not found in safe label metadata") {
+      return "Label issue"
+    }
+    if summary.localizedCaseInsensitiveContains("matched configured label") {
+      return "Custom label resolved"
+    }
+    if summary.localizedCaseInsensitiveContains("used configured label ID directly") {
+      return "Label ID used"
+    }
+    if summary.localizedCaseInsensitiveContains("used system label") || dashboardGmailPrimaryLabel.uppercased() == "INBOX" {
+      return "System label direct"
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Label not checked"
+    }
+    return "Audit has label detail"
+  }
+  private var dashboardGmailLabelDetail: String {
+    switch dashboardGmailLabelStatus {
+    case "No Gmail setup":
+      return "Add Gmail only for mailboxes hosted by Gmail or Google Workspace."
+    case "Label issue":
+      return "Dashboard sees a Gmail label problem. Open Mailbox Monitor, set INBOX or an exact existing Gmail label, then retry manual refresh."
+    case "Custom label resolved":
+      return "The latest Gmail refresh resolved the custom label before listing messages."
+    case "Label ID used":
+      return "The latest Gmail refresh used the configured Gmail label ID directly."
+    case "System label direct":
+      return "The latest Gmail refresh can use the system label directly; INBOX does not need custom-label lookup."
+    case "Label not checked":
+      return "Run Gmail readiness or manual refresh from Mailbox Monitor after sign-in to confirm the label."
+    default:
+      return "Open Audit or Mailbox Monitor for the safe label-resolution detail from the latest Gmail refresh."
+    }
+  }
+  private var dashboardGmailLabelColor: Color {
+    switch dashboardGmailLabelStatus {
+    case "Label issue":
+      return .orange
+    case "Custom label resolved", "Label ID used", "System label direct":
+      return .green
+    case "Audit has label detail":
+      return .teal
+    default:
+      return .secondary
+    }
   }
   private var dashboardMailboxProviderRows: [(title: String, value: String, detail: String, color: Color)] {
     let spaceMailReviewCount = (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)
@@ -1311,6 +1374,16 @@ struct DashboardView: View {
             ("Gmail review", "\(pendingGmailFilteredReviewCount)", pendingGmailFilteredReviewCount > 0 ? .teal : .secondary),
             ("Gmail uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary)
           ])
+          CompactMetadataGrid(minimumWidth: 145) {
+            Badge("Label: \(dashboardGmailPrimaryLabel)", color: dashboardGmailLabelColor)
+            Badge(dashboardGmailLabelStatus, color: dashboardGmailLabelColor)
+            Badge(latestGmailConnection?.mailboxMode.rawValue ?? "No Gmail setup", color: latestGmailConnection == nil ? .secondary : .teal)
+            Badge(latestGmailSummary?.lastRefreshDate ?? "No refresh", color: latestGmailTone)
+          }
+          Text(dashboardGmailLabelDetail)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(dashboardGmailLabelColor)
+            .fixedSize(horizontal: false, vertical: true)
           if pendingGmailFilteredReviewCount > 0 {
             Label("Filtered Gmail examples are not Inbox work unless an operator imports one from Mailbox Monitor or Needs Review.", systemImage: "line.3.horizontal.decrease.circle.fill")
               .font(.caption2.weight(.semibold))
