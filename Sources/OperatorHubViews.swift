@@ -2427,6 +2427,7 @@ struct DispatchView: View {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         dispatchSummaryPanel
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         dispatchReadinessLadderPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel
