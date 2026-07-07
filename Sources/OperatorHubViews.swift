@@ -1987,6 +1987,8 @@ private struct InboxTriageRow: View {
     switch tone {
     case "spacemail":
       return .teal
+    case "gmail":
+      return .blue
     case "mock":
       return .purple
     case "microsoft", "mailbox":

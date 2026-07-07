@@ -2311,6 +2311,8 @@ private struct WorkbenchInboxSourcePanel: View {
     switch summary.tone {
     case "spacemail":
       return .teal
+    case "gmail":
+      return .blue
     case "mock":
       return .purple
     case "microsoft", "mailbox":
