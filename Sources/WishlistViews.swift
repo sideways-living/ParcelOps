@@ -47,6 +47,30 @@ struct WishlistView: View {
       || !wishlistSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var gmailWishlistCandidateEmails: [ForwardedEmailIntake] {
+    store.intakeEmails
+      .filter { email in
+        store.intakeSourceSummary(for: email).tone == "gmail"
+          && gmailWishlistCandidateScore(for: email) > 0
+      }
+      .sorted(by: { first, second in
+        let firstScore = gmailWishlistCandidateScore(for: first)
+        let secondScore = gmailWishlistCandidateScore(for: second)
+        if firstScore == secondScore {
+          return first.receivedDate > second.receivedDate
+        }
+        return firstScore > secondScore
+      })
+  }
+
+  private var gmailWishlistReadyCount: Int {
+    gmailWishlistCandidateEmails.filter { email in
+      !email.detectedMerchant.isPlaceholderValidationValue
+        || !email.detectedOrderNumber.isPlaceholderValidationValue
+        || !email.subject.isPlaceholderValidationValue
+    }.count
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -65,6 +89,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistReadinessPanel
+        gmailWishlistFocusPanel
         filterBar
 
         SettingsPanel(title: "Capture channels", symbol: "square.and.arrow.down.fill") {
@@ -227,6 +252,114 @@ struct WishlistView: View {
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var gmailWishlistFocusPanel: some View {
+    if !store.gmailMailboxConnections.isEmpty || !gmailWishlistCandidateEmails.isEmpty {
+      SettingsPanel(title: "Gmail wishlist focus", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Gmail messages sometimes contain purchase intent rather than active orders. Keep those out of Orders until a person confirms the item, storefront, owner, and whether it should become a wishlist item.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Gmail candidates", "\(gmailWishlistCandidateEmails.count)", gmailWishlistCandidateEmails.isEmpty ? .secondary : .blue),
+            ("Ready signals", "\(gmailWishlistReadyCount)", gmailWishlistReadyCount == 0 ? .secondary : .teal),
+            ("Wishlist items", "\(store.wishlistItems.count)", store.wishlistItems.isEmpty ? .secondary : .green),
+            ("Needs review", "\(store.wishlistItems.filter { $0.status.localizedCaseInsensitiveContains("review") }.count)", store.wishlistItems.contains { $0.status.localizedCaseInsensitiveContains("review") } ? .orange : .green)
+          ])
+
+          if gmailWishlistCandidateEmails.isEmpty {
+            Label("No Gmail-origin purchase-intent candidates are visible. Use Mailbox Monitor for Gmail refresh and classifier review before adding wishlist items manually.", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+          } else {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Review Gmail purchase signals")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], spacing: 10) {
+                ForEach(gmailWishlistCandidateEmails.prefix(4)) { email in
+                  VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                      Label("Gmail intake", systemImage: "envelope.badge.shield.half.filled")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.blue)
+                      Spacer(minLength: 8)
+                      Badge(gmailWishlistCandidateLabel(for: email), color: gmailWishlistCandidateScore(for: email) > 2 ? .orange : .teal)
+                    }
+                    Text(email.subject.isPlaceholderValidationValue ? email.detectedMerchant : email.subject)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(gmailWishlistCandidateDetail(for: email))
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  .padding(10)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+              }
+            }
+          }
+
+          CompactActionRow {
+            Button("Manual wishlist item", systemImage: "plus") {
+              store.addManualWishlistItemPlaceholder()
+            }
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Inbox", systemImage: "tray.full.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("This panel reads only local Gmail intake summaries. It does not fetch Gmail, create wishlist items automatically, open shopfronts automatically, store token values, or mutate mailbox messages.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
+  private func gmailWishlistCandidateScore(for email: ForwardedEmailIntake) -> Int {
+    let text = [email.subject, email.rawBodyPreview, email.detectedMerchant, email.detectedDestinationAddress]
+      .joined(separator: " ")
+      .localizedLowercase
+    var score = 0
+    if text.contains("wishlist") || text.contains("wish list") { score += 3 }
+    if text.contains("want to buy") || text.contains("would like to buy") || text.contains("looking to buy") { score += 3 }
+    if text.contains("purchase") || text.contains("quote") || text.contains("price") || text.contains("stock") { score += 2 }
+    if text.contains("recommend") || text.contains("replacement") || text.contains("supplier") || text.contains("vendor") { score += 1 }
+    if !email.detectedMerchant.isPlaceholderValidationValue { score += 1 }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue || !email.detectedTrackingNumber.isPlaceholderValidationValue { score -= 3 }
+    return max(score, 0)
+  }
+
+  private func gmailWishlistCandidateLabel(for email: ForwardedEmailIntake) -> String {
+    let score = gmailWishlistCandidateScore(for: email)
+    if score >= 4 { return "Likely wishlist" }
+    if score > 0 { return "Possible wishlist" }
+    return "Review"
+  }
+
+  private func gmailWishlistCandidateDetail(for email: ForwardedEmailIntake) -> String {
+    var parts: [String] = []
+    if !email.detectedMerchant.isPlaceholderValidationValue { parts.append("merchant: \(email.detectedMerchant)") }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue { parts.append("order already detected") }
+    if !email.detectedTrackingNumber.isPlaceholderValidationValue { parts.append("tracking already detected") }
+    if parts.isEmpty { parts.append("confirm item, storefront, and purchase intent before adding a manual wishlist item") }
+    return parts.joined(separator: "; ")
   }
 
   private func uniqueWishlistItems(_ items: [WishlistItem]) -> [WishlistItem] {
