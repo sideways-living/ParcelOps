@@ -1677,6 +1677,16 @@ struct GmailMailboxConnectionRow: View {
           ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
           ("Uncertain", "\(connection.lastRefreshUncertainCount ?? 0)", (connection.lastRefreshUncertainCount ?? 0) > 0 ? .orange : .secondary)
         ])
+        CompactMetadataGrid(minimumWidth: 145) {
+          Badge("Label: \(gmailPrimaryLabelDisplay)", color: gmailLabelResolutionColor)
+          Badge(gmailLabelResolutionStatus, color: gmailLabelResolutionColor)
+          Badge(gmailRefreshModeLabel, color: gmailRefreshGuidanceColor)
+          Badge(connection.mailboxMode == .mixedFiltered ? "Mixed mailbox" : "Dedicated mailbox", color: .teal)
+        }
+        Text(gmailLabelResolutionDetail)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailLabelResolutionColor)
+          .fixedSize(horizontal: false, vertical: true)
         Text(connection.lastRefreshSummary)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -2581,6 +2591,66 @@ struct GmailMailboxConnectionRow: View {
     if connection.connectionStatus.localizedCaseInsensitiveContains("Mock Gmail") { return "Mock Gmail" }
     if connection.connectionStatus.localizedCaseInsensitiveContains("readiness") { return "Readiness" }
     return "No refresh"
+  }
+
+  private var gmailPrimaryLabelDisplay: String {
+    let first = connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { !$0.isEmpty }
+    return first ?? "INBOX"
+  }
+
+  private var gmailLabelResolutionStatus: String {
+    let summary = connection.lastRefreshSummary
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Label not found") ||
+        summary.localizedCaseInsensitiveContains("was not found in safe label metadata") {
+      return "Label not found"
+    }
+    if summary.localizedCaseInsensitiveContains("matched configured label") {
+      return "Custom label resolved"
+    }
+    if summary.localizedCaseInsensitiveContains("used configured label ID directly") {
+      return "Label ID used"
+    }
+    if summary.localizedCaseInsensitiveContains("used system label") || gmailPrimaryLabelDisplay.uppercased() == "INBOX" {
+      return "System label direct"
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Label not checked"
+    }
+    return "Check Audit detail"
+  }
+
+  private var gmailLabelResolutionDetail: String {
+    switch gmailLabelResolutionStatus {
+    case "Label not found":
+      return "The configured Gmail label was not found. Use INBOX or the exact label name shown in Gmail, then retry manual refresh."
+    case "Custom label resolved":
+      return "Custom label metadata was resolved before message listing. Only safe label name, ID, and type diagnostics are shown."
+    case "Label ID used":
+      return "The configured Gmail label ID was used directly. Refresh remains read-only and manual."
+    case "System label direct":
+      return "System labels such as INBOX are used directly; no custom-label lookup is needed."
+    case "Label not checked":
+      return "Run a readiness check or manual refresh after sign-in to confirm the configured Gmail label."
+    default:
+      return "Open Audit for the safe label-resolution detail from the latest Gmail refresh."
+    }
+  }
+
+  private var gmailLabelResolutionColor: Color {
+    switch gmailLabelResolutionStatus {
+    case "Label not found":
+      return .orange
+    case "Custom label resolved", "Label ID used", "System label direct":
+      return .green
+    case "Label not checked":
+      return .secondary
+    default:
+      return .teal
+    }
   }
 
   private var gmailTroubleshootingTone: Color {
