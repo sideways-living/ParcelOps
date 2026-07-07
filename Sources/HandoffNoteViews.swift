@@ -77,6 +77,7 @@ struct HandoffNotesView: View {
         }
 
         providerHandoffPacketPanel
+        gmailHandoffFocusPanel
         filters
         inboxHandoffCoverage
 
@@ -254,6 +255,109 @@ struct HandoffNotesView: View {
     }
   }
 
+  private var gmailHandoffNotes: [HandoffNote] {
+    store.handoffNotes
+      .filter { note in
+        [note.title, note.summary, note.linkedEntityID, note.notes]
+          .joined(separator: " ")
+          .localizedCaseInsensitiveContains("gmail")
+      }
+      .sorted { first, second in
+        let firstPriority = gmailHandoffSortPriority(first)
+        let secondPriority = gmailHandoffSortPriority(second)
+        if firstPriority == secondPriority {
+          return first.createdDate > second.createdDate
+        }
+        return firstPriority > secondPriority
+      }
+  }
+
+  private var activeGmailHandoffNotes: [HandoffNote] {
+    gmailHandoffNotes.filter { note in
+      note.status != .completed || note.reviewState != .accepted
+    }
+  }
+
+  @ViewBuilder
+  private var gmailHandoffFocusPanel: some View {
+    if !gmailHandoffNotes.isEmpty {
+      SettingsPanel(title: "Gmail handoff focus", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Gmail setup, sign-in, refresh, classifier, and provider-release handoffs are grouped here so shift notes do not get buried inside the generic mailbox provider queue.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Gmail notes", "\(gmailHandoffNotes.count)", .blue),
+            ("Active", "\(activeGmailHandoffNotes.count)", activeGmailHandoffNotes.isEmpty ? .green : .orange),
+            ("Overdue", "\(gmailHandoffNotes.filter(\.isLocallyOverdue).count)", gmailHandoffNotes.contains(where: \.isLocallyOverdue) ? .red : .green),
+            ("Blocked", "\(gmailHandoffNotes.filter { $0.status == .blocked }.count)", gmailHandoffNotes.contains { $0.status == .blocked } ? .red : .green),
+            ("Needs review", "\(gmailHandoffNotes.filter { $0.reviewState != .accepted }.count)", gmailHandoffNotes.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(activeGmailHandoffNotes.prefix(4)) { note in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(note.priority.rawValue, systemImage: note.isLocallyOverdue ? "clock.badge.exclamationmark.fill" : "envelope.badge.shield.half.filled")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(note.isLocallyOverdue ? .red : note.priority.color)
+                  Spacer()
+                  Badge(note.status.rawValue, color: note.status.color)
+                }
+                Text(note.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(gmailHandoffActionSummary(for: note))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background((note.isLocallyOverdue ? Color.red : note.priority.color).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          if activeGmailHandoffNotes.isEmpty {
+            Label("All Gmail handoff notes are completed and reviewed.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else if activeGmailHandoffNotes.count > 4 {
+            Text("\(activeGmailHandoffNotes.count - 4) more active Gmail handoff note\(activeGmailHandoffNotes.count - 4 == 1 ? "" : "s") can be worked from the Notes list below or Tasks.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("This panel reads local handoff notes only. It does not open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
   private func clearFilters() {
     selectedEntityType = nil
     selectedPriority = nil
@@ -261,6 +365,33 @@ struct HandoffNotesView: View {
     selectedStatus = nil
     selectedReviewState = nil
     handoffSearchText = ""
+  }
+
+  private func gmailHandoffSortPriority(_ note: HandoffNote) -> Int {
+    var priority = 0
+    if note.status == .blocked { priority += 50 }
+    if note.isLocallyOverdue { priority += 40 }
+    if note.reviewState != .accepted { priority += 25 }
+    switch note.priority {
+    case .urgent: priority += 20
+    case .high: priority += 15
+    case .normal: priority += 8
+    case .low: priority += 2
+    }
+    if note.status == .completed { priority -= 20 }
+    return priority
+  }
+
+  private func gmailHandoffActionSummary(for note: HandoffNote) -> String {
+    var parts: [String] = []
+    if note.status == .blocked { parts.append("unblock Gmail setup or refresh evidence") }
+    if note.status == .open || note.status == .inProgress { parts.append("acknowledge or complete handoff") }
+    if note.reviewState != .accepted { parts.append("mark reviewed after verification") }
+    if note.isLocallyOverdue { parts.append("check overdue shift handoff") }
+    if note.assignee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || note.assignee.localizedCaseInsensitiveContains("unassigned") || note.assignee.localizedCaseInsensitiveContains("unknown") {
+      parts.append("assign owner")
+    }
+    return parts.isEmpty ? "Gmail handoff is complete and reviewed." : parts.joined(separator: ", ")
   }
 
   private var inboxHandoffCoverage: some View {
