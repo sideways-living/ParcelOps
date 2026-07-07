@@ -115,6 +115,31 @@ struct AuditView: View {
     store.gmailIntakeHealthSummaries
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseAuditTaskConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
   private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
     store.spaceMailPostRefreshActionPlan
   }
@@ -575,9 +600,35 @@ struct AuditView: View {
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
 
+        if !gmailReleaseSelfChecks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Gmail release audit context", systemImage: "envelope.badge.shield.half.filled")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailReleaseBlockingCount > 0 ? .red : gmailReleaseAttentionCount > 0 ? .orange : .green)
+            Text("Use this to confirm local audit evidence for Gmail setup, sign-in, label resolution, classifier review, Inbox handoff, and release task creation.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            MetricStrip(items: [
+              ("Gmail checks", "\(gmailReleaseSelfChecks.reduce(0) { $0 + $1.completedCount })/\(gmailReleaseSelfChecks.reduce(0) { $0 + $1.totalCount })", gmailReleaseBlockingCount > 0 ? .red : gmailReleaseAttentionCount > 0 ? .orange : .green),
+              ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount > 0 ? .red : .green),
+              ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount > 0 ? .orange : .green),
+              ("Audit events", "\(mailboxProviderReleaseGateEvents.count)", mailboxProviderReleaseGateEvents.isEmpty ? .secondary : .teal)
+            ])
+            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+              GmailReleaseSelfCheckSummaryCard(summary: summary)
+            }
+          }
+        }
+
         CompactActionRow {
           Button("Create gate task", systemImage: "checklist") {
             store.createReviewTaskFromMailboxProviderReleaseGate()
+          }
+          if let connection = gmailReleaseAuditTaskConnection {
+            Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+            }
           }
           NavigationLink {
             MailboxView(store: store)
