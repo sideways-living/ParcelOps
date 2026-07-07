@@ -5353,6 +5353,16 @@ struct MailboxProviderOperatorReadinessStack: View {
 
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          if !store.gmailMailboxConnections.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Gmail provider checks", systemImage: "envelope.badge.shield.half.filled")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(store.gmailMailboxConnections) { connection in
+                GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
+              }
+            }
+          }
           if showHandoffPacket {
             MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
           }
