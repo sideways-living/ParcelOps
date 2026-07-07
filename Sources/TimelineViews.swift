@@ -110,6 +110,7 @@ struct TimelineView: View {
         header
         filters
         inboxSourceTrailTimelinePanel
+        mailboxProviderReleaseTimelinePanel
         mailboxProviderTimelinePanel
         inboxDispatchTimelinePanel
 
@@ -299,6 +300,23 @@ struct TimelineView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
             }
           }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var mailboxProviderReleaseTimelinePanel: some View {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
+      SettingsPanel(title: "Mailbox provider release context", symbol: "checkmark.seal.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Use this before treating Timeline evidence as a complete mailbox-provider handoff. It summarizes setup, refresh, parser, classifier, source-trail, and follow-up readiness without fetching mail or changing mailbox state.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         }
       }
     }

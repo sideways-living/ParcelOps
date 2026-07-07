@@ -198,6 +198,10 @@ private struct SearchReadinessPanel: View {
     (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
   }
 
+  private var providerReleaseNeedsReview: Bool {
+    store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success"
+  }
+
   private var providerRecoveryRows: [(label: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(label: String, status: String, detail: String, symbol: String, color: Color)] = []
 
@@ -263,12 +267,14 @@ private struct SearchReadinessPanel: View {
   }
 
   private var tone: Color {
+    if providerReleaseNeedsReview { return .orange }
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty || uncertainMailboxCount > 0 || parserIssueCount > 0 { return .orange }
     if inboxCreatedOrderCount > 0 || importedCount > 0 { return .green }
     return .teal
   }
 
   private var title: String {
+    if providerReleaseNeedsReview { return "Review mailbox provider release context" }
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty { return "Trace Inbox-created orders" }
     if uncertainMailboxCount > 0 { return "Review uncertain mailbox mail" }
     if parserIssueCount > 0 { return "Parser diagnostics are available" }
@@ -277,6 +283,9 @@ private struct SearchReadinessPanel: View {
   }
 
   private var detail: String {
+    if providerReleaseNeedsReview {
+      return "Search can recover mailbox source context, but provider release gates or handoff notes still need review. Confirm those before treating a test pass as complete."
+    }
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
       return "Some Inbox-created orders do not currently match intake, import, or acceptance source context. Open them here before closing related handoff work."
     }
@@ -317,8 +326,19 @@ private struct SearchReadinessPanel: View {
           ("Uncertain", "\(uncertainMailboxCount)", uncertainMailboxCount == 0 ? .green : .orange),
           ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
           ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
-          ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green)
+          ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green),
+          ("Provider gate", providerReleaseNeedsReview ? "Review" : "Ready", providerReleaseNeedsReview ? .orange : .green)
         ])
+
+        if providerReleaseNeedsReview {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox provider release context")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+          }
+        }
 
         if !providerRecoveryRows.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
