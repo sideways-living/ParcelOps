@@ -1538,6 +1538,27 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(color(forReleaseTone: labelReadiness.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+      VStack(alignment: .leading, spacing: 8) {
+        Label("How Gmail labels are resolved", systemImage: "tag")
+          .font(.caption.weight(.semibold))
+        Text("Use INBOX for the primary inbox. For a custom Gmail label, enter the exact label name from Gmail; ParcelOps resolves it through Gmail label metadata before listing messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 145) {
+          Badge("System labels direct", color: .blue)
+          Badge("Custom labels resolved", color: .purple)
+          Badge("Read-only metadata", color: .teal)
+          Badge("No mailbox mutation", color: .green)
+        }
+        Text("Refresh diagnostics may show safe label name, ID, and type only. Token values, authorization headers, full request URLs, full message bodies, and mailbox mutations stay out of JSON and Audit.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       VStack(alignment: .leading, spacing: 10) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: gmailOperatorNextSymbol)
