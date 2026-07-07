@@ -156,6 +156,28 @@ struct OperationsWorkbenchView: View {
     store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
 
+  private var gmailClassifierHintCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.trustedSenderHints ?? []).count
+        + (connection.importKeywordHints ?? []).count
+        + (connection.uncertainKeywordHints ?? []).count
+        + (connection.filterKeywordHints ?? []).count
+    }
+  }
+
+  private var gmailClassifierTestIssueCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.classifierTestResults ?? []).filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+      }.count
+    }
+  }
+
+  private var gmailClassifierTuningCount: Int {
+    gmailClassifierTestIssueCount + gmailUncertainCount + pendingGmailFilteredReviewCount
+  }
+
   private var gmailWarningCount: Int {
     gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
   }
@@ -938,8 +960,29 @@ struct OperationsWorkbenchView: View {
           ("Imported", "\(gmailImportedCount)", gmailImportedCount == 0 ? .secondary : .green),
           ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount == 0 ? .secondary : .orange),
           ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount == 0 ? .secondary : .teal),
-          ("Warnings", "\(gmailWarningCount)", gmailWarningCount == 0 ? .green : .orange)
+          ("Warnings", "\(gmailWarningCount)", gmailWarningCount == 0 ? .green : .orange),
+          ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange)
         ])
+
+        if gmailClassifierTuningCount > 0 || gmailClassifierHintCount > 0 {
+          VStack(alignment: .leading, spacing: 6) {
+            Label(gmailClassifierWorkbenchTitle, systemImage: "slider.horizontal.3")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailClassifierTuningCount > 0 ? .orange : .teal)
+            Text(gmailClassifierWorkbenchDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            MetricStrip(items: [
+              ("Hints", "\(gmailClassifierHintCount)", gmailClassifierHintCount > 0 ? .teal : .secondary),
+              ("Test issues", "\(gmailClassifierTestIssueCount)", gmailClassifierTestIssueCount > 0 ? .orange : .green),
+              ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount > 0 ? .orange : .secondary),
+              ("Filtered review", "\(pendingGmailFilteredReviewCount)", pendingGmailFilteredReviewCount > 0 ? .teal : .secondary)
+            ])
+          }
+          .padding(10)
+          .background((gmailClassifierTuningCount > 0 ? Color.orange : Color.teal).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         if !gmailHealthSummaries.isEmpty {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -1028,6 +1071,30 @@ struct OperationsWorkbenchView: View {
       return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the primary path."
     }
     return "Gmail setup exists, but the latest state did not produce imported or uncertain order work."
+  }
+
+  private var gmailClassifierWorkbenchTitle: String {
+    if gmailClassifierTestIssueCount > 0 { return "Gmail classifier tests need tuning" }
+    if gmailUncertainCount > 0 { return "Gmail uncertain review is waiting" }
+    if pendingGmailFilteredReviewCount > 0 { return "Gmail filtered examples are available" }
+    if gmailClassifierHintCount > 0 { return "Gmail classifier hints are saved" }
+    return "Gmail classifier is quiet"
+  }
+
+  private var gmailClassifierWorkbenchDetail: String {
+    if gmailClassifierTestIssueCount > 0 {
+      return "\(gmailClassifierTestIssueCount) Gmail classifier test\(gmailClassifierTestIssueCount == 1 ? "" : "s") need review. Tune hints in Mailbox Monitor before treating mixed Gmail refreshes as reliable."
+    }
+    if gmailUncertainCount > 0 {
+      return "\(gmailUncertainCount) ambiguous Gmail preview\(gmailUncertainCount == 1 ? "" : "s") are waiting outside Inbox. Import genuine order mail or dismiss non-order mail before creating Workbench exceptions."
+    }
+    if pendingGmailFilteredReviewCount > 0 {
+      return "\(pendingGmailFilteredReviewCount) filtered Gmail preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be inspected when an expected order email is missing. This is classifier tuning work, not an operational exception."
+    }
+    if gmailClassifierHintCount > 0 {
+      return "\(gmailClassifierHintCount) local Gmail hint\(gmailClassifierHintCount == 1 ? "" : "s") are saved. Run the local Gmail classifier suite after hint changes to verify the decision path."
+    }
+    return "No Gmail uncertain, filtered-review, or failing classifier-test work is currently open."
   }
 
   private func gmailToneColor(_ tone: String) -> Color {

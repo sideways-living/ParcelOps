@@ -118,6 +118,52 @@ struct DashboardView: View {
   private var pendingGmailFilteredReviewCount: Int {
     store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
+  private var gmailClassifierHintCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.trustedSenderHints ?? []).count
+        + (connection.importKeywordHints ?? []).count
+        + (connection.uncertainKeywordHints ?? []).count
+        + (connection.filterKeywordHints ?? []).count
+    }
+  }
+  private var gmailClassifierTestIssueCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.classifierTestResults ?? []).filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+      }.count
+    }
+  }
+  private var gmailClassifierNeedsTuning: Bool {
+    pendingGmailUncertainReviewCount > 0 || pendingGmailFilteredReviewCount > 0 || gmailClassifierTestIssueCount > 0
+  }
+  private var gmailClassifierStatusTitle: String {
+    if gmailClassifierTestIssueCount > 0 { return "Gmail classifier tests need review" }
+    if pendingGmailUncertainReviewCount > 0 { return "Gmail has uncertain messages to classify" }
+    if pendingGmailFilteredReviewCount > 0 { return "Gmail filtered examples can tune the classifier" }
+    if gmailClassifierHintCount > 0 { return "Gmail classifier has local hints" }
+    return "Gmail classifier has no active tuning work"
+  }
+  private var gmailClassifierStatusDetail: String {
+    if gmailClassifierTestIssueCount > 0 {
+      return "\(gmailClassifierTestIssueCount) local Gmail classifier test\(gmailClassifierTestIssueCount == 1 ? "" : "s") need review. Open Mailbox Monitor to inspect the sample result and adjust hints."
+    }
+    if pendingGmailUncertainReviewCount > 0 {
+      return "\(pendingGmailUncertainReviewCount) uncertain Gmail preview\(pendingGmailUncertainReviewCount == 1 ? "" : "s") are held outside Inbox. Import genuine order mail, dismiss non-order mail, or add a local hint."
+    }
+    if pendingGmailFilteredReviewCount > 0 {
+      return "\(pendingGmailFilteredReviewCount) filtered Gmail preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be inspected if an expected order is missing. Add a hint only when the classifier was too strict."
+    }
+    if gmailClassifierHintCount > 0 {
+      return "\(gmailClassifierHintCount) local Gmail hint\(gmailClassifierHintCount == 1 ? "" : "s") are saved. Run the Gmail classifier suite after changing hints."
+    }
+    return "Mixed Gmail filtering has no pending review rows or failing local tests. Use manual refresh only when checking for new mail."
+  }
+  private var gmailClassifierTone: Color {
+    if gmailClassifierTestIssueCount > 0 || pendingGmailUncertainReviewCount > 0 { return .orange }
+    if pendingGmailFilteredReviewCount > 0 || gmailClassifierHintCount > 0 { return .teal }
+    return .green
+  }
   private var latestSpaceMailTone: Color {
     guard let summary = latestSpaceMailSummary else { return hasSpaceMailSetup ? .orange : .secondary }
     switch summary.tone {
@@ -1269,6 +1315,24 @@ struct DashboardView: View {
               .foregroundStyle(.teal)
               .fixedSize(horizontal: false, vertical: true)
           }
+
+          VStack(alignment: .leading, spacing: 6) {
+            Label(gmailClassifierStatusTitle, systemImage: gmailClassifierNeedsTuning ? "slider.horizontal.3" : "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailClassifierTone)
+            Text(gmailClassifierStatusDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            MetricStrip(items: [
+              ("Hints", "\(gmailClassifierHintCount)", gmailClassifierHintCount > 0 ? .teal : .secondary),
+              ("Test issues", "\(gmailClassifierTestIssueCount)", gmailClassifierTestIssueCount > 0 ? .orange : .green),
+              ("Uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary),
+              ("Filtered review", "\(pendingGmailFilteredReviewCount)", pendingGmailFilteredReviewCount > 0 ? .teal : .secondary)
+            ])
+          }
+          .padding(8)
+          .background(gmailClassifierTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
         .padding(10)
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
