@@ -220,6 +220,16 @@ struct MailboxView: View {
           if store.gmailMailboxConnections.isEmpty {
             MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth app notes, and manual read-only refresh readiness.", symbol: "envelope.badge.shield.half.filled")
           }
+          if !store.gmailMailboxConnections.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Gmail release readiness", systemImage: "checkmark.seal.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(store.gmailMailboxConnections) { connection in
+                GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
+              }
+            }
+          }
           ForEach(store.gmailMailboxConnections) { connection in
             GmailMailboxConnectionRow(
               connection: connection,

@@ -2771,6 +2771,91 @@ struct SpaceMailReleaseSnapshotCard: View {
   }
 }
 
+struct GmailReleaseSelfCheckSummaryCard: View {
+  var summary: GmailReleaseSelfCheckSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var visibleItems: [GmailReleaseSelfCheckItem] {
+    let blockers = summary.items.filter { !$0.isComplete }
+    return Array((blockers.isEmpty ? summary.items : blockers).prefix(horizontalSizeClass == .compact ? 3 : 4))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: summary.tone == "success" ? "checkmark.seal.fill" : "exclamationmark.shield.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.verdict)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(summary.nextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(summary.completedCount)/\(summary.totalCount)", color: color)
+      }
+
+      MetricStrip(items: [
+        ("Checks", "\(summary.completedCount)/\(summary.totalCount)", color),
+        ("Blocking", "\(summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count)", summary.items.contains { !$0.isComplete && $0.tone == "warning" } ? .red : .green),
+        ("Attention", "\(summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count)", summary.items.contains { !$0.isComplete && $0.tone == "attention" } ? .orange : .green)
+      ])
+
+      if !visibleItems.isEmpty {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 220), spacing: 8)], alignment: .leading, spacing: 8) {
+          ForEach(visibleItems) { item in
+            VStack(alignment: .leading, spacing: 5) {
+              Label(item.title, systemImage: item.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(for: item.tone))
+              Text(item.nextAction)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: item.tone).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
+      Text("This card is computed from local setup, sign-in, refresh, classifier, Inbox handoff, and Audit state. It does not open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MailboxReleaseBlockerCard: View {
   var summary: MailboxReleaseBlockerSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
