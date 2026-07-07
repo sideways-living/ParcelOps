@@ -36,6 +36,35 @@ struct TrackingView: View {
       || selectedOrderStatus != nil
       || !trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var gmailReleaseNeedsTrackingReview: Bool {
+    gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
+  }
+  private var gmailReleaseTrackingConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+  private var gmailReleaseTrackingColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
 
   var body: some View {
     ScrollView {
@@ -95,7 +124,7 @@ struct TrackingView: View {
 
   @ViewBuilder
   private var mailboxProviderReleaseTrackingPanel: some View {
-    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" || !gmailReleaseSelfChecks.isEmpty {
       SettingsPanel(title: "Mailbox provider tracking context", symbol: "checkmark.seal.fill") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Use this before trusting mailbox-derived tracking values as ready for dispatch. It summarizes provider setup, refresh evidence, parser/classifier state, and handoff follow-up without reading mail or changing carrier records.")
@@ -105,6 +134,45 @@ struct TrackingView: View {
 
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
           MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+          if !gmailReleaseSelfChecks.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Gmail release boundary before tracking", systemImage: gmailReleaseNeedsTrackingReview ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(gmailReleaseTrackingColor)
+              Text("Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create carrier tracking work directly. Tracking starts from a confirmed order or imported Inbox row with tracking context.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              MetricStrip(items: [
+                ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
+                ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
+                ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
+              ])
+
+              ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+                GmailReleaseSelfCheckSummaryCard(summary: summary)
+              }
+
+              if gmailReleaseNeedsTrackingReview {
+                CompactActionRow {
+                  NavigationLink {
+                    MailboxView(store: store)
+                  } label: {
+                    Label("Open Gmail setup", systemImage: "server.rack")
+                  }
+                  if let connection = gmailReleaseTrackingConnection {
+                    Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                      store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                    }
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(10)
+            .background(gmailReleaseTrackingColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
         }
       }
     }
