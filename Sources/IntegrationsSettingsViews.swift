@@ -407,7 +407,8 @@ struct IntegrationsView: View {
             MailboxProviderOperatorReadinessStack(
               store: store,
               title: "Provider readiness for setup decisions",
-              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, Gmail, SpaceMail, or parser behavior needs investigation."
+              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, Gmail, SpaceMail, or parser behavior needs investigation.",
+              showHandoffPacket: true
             )
 
             CompactActionRow {

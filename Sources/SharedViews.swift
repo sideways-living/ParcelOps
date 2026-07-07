@@ -5255,6 +5255,7 @@ struct MailboxProviderOperatorReadinessStack: View {
   var title: String = "Provider intake at a glance"
   var detail: String = "Use this as the operator-level mailbox provider summary. Detailed setup, QA, troubleshooting, and release evidence is still available below."
   var showAdvancedEvidence: Bool = true
+  var showHandoffPacket: Bool = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -5267,6 +5268,9 @@ struct MailboxProviderOperatorReadinessStack: View {
 
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          if showHandoffPacket {
+            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+          }
           MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
           MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
 
@@ -5301,7 +5305,9 @@ struct MailboxProviderOperatorReadinessStack: View {
           VStack(alignment: .leading, spacing: 12) {
             MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
             MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
-            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+            if !showHandoffPacket {
+              MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+            }
             MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
             MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
             SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)

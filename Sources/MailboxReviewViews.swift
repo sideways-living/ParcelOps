@@ -102,7 +102,8 @@ struct MailboxView: View {
         MailboxProviderOperatorReadinessStack(
           store: store,
           title: "Provider intake at a glance",
-          detail: "Start here to decide whether SpaceMail or Gmail is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness."
+          detail: "Start here to decide whether SpaceMail or Gmail is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness.",
+          showHandoffPacket: true
         )
 
         MailboxSpaceMailReadinessPanel(store: store)
