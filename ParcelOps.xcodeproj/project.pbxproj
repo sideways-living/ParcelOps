@@ -41,6 +41,7 @@
 		98C35ECB54BABD8531AFC4D9 /* ParcelOpsActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */; };
 		9A258F87A35D250D49653B5C /* TrackingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2096A18F88235246D192AB /* TrackingViews.swift */; };
 		9E4432914A94BF3FC4BBDD36 /* AcceptanceReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF3076BE8338448EDFD2C3D /* AcceptanceReviewViews.swift */; };
+		A35D5A4F4A6D45AA95A4F001 /* SpaceMailClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */; };
 		A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */; };
 		A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = A6B5C4D3E2F1012345678904 /* MSAL */; };
 		B7C8D9E0F1A2012345678902 /* GoogleGmailAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */; };
@@ -133,6 +134,7 @@
 		975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelReferenceViews.swift; sourceTree = "<group>"; };
 		980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettingsViews.swift; sourceTree = "<group>"; };
 		9BBE20445D49D4AD19F7FBDD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMailClassifier.swift; sourceTree = "<group>"; };
 		A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSALMicrosoft365AuthAdapter.swift; sourceTree = "<group>"; };
 		B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleGmailAuthAdapter.swift; sourceTree = "<group>"; };
 		A518D638621BEE2F1123A89C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -274,6 +276,7 @@
 				723F8986A4FA9A5F1D60A3A2 /* SearchViews.swift */,
 				9BBE20445D49D4AD19F7FBDD /* Services.swift */,
 				8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */,
+				A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */,
 				61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */,
 				C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */,
 				52F2EAC70B830904E02C17BD /* SLAPolicyViews.swift */,
@@ -470,6 +473,7 @@
 				07F425D3BFACDC91C6DB456C /* SearchViews.swift in Sources */,
 				01FD7A05D54D3BD0C5018A59 /* Services.swift in Sources */,
 				B52230695356CE498F4C4371 /* SharedViews.swift in Sources */,
+				A35D5A4F4A6D45AA95A4F001 /* SpaceMailClassifier.swift in Sources */,
 				A9BBF23BBF56CA7001687BFD /* ShipmentGroupViews.swift in Sources */,
 				0A5003ECC06E8155B02A7944 /* ShipmentManifestViews.swift in Sources */,
 				D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */,

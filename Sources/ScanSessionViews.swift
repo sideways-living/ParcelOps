@@ -167,6 +167,38 @@ struct ScanSessionsView: View {
           Badge("\(missingScanCount) missing scans", color: missingScanCount == 0 ? .green : .orange)
         }
 
+        if !scanProviderRows.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Mailbox source for scans")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], spacing: 10) {
+              ForEach(scanProviderRows, id: \.label) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22, height: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                      Text(row.label)
+                        .font(.caption.weight(.semibold))
+                      Spacer()
+                      Badge("\(row.count) intake", color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+        }
+
         if inboxOrders.isEmpty {
           Text("No Inbox-created orders are present yet. Create an order from Inbox before checking scan readiness.")
             .font(.caption)
@@ -203,6 +235,45 @@ struct ScanSessionsView: View {
           }
         }
       }
+    }
+  }
+
+  private var scanProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
+    var counts: [String: Int] = [:]
+    var tones: [String: String] = [:]
+    for order in inboxCreatedOrders {
+      for email in linkedIntakeEmails(for: order) {
+        let summary = store.intakeSourceSummary(for: email)
+        counts[summary.label, default: 0] += 1
+        tones[summary.label] = summary.tone
+      }
+    }
+    return counts.map { label, count in
+      let tone = tones[label] ?? ""
+      let detail: String
+      switch tone {
+      case "spacemail":
+        detail = "SpaceMail intake can drive scan verification after an Inbox order is linked, labeled, stored, or prepared for dispatch."
+      case "gmail":
+        detail = "Gmail intake can drive scan verification after an Inbox order is linked, labeled, stored, or prepared for dispatch."
+      case "mock":
+        detail = "Mock mailbox intake supports local scan testing. Confirm live provider context before dispatch readiness."
+      default:
+        detail = "Local mailbox intake can drive scan verification once linked to an order."
+      }
+      return (
+        label: label,
+        count: count,
+        detail: detail,
+        symbol: providerSymbol(for: tone, label: label),
+        color: sourceColor(for: tone)
+      )
+    }
+    .sorted { lhs, rhs in
+      if lhs.count == rhs.count {
+        return lhs.label < rhs.label
+      }
+      return lhs.count > rhs.count
     }
   }
 
@@ -295,6 +366,34 @@ struct ScanSessionsView: View {
     if record.riskLevel == .high || record.riskLevel == .critical { parts.append("review risk") }
     if record.reviewState != .accepted { parts.append("mark reviewed") }
     return parts.isEmpty ? "Scan session is matched, completed, assigned, and reviewed." : parts.joined(separator: ", ")
+  }
+
+  private func sourceColor(for tone: String) -> Color {
+    switch tone {
+    case "spacemail":
+      return .teal
+    case "gmail":
+      return .blue
+    case "mock":
+      return .purple
+    case "microsoft", "mailbox":
+      return .blue
+    default:
+      return .secondary
+    }
+  }
+
+  private func providerSymbol(for tone: String, label: String) -> String {
+    if tone == "gmail" || label.localizedCaseInsensitiveContains("Gmail") {
+      return "envelope.badge.shield.half.filled"
+    }
+    if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
+      return "server.rack"
+    }
+    if tone == "mock" {
+      return "testtube.2"
+    }
+    return "envelope.open.fill"
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
@@ -561,6 +660,7 @@ struct ScanSessionRow: View {
   private func sourceColor(for tone: String) -> Color {
     switch tone {
     case "spacemail": return .teal
+    case "gmail": return .blue
     case "mock": return .purple
     case "microsoft", "mailbox": return .blue
     default: return .secondary
