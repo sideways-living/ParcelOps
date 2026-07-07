@@ -33,6 +33,32 @@ struct DispatchReadinessView: View {
       || selectedReviewState != nil
       || !readinessSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var gmailReleaseReadinessConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+  private var gmailReleaseReadinessColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
 
   var body: some View {
     ScrollView {
@@ -51,6 +77,7 @@ struct DispatchReadinessView: View {
         )
         filterBar
         inboxReadinessCoverage
+        gmailReadinessReleaseBoundary
 
         SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
           HStack {
@@ -247,6 +274,52 @@ struct DispatchReadinessView: View {
         }
       }
     }
+  }
+
+  private var gmailReadinessReleaseBoundary: some View {
+    guard !gmailReleaseSelfChecks.isEmpty else {
+      return AnyView(EmptyView())
+    }
+
+    return AnyView(
+      SettingsPanel(title: "Gmail release boundary", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 10) {
+          Label("Provider readiness before dispatch checks", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(gmailReleaseReadinessColor)
+          Text("Gmail release checks are setup and evidence work. Dispatch readiness checklists should only be created for concrete orders, manifests, labels, scans, custody, or handoff requirements after Inbox intake has been confirmed.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
+            ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
+            ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
+          ])
+
+          ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+            GmailReleaseSelfCheckSummaryCard(summary: summary)
+          }
+
+          if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+            CompactActionRow {
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Gmail setup", systemImage: "server.rack")
+              }
+              if let connection = gmailReleaseReadinessConnection {
+                Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                  store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                }
+              }
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+      }
+    )
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
