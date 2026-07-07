@@ -654,12 +654,24 @@ struct IntegrationsView: View {
               store.dismissUncertainGmailMessage(message, for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+            } onTrustUncertainSender: { message in
+              store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
+            } onImportUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .importKeyword, for: connection)
+            } onFilterUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .filterKeyword, for: connection)
             } onImportFiltered: { message in
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+            } onTrustFilteredSender: { message in
+              store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
+            } onImportFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .importKeyword, for: connection)
+            } onFilterFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1306,9 +1318,15 @@ struct GmailMailboxConnectionRow: View {
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
   var onCreateUncertainTask: (GmailReviewMessage) -> Void
+  var onTrustUncertainSender: (GmailReviewMessage) -> Void
+  var onImportUncertainHint: (GmailReviewMessage) -> Void
+  var onFilterUncertainHint: (GmailReviewMessage) -> Void
   var onImportFiltered: (GmailReviewMessage) -> Void
   var onDismissFiltered: (GmailReviewMessage) -> Void
   var onCreateFilteredTask: (GmailReviewMessage) -> Void
+  var onTrustFilteredSender: (GmailReviewMessage) -> Void
+  var onImportFilteredHint: (GmailReviewMessage) -> Void
+  var onFilterFilteredHint: (GmailReviewMessage) -> Void
   var onTestClassifier: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
@@ -1346,9 +1364,15 @@ struct GmailMailboxConnectionRow: View {
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
     onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
+    onTrustUncertainSender: @escaping (GmailReviewMessage) -> Void,
+    onImportUncertainHint: @escaping (GmailReviewMessage) -> Void,
+    onFilterUncertainHint: @escaping (GmailReviewMessage) -> Void,
     onImportFiltered: @escaping (GmailReviewMessage) -> Void,
     onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
     onCreateFilteredTask: @escaping (GmailReviewMessage) -> Void,
+    onTrustFilteredSender: @escaping (GmailReviewMessage) -> Void,
+    onImportFilteredHint: @escaping (GmailReviewMessage) -> Void,
+    onFilterFilteredHint: @escaping (GmailReviewMessage) -> Void,
     onTestClassifier: @escaping () -> Void,
     onTestCustomClassifier: @escaping (String, String, String) -> Void,
     onRunClassifierSuite: @escaping () -> Void,
@@ -1379,9 +1403,15 @@ struct GmailMailboxConnectionRow: View {
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
     self.onCreateUncertainTask = onCreateUncertainTask
+    self.onTrustUncertainSender = onTrustUncertainSender
+    self.onImportUncertainHint = onImportUncertainHint
+    self.onFilterUncertainHint = onFilterUncertainHint
     self.onImportFiltered = onImportFiltered
     self.onDismissFiltered = onDismissFiltered
     self.onCreateFilteredTask = onCreateFilteredTask
+    self.onTrustFilteredSender = onTrustFilteredSender
+    self.onImportFilteredHint = onImportFilteredHint
+    self.onFilterFilteredHint = onFilterFilteredHint
     self.onTestClassifier = onTestClassifier
     self.onTestCustomClassifier = onTestCustomClassifier
     self.onRunClassifierSuite = onRunClassifierSuite
@@ -1407,6 +1437,12 @@ struct GmailMailboxConnectionRow: View {
           Text("Mailbox mode: \(connection.mailboxMode.rawValue)")
             .font(.caption)
             .foregroundStyle(.secondary)
+          CompactMetadataGrid(minimumWidth: 130) {
+            Badge("\((connection.trustedSenderHints ?? []).count) trusted", color: (connection.trustedSenderHints ?? []).isEmpty ? .secondary : .purple)
+            Badge("\((connection.importKeywordHints ?? []).count) import hints", color: (connection.importKeywordHints ?? []).isEmpty ? .secondary : .green)
+            Badge("\((connection.uncertainKeywordHints ?? []).count) uncertain hints", color: (connection.uncertainKeywordHints ?? []).isEmpty ? .secondary : .orange)
+            Badge("\((connection.filterKeywordHints ?? []).count) filter hints", color: (connection.filterKeywordHints ?? []).isEmpty ? .secondary : .teal)
+          }
         }
         Spacer()
         Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
@@ -1700,6 +1736,19 @@ struct GmailMailboxConnectionRow: View {
                 }
                 .buttonStyle(.bordered)
               }
+              ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+              CompactActionRow {
+                Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+                  onTrustUncertainSender(message)
+                }
+                Button("Import hint", systemImage: "plus.circle") {
+                  onImportUncertainHint(message)
+                }
+                Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+                  onFilterUncertainHint(message)
+                }
+              }
+              .buttonStyle(.bordered)
             }
             .padding(8)
             .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -1752,6 +1801,19 @@ struct GmailMailboxConnectionRow: View {
                 }
                 .buttonStyle(.bordered)
               }
+              ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+              CompactActionRow {
+                Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+                  onTrustFilteredSender(message)
+                }
+                Button("Import hint", systemImage: "plus.circle") {
+                  onImportFilteredHint(message)
+                }
+                Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+                  onFilterFilteredHint(message)
+                }
+              }
+              .buttonStyle(.bordered)
             }
             .padding(8)
             .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -2027,6 +2089,18 @@ struct GmailMailboxConnectionRow: View {
           TextField("Consent screen notes", text: optionalTextBinding(\.consentScreenNotes), axis: .vertical)
             .lineLimit(2...5)
           TextField("Credential storage", text: $draft.credentialStorageStatus)
+          ActionGroupHeader(title: "Mixed-mailbox classifier hints", symbol: "slider.horizontal.3")
+          Text("Comma-separated local hints only. Use these to tune Gmail mixed-mailbox filtering after reviewing uncertain or filtered previews.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+          TextField("Trusted sender hints", text: optionalListBinding(\.trustedSenderHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Import keyword hints", text: optionalListBinding(\.importKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Uncertain keyword hints", text: optionalListBinding(\.uncertainKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Filter keyword hints", text: optionalListBinding(\.filterKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
           TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
             .lineLimit(2...5)
           CompactActionRow {
@@ -2480,6 +2554,19 @@ struct GmailMailboxConnectionRow: View {
     Binding(
       get: { draft[keyPath: keyPath] ?? "" },
       set: { draft[keyPath: keyPath] = $0 }
+    )
+  }
+
+  private func optionalListBinding(_ keyPath: WritableKeyPath<GmailMailboxConnection, [String]?>) -> Binding<String> {
+    Binding(
+      get: { (draft[keyPath: keyPath] ?? []).joined(separator: ", ") },
+      set: { newValue in
+        let values = newValue
+          .split(separator: ",")
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
+        draft[keyPath: keyPath] = values.isEmpty ? nil : values
+      }
     )
   }
 }

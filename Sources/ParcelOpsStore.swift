@@ -9226,7 +9226,7 @@ final class ParcelOpsStore {
     var importedExamples: [String] = []
 
     for message in messages {
-      let relevance = classifyGmailMessageRelevance(message)
+      let relevance = classifyGmailMessageRelevance(message, for: connection)
       if relevance.decision == "Imported" {
         importMessages.append(message)
         importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
@@ -9287,12 +9287,33 @@ final class ParcelOpsStore {
     )
   }
 
-  private func classifyGmailMessageRelevance(_ message: FetchedMailboxMessage) -> (decision: String, reason: String, score: Int, orderNumber: String, trackingNumber: String) {
+  private func classifyGmailMessageRelevance(_ message: FetchedMailboxMessage, for connection: GmailMailboxConnection) -> (decision: String, reason: String, score: Int, orderNumber: String, trackingNumber: String) {
+    let sender = message.sender.lowercased()
     let combined = "\(message.subject) \(message.plainTextBodyPreview)".lowercased()
     let orderNumber = detectedOrderNumber(in: combined)
     let trackingNumber = detectedTrackingNumber(in: combined, excluding: orderNumber)
     let hasOrderID = !orderNumber.localizedCaseInsensitiveContains("needs review")
     let hasTrackingID = !trackingNumber.localizedCaseInsensitiveContains("needs review")
+    let trustedSenderHints = connection.trustedSenderHints ?? []
+    let importKeywordHints = connection.importKeywordHints ?? []
+    let uncertainKeywordHints = connection.uncertainKeywordHints ?? []
+    let filterKeywordHints = connection.filterKeywordHints ?? []
+    let matchesTrustedSender = trustedSenderHints.contains { hint in
+      let normalized = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      return !normalized.isEmpty && sender.contains(normalized)
+    }
+    let matchesImportHint = importKeywordHints.contains { hint in
+      let normalized = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      return !normalized.isEmpty && combined.contains(normalized)
+    }
+    let matchesUncertainHint = uncertainKeywordHints.contains { hint in
+      let normalized = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      return !normalized.isEmpty && combined.contains(normalized)
+    }
+    let matchesFilterHint = filterKeywordHints.contains { hint in
+      let normalized = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      return !normalized.isEmpty && combined.contains(normalized)
+    }
     let hasStrongSignal = [
       "order",
       "tracking",
@@ -9318,6 +9339,15 @@ final class ParcelOpsStore {
       "calendar",
       "social"
     ].contains { combined.contains($0) }
+    if matchesFilterHint && !matchesImportHint && !matchesTrustedSender {
+      return ("Filtered", "local Gmail filter hint", -3, orderNumber, trackingNumber)
+    }
+    if (matchesTrustedSender || matchesImportHint) && (hasOrderID || hasTrackingID || hasStrongSignal) {
+      return ("Imported", matchesTrustedSender ? "local Gmail trusted sender hint" : "local Gmail import hint", 6, orderNumber, trackingNumber)
+    }
+    if matchesUncertainHint || ((matchesTrustedSender || matchesImportHint) && !hasOrderID && !hasTrackingID) {
+      return ("Uncertain", "local Gmail uncertain hint", 2, orderNumber, trackingNumber)
+    }
     let score =
       (hasStrongSignal ? 2 : 0)
       + (hasOrderID ? 2 : 0)
@@ -15558,6 +15588,28 @@ final class ParcelOpsStore {
     )
   }
 
+  func addGmailHintFromUncertain(_ uncertainMessage: GmailReviewMessage, target: SpaceMailHintTarget, for connection: GmailMailboxConnection) {
+    addGmailHint(
+      target: target,
+      sender: uncertainMessage.sender,
+      subject: uncertainMessage.subject,
+      bodyPreview: uncertainMessage.bodyPreview,
+      sourceReason: uncertainMessage.reason,
+      connection: connection
+    )
+  }
+
+  func addGmailHintFromFiltered(_ filteredMessage: GmailReviewMessage, target: SpaceMailHintTarget, for connection: GmailMailboxConnection) {
+    addGmailHint(
+      target: target,
+      sender: filteredMessage.sender,
+      subject: filteredMessage.subject,
+      bodyPreview: filteredMessage.bodyPreview,
+      sourceReason: filteredMessage.reason,
+      connection: connection
+    )
+  }
+
   func createReviewTask(from gmailMessage: GmailReviewMessage, connection: GmailMailboxConnection, reviewQueue: String) {
     let title = gmailMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : gmailMessage.subject
     createReviewTask(
@@ -15575,6 +15627,61 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Review task created from \(reviewQueue) Gmail preview.",
       afterDetail: "Subject: \(gmailMessage.subject)\nReason: \(gmailMessage.reason)\nLinked provider message ID: \(gmailMessage.providerMessageID)\nThe task was created from the stored safe preview only. No Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  private func addGmailHint(
+    target: SpaceMailHintTarget,
+    sender: String,
+    subject: String,
+    bodyPreview: String,
+    sourceReason: String,
+    connection: GmailMailboxConnection
+  ) {
+    guard let hint = spaceMailHintCandidate(target: target, sender: sender, subject: subject, bodyPreview: bodyPreview) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .gmailMailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Gmail classifier hint was not added.",
+        afterDetail: "Target: \(target.rawValue)\nReason: No safe hint could be derived from the local Gmail preview. No Gmail API call, OAuth token, mailbox fetch, Inbox import, or mailbox mutation occurred."
+      )
+      return
+    }
+    var added = false
+    updateGmailMailboxConnection(connection) { draft in
+      switch target {
+      case .trustedSender:
+        var hints = draft.trustedSenderHints ?? []
+        added = appendUniqueSpaceMailHint(hint, to: &hints)
+        draft.trustedSenderHints = hints
+      case .importKeyword:
+        var hints = draft.importKeywordHints ?? []
+        added = appendUniqueSpaceMailHint(hint, to: &hints)
+        draft.importKeywordHints = hints
+      case .uncertainKeyword:
+        var hints = draft.uncertainKeywordHints ?? []
+        added = appendUniqueSpaceMailHint(hint, to: &hints)
+        draft.uncertainKeywordHints = hints
+      case .filterKeyword:
+        var hints = draft.filterKeywordHints ?? []
+        added = appendUniqueSpaceMailHint(hint, to: &hints)
+        draft.filterKeywordHints = hints
+      }
+      draft.mailboxMode = .mixedFiltered
+      draft.classifierTestSummary = added
+        ? "Added Gmail \(target.rawValue.lowercased()) hint '\(hint)'. Run the Gmail classifier suite to preview the effect."
+        : "Gmail \(target.rawValue.lowercased()) hint '\(hint)' already exists. No duplicate hint was added."
+      draft.lastRefreshSummary = draft.classifierTestSummary ?? draft.lastRefreshSummary
+    }
+    logAudit(
+      action: added ? .edited : .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: added ? "Gmail classifier hint added locally." : "Gmail classifier hint already existed.",
+      afterDetail: "Target: \(target.rawValue)\nHint: \(hint)\nSource reason: \(sourceReason)\nNo Gmail API call, OAuth token, mailbox fetch, Inbox import, authorization header, full Gmail body, or mailbox mutation occurred."
     )
   }
 
@@ -15654,7 +15761,7 @@ final class ParcelOpsStore {
         )
       )
     ]
-    let results = samples.map { gmailClassifierTestResult(name: $0.0, message: $0.2, expectedDecision: $0.1) }
+    let results = samples.map { gmailClassifierTestResult(name: $0.0, message: $0.2, connection: connection, expectedDecision: $0.1) }
     let passed = results.filter { $0.decisionStatus.localizedCaseInsensitiveContains("passed") }.count
     let summary = "Gmail classifier suite: \(passed)/\(results.count) local expectations passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred."
     updateGmailMailboxConnection(connection) { draft in
@@ -15672,7 +15779,7 @@ final class ParcelOpsStore {
   }
 
   private func evaluateGmailClassifierSample(_ sample: FetchedMailboxMessage, for connection: GmailMailboxConnection, sampleName: String) {
-    let result = gmailClassifierTestResult(name: sampleName, message: sample, expectedDecision: "No expected decision")
+    let result = gmailClassifierTestResult(name: sampleName, message: sample, connection: connection, expectedDecision: "No expected decision")
     updateGmailMailboxConnection(connection) { draft in
       draft.classifierTestSummary = "\(sampleName): \(result.decision). \(result.reason). Order \(result.detectedOrderNumber), tracking \(result.detectedTrackingNumber). No Gmail API call, mailbox fetch, or import occurred."
       draft.classifierTestResults = [result]
@@ -15707,8 +15814,8 @@ final class ParcelOpsStore {
     )
   }
 
-  private func gmailClassifierTestResult(name: String, message: FetchedMailboxMessage, expectedDecision: String) -> GmailClassifierTestResult {
-    let relevance = classifyGmailMessageRelevance(message)
+  private func gmailClassifierTestResult(name: String, message: FetchedMailboxMessage, connection: GmailMailboxConnection, expectedDecision: String) -> GmailClassifierTestResult {
+    let relevance = classifyGmailMessageRelevance(message, for: connection)
     return GmailClassifierTestResult(
       sampleName: name,
       decision: relevance.decision,
@@ -18639,7 +18746,7 @@ final class ParcelOpsStore {
   }
 
   private func gmailMailboxConnectionAuditDetail(_ connection: GmailMailboxConnection) -> String {
-    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nOAuth readiness: \(connection.oauthReadinessStatus)\nGoogle Cloud project hint: \(connection.googleCloudProjectHint ?? "")\nOAuth client ID placeholder: \(connection.oauthClientIDPlaceholder ?? "")\nRedirect URI placeholder: \(connection.redirectURIPlaceholder ?? "")\nScopes: \(connection.requestedScopesSummary)\nConsent notes: \(connection.consentScreenNotes ?? "")\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nLast refresh: \(connection.lastRefreshSummary)\nNo OAuth token, refresh token, auth code, client secret, password, Keychain item, Gmail API response, raw Gmail message, or full mailbox content is stored in this setup record."
+    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nLabels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nTrusted sender hints: \((connection.trustedSenderHints ?? []).joined(separator: ", "))\nImport keyword hints: \((connection.importKeywordHints ?? []).joined(separator: ", "))\nUncertain keyword hints: \((connection.uncertainKeywordHints ?? []).joined(separator: ", "))\nFilter keyword hints: \((connection.filterKeywordHints ?? []).joined(separator: ", "))\nStatus: \(connection.connectionStatus)\nLast manual refresh: \(connection.lastManualRefreshDate)\nOAuth readiness: \(connection.oauthReadinessStatus)\nGoogle Cloud project hint: \(connection.googleCloudProjectHint ?? "")\nOAuth client ID placeholder: \(connection.oauthClientIDPlaceholder ?? "")\nRedirect URI placeholder: \(connection.redirectURIPlaceholder ?? "")\nScopes: \(connection.requestedScopesSummary)\nConsent notes: \(connection.consentScreenNotes ?? "")\nCredential storage: \(connection.credentialStorageStatus)\nReview: \(connection.reviewState.rawValue)\nNotes: \(connection.setupNotes)\nLast refresh: \(connection.lastRefreshSummary)\nNo OAuth token, refresh token, auth code, client secret, password, Keychain item, Gmail API response, raw Gmail message, or full mailbox content is stored in this setup record."
   }
 
   private func spaceMailCredentialStoreAuditDetail(_ result: SpaceMailCredentialStoreResult, connection: SpaceMailIMAPConnection) -> String {

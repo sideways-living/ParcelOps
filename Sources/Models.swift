@@ -2566,6 +2566,10 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var filteredMessages: [GmailReviewMessage]?
   var classifierTestSummary: String?
   var classifierTestResults: [GmailClassifierTestResult]?
+  var trustedSenderHints: [String]?
+  var importKeywordHints: [String]?
+  var uncertainKeywordHints: [String]?
+  var filterKeywordHints: [String]?
   var reviewState: ReviewState
 
   init(
@@ -2596,6 +2600,10 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     filteredMessages: [GmailReviewMessage]? = nil,
     classifierTestSummary: String? = nil,
     classifierTestResults: [GmailClassifierTestResult]? = nil,
+    trustedSenderHints: [String]? = nil,
+    importKeywordHints: [String]? = nil,
+    uncertainKeywordHints: [String]? = nil,
+    filterKeywordHints: [String]? = nil,
     reviewState: ReviewState
   ) {
     self.id = id
@@ -2625,6 +2633,10 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.filteredMessages = filteredMessages
     self.classifierTestSummary = classifierTestSummary
     self.classifierTestResults = classifierTestResults
+    self.trustedSenderHints = trustedSenderHints
+    self.importKeywordHints = importKeywordHints
+    self.uncertainKeywordHints = uncertainKeywordHints
+    self.filterKeywordHints = filterKeywordHints
     self.reviewState = reviewState
   }
 }

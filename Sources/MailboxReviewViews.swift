@@ -264,12 +264,24 @@ struct MailboxView: View {
               store.dismissUncertainGmailMessage(message, for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+            } onTrustUncertainSender: { message in
+              store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
+            } onImportUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .importKeyword, for: connection)
+            } onFilterUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .filterKeyword, for: connection)
             } onImportFiltered: { message in
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+            } onTrustFilteredSender: { message in
+              store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
+            } onImportFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .importKeyword, for: connection)
+            } onFilterFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
@@ -1959,6 +1971,9 @@ struct GmailNeedsReviewPreviewRow: View {
   var onImport: () -> Void
   var onCreateTask: () -> Void
   var onDismiss: () -> Void
+  var onTrustSender: () -> Void = {}
+  var onImportHint: () -> Void = {}
+  var onFilterHint: () -> Void = {}
 
   private var displayTitle: String {
     title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No subject" : title
@@ -2012,6 +2027,12 @@ struct GmailNeedsReviewPreviewRow: View {
         Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
         Button("Task", systemImage: "checklist", action: onCreateTask)
         Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
+      }
+      ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+      CompactActionRow {
+        Button("Trust sender", systemImage: "person.badge.shield.checkmark", action: onTrustSender)
+        Button("Import hint", systemImage: "plus.circle", action: onImportHint)
+        Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle", action: onFilterHint)
       }
     }
     .padding(10)
@@ -3099,6 +3120,12 @@ struct NeedsReviewView: View {
                           store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
                         } onDismiss: {
                           store.dismissUncertainGmailMessage(message, for: connection)
+                        } onTrustSender: {
+                          store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
+                        } onImportHint: {
+                          store.addGmailHintFromUncertain(message, target: .importKeyword, for: connection)
+                        } onFilterHint: {
+                          store.addGmailHintFromUncertain(message, target: .filterKeyword, for: connection)
                         }
                       }
                     }
@@ -3129,6 +3156,12 @@ struct NeedsReviewView: View {
                           store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
                         } onDismiss: {
                           store.dismissFilteredGmailMessage(message, for: connection)
+                        } onTrustSender: {
+                          store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
+                        } onImportHint: {
+                          store.addGmailHintFromFiltered(message, target: .importKeyword, for: connection)
+                        } onFilterHint: {
+                          store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
                         }
                       }
                     }
