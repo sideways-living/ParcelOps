@@ -1470,6 +1470,46 @@ struct GmailMailboxConnectionRow: View {
 
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailSetupBlockerSymbol)
+            .foregroundStyle(gmailSetupBlockerColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailSetupBlockerTitle)
+              .font(.caption.weight(.semibold))
+            Text(gmailSetupBlockerDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(gmailSetupBlockerNextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(gmailSetupBlockerColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(gmailSetupBlockerBadge, color: gmailSetupBlockerColor)
+        }
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge(gmailClientIDBadgeText, color: gmailClientIDBadgeColor)
+          Badge(gmailRedirectBadgeText, color: gmailRedirectBadgeColor)
+          Badge(gmailScopeBadgeText, color: gmailScopeBadgeColor)
+          Badge(gmailCompiledConfigBadgeText, color: gmailCompiledConfigBadgeColor)
+        }
+        if !readiness.missingFields.isEmpty {
+          Text("Missing or mismatched: \(readiness.missingFields.prefix(4).joined(separator: "; "))\(readiness.missingFields.count > 4 ? "; plus \(readiness.missingFields.count - 4) more" : "")")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text("No Google token, auth code, callback URL, client secret, password, Gmail response body, or mailbox content is shown here or stored in JSON.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailSetupBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
           Image(systemName: labelReadiness.tone == "success" ? "tag.fill" : "tag.slash.fill")
             .foregroundStyle(color(forReleaseTone: labelReadiness.tone))
             .frame(width: 24)
@@ -2192,6 +2232,60 @@ struct GmailMailboxConnectionRow: View {
       || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
   }
 
+  private var gmailSetupBlockerTitle: String {
+    if readiness.isReady && authState.status == .connected { return "Gmail setup is ready for manual refresh" }
+    if hasMissingCoreGmailSetup { return "Gmail setup fields need attention" }
+    if !readiness.isReady { return "Gmail app/callback setup does not match" }
+    if authState.status != .connected { return "Google sign-in still needs testing" }
+    return "Gmail setup needs review"
+  }
+
+  private var gmailSetupBlockerDetail: String {
+    if readiness.isReady && authState.status == .connected {
+      return "Saved Gmail setup values and the current Google sign-in state look ready for an explicit manual read-only refresh."
+    }
+    if hasMissingCoreGmailSetup {
+      return "Complete the mailbox address, label list, Google iOS OAuth client ID, reversed callback scheme, and read-only Gmail scope before real sign-in or refresh."
+    }
+    if !readiness.isReady {
+      return "The saved Gmail setup and the compiled app callback configuration need to agree before Google sign-in can be trusted."
+    }
+    if authState.status != .connected {
+      return "Run the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps mock refresh available."
+    }
+    return readiness.detailText
+  }
+
+  private var gmailSetupBlockerNextAction: String {
+    if readiness.isReady && authState.status == .connected { return "Next: run manual real Gmail refresh only when you want to check the mailbox." }
+    if hasMissingCoreGmailSetup { return "Next: edit setup and save the missing non-secret Gmail fields." }
+    if !readiness.isReady { return "Next: fix the listed setup/configuration mismatch, regenerate if needed, then rebuild." }
+    if authState.status != .connected { return "Next: tap Test real Google sign-in; do not run real refresh until sign-in succeeds." }
+    return readiness.detailText
+  }
+
+  private var gmailSetupBlockerBadge: String {
+    if readiness.isReady && authState.status == .connected { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup missing" }
+    if !readiness.isReady { return "Config mismatch" }
+    if authState.status != .connected { return "Sign-in needed" }
+    return "Review"
+  }
+
+  private var gmailSetupBlockerSymbol: String {
+    if readiness.isReady && authState.status == .connected { return "checkmark.seal.fill" }
+    if hasMissingCoreGmailSetup { return "pencil.and.list.clipboard" }
+    if !readiness.isReady { return "app.badge.checkmark" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "exclamationmark.triangle.fill"
+  }
+
+  private var gmailSetupBlockerColor: Color {
+    if readiness.isReady && authState.status == .connected { return .green }
+    if !readiness.isReady || hasMissingCoreGmailSetup || authState.status != .connected { return .orange }
+    return .secondary
+  }
+
   private var gmailClientIDBadgeText: String {
     let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     if clientID.isEmpty { return "Client ID missing" }
@@ -2222,6 +2316,38 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailRedirectBadgeColor: Color {
     gmailRedirectBadgeText == "Callback shaped" ? .green : .orange
+  }
+
+  private var gmailScopeBadgeText: String {
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") {
+      return "gmail.readonly planned"
+    }
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata") {
+      return "gmail.metadata planned"
+    }
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.") {
+      return "Gmail scope planned"
+    }
+    return "Gmail scope missing"
+  }
+
+  private var gmailScopeBadgeColor: Color {
+    gmailScopeBadgeText == "Gmail scope missing" ? .orange : .green
+  }
+
+  private var gmailCompiledConfigBadgeText: String {
+    let combined = "\(readiness.compiledClientIDStatus) \(readiness.compiledCallbackSchemeStatus)"
+    if combined.localizedCaseInsensitiveContains("placeholder") { return "Compiled placeholder" }
+    if combined.localizedCaseInsensitiveContains("missing") { return "Compiled missing" }
+    if combined.localizedCaseInsensitiveContains("does not match") ||
+      combined.localizedCaseInsensitiveContains("does not include") {
+      return "Compiled mismatch"
+    }
+    return "Compiled callback ready"
+  }
+
+  private var gmailCompiledConfigBadgeColor: Color {
+    gmailCompiledConfigBadgeText == "Compiled callback ready" ? .green : .orange
   }
 
   private func gmailRedirectScheme(from value: String) -> String {
