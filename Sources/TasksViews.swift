@@ -144,6 +144,31 @@ struct TasksView: View {
     store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseTaskConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -914,7 +939,9 @@ struct TasksView: View {
           ("Setups", "\(gmailSetupCount)", gmailSetupCount > 0 ? .blue : .secondary),
           ("Ready", "\(gmailReadySetupCount)", gmailReadySetupCount == gmailSetupCount && gmailSetupCount > 0 ? .green : gmailSetupCount > 0 ? .orange : .secondary),
           ("Signed in", "\(gmailConnectedAuthCount)", gmailConnectedAuthCount > 0 ? .green : gmailSetupCount > 0 ? .orange : .secondary),
-          ("Refresh seen", "\(gmailManualRefreshCount)", gmailManualRefreshCount > 0 ? .green : gmailConnectedAuthCount > 0 ? .orange : .secondary)
+          ("Refresh seen", "\(gmailManualRefreshCount)", gmailManualRefreshCount > 0 ? .green : gmailConnectedAuthCount > 0 ? .orange : .secondary),
+          ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount > 0 ? .red : .green),
+          ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount > 0 ? .orange : .green)
         ])
 
         if gmailSetupCount > 0 && (gmailReadySetupCount < gmailSetupCount || gmailConnectedAuthCount == 0 || gmailManualRefreshCount == 0) {
@@ -949,6 +976,21 @@ struct TasksView: View {
               .padding(10)
               .frame(maxWidth: .infinity, alignment: .leading)
               .background(gmailToneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        if !gmailReleaseSelfChecks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Gmail release task readiness", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailReleaseBlockingCount > 0 ? .red : gmailReleaseAttentionCount > 0 ? .orange : .green)
+            Text("Create a task from the release self-check only when Gmail setup, labels, sign-in, classifier review, Inbox handoff, or audit evidence needs a named owner.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+              GmailReleaseSelfCheckSummaryCard(summary: summary)
             }
           }
         }
@@ -995,6 +1037,12 @@ struct TasksView: View {
               mvpFeedbackMessage = "Gmail classifier tuning task created or refreshed."
             }
           }
+          if let connection = gmailReleaseTaskConnection {
+            Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+              mvpFeedbackMessage = "Gmail release self-check task created or refreshed."
+            }
+          }
         }
         .buttonStyle(.bordered)
       }
@@ -1011,6 +1059,10 @@ struct TasksView: View {
     if pendingFilteredGmailCount > 0 {
       return "\(pendingFilteredGmailCount) filtered Gmail example\(pendingFilteredGmailCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor. Create a task only if a person must follow up on one."
     }
+    if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+      let count = gmailReleaseBlockingCount + gmailReleaseAttentionCount
+      return "\(count) Gmail release self-check item\(count == 1 ? "" : "s") need setup, refresh, classifier, Inbox handoff, or audit evidence before Gmail is treated as daily intake."
+    }
     if gmailWarningCount > 0 {
       return "\(gmailWarningCount) Gmail setup or refresh result needs mailbox review before it should become assigned task work."
     }
@@ -1026,6 +1078,8 @@ struct TasksView: View {
   private var gmailTaskContextTitle: String {
     if pendingUncertainGmailCount > 0 { return "Gmail uncertain mail needs review" }
     if pendingFilteredGmailCount > 0 { return "Gmail filtered examples are reviewable" }
+    if gmailReleaseBlockingCount > 0 { return "Gmail release checks have blockers" }
+    if gmailReleaseAttentionCount > 0 { return "Gmail release checks need attention" }
     if gmailWarningCount > 0 { return "Gmail setup or intake needs review" }
     return "Gmail has no assigned task pressure"
   }
@@ -1069,12 +1123,15 @@ struct TasksView: View {
 
   private var gmailTaskContextSymbol: String {
     if pendingUncertainGmailCount > 0 || gmailWarningCount > 0 { return "exclamationmark.triangle.fill" }
+    if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 { return "exclamationmark.shield.fill" }
     if pendingFilteredGmailCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
     return "checkmark.circle.fill"
   }
 
   private var gmailTaskContextColor: Color {
     if pendingUncertainGmailCount > 0 || gmailWarningCount > 0 { return .orange }
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
     if pendingFilteredGmailCount > 0 { return .teal }
     return .green
   }
