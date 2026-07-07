@@ -573,6 +573,7 @@ struct AuditView: View {
     SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
 
         CompactActionRow {
           Button("Create gate task", systemImage: "checklist") {
