@@ -83,6 +83,24 @@ struct EvidenceView: View {
       }
   }
 
+  private var gmailSourceTrailEmails: [ForwardedEmailIntake] {
+    store.intakeEmails.filter { email in
+      store.intakeSourceSummary(for: email).tone == "gmail"
+    }
+  }
+
+  private var gmailSourceTrailOrders: [TrackedOrder] {
+    inboxCreatedOrders.filter { order in
+      linkedIntakeEmails(for: order).contains { email in
+        store.intakeSourceSummary(for: email).tone == "gmail"
+      }
+    }
+  }
+
+  private var gmailOrdersMissingEvidence: [TrackedOrder] {
+    gmailSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -95,6 +113,7 @@ struct EvidenceView: View {
 
         filterBar
         inboxEvidenceCoveragePanel
+        gmailEvidenceFocusPanel
 
         SettingsPanel(title: "Attachments", symbol: "paperclip") {
           HStack {
@@ -212,6 +231,89 @@ struct EvidenceView: View {
             }
             .buttonStyle(.plain)
           }
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var gmailEvidenceFocusPanel: some View {
+    if !store.gmailMailboxConnections.isEmpty || !gmailSourceTrailEmails.isEmpty {
+      SettingsPanel(title: "Gmail evidence focus", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Gmail-origin intake can serve as the local source trail for an order even when no file attachment exists. Use this to decide whether a Gmail-created order needs extra evidence before handoff closure.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Gmail source rows", "\(gmailSourceTrailEmails.count)", gmailSourceTrailEmails.isEmpty ? .secondary : .blue),
+            ("Gmail orders", "\(gmailSourceTrailOrders.count)", gmailSourceTrailOrders.isEmpty ? .secondary : .blue),
+            ("Missing evidence", "\(gmailOrdersMissingEvidence.count)", gmailOrdersMissingEvidence.isEmpty ? .green : .orange),
+            ("Gmail refreshes", "\(store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount })", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal)
+          ])
+
+          if gmailSourceTrailEmails.isEmpty {
+            Label("No Gmail-origin intake is linked to orders yet. Run a manual Gmail refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+          } else if gmailOrdersMissingEvidence.isEmpty {
+            Label("Gmail-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Gmail orders to check")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], spacing: 10) {
+                ForEach(gmailOrdersMissingEvidence.prefix(4)) { order in
+                  NavigationLink {
+                    OrderDetailView(order: order, store: store)
+                  } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                      Image(systemName: "envelope.badge.shield.half.filled")
+                        .foregroundStyle(.orange)
+                        .frame(width: 22)
+                      VStack(alignment: .leading, spacing: 4) {
+                        Text("\(order.store) • \(order.orderNumber)")
+                          .font(.caption.weight(.semibold))
+                        Text("Gmail source trail exists, but no evidence attachment is linked. Open order detail before closing handoff work.")
+                          .font(.caption2)
+                          .foregroundStyle(.secondary)
+                          .fixedSize(horizontal: false, vertical: true)
+                      }
+                      Spacer(minLength: 8)
+                      Badge("Check", color: .orange)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                  }
+                  .buttonStyle(.plain)
+                }
+              }
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("This panel is local evidence guidance only. It does not fetch Gmail, open Google sign-in, store token values, attach files, or mutate mailbox messages.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
     }
@@ -544,6 +646,7 @@ struct EvidenceAttachmentRow: View {
   private func sourceColor(for tone: String) -> Color {
     switch tone {
     case "spacemail": return .teal
+    case "gmail": return .blue
     case "mock": return .purple
     case "microsoft", "mailbox": return .blue
     default: return .secondary
