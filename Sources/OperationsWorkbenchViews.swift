@@ -182,6 +182,31 @@ struct OperationsWorkbenchView: View {
     gmailHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseWorkbenchConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
   private var mailboxFetchedCount: Int {
     spaceMailFetchedCount + gmailFetchedCount
   }
@@ -962,7 +987,9 @@ struct OperationsWorkbenchView: View {
           ("Uncertain", "\(gmailUncertainCount)", gmailUncertainCount == 0 ? .secondary : .orange),
           ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount == 0 ? .secondary : .teal),
           ("Warnings", "\(gmailWarningCount)", gmailWarningCount == 0 ? .green : .orange),
-          ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange)
+          ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange),
+          ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
+          ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange)
         ])
 
         VStack(alignment: .leading, spacing: 6) {
@@ -1025,6 +1052,23 @@ struct OperationsWorkbenchView: View {
           }
         }
 
+        if !gmailReleaseSelfChecks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Gmail release boundary", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailReleaseBoundaryColor)
+            Text("Release self-check failures are setup and readiness work first. Turn them into Workbench exceptions only when a named owner, blocker, or handoff is needed.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+              GmailReleaseSelfCheckSummaryCard(summary: summary)
+            }
+          }
+          .padding(10)
+          .background(gmailReleaseBoundaryColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         Text(pendingGmailFilteredReviewCount > 0
           ? "Filtered Gmail examples are waiting for optional review, but they stay out of Workbench until an operator imports one into Inbox or creates follow-up."
           : "Gmail becomes Workbench work only after it creates actionable local state: imported Inbox intake, uncertain previews needing review, setup failures, or assigned follow-up. Filtered non-order Gmail stays out of the operator exception queue.")
@@ -1048,6 +1092,11 @@ struct OperationsWorkbenchView: View {
           } label: {
             Label("Check Audit", systemImage: "list.clipboard.fill")
           }
+          if let connection = gmailReleaseWorkbenchConnection {
+            Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+            }
+          }
         }
         .buttonStyle(.bordered)
       }
@@ -1056,6 +1105,8 @@ struct OperationsWorkbenchView: View {
 
   private var gmailWorkbenchTone: Color {
     if gmailWarningCount > 0 || gmailUncertainCount > 0 { return .orange }
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
     if gmailImportedCount > 0 { return .teal }
     if gmailFilteredCount > 0 { return .green }
     return .secondary
@@ -1064,6 +1115,8 @@ struct OperationsWorkbenchView: View {
   private var gmailWorkbenchTitle: String {
     if gmailWarningCount > 0 { return "Gmail setup or refresh needs review" }
     if gmailUncertainCount > 0 { return "Gmail needs Mailbox Monitor review" }
+    if gmailReleaseBlockingCount > 0 { return "Gmail release checks have blockers" }
+    if gmailReleaseAttentionCount > 0 { return "Gmail release checks need attention" }
     if gmailImportedCount > 0 { return "Gmail created Inbox work" }
     if gmailFilteredCount > 0 { return "Gmail mixed-mailbox filter is working" }
     if gmailHealthSummaries.isEmpty { return "Gmail setup is optional" }
@@ -1076,6 +1129,10 @@ struct OperationsWorkbenchView: View {
     }
     if gmailUncertainCount > 0 {
       return "\(gmailUncertainCount) ambiguous Gmail preview is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
+    }
+    if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+      let count = gmailReleaseBlockingCount + gmailReleaseAttentionCount
+      return "\(count) Gmail release self-check item\(count == 1 ? "" : "s") still need setup, sign-in, labels, classifier review, Inbox handoff, or audit evidence before Gmail should be treated as a daily intake path."
     }
     if gmailImportedCount > 0 {
       return "\(gmailImportedCount) likely Gmail order message reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
@@ -1169,6 +1226,12 @@ struct OperationsWorkbenchView: View {
     default:
       return .secondary
     }
+  }
+
+  private var gmailReleaseBoundaryColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
   }
 
   private var gmailClassifierWorkbenchTitle: String {
