@@ -17,6 +17,7 @@ struct MVPSetupView: View {
         MVPDevelopmentProgressPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
         MVPMailboxProviderStatusPanel(store: store)
+        MVPMailboxProviderReleasePanel(store: store)
         MVPNextDevelopmentPrioritiesPanel(store: store)
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
@@ -87,6 +88,51 @@ struct MVPSetupView: View {
         .font(isCompact ? .title.bold() : .largeTitle.bold())
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
+    }
+  }
+}
+
+struct MVPMailboxProviderReleasePanel: View {
+  var store: ParcelOpsStore
+
+  private var releaseGate: MailboxProviderReleaseGateSummary {
+    store.mailboxProviderReleaseGateSummary
+  }
+
+  private var handoffPacket: MailboxProviderHandoffPacketSummary {
+    store.mailboxProviderHandoffPacketSummary
+  }
+
+  private var panelTone: Color {
+    releaseGate.tone == "success" && handoffPacket.tone == "success" ? .green : .orange
+  }
+
+  private var panelStatus: String {
+    releaseGate.tone == "success" && handoffPacket.tone == "success" ? "Ready" : "Review"
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Provider release and handoff", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: panelStatus == "Ready" ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(panelTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(panelStatus == "Ready" ? "Mailbox provider handoff is ready" : "Review mailbox provider handoff before live testing")
+              .font(.headline)
+            Text("Use this setup checkpoint before relying on SpaceMail or Gmail as daily intake. It shows release gates, handoff notes, and follow-up actions without running mailbox refresh, reading credentials, or changing mailbox state.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(panelStatus, color: panelTone)
+        }
+
+        MailboxProviderReleaseGateCard(summary: releaseGate, store: store)
+        MailboxProviderHandoffPacketCard(packet: handoffPacket, store: store)
+      }
     }
   }
 }
