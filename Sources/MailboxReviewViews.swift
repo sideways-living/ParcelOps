@@ -2550,9 +2550,14 @@ struct NeedsReviewView: View {
   private var showsTrackingEvents: Bool { matchesReviewSection("tracking", "carrier", "events", "shipment") }
   private var showsTaskEscalations: Bool { matchesReviewSection("task", "escalations", "review tasks", "follow-up") }
   private var showsHandoffNotes: Bool { matchesReviewSection("handoff", "notes", "shift", "assigned") }
+  private var showsMailboxProviderHandoff: Bool { matchesReviewSection("mailbox", "provider", "handoff", "release", "gate", "spacemail", "gmail") }
+  private var mailboxProviderNeedsReview: Bool {
+    store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success"
+  }
 
   private var visiblePrimaryReviewSectionCount: Int {
     [
+      mailboxProviderNeedsReview && showsMailboxProviderHandoff,
       showsInboxOrderHandoff,
       showsDraftMessageFollowUp,
       showsOperationsWorkbench,
@@ -2612,6 +2617,7 @@ struct NeedsReviewView: View {
       + store.draftMessagesNeedingReview.count
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
+      + (mailboxProviderNeedsReview ? 1 : 0)
   }
 
   private var advancedBacklogCount: Int {
@@ -2680,6 +2686,20 @@ struct NeedsReviewView: View {
           symbol: "tray.full.fill",
           color: dailyAttentionCount == 0 ? .green : .orange
         )
+
+        if showsMailboxProviderHandoff && mailboxProviderNeedsReview {
+          SettingsPanel(title: "Mailbox provider release and handoff", symbol: "checkmark.seal.fill") {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("Use this before treating SpaceMail or Gmail as a clean daily intake path. It summarizes provider release gates, handoff readiness, and follow-up actions without running mailbox refresh or changing credentials.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+              MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+            }
+          }
+        }
 
         if showsInboxOrderHandoff && !inboxCreatedOrders.isEmpty {
           SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
