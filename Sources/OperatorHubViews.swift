@@ -410,6 +410,21 @@ struct InboxView: View {
           (metric.title, metric.value, mailboxProviderReleaseGateColor(for: metric.tone))
         })
 
+        if !store.gmailMailboxConnections.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Gmail release checks", systemImage: "envelope.badge.shield.half.filled")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            Text("These Gmail checks explain whether Google setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are ready before Gmail becomes a daily intake path.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(store.gmailMailboxConnections) { connection in
+              GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
+            }
+          }
+        }
+
         if openGates.isEmpty {
           Label("Provider setup, refresh evidence, Inbox handoff, diagnostics, blockers, and release plan checks currently pass from local evidence.", systemImage: "checkmark.circle.fill")
             .font(.caption.weight(.semibold))
