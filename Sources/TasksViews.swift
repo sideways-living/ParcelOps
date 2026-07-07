@@ -1273,7 +1273,9 @@ struct TasksView: View {
   }
 
   private var mailboxProviderFollowUpItems: [TaskQueueItem] {
-    queueItems.filter { $0.isMailboxProviderFollowUp }
+    queueItems.filter { item in
+      item.isMailboxProviderFollowUp && !item.isGmailFollowUp
+    }
   }
 
   @ViewBuilder
