@@ -189,7 +189,7 @@ struct IntegrationsView: View {
   }
 
   private var showsGmailSetup: Bool {
-    matchesSetupSection("Gmail", "Google", "Workspace", "OAuth", "labels", "mock", "mailbox")
+    matchesSetupSection("Gmail", "Google", "Workspace", "OAuth", "labels", "mock", "mailbox", "sign-in", "real refresh", "read-only")
   }
 
   private var showsTrackedMailboxes: Bool {
@@ -1932,7 +1932,7 @@ struct GmailMailboxConnectionRow: View {
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
       VStack(alignment: .leading, spacing: 8) {
-        Label("Gmail OAuth planning", systemImage: "checklist")
+        Label("Gmail sign-in and refresh readiness", systemImage: "checklist")
           .font(.caption.weight(.semibold))
           .foregroundStyle(readiness.isReady ? .green : .orange)
         Text(readiness.detailText)
@@ -1960,7 +1960,7 @@ struct GmailMailboxConnectionRow: View {
             }
           }
         }
-        Text("This checklist is local planning only. It does not store tokens or change mailbox messages. Real refresh remains manual and read-only.")
+        Text("This checklist verifies non-secret setup for the existing opt-in Google sign-in and manual read-only Gmail refresh. It does not store tokens or change mailbox messages.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

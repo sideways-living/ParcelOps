@@ -15250,10 +15250,10 @@ final class ParcelOpsStore {
       monitoredLabelNames: "INBOX, Order Updates",
       connectionStatus: "OAuth not connected",
       lastManualRefreshDate: "Never",
-      setupNotes: "Local Gmail setup placeholder. Confirm Google account, labels, mixed-mailbox mode, and future OAuth/token storage before real refresh.",
+      setupNotes: "Local Gmail setup record. Confirm Google account, labels, mixed-mailbox mode, Google sign-in readiness, and read-only refresh scope before real refresh.",
       oauthReadinessStatus: "Needs Google Cloud OAuth setup",
-      requestedScopesSummary: "Future read-only Gmail message scope for manual refresh only",
-      credentialStorageStatus: "Token storage not configured",
+      requestedScopesSummary: "https://www.googleapis.com/auth/gmail.readonly for explicit manual read-only refresh only",
+      credentialStorageStatus: "GoogleSignIn SDK-managed session; no custom token storage",
       mailboxMode: .mixedFiltered,
       reviewState: .needsReview
     )
@@ -15287,7 +15287,7 @@ final class ParcelOpsStore {
 
   func markGmailMailboxConnectionReviewed(_ connection: GmailMailboxConnection) {
     updateGmailMailboxConnection(connection) { draft in
-      draft.connectionStatus = "Ready for Gmail planning"
+      draft.connectionStatus = "Ready for Gmail sign-in review"
       draft.reviewState = .accepted
     }
     logAudit(
@@ -15296,7 +15296,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Gmail mailbox setup placeholder reviewed locally.",
-      afterDetail: "No OAuth flow, Gmail API call, token, Keychain item, or mailbox message access occurred."
+      afterDetail: "Setup review only. No Google sign-in, Gmail API call, token value, Keychain item, or mailbox message access occurred."
     )
   }
 
@@ -18297,7 +18297,7 @@ final class ParcelOpsStore {
       GmailOAuthImplementationChecklistItem(
         title: "Read-only Gmail scope planned",
         isComplete: hasReadonlyScope,
-        detail: hasReadonlyScope ? connection.requestedScopesSummary : "Plan a read-only Gmail scope such as gmail.readonly before real API work."
+        detail: hasReadonlyScope ? connection.requestedScopesSummary : "Add a read-only Gmail scope such as gmail.readonly before running real manual refresh."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "OAuth consent screen notes captured",
@@ -18305,9 +18305,9 @@ final class ParcelOpsStore {
         detail: hasConsentNotes ? consentNotes : "Capture consent screen notes without client secrets or tokens."
       ),
       GmailOAuthImplementationChecklistItem(
-        title: "Token storage decision pending",
+        title: "Token handling understood",
         isComplete: hasCredentialPlan,
-        detail: hasCredentialPlan ? connection.credentialStorageStatus : "Pending future decision. No Gmail token storage or Keychain token item is implemented."
+        detail: hasCredentialPlan ? connection.credentialStorageStatus : "Use GoogleSignIn SDK-managed session state. ParcelOps must not store token values in JSON."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "Manual refresh strategy selected",
@@ -18324,7 +18324,7 @@ final class ParcelOpsStore {
     let completedCount = items.filter(\.isComplete).count
     return GmailOAuthImplementationPlan(
       connectionID: connection.id,
-      statusText: "\(completedCount)/\(items.count) Gmail OAuth planning items ready",
+      statusText: "\(completedCount)/\(items.count) Gmail sign-in/refresh readiness items ready",
       completedCount: completedCount,
       totalCount: items.count,
       items: items
