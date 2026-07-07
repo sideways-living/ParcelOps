@@ -288,6 +288,7 @@ struct InboxView: View {
         header
         inboxSummaryPanel
         mailboxProviderReleaseGatePanel
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
