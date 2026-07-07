@@ -69,6 +69,32 @@ struct OrdersView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.gmailIntakeHealthSummaries.first
   }
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var gmailReleaseOrderConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+  private var gmailReleaseOrderColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
   private var pendingUncertainSpaceMailCount: Int {
     latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
   }
@@ -215,7 +241,8 @@ struct OrdersView: View {
           ("Mail fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
           ("Mail imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
           ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
-          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange)
+          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange),
+          ("Gmail release", "\(gmailReleaseBlockingCount + gmailReleaseAttentionCount)", gmailReleaseBlockingCount + gmailReleaseAttentionCount == 0 ? .green : gmailReleaseOrderColor)
         ])
 
         VStack(alignment: .leading, spacing: 8) {
@@ -249,6 +276,40 @@ struct OrdersView: View {
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+        if !gmailReleaseSelfChecks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Gmail release boundary before Orders", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(gmailReleaseOrderColor)
+            Text("Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Inbox row is created or linked as an order.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+              GmailReleaseSelfCheckSummaryCard(summary: summary)
+            }
+
+            if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+              CompactActionRow {
+                NavigationLink {
+                  MailboxView(store: store)
+                } label: {
+                  Label("Open Gmail setup", systemImage: "server.rack")
+                }
+                if let connection = gmailReleaseOrderConnection {
+                  Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                  }
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+          .padding(10)
+          .background(gmailReleaseOrderColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
 
