@@ -76,6 +76,7 @@ struct HandoffNotesView: View {
           .buttonStyle(.bordered)
         }
 
+        providerHandoffPacketPanel
         filters
         inboxHandoffCoverage
 
@@ -118,6 +119,94 @@ struct HandoffNotesView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var providerHandoffPacketPanel: some View {
+    let packet = store.mailboxProviderHandoffPacketSummary
+    let color = handoffToneColor(packet.tone)
+    let activeProviderNotes = store.handoffNotes.filter { note in
+      note.linkedEntityType == .integration
+        && note.linkedEntityID == "mailbox-provider-handoff-packet"
+        && note.status != .completed
+    }
+
+    return SettingsPanel(title: "Mailbox provider handoff", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: packet.tone == "success" ? "checkmark.seal.fill" : packet.tone == "warning" ? "exclamationmark.triangle.fill" : "arrow.left.arrow.right.square.fill")
+            .foregroundStyle(color)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(packet.title)
+              .font(.headline)
+            Text(packet.detail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(packet.tone == "success" ? "Ready" : packet.tone == "warning" ? "Blocked" : "Review", color: color)
+        }
+
+        MetricStrip(items: packet.metrics.map { metric in
+          (metric.title, metric.value, handoffToneColor(metric.tone))
+        })
+
+        if !activeProviderNotes.isEmpty {
+          Label("\(activeProviderNotes.count) active provider handoff note\(activeProviderNotes.count == 1 ? "" : "s") already exist. The action below refreshes the current note instead of creating duplicates.", systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          Text("Create one handoff note when the next operator or shift needs the provider state, open queue items, release blockers, and mailbox boundaries in one place.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        if !packet.sections.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(packet.sections.prefix(3), id: \.title) { section in
+              VStack(alignment: .leading, spacing: 6) {
+                Label(section.title, systemImage: section.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(handoffToneColor(section.tone))
+                Text(section.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                if let line = section.lines.first {
+                  Text(line)
+                    .font(.caption2)
+                    .foregroundStyle(handoffToneColor(section.tone))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(handoffToneColor(section.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        CompactActionRow {
+          Button(activeProviderNotes.isEmpty ? "Create provider handoff" : "Refresh provider handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromMailboxProviderHandoffPacket()
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
     }
   }
 
@@ -381,6 +470,16 @@ struct HandoffNotesView: View {
     case "gmail": return .blue
     case "mock": return .purple
     case "microsoft", "mailbox": return .blue
+    default: return .secondary
+    }
+  }
+
+  private func handoffToneColor(_ tone: String) -> Color {
+    switch tone {
+    case "warning": return .red
+    case "attention": return .orange
+    case "success": return .green
+    case "neutral": return .blue
     default: return .secondary
     }
   }
