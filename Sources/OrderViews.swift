@@ -250,6 +250,8 @@ struct OrdersView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+
         if inboxCreatedOrderItems.isEmpty {
           OrdersInboxHandoffEmptyState(
             fetchedCount: mailboxFetchedCount,
