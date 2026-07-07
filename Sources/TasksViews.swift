@@ -91,6 +91,32 @@ struct TasksView: View {
     }
   }
 
+  private var gmailClassifierHintCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.trustedSenderHints ?? []).count
+        + (connection.importKeywordHints ?? []).count
+        + (connection.uncertainKeywordHints ?? []).count
+        + (connection.filterKeywordHints ?? []).count
+    }
+  }
+
+  private var gmailClassifierTestIssueCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.classifierTestResults ?? []).filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+      }.count
+    }
+  }
+
+  private var gmailClassifierTaskConnection: GmailMailboxConnection? {
+    store.gmailMailboxConnections.first { connection in
+      (connection.classifierTestResults ?? []).contains { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
+        || (connection.uncertainMessages?.isEmpty == false)
+        || (connection.filteredMessages?.isEmpty == false)
+    } ?? store.gmailMailboxConnections.first
+  }
+
   private var pendingMailboxReviewCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
       + pendingFilteredSpaceMailCount
@@ -878,7 +904,8 @@ struct TasksView: View {
           ("Imported", "\(gmailImportedCount)", gmailImportedCount > 0 ? .green : .secondary),
           ("Filtered review", "\(pendingFilteredGmailCount)", pendingFilteredGmailCount > 0 ? .teal : .secondary),
           ("Uncertain", "\(pendingUncertainGmailCount)", pendingUncertainGmailCount > 0 ? .orange : .secondary),
-          ("Warnings", "\(gmailWarningCount)", gmailWarningCount > 0 ? .orange : .green)
+          ("Warnings", "\(gmailWarningCount)", gmailWarningCount > 0 ? .orange : .green),
+          ("Classifier issues", "\(gmailClassifierTestIssueCount)", gmailClassifierTestIssueCount > 0 ? .orange : .green)
         ])
 
         MetricStrip(items: [
@@ -929,6 +956,26 @@ struct TasksView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
+        if gmailSetupCount > 0 {
+          VStack(alignment: .leading, spacing: 6) {
+            Label(gmailClassifierTaskTitle, systemImage: "slider.horizontal.3")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailClassifierTestIssueCount > 0 || pendingUncertainGmailCount > 0 ? .orange : .teal)
+            Text(gmailClassifierTaskDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            MetricStrip(items: [
+              ("Hints", "\(gmailClassifierHintCount)", gmailClassifierHintCount > 0 ? .teal : .secondary),
+              ("Test issues", "\(gmailClassifierTestIssueCount)", gmailClassifierTestIssueCount > 0 ? .orange : .green),
+              ("Uncertain", "\(pendingUncertainGmailCount)", pendingUncertainGmailCount > 0 ? .orange : .secondary),
+              ("Filtered review", "\(pendingFilteredGmailCount)", pendingFilteredGmailCount > 0 ? .teal : .secondary)
+            ])
+          }
+          .padding(10)
+          .background((gmailClassifierTestIssueCount > 0 || pendingUncertainGmailCount > 0 ? Color.orange : Color.teal).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         CompactActionRow {
           NavigationLink {
             MailboxView(store: store)
@@ -939,6 +986,12 @@ struct TasksView: View {
             InboxView(store: store)
           } label: {
             Label("Open Inbox triage", systemImage: "tray.full.fill")
+          }
+          if let connection = gmailClassifierTaskConnection {
+            Button("Create tuning task", systemImage: "checklist") {
+              store.createReviewTaskFromGmailClassifierTuning(connection)
+              mvpFeedbackMessage = "Gmail classifier tuning task created or refreshed."
+            }
           }
         }
         .buttonStyle(.bordered)
@@ -973,6 +1026,30 @@ struct TasksView: View {
     if pendingFilteredGmailCount > 0 { return "Gmail filtered examples are reviewable" }
     if gmailWarningCount > 0 { return "Gmail setup or intake needs review" }
     return "Gmail has no assigned task pressure"
+  }
+
+  private var gmailClassifierTaskTitle: String {
+    if gmailClassifierTestIssueCount > 0 { return "Gmail classifier task can capture failing tests" }
+    if pendingUncertainGmailCount > 0 { return "Gmail uncertain review can be assigned" }
+    if pendingFilteredGmailCount > 0 { return "Gmail filtered review can be assigned if needed" }
+    if gmailClassifierHintCount > 0 { return "Gmail hints are ready for suite verification" }
+    return "Gmail classifier task is optional"
+  }
+
+  private var gmailClassifierTaskDetail: String {
+    if gmailClassifierTestIssueCount > 0 {
+      return "\(gmailClassifierTestIssueCount) Gmail classifier test\(gmailClassifierTestIssueCount == 1 ? "" : "s") need review. Create one task when someone should own hint tuning and suite verification."
+    }
+    if pendingUncertainGmailCount > 0 {
+      return "\(pendingUncertainGmailCount) uncertain Gmail preview\(pendingUncertainGmailCount == 1 ? "" : "s") are waiting outside Inbox. Create a task only if this needs a named owner."
+    }
+    if pendingFilteredGmailCount > 0 {
+      return "\(pendingFilteredGmailCount) filtered Gmail preview\(pendingFilteredGmailCount == 1 ? "" : "s") are reviewable. Assign this only when an expected order may have been filtered."
+    }
+    if gmailClassifierHintCount > 0 {
+      return "\(gmailClassifierHintCount) local Gmail hint\(gmailClassifierHintCount == 1 ? "" : "s") are saved. Create a task if someone should run the classifier suite and confirm the result."
+    }
+    return "No Gmail classifier issue requires assigned ownership right now."
   }
 
   private var gmailReadinessTaskHint: String {

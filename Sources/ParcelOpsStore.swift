@@ -15630,6 +15630,82 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromGmailClassifierTuning(_ connection: GmailMailboxConnection) {
+    let uncertainCount = connection.uncertainMessages?.count ?? connection.lastRefreshUncertainCount ?? 0
+    let filteredCount = connection.filteredMessages?.count ?? 0
+    let hintCount = (connection.trustedSenderHints ?? []).count
+      + (connection.importKeywordHints ?? []).count
+      + (connection.uncertainKeywordHints ?? []).count
+      + (connection.filterKeywordHints ?? []).count
+    let classifierIssues = (connection.classifierTestResults ?? []).filter {
+      $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+    }
+    let issueCount = classifierIssues.count
+    let taskPriority: TaskPriority = issueCount > 0 || uncertainCount > 0 ? .normal : .low
+    let taskID = "gmail-classifier-tuning-\(connection.id.uuidString)"
+    let taskTitle = issueCount > 0 || uncertainCount > 0
+      ? "Tune Gmail classifier for \(connection.displayName)"
+      : "Confirm Gmail classifier hints for \(connection.displayName)"
+    let issueLine = classifierIssues.isEmpty
+      ? "No failing Gmail classifier test rows are currently recorded."
+      : "Classifier test issues: \(classifierIssues.map { "\($0.sampleName) expected \($0.expectedDecision), got \($0.decision)" }.joined(separator: "; "))."
+    let taskSummary = [
+      "Review Gmail mixed-mailbox classifier tuning for \(connection.displayName).",
+      "Uncertain previews: \(uncertainCount). Filtered review examples: \(filteredCount). Local hints: \(hintCount). Classifier test issues: \(issueCount).",
+      issueLine,
+      "Next action: open Mailbox Monitor, import true order mail, dismiss non-order mail, add or edit local hints, then run the Gmail classifier suite.",
+      "Boundary: this task uses local metadata only; it does not run Google sign-in, request tokens, fetch Gmail, import Inbox rows, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == taskID
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .normal ? "Tomorrow" : "This week"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail classifier tuning review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current local Gmail classifier state. No duplicate task was created. No Gmail API call, OAuth token, mailbox fetch, Inbox import, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: taskSummary,
+      linkedEntityType: .integration,
+      linkedEntityID: taskID,
+      priority: taskPriority,
+      dueDate: taskPriority == .normal ? "Tomorrow" : "This week",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task created from Gmail classifier tuning state.")
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from Gmail classifier tuning state.",
+      afterDetail: taskSummary
+    )
+  }
+
   private func addGmailHint(
     target: SpaceMailHintTarget,
     sender: String,
