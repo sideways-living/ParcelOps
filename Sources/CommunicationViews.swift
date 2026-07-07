@@ -110,6 +110,7 @@ struct CommunicationView: View {
         .buttonStyle(.bordered)
 
         draftSummaryPanel
+        gmailDraftFocusPanel
         inboxDraftCoverage
         filterBar
 
@@ -235,6 +236,106 @@ struct CommunicationView: View {
         Text("Use this screen to manage local draft state only. ParcelOps does not send outbound email, store SMTP credentials, or contact a mail provider for sending.")
           .font(.caption)
           .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private var gmailDrafts: [DraftMessage] {
+    store.draftMessages
+      .filter { draft in
+        [draft.subject, draft.body, draft.recipient, draft.linkedEntityID]
+          .joined(separator: " ")
+          .localizedCaseInsensitiveContains("gmail")
+      }
+      .sorted { first, second in
+        let firstPriority = gmailDraftSortPriority(first)
+        let secondPriority = gmailDraftSortPriority(second)
+        if firstPriority == secondPriority {
+          return first.createdDate > second.createdDate
+        }
+        return firstPriority > secondPriority
+      }
+  }
+
+  private var openGmailDrafts: [DraftMessage] {
+    gmailDrafts.filter { $0.status != .sentLocally || $0.reviewState != .accepted }
+  }
+
+  @ViewBuilder
+  private var gmailDraftFocusPanel: some View {
+    if !gmailDrafts.isEmpty {
+      SettingsPanel(title: "Gmail draft focus", symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Local drafts linked to Gmail intake, Gmail setup, classifier tuning, or provider-release work are grouped here. Send any ready message outside ParcelOps, then mark it sent locally.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Gmail drafts", "\(gmailDrafts.count)", .blue),
+            ("Open", "\(openGmailDrafts.count)", openGmailDrafts.isEmpty ? .green : .orange),
+            ("Ready", "\(gmailDrafts.filter { $0.status == .ready }.count)", gmailDrafts.contains { $0.status == .ready } ? .blue : .green),
+            ("Needs review", "\(gmailDrafts.filter { $0.reviewState != .accepted }.count)", gmailDrafts.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(openGmailDrafts.prefix(4)) { draft in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Label(draft.channel.rawValue, systemImage: "envelope.badge.shield.half.filled")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(draft.status == .ready ? .blue : .orange)
+                  Spacer()
+                  Badge(draft.status.rawValue, color: draft.status.color)
+                }
+                Text(draft.subject)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(gmailDraftActionSummary(for: draft))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background((draft.status == .ready ? Color.blue : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          if openGmailDrafts.isEmpty {
+            Label("All Gmail-related drafts are reviewed and marked sent locally.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else if openGmailDrafts.count > 4 {
+            Text("\(openGmailDrafts.count - 4) more Gmail-related draft\(openGmailDrafts.count - 4 == 1 ? "" : "s") can be worked from the draft list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("This panel does not send Gmail messages, open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
       }
     }
   }
@@ -404,6 +505,25 @@ struct CommunicationView: View {
     if draft.status != .sentLocally && draft.status != .ready { parts.append("finish draft") }
     if draft.reviewState != .accepted { parts.append("mark reviewed") }
     return parts.isEmpty ? "Draft is reviewed and sent locally." : parts.joined(separator: ", ")
+  }
+
+  private func gmailDraftSortPriority(_ draft: DraftMessage) -> Int {
+    var priority = 0
+    if draft.status == .ready { priority += 40 }
+    if draft.status == .reopened { priority += 25 }
+    if draft.reviewState != .accepted { priority += 20 }
+    if draft.status == .draft { priority += 10 }
+    if draft.status == .sentLocally { priority -= 20 }
+    return priority
+  }
+
+  private func gmailDraftActionSummary(for draft: DraftMessage) -> String {
+    var parts: [String] = []
+    if draft.status == .ready { parts.append("send outside ParcelOps, then mark sent locally") }
+    if draft.status == .reopened { parts.append("finish reopened Gmail follow-up") }
+    if draft.status == .draft { parts.append("finish draft before release or handoff closure") }
+    if draft.reviewState != .accepted { parts.append("mark reviewed after checking context") }
+    return parts.isEmpty ? "Gmail draft is reviewed and marked sent locally." : parts.joined(separator: ", ")
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
