@@ -2561,8 +2561,37 @@ struct NeedsReviewView: View {
   private var showsTaskEscalations: Bool { matchesReviewSection("task", "escalations", "review tasks", "follow-up") }
   private var showsHandoffNotes: Bool { matchesReviewSection("handoff", "notes", "shift", "assigned") }
   private var showsMailboxProviderHandoff: Bool { matchesReviewSection("mailbox", "provider", "handoff", "release", "gate", "spacemail", "gmail") }
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var gmailReleaseNeedsReview: Bool {
+    gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
+  }
+  private var gmailReleaseNeedsReviewConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+  private var gmailReleaseNeedsReviewColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
   private var mailboxProviderNeedsReview: Bool {
-    store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success"
+    store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" || gmailReleaseNeedsReview
   }
 
   private var visiblePrimaryReviewSectionCount: Int {
@@ -2628,6 +2657,8 @@ struct NeedsReviewView: View {
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
       + (mailboxProviderNeedsReview ? 1 : 0)
+      + gmailReleaseBlockingCount
+      + gmailReleaseAttentionCount
   }
 
   private var advancedBacklogCount: Int {
@@ -2707,6 +2738,45 @@ struct NeedsReviewView: View {
 
               MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
               MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+              if !gmailReleaseSelfChecks.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                  Label("Gmail release self-checks", systemImage: gmailReleaseNeedsReview ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(gmailReleaseNeedsReviewColor)
+                  Text("These are provider-readiness checks, not Inbox or Dispatch records. Create a task only when a missing Gmail setup, sign-in, labels, classifier review, Inbox handoff, or audit evidence item needs an owner.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                  MetricStrip(items: [
+                    ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
+                    ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
+                    ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
+                  ])
+
+                  ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+                    GmailReleaseSelfCheckSummaryCard(summary: summary)
+                  }
+
+                  if gmailReleaseNeedsReview {
+                    CompactActionRow {
+                      NavigationLink {
+                        MailboxView(store: store)
+                      } label: {
+                        Label("Open Gmail setup", systemImage: "server.rack")
+                      }
+                      if let connection = gmailReleaseNeedsReviewConnection {
+                        Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                          store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                        }
+                      }
+                    }
+                    .buttonStyle(.bordered)
+                  }
+                }
+                .padding(10)
+                .background(gmailReleaseNeedsReviewColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
             }
           }
         }
