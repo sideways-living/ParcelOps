@@ -411,6 +411,10 @@ struct IntegrationsView: View {
             )
 
             CompactActionRow {
+              Button("Create provider handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+                store.createHandoffNoteFromMailboxProviderHandoffPacket()
+                setupFeedbackMessage = "Mailbox provider handoff note created or refreshed. Check Handoff Notes."
+              }
               NavigationLink {
                 MailboxView(store: store)
               } label: {
@@ -420,6 +424,11 @@ struct IntegrationsView: View {
                 InboxView(store: store)
               } label: {
                 Label("Open Inbox", systemImage: "tray.full.fill")
+              }
+              NavigationLink {
+                HandoffNotesView(store: store)
+              } label: {
+                Label("Open Handoff Notes", systemImage: "arrow.left.arrow.right.square.fill")
               }
               NavigationLink {
                 AuditView(store: store)
