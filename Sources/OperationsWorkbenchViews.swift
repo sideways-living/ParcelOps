@@ -489,6 +489,7 @@ struct OperationsWorkbenchView: View {
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         operatorSummary
         resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)

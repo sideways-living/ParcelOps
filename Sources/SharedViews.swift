@@ -3357,9 +3357,22 @@ struct MailboxProviderHandoffPacketCard: View {
 
       if let store {
         CompactActionRow {
+          Button("Create handoff note", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromMailboxProviderHandoffPacket()
+            feedbackMessage = "Mailbox provider handoff note created or refreshed. Check Handoff Notes."
+          }
+          .buttonStyle(.bordered)
+
           Button("Create handoff task", systemImage: "checklist") {
             store.createReviewTaskFromMailboxProviderHandoffPacket()
             feedbackMessage = "Mailbox provider handoff task created. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            HandoffNotesView(store: store)
+          } label: {
+            Label("Handoff Notes", systemImage: "arrow.left.arrow.right.square.fill")
           }
           .buttonStyle(.bordered)
 

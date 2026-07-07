@@ -614,6 +614,7 @@ struct DashboardView: View {
         OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
         OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
         OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
+        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         OperatorMVPReadinessCard(store: store)
         LocalDataHygieneSummaryCard(
           store: store,
