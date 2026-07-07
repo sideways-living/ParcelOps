@@ -456,6 +456,12 @@ struct InboxView: View {
           }
           .buttonStyle(.bordered)
 
+          Button("Create handoff note", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromMailboxProviderHandoffPacket()
+            providerReleaseGateFeedbackMessage = "Mailbox provider handoff note created or refreshed. Check Handoff Notes or Tasks."
+          }
+          .buttonStyle(.bordered)
+
           NavigationLink {
             MailboxView(store: store)
           } label: {

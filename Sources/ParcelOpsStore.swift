@@ -11366,6 +11366,90 @@ final class ParcelOpsStore {
     )
   }
 
+  func createHandoffNoteFromMailboxProviderHandoffPacket() {
+    let packet = mailboxProviderHandoffPacketSummary
+    let notePriority: TaskPriority
+    switch packet.tone {
+    case "warning":
+      notePriority = .high
+    case "attention":
+      notePriority = .normal
+    default:
+      notePriority = .low
+    }
+
+    let noteTitle = packet.tone == "success"
+      ? "Mailbox provider handoff ready"
+      : "Mailbox provider handoff needs review"
+    let noteSummary = "\(packet.title): \(packet.detail)"
+    let noteDetail = [
+      packet.reportText,
+      "",
+      "Shift handoff boundary:",
+      "- This handoff note was generated from local provider readiness state.",
+      "- It does not run Gmail, SpaceMail, Microsoft 365, IMAP, or Graph refreshes.",
+      "- It does not read credentials, request tokens, call external services, send email, create notifications, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = handoffNotes.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-handoff-packet"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = handoffNotes[existingIndex].auditDetail
+      handoffNotes[existingIndex].title = noteTitle
+      handoffNotes[existingIndex].summary = noteSummary
+      handoffNotes[existingIndex].priority = notePriority
+      handoffNotes[existingIndex].assignee = "Mailbox team"
+      handoffNotes[existingIndex].dueDate = notePriority == .high ? "Today" : "Next shift"
+      handoffNotes[existingIndex].reviewState = .needsReview
+      handoffNotes[existingIndex].notes = noteDetail
+      persistHandoffNotes()
+      logAudit(
+        action: .edited,
+        entityType: .handoffNote,
+        entityID: handoffNotes[existingIndex].id.uuidString,
+        entityLabel: handoffNotes[existingIndex].title,
+        summary: "Existing mailbox provider handoff note refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nRefreshed from current mailbox provider handoff packet. No duplicate handoff note was created."
+      )
+      return
+    }
+
+    let note = HandoffNote(
+      title: noteTitle,
+      summary: noteSummary,
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-handoff-packet",
+      priority: notePriority,
+      assignee: "Mailbox team",
+      createdDate: Self.auditTimestamp(),
+      dueDate: notePriority == .high ? "Today" : "Next shift",
+      status: .open,
+      reviewState: .needsReview,
+      notes: noteDetail
+    )
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(
+      action: .created,
+      entityType: .handoffNote,
+      entityID: note.id.uuidString,
+      entityLabel: note.title,
+      summary: "Mailbox provider handoff note created locally.",
+      afterDetail: noteDetail
+    )
+    logAudit(
+      action: .linked,
+      entityType: .settings,
+      entityID: "mailbox-provider-handoff-packet",
+      entityLabel: "Mailbox provider handoff packet",
+      summary: "Mailbox provider handoff packet linked to a handoff note.",
+      afterDetail: "Handoff note: \(note.title)\n\(noteSummary)"
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority
