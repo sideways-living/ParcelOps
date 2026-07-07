@@ -116,6 +116,41 @@ struct DashboardView: View {
   private var gmailSetupBlockerCount: Int {
     store.gmailMailboxConnections.filter { !store.gmailOAuthReadinessSummary(for: $0).isReady }.count
   }
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+  private var gmailReleaseWarningCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var gmailReleaseBlockerCount: Int {
+    gmailReleaseWarningCount + gmailReleaseAttentionCount
+  }
+  private var primaryGmailReleaseSelfCheck: GmailReleaseSelfCheckSummary? {
+    gmailReleaseSelfChecks.first
+  }
+  private var dashboardGmailReleaseTitle: String {
+    guard let summary = primaryGmailReleaseSelfCheck else { return "Gmail release check not configured" }
+    return summary.verdict
+  }
+  private var dashboardGmailReleaseDetail: String {
+    guard let summary = primaryGmailReleaseSelfCheck else {
+      return "Add Gmail only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the active intake path."
+    }
+    return "\(summary.completedCount)/\(summary.totalCount) Gmail checks complete. \(summary.nextAction)"
+  }
+  private var dashboardGmailReleaseTone: Color {
+    if gmailReleaseWarningCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    if primaryGmailReleaseSelfCheck?.tone == "success" { return .green }
+    return store.gmailMailboxConnections.isEmpty ? .secondary : .teal
+  }
   private var pendingGmailUncertainReviewCount: Int {
     store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
   }
@@ -1367,13 +1402,24 @@ struct DashboardView: View {
           }
 
           MetricStrip(items: [
-            ("Gmail setup", "\(gmailSetupBlockerCount)", gmailSetupBlockerCount > 0 ? .orange : .green),
+            ("Gmail release", "\(gmailReleaseBlockerCount)", gmailReleaseBlockerCount > 0 ? dashboardGmailReleaseTone : .green),
+            ("OAuth setup", "\(gmailSetupBlockerCount)", gmailSetupBlockerCount > 0 ? .orange : .green),
             ("Gmail fetched", "\(latestGmailSummary?.fetchedCount ?? 0)", (latestGmailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
             ("Gmail imported", "\(latestGmailSummary?.importedCount ?? 0)", (latestGmailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-            ("Gmail review", "\(pendingGmailFilteredReviewCount)", pendingGmailFilteredReviewCount > 0 ? .teal : .secondary),
             ("Gmail uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary)
           ])
+          VStack(alignment: .leading, spacing: 6) {
+            Label(dashboardGmailReleaseTitle, systemImage: gmailReleaseBlockerCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(dashboardGmailReleaseTone)
+            Text(dashboardGmailReleaseDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .background(dashboardGmailReleaseTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           CompactMetadataGrid(minimumWidth: 145) {
             Badge("Label: \(dashboardGmailPrimaryLabel)", color: dashboardGmailLabelColor)
             Badge(dashboardGmailLabelStatus, color: dashboardGmailLabelColor)
