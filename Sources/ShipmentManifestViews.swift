@@ -35,33 +35,6 @@ struct ShipmentManifestsView: View {
       || selectedReviewState != nil
       || !manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
-  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
-    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
-  }
-  private var gmailReleaseBlockingCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
-    }
-  }
-  private var gmailReleaseAttentionCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
-    }
-  }
-  private var gmailReleaseManifestConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-  private var gmailReleaseManifestColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
-  }
-
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -285,49 +258,21 @@ struct ShipmentManifestsView: View {
   }
 
   private var gmailManifestReleaseBoundary: some View {
-    guard !gmailReleaseSelfChecks.isEmpty else {
-      return AnyView(EmptyView())
-    }
-
-    return AnyView(
-      SettingsPanel(title: "Gmail release boundary", symbol: "envelope.badge.shield.half.filled") {
-        VStack(alignment: .leading, spacing: 10) {
-          Label("Provider readiness before manifests", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(gmailReleaseManifestColor)
-          Text("Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row becomes an order or shipment group.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-          MetricStrip(items: [
-            ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-            ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
-            ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
-          ])
-
-          ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-            GmailReleaseSelfCheckSummaryCard(summary: summary)
-          }
-
-          if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
-            CompactActionRow {
-              NavigationLink {
-                MailboxView(store: store)
-              } label: {
-                Label("Open Gmail setup", systemImage: "server.rack")
-              }
-              if let connection = gmailReleaseManifestConnection {
-                Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                  store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                }
-              }
-            }
-            .buttonStyle(.bordered)
-          }
-        }
-      }
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail manifest readiness",
+      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row becomes an order or shipment group.",
+      sourceMetricTitle: "Gmail manifest sources",
+      sourceCount: gmailManifestSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, or change shipment manifests automatically."
     )
+  }
+
+  private var gmailManifestSourceCount: Int {
+    inboxCreatedOrders
+      .flatMap { linkedIntakeEmails(for: $0) }
+      .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
+      .count
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
