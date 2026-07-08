@@ -261,10 +261,10 @@ struct AuditView: View {
       return "Start with local data hygiene, operator test-session, and release snapshot tasks so readiness gaps stay visible in Tasks instead of being buried in Audit."
     }
     if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty {
-      return "Use the release gate focus to confirm whether SpaceMail, Gmail, Inbox intake, task follow-up, and provider evidence are ready for operator testing."
+      return "Use the release gate focus to confirm whether active mailbox providers, Inbox intake, task follow-up, and provider evidence are ready for operator testing."
     }
     if !mailboxEvidenceEvents.isEmpty {
-      return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across SpaceMail and Gmail."
+      return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across the active providers."
     }
     if !inboxDispatchHandoffEvents.isEmpty {
       return "Check reopened and completed dispatch handoff events together so Inbox-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
@@ -303,7 +303,7 @@ struct AuditView: View {
       ),
       (
         "Mailbox refresh evidence",
-        "SpaceMail, Gmail, or mailbox events show fetched, imported, filtered, duplicate, parser, or credential activity.",
+        "Active mailbox-provider events show fetched, imported, filtered, duplicate, parser, credential, or sign-in activity.",
         mailboxEvidenceEvents.count,
         "server.rack",
         mailboxEvidenceEvents.isEmpty ? .orange : .teal
@@ -989,11 +989,11 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Mailbox provider release gate", detail: "Release-gate task creation, refreshes, reviews, and provider-readiness actions for SpaceMail, Gmail, Inbox evidence, and operator follow-up.", events: visibleMailboxProviderReleaseGateEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          AuditFeedSection(title: "Mailbox provider release gate", detail: "Release-gate task creation, refreshes, reviews, and provider-readiness actions for active mailbox providers, Inbox evidence, and operator follow-up.", events: visibleMailboxProviderReleaseGateEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Mailbox intake evidence", detail: "Credential, sign-in, refresh, filtering, parser, and local intake events for SpaceMail and Gmail setup.", events: visibleMailboxEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          AuditFeedSection(title: "Mailbox intake evidence", detail: "Credential, sign-in, refresh, filtering, parser, and local intake events for active mailbox-provider setup.", events: visibleMailboxEvidenceEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
