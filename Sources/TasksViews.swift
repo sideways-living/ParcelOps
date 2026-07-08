@@ -117,6 +117,48 @@ struct TasksView: View {
     } ?? store.gmailMailboxConnections.first
   }
 
+  private var gmailTaskReadinessConnection: GmailMailboxConnection? {
+    gmailClassifierTaskConnection ?? store.gmailMailboxConnections.first
+  }
+
+  private var gmailTaskOAuthReadiness: GmailOAuthReadinessSummary? {
+    gmailTaskReadinessConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var gmailTaskCompileBlockers: [String] {
+    guard let readiness = gmailTaskOAuthReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var gmailTaskCompileColor: Color {
+    guard let readiness = gmailTaskOAuthReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+
+  private var gmailTaskCompileTitle: String {
+    guard let readiness = gmailTaskOAuthReadiness else { return "Gmail app setup is optional" }
+    if readiness.isReady { return "Gmail app setup is ready" }
+    if !gmailTaskCompileBlockers.isEmpty { return "Gmail app setup needs configuration before tasking refresh work" }
+    return "Gmail readiness needs review before assigning refresh work"
+  }
+
+  private var gmailTaskCompileDetail: String {
+    guard let readiness = gmailTaskOAuthReadiness else {
+      return "Add Gmail setup only when a Google-hosted mailbox should feed Inbox. SpaceMail can remain the live intake path."
+    }
+    if readiness.isReady {
+      return "The saved Gmail setup matches the compiled client ID and callback scheme. Assign tasks only for named follow-up after sign-in, refresh, classifier review, or Inbox handoff."
+    }
+    if !gmailTaskCompileBlockers.isEmpty {
+      return "Do not assign Gmail refresh work yet. Fix: \(gmailTaskCompileBlockers.joined(separator: "; ")). Update App/Info.plist and Project.json, rebuild, then retest Gmail readiness."
+    }
+    return readiness.detailText
+  }
+
   private var pendingMailboxReviewCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
       + pendingFilteredSpaceMailCount
@@ -945,6 +987,27 @@ struct TasksView: View {
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
+        if gmailSetupCount > 0 {
+          VStack(alignment: .leading, spacing: 6) {
+            Label(gmailTaskCompileTitle, systemImage: gmailTaskOAuthReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailTaskCompileColor)
+            Text(gmailTaskCompileDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            if let readiness = gmailTaskOAuthReadiness {
+              CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 150 : 175) {
+                Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.expectedCallbackScheme, color: .secondary)
+              }
+            }
+          }
+          .padding(10)
+          .background(gmailTaskCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         if !gmailHealthSummaries.isEmpty {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(gmailHealthSummaries.prefix(3)) { summary in
@@ -1093,6 +1156,9 @@ struct TasksView: View {
   }
 
   private var gmailReadinessTaskHint: String {
+    if !gmailTaskCompileBlockers.isEmpty {
+      return "Fix the compiled Gmail client ID and callback scheme before assigning refresh follow-up."
+    }
     if gmailReadySetupCount < gmailSetupCount {
       return "Finish Gmail setup and callback readiness before assigning refresh follow-up."
     }
