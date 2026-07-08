@@ -249,6 +249,8 @@ struct OrdersView: View {
 
         gmailOrderReadinessPanel
 
+        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
 
         if inboxCreatedOrderItems.isEmpty {
