@@ -480,13 +480,6 @@ struct InboxView: View {
           .buttonStyle(.bordered)
 
           NavigationLink {
-            InboxView(store: store)
-          } label: {
-            Label("Inbox", systemImage: "tray.full.fill")
-          }
-          .buttonStyle(.bordered)
-
-          NavigationLink {
             OperationsWorkbenchView(store: store)
           } label: {
             Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
