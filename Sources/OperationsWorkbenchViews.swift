@@ -1318,7 +1318,7 @@ struct OperationsWorkbenchView: View {
     if !mailboxAssignedWorkbenchItems.isEmpty {
       SettingsPanel(title: "Mailbox assigned follow-up", symbol: "person.2.wave.2.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Mailbox shift handoffs and review tasks are assigned work once SpaceMail or Gmail needs operator follow-up. Use this panel to see them in Workbench, then open Tasks to complete, acknowledge, draft, or review them.")
+          Text("Mailbox shift handoffs and review tasks are assigned work once an active mailbox provider needs operator follow-up. Use this panel to see them in Workbench, then open Tasks to complete, acknowledge, draft, or review them.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1410,7 +1410,7 @@ struct OperationsWorkbenchView: View {
 
         Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false }
           ? "No parser or uncertain-message diagnostics are currently pulling attention away from the operator queue."
-          : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered SpaceMail or Gmail review. Do not treat filtered non-order mail as Workbench work.")
+          : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered mailbox review. Do not treat filtered non-order mail as Workbench work.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false } ? .green : .orange)
           .fixedSize(horizontal: false, vertical: true)

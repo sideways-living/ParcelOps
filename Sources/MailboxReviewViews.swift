@@ -700,7 +700,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     if latestFetchedCount > 0 {
       return "The latest provider refresh fetched mail but did not create order intake. Send or forward a known test order, then refresh again."
     }
-    return "No recent provider refresh evidence is available. Use SpaceMail or Gmail setup rows to run a manual refresh."
+    return "No recent provider refresh evidence is available. Use an active mailbox provider setup row to run a manual refresh."
   }
 
   private var tone: Color {
@@ -1110,7 +1110,7 @@ private struct MailboxReviewStartPanel: View {
         ("Review rows", "\(reviewEmailCount)", reviewEmailCount == 0 ? .green : .teal)
       ])
 
-      Text("Filtered mixed-mailbox messages are not imported into Inbox. SpaceMail and Gmail setup controls below are for configuration and diagnostics; the review queue is the operational work.")
+      Text("Filtered mixed-mailbox messages are not imported into Inbox. Mailbox provider setup controls below are for configuration and diagnostics; the review queue is the operational work.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -2719,7 +2719,7 @@ struct NeedsReviewView: View {
         if showsMailboxProviderHandoff && mailboxProviderNeedsReview {
           SettingsPanel(title: "Mailbox provider release and handoff", symbol: "checkmark.seal.fill") {
             VStack(alignment: .leading, spacing: 12) {
-              Text("Use this before treating SpaceMail or Gmail as a clean daily intake path. It summarizes provider release gates, handoff readiness, and follow-up actions without running mailbox refresh or changing credentials.")
+              Text("Use this before treating a mailbox provider as a clean daily intake path. It summarizes provider release gates, handoff readiness, and follow-up actions without running mailbox refresh or changing credentials.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -3026,7 +3026,7 @@ struct NeedsReviewView: View {
 
         if showsMixedMailboxReview {
           SettingsPanel(title: "Mixed-mailbox review", symbol: "questionmark.folder.fill") {
-            Text("These previews were held out of the primary Inbox by SpaceMail or Gmail mixed-mailbox filtering. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
+            Text("These previews were held out of the primary Inbox by mixed-mailbox filtering. Import only true order/order-update messages; dismiss local false positives without changing the mailbox.")
               .font(.caption)
               .foregroundStyle(.secondary)
 

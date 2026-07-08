@@ -1078,7 +1078,7 @@ private struct InboxSpaceMailDecisionGuide: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This guide uses local SpaceMail and Gmail refresh summaries only. It does not fetch mail, mutate the mailbox, call external classifiers, or send messages.")
+        Text("This guide uses local mailbox refresh summaries only. It does not fetch mail, mutate the mailbox, call external classifiers, or send messages.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -2370,7 +2370,7 @@ struct DispatchView: View {
     }
 
     if rows.isEmpty {
-      rows.append(("Mailbox", "No provider refresh", "Dispatch setup starts after Inbox creates or links an order from SpaceMail or Gmail intake.", "envelope.badge.fill", .secondary))
+      rows.append(("Mailbox", "No provider refresh", "Dispatch setup starts after Inbox creates or links an order from mailbox intake.", "envelope.badge.fill", .secondary))
     }
     return rows
   }

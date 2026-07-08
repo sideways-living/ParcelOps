@@ -437,7 +437,7 @@ final class ParcelOpsStore {
       ),
       MailboxProviderDecisionRule(
         title: "Use manual refresh as the control point",
-        detail: "SpaceMail and Gmail refreshes stay explicit, read-only, and limited to recent previews. There is no background sync, notification flow, outbound email, or mailbox mutation.",
+        detail: "Mailbox refreshes stay explicit, read-only, and limited to recent previews. There is no background sync, notification flow, outbound email, or mailbox mutation.",
         tone: "success",
         symbol: "hand.tap.fill"
       )
@@ -477,7 +477,7 @@ final class ParcelOpsStore {
 
     if !anyProviderConfigured {
       title = "Choose a mailbox provider"
-      detail = "SpaceMail and Gmail both feed the same local Inbox intake path, but no provider setup exists yet."
+      detail = "Active mailbox providers feed the same local Inbox intake path, but no provider setup exists yet."
       tone = "warning"
     } else if anyOperatorWork {
       title = "Mailbox intake needs operator review"
@@ -1569,7 +1569,7 @@ final class ParcelOpsStore {
         title: "Provider configured",
         requirement: "At least one mailbox provider path is configured.",
         evidence: "\(providerCount) provider setup\(providerCount == 1 ? "" : "s") saved. Recommended path: \(comparison.recommendedProvider).",
-        nextAction: "Add SpaceMail or Gmail setup before release testing.",
+        nextAction: "Add an active mailbox provider before release testing.",
         isPassed: providerCount > 0,
         tone: providerCount > 0 ? "success" : "warning",
         symbol: "envelope.badge.fill"
@@ -1858,7 +1858,7 @@ final class ParcelOpsStore {
 
     return SpaceMailQACheckSummary(
       verdict: verdict,
-      detail: "\(completedCount) of \(checks.count) provider boundary checks are complete for SpaceMail/Gmail intake.",
+      detail: "\(completedCount) of \(checks.count) provider boundary checks are complete for mailbox intake.",
       completedCount: completedCount,
       totalCount: checks.count,
       tone: tone,
@@ -3189,7 +3189,7 @@ final class ParcelOpsStore {
       handoffLines.joined(separator: "\n"),
       "",
       "Release boundaries:",
-      "- SpaceMail and Gmail refreshes are explicit, manual, and read-only.",
+      "- Mailbox refreshes are explicit, manual, and read-only.",
       "- No background sync, notifications, outbound email sending, Shopify, carrier APIs, OCR, scanners, calendars, or file pickers are active.",
       "- Passwords, tokens, auth strings, and full message bodies should not be stored in ParcelOps JSON or Audit.",
       "- Mixed-mailbox filtering is local only and should keep non-order mail out of primary Inbox.",
@@ -3405,7 +3405,7 @@ final class ParcelOpsStore {
     let tone: String
     if entries.isEmpty {
       title = "Mailbox run timeline is empty"
-      detail = "Run a manual SpaceMail or Gmail refresh to build handoff history."
+      detail = "Run a manual mailbox refresh to build handoff history."
       tone = "attention"
     } else if warningCount > 0 {
       title = "Mailbox run timeline has failed or blocked runs"
@@ -3471,7 +3471,7 @@ final class ParcelOpsStore {
       ),
       MailboxReleaseTestPlanStep(
         title: "2. Manual refresh run",
-        detail: "Run or review one explicit read-only SpaceMail or Gmail refresh.",
+        detail: "Run or review one explicit read-only mailbox refresh.",
         evidence: hasRunEvidence ? "\(timeline.entries.count) recent mailbox run\(timeline.entries.count == 1 ? "" : "s") available." : "No mailbox run timeline entry exists yet.",
         nextAction: hasCleanRun ? "Use the latest run to test Inbox triage." : "Run one manual provider refresh; keep mock refresh separate from real refresh.",
         isComplete: hasRunEvidence && hasCleanRun,
@@ -4093,7 +4093,7 @@ final class ParcelOpsStore {
       SpaceMailMVPReadinessItem(
         title: "Read-only refresh tested",
         detail: hasRealRefresh
-          ? "At least one manual SpaceMail or Gmail refresh has produced local result evidence."
+          ? "At least one manual mailbox refresh has produced local result evidence."
           : "Run one explicit manual read-only refresh after setup and credential/sign-in are ready.",
         isComplete: hasRealRefresh,
         tone: hasRealRefresh ? "success" : "attention"
@@ -4134,12 +4134,12 @@ final class ParcelOpsStore {
     } else if completedCount >= 4 {
       tone = "attention"
       verdict = "Live mailbox MVP nearly ready"
-      detail = "\(completedCount) of \(items.count) readiness checks are complete across SpaceMail/Gmail intake."
+      detail = "\(completedCount) of \(items.count) readiness checks are complete across mailbox intake."
       nextAction = items.first { !$0.isComplete }?.detail ?? "Review remaining checks."
     } else {
       tone = "warning"
       verdict = "Live mailbox MVP needs setup checks"
-      detail = "\(completedCount) of \(items.count) readiness checks are complete across SpaceMail/Gmail intake."
+      detail = "\(completedCount) of \(items.count) readiness checks are complete across mailbox intake."
       nextAction = items.first { !$0.isComplete }?.detail ?? "Complete mailbox setup first."
     }
 
@@ -4221,7 +4221,7 @@ final class ParcelOpsStore {
       SpaceMailQACheck(
         title: "Provider setup evidence",
         detail: "At least one live mailbox provider is configured for manual intake testing.",
-        evidence: hasSpaceMailSetup || hasGmailSetup ? "\(providerLabel) setup exists." : "No SpaceMail or Gmail setup exists yet.",
+        evidence: hasSpaceMailSetup || hasGmailSetup ? "\(providerLabel) setup exists." : "No active mailbox provider setup exists yet.",
         isComplete: hasSpaceMailSetup || hasGmailSetup,
         tone: hasSpaceMailSetup || hasGmailSetup ? "success" : "warning"
       ),
@@ -4234,7 +4234,7 @@ final class ParcelOpsStore {
       ),
       SpaceMailQACheck(
         title: "Read-only refresh evidence",
-        detail: "A manual SpaceMail or Gmail refresh completed or produced a clear safe result.",
+        detail: "A manual mailbox refresh completed or produced a clear safe result.",
         evidence: hasRefreshEvidence ? "Manual read-only refresh evidence exists." : "Run one real or mock manual refresh to collect evidence.",
         isComplete: hasRefreshEvidence,
         tone: hasRefreshEvidence ? "success" : "attention"
@@ -4285,7 +4285,7 @@ final class ParcelOpsStore {
 
     return SpaceMailQACheckSummary(
       verdict: verdict,
-      detail: "\(completedCount) of \(checks.count) live mailbox QA checks are complete across SpaceMail/Gmail.",
+      detail: "\(completedCount) of \(checks.count) live mailbox QA checks are complete across active providers.",
       completedCount: completedCount,
       totalCount: checks.count,
       tone: tone,
