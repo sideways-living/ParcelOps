@@ -517,7 +517,6 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         mailboxWorkbenchBoundary
-        spaceMailWorkbenchBoundary
         gmailWorkbenchBoundary
         inboxParserQualityHandoff
         spaceMailAssignedFollowUpPanel
