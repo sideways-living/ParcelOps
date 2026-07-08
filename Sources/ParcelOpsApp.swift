@@ -281,51 +281,44 @@ struct ParcelOpsRootView: View {
   }
 
   private var sidebarReviewFooter: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Review workload", systemImage: "exclamationmark.triangle.fill")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(dailyAttentionCount == 0 ? .green : .orange)
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: dailyAttentionCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(dailyAttentionCount == 0 ? .green : .orange)
+          .frame(width: 18)
 
-      VStack(alignment: .leading, spacing: 6) {
-        HStack {
-          Text("Daily attention")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
-        }
-        HStack {
-          Text("Advanced backlog")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          Badge("\(advancedBacklogCount)", color: advancedBacklogCount == 0 ? .green : .secondary)
-        }
-        HStack {
-          Text("MVP status")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Spacer()
-          Badge(sidebarMVPStatusTitle, color: sidebarMVPStatusColor)
-        }
-
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 6)], alignment: .leading, spacing: 6) {
-          ForEach(sidebarReadinessItems, id: \.title) { item in
-            Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
-              .font(.caption2.weight(.semibold))
-              .foregroundStyle(item.isReady ? .green : .secondary)
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: 6) {
+            Text("Daily attention")
+              .font(.caption.weight(.semibold))
               .lineLimit(1)
+            Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
+            Badge(sidebarMVPStatusTitle, color: sidebarMVPStatusColor)
           }
+
+          Text(dailyAttentionCount == 0 ? sidebarMVPStatusDetail : "Start with Inbox, Orders, Workbench, Dispatch, or Tasks.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
         }
       }
 
-      Text(dailyAttentionCount == 0 ? sidebarMVPStatusDetail : "Start with Inbox, Orders, Workbench, Dispatch, and Tasks. \(sidebarMVPStatusDetail)")
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 6) {
+        ForEach(sidebarReadinessItems, id: \.title) { item in
+          Image(systemName: item.isReady ? "checkmark.circle.fill" : "circle")
+            .foregroundStyle(item.isReady ? .green : .secondary)
+            .help(item.title)
+        }
+        Spacer(minLength: 4)
+        Text("Advanced \(advancedBacklogCount)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding()
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
     .background(.bar)
   }
 
