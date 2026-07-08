@@ -7198,6 +7198,65 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 }
 
+struct PrimaryRouteShortcutGuideCard: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 145 : 165), spacing: 8)]
+  }
+
+  private let shortcutRows: [(key: String, title: String, detail: String, symbol: String, color: Color)] = [
+    ("⌘1", "Dashboard", "Start-of-day summary", "rectangle.grid.2x2.fill", .blue),
+    ("⌘2", "Inbox", "Mailbox triage", "tray.full.fill", .teal),
+    ("⌘3", "Orders", "Active order work", "shippingbox.fill", .orange),
+    ("⌘4", "Workbench", "Exceptions", "rectangle.stack.badge.person.crop.fill", .purple),
+    ("⌘5", "Dispatch", "Outbound queue", "paperplane.fill", .green),
+    ("⌘6", "Tasks", "Follow-up work", "checklist", .indigo),
+    ("⌘7", "Audit", "Local history", "list.clipboard.fill", .cyan),
+    ("⌘8", "Settings", "Setup and sources", "gearshape.fill", .secondary)
+  ]
+
+  var body: some View {
+    SettingsPanel(title: "Primary route shortcuts", symbol: "keyboard") {
+      Text("Use the Navigate menu or these keyboard shortcuts on macOS to move through the daily operator flow without hunting through the sidebar.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+        ForEach(shortcutRows, id: \.key) { row in
+          HStack(alignment: .top, spacing: 8) {
+            Text(row.key)
+              .font(.caption.weight(.bold))
+              .monospaced()
+              .foregroundStyle(row.color)
+              .frame(width: 34, alignment: .leading)
+            Image(systemName: row.symbol)
+              .foregroundStyle(row.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(row.title)
+                .font(.caption.weight(.semibold))
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(9)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Shortcut boundary: these commands only change the visible ParcelOps route. They do not refresh mail, modify records, touch credentials, or perform background work.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
 private struct LocalPersistenceSnapshot {
   var storePath: String
   var expectedFileNames: [String]

@@ -268,6 +268,7 @@ struct IntegrationsView: View {
         }
 
         ActiveOperatorQueueFocusCard(store: store)
+        PrimaryRouteShortcutGuideCard()
 
         SettingsPanel(title: "Find setup section", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
