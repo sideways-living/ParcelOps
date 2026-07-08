@@ -519,7 +519,7 @@ struct OperationsWorkbenchView: View {
         mailboxWorkbenchBoundary
         gmailWorkbenchBoundary
         inboxParserQualityHandoff
-        spaceMailAssignedFollowUpPanel
+        mailboxAssignedFollowUpPanel
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
@@ -1300,35 +1300,38 @@ struct OperationsWorkbenchView: View {
     }
   }
 
-  private var spaceMailAssignedWorkbenchItems: [WorkbenchItem] {
+  private var mailboxAssignedWorkbenchItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { item in
       (item.source == .reviewTask || item.source == .handoffNote)
         && (item.title.localizedCaseInsensitiveContains("spacemail")
+          || item.title.localizedCaseInsensitiveContains("gmail")
           || item.summary.localizedCaseInsensitiveContains("spacemail")
+          || item.summary.localizedCaseInsensitiveContains("gmail")
           || item.suggestedNextAction.localizedCaseInsensitiveContains("spacemail")
+          || item.suggestedNextAction.localizedCaseInsensitiveContains("gmail")
           || item.suggestedNextAction.localizedCaseInsensitiveContains("mailbox monitor"))
     }
   }
 
   @ViewBuilder
-  private var spaceMailAssignedFollowUpPanel: some View {
-    if !spaceMailAssignedWorkbenchItems.isEmpty {
-      SettingsPanel(title: "SpaceMail assigned follow-up", symbol: "person.2.wave.2.fill") {
+  private var mailboxAssignedFollowUpPanel: some View {
+    if !mailboxAssignedWorkbenchItems.isEmpty {
+      SettingsPanel(title: "Mailbox assigned follow-up", symbol: "person.2.wave.2.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("SpaceMail shift handoffs and review tasks are now assigned work. Use this panel to see them in Workbench, then open Tasks to complete, acknowledge, draft, or review them.")
+          Text("Mailbox shift handoffs and review tasks are assigned work once SpaceMail or Gmail needs operator follow-up. Use this panel to see them in Workbench, then open Tasks to complete, acknowledge, draft, or review them.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
           MetricStrip(items: [
-            ("Assigned", "\(spaceMailAssignedWorkbenchItems.count)", .purple),
-            ("Needs review", "\(spaceMailAssignedWorkbenchItems.filter { $0.reviewState == .needsReview }.count)", spaceMailAssignedWorkbenchItems.contains { $0.reviewState == .needsReview } ? .orange : .green),
-            ("High priority", "\(spaceMailAssignedWorkbenchItems.filter { $0.rank >= 3 }.count)", spaceMailAssignedWorkbenchItems.contains { $0.rank >= 3 } ? .orange : .green),
-            ("Blocked", "\(spaceMailAssignedWorkbenchItems.filter(\.isBlocked).count)", spaceMailAssignedWorkbenchItems.contains(where: \.isBlocked) ? .red : .green)
+            ("Assigned", "\(mailboxAssignedWorkbenchItems.count)", .purple),
+            ("Needs review", "\(mailboxAssignedWorkbenchItems.filter { $0.reviewState == .needsReview }.count)", mailboxAssignedWorkbenchItems.contains { $0.reviewState == .needsReview } ? .orange : .green),
+            ("High priority", "\(mailboxAssignedWorkbenchItems.filter { $0.rank >= 3 }.count)", mailboxAssignedWorkbenchItems.contains { $0.rank >= 3 } ? .orange : .green),
+            ("Blocked", "\(mailboxAssignedWorkbenchItems.filter(\.isBlocked).count)", mailboxAssignedWorkbenchItems.contains(where: \.isBlocked) ? .red : .green)
           ])
 
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
-            ForEach(spaceMailAssignedWorkbenchItems.prefix(4)) { item in
+            ForEach(mailboxAssignedWorkbenchItems.prefix(4)) { item in
               VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                   Label(item.source.rawValue, systemImage: item.source.symbol)
