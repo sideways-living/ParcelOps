@@ -5642,6 +5642,7 @@ struct MailboxProviderOperatorReadinessStack: View {
             .fixedSize(horizontal: false, vertical: true)
 
           MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+          MailboxProviderQAMatrixCard(store: store)
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store, showMailboxLink: showMailboxLink)
           if !store.gmailMailboxConnections.isEmpty {
@@ -5723,6 +5724,215 @@ struct MailboxProviderOperatorReadinessStack: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
       }
     }
+  }
+}
+
+struct MailboxProviderQAMatrixCard: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasProviderSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasCredentialOrAuth: Bool {
+    hasSpaceMailCredential || hasGmailAuth
+  }
+
+  private var fetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var importedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var duplicateCount: Int {
+    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+  }
+
+  private var duplicateRefreshedCount: Int {
+    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+  }
+
+  private var filteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var uncertainCount: Int {
+    (latestSpaceMailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
+      + (latestGmailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
+  }
+
+  private var inboxOrderCount: Int {
+    store.orders.filter { $0.isInboxCreatedLocalOrder || $0.source == .forwardedMailbox }.count
+  }
+
+  private var providerAuditCount: Int {
+    store.auditEvents.filter { event in
+      event.entityType == .spaceMailIMAPConnection
+        || event.entityType == .gmailMailboxConnection
+        || event.summary.localizedCaseInsensitiveContains("SpaceMail")
+        || event.summary.localizedCaseInsensitiveContains("Gmail")
+        || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
+    }.count
+  }
+
+  private var matrixRows: [QAMatrixRow] {
+    [
+      QAMatrixRow(
+        title: "Provider setup",
+        status: hasProviderSetup ? "Present" : "Missing",
+        detail: hasProviderSetup ? "SpaceMail and/or Gmail setup records exist." : "Add SpaceMail for IMAP or Gmail for Google-hosted mailboxes.",
+        symbol: "server.rack",
+        color: hasProviderSetup ? .green : .orange
+      ),
+      QAMatrixRow(
+        title: "Credential or sign-in",
+        status: hasCredentialOrAuth ? "Ready" : "Needed",
+        detail: hasCredentialOrAuth ? "A SpaceMail Keychain reference or Gmail sign-in state is available." : "Set/check SpaceMail credential or complete Gmail sign-in before real refresh.",
+        symbol: "key.horizontal.fill",
+        color: hasCredentialOrAuth ? .green : .orange
+      ),
+      QAMatrixRow(
+        title: "Manual refresh evidence",
+        status: fetchedCount > 0 ? "\(fetchedCount) fetched" : "Not run",
+        detail: fetchedCount > 0 ? "\(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed." : "Run one explicit manual read-only refresh for the active provider.",
+        symbol: "arrow.clockwise.circle.fill",
+        color: fetchedCount > 0 ? .green : .orange
+      ),
+      QAMatrixRow(
+        title: "Mixed-mailbox filtering",
+        status: filteredCount > 0 ? "\(filteredCount) filtered" : "Quiet",
+        detail: filteredCount > 0 ? "Filtered non-order messages stayed out of Inbox." : "No filtered examples are recorded yet.",
+        symbol: "line.3.horizontal.decrease.circle.fill",
+        color: filteredCount > 0 ? .teal : .secondary
+      ),
+      QAMatrixRow(
+        title: "Uncertain review",
+        status: uncertainCount > 0 ? "\(uncertainCount) review" : "Clear",
+        detail: uncertainCount > 0 ? "Review uncertain previews in Mailbox Monitor before importing." : "No uncertain provider messages are waiting for review.",
+        symbol: "questionmark.folder.fill",
+        color: uncertainCount > 0 ? .orange : .green
+      ),
+      QAMatrixRow(
+        title: "Inbox-to-order handoff",
+        status: inboxOrderCount > 0 ? "\(inboxOrderCount) order" : "Pending",
+        detail: inboxOrderCount > 0 ? "Inbox-created or forwarded-mailbox orders are visible across the operator flow." : "Create or link one order from a confirmed Inbox row.",
+        symbol: "link.badge.plus",
+        color: inboxOrderCount > 0 ? .green : .orange
+      ),
+      QAMatrixRow(
+        title: "Provider audit trail",
+        status: providerAuditCount > 0 ? "\(providerAuditCount) events" : "Missing",
+        detail: providerAuditCount > 0 ? "Provider setup, refresh, classifier, and handoff actions are traceable." : "Run a provider action so Audit has a safe local history.",
+        symbol: "list.clipboard.fill",
+        color: providerAuditCount > 0 ? .purple : .orange
+      )
+    ]
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 210 : 240), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "tablecells.badge.ellipsis")
+          .foregroundStyle(hasProviderSetup && hasCredentialOrAuth && fetchedCount > 0 ? .green : .orange)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Provider QA matrix")
+            .font(.headline)
+          Text("Use this quick check before judging a mailbox test pass. It reads local setup, refresh summaries, Inbox handoff, and Audit evidence without signing in, fetching mail, reading credentials, or changing mailbox messages.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(fetchedCount > 0 ? "Evidence" : "Needs run", color: fetchedCount > 0 ? .green : .orange)
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(fetchedCount)", fetchedCount > 0 ? .green : .secondary),
+        ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
+        ("Refreshed", "\(duplicateRefreshedCount)", duplicateRefreshedCount > 0 ? .green : .secondary),
+        ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
+        ("Uncertain", "\(uncertainCount)", uncertainCount > 0 ? .orange : .green),
+        ("Orders", "\(inboxOrderCount)", inboxOrderCount > 0 ? .green : .orange)
+      ])
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(matrixRows) { row in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: row.symbol)
+              .foregroundStyle(row.color)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(row.title)
+                  .font(.caption.weight(.semibold))
+                Spacer(minLength: 6)
+                Text(row.status)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(row.color)
+              }
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private struct QAMatrixRow: Identifiable {
+    let id = UUID()
+    var title: String
+    var status: String
+    var detail: String
+    var symbol: String
+    var color: Color
   }
 }
 
