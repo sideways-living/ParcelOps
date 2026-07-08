@@ -7,6 +7,9 @@ struct ParcelOpsApp: App {
       ParcelOpsRootView()
         .parcelOpsWindowFrame()
     }
+    .commands {
+      ParcelRouteCommands()
+    }
   }
 }
 
@@ -27,13 +30,46 @@ private struct ParcelRouteShortcut {
   var modifiers: EventModifiers = .command
 }
 
-private extension View {
-  @ViewBuilder
-  func parcelRouteKeyboardShortcut(_ shortcut: ParcelRouteShortcut?) -> some View {
-    if let shortcut {
-      self.keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
-    } else {
-      self
+private struct ParcelSectionSelectionFocusedValueKey: FocusedValueKey {
+  typealias Value = Binding<ParcelSection>
+}
+
+private extension FocusedValues {
+  var parcelSectionSelection: Binding<ParcelSection>? {
+    get { self[ParcelSectionSelectionFocusedValueKey.self] }
+    set { self[ParcelSectionSelectionFocusedValueKey.self] = newValue }
+  }
+}
+
+private struct ParcelRouteCommands: Commands {
+  @FocusedBinding(\.parcelSectionSelection) private var selection
+
+  var body: some Commands {
+    CommandMenu("Navigate") {
+      Button("Dashboard") { selection = .dashboard }
+        .keyboardShortcut("1", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Inbox") { selection = .inbox }
+        .keyboardShortcut("2", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Orders") { selection = .orders }
+        .keyboardShortcut("3", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Workbench") { selection = .workbench }
+        .keyboardShortcut("4", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Dispatch") { selection = .dispatch }
+        .keyboardShortcut("5", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Tasks") { selection = .tasks }
+        .keyboardShortcut("6", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Audit") { selection = .audit }
+        .keyboardShortcut("7", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Settings") { selection = .settings }
+        .keyboardShortcut("8", modifiers: .command)
+        .disabled(selection == nil)
     }
   }
 }
@@ -318,6 +354,7 @@ struct ParcelOpsRootView: View {
       }
     }
     .tint(.teal)
+    .focusedSceneValue(\.parcelSectionSelection, $selection)
     .onOpenURL { url in
       store.handleMicrosoft365AuthCallback(url)
       store.handleGmailAuthCallback(url)
@@ -360,7 +397,6 @@ struct ParcelOpsRootView: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-          .parcelRouteKeyboardShortcut(routeShortcut(for: section))
         }
       }
     }
@@ -479,7 +515,6 @@ struct ParcelOpsRootView: View {
       }
     }
     .buttonStyle(.plain)
-    .parcelRouteKeyboardShortcut(routeShortcut(for: section))
   }
 
   private func attentionCount(for section: ParcelSection) -> Int? {
