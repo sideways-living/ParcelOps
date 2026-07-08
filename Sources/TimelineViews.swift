@@ -34,36 +34,6 @@ struct TimelineView: View {
       || sourceFilter != nil
       || !timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
-  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
-    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
-  }
-  private var gmailReleaseBlockingCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
-    }
-  }
-  private var gmailReleaseAttentionCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
-    }
-  }
-  private var gmailReleaseNeedsTimelineReview: Bool {
-    gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
-  }
-  private var gmailReleaseTimelineConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-  private var gmailReleaseTimelineColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
-  }
-
   private var inboxDispatchTimelineActivities: [TimelineActivity] {
     store.timelineActivities.filter(\.isInboxDispatchHandoffActivity)
   }
@@ -140,6 +110,7 @@ struct TimelineView: View {
         filters
         inboxSourceTrailTimelinePanel
         mailboxProviderReleaseTimelinePanel
+        gmailTimelineReleaseBoundary
         mailboxProviderTimelinePanel
         inboxDispatchTimelinePanel
 
@@ -336,7 +307,7 @@ struct TimelineView: View {
 
   @ViewBuilder
   private var mailboxProviderReleaseTimelinePanel: some View {
-    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" || !gmailReleaseSelfChecks.isEmpty {
+    if store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" {
       SettingsPanel(title: "Mailbox provider release context", symbol: "checkmark.seal.fill") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Use this before treating Timeline evidence as a complete mailbox-provider handoff. It summarizes setup, refresh, parser, classifier, source-trail, and follow-up readiness without fetching mail or changing mailbox state.")
@@ -346,48 +317,26 @@ struct TimelineView: View {
 
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
           MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-          if !gmailReleaseSelfChecks.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-              Label("Gmail release timeline evidence", systemImage: gmailReleaseNeedsTimelineReview ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(gmailReleaseTimelineColor)
-              Text("Gmail release checks are provider setup evidence. Timeline should show when Gmail is ready for daily intake, but it should not replace Inbox review, order creation, or dispatch handoff.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-              MetricStrip(items: [
-                ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-                ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
-                ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
-              ])
-
-              ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-                GmailReleaseSelfCheckSummaryCard(summary: summary)
-              }
-
-              if gmailReleaseNeedsTimelineReview {
-                CompactActionRow {
-                  NavigationLink {
-                    MailboxView(store: store)
-                  } label: {
-                    Label("Open Gmail setup", systemImage: "server.rack")
-                  }
-                  if let connection = gmailReleaseTimelineConnection {
-                    Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                      store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                    }
-                  }
-                }
-                .buttonStyle(.bordered)
-              }
-            }
-            .padding(10)
-            .background(gmailReleaseTimelineColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-          }
         }
       }
     }
+  }
+
+  private var gmailTimelineReleaseBoundary: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail timeline readiness",
+      lead: "Gmail release checks are provider setup evidence. Timeline should show when Gmail is ready for daily intake, but it should not replace Inbox review, order creation, or dispatch handoff.",
+      sourceMetricTitle: "Gmail timeline sources",
+      sourceCount: gmailTimelineSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, create timeline events, or change audit history automatically."
+    )
+  }
+
+  private var gmailTimelineSourceCount: Int {
+    mailboxProviderTimelineRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   @ViewBuilder
