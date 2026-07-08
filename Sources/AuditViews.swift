@@ -115,6 +115,49 @@ struct AuditView: View {
     store.gmailIntakeHealthSummaries
   }
 
+  private var latestGmailConnection: GmailMailboxConnection? {
+    guard let summary = gmailHealthSummaries.first else { return store.gmailMailboxConnections.first }
+    return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
+  }
+
+  private var auditGmailReadiness: GmailOAuthReadinessSummary? {
+    latestGmailConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var auditGmailCompileBlockers: [String] {
+    guard let readiness = auditGmailReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var auditGmailCompileColor: Color {
+    guard let readiness = auditGmailReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+
+  private var auditGmailCompileTitle: String {
+    guard let readiness = auditGmailReadiness else { return "Gmail compiled setup not started" }
+    if readiness.isReady { return "Gmail compiled setup is ready" }
+    if !auditGmailCompileBlockers.isEmpty { return "Gmail compiled setup blocks real sign-in" }
+    return "Gmail setup values need review"
+  }
+
+  private var auditGmailCompileDetail: String {
+    guard let readiness = auditGmailReadiness else {
+      return "Gmail is optional. Keep using SpaceMail unless a mailbox is hosted by Gmail or Google Workspace."
+    }
+    if readiness.isReady {
+      return "Saved Gmail setup matches the compiled client ID and callback scheme. Audit can focus on sign-in, refresh, classifier, and Inbox handoff evidence."
+    }
+    if !auditGmailCompileBlockers.isEmpty {
+      return "Fix before relying on Gmail audit evidence: \(auditGmailCompileBlockers.joined(separator: "; ")). Update App/Info.plist and Project.json with the Google iOS client ID and reversed client ID scheme, then rebuild."
+    }
+    return readiness.detailText
+  }
+
   private var spaceMailPostRefreshPlan: SpaceMailPostRefreshActionPlan {
     store.spaceMailPostRefreshActionPlan
   }
@@ -644,14 +687,38 @@ struct AuditView: View {
   }
 
   private var gmailAuditReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail audit readiness",
-      lead: "Use this to confirm local audit evidence for Gmail setup, sign-in, label resolution, classifier review, Inbox handoff, and release task creation.",
-      sourceMetricTitle: "Audit events",
-      sourceCount: mailboxProviderReleaseGateEvents.count,
-      boundaryDetail: "Local-only boundary: this panel displays local audit readiness only. It does not start Google sign-in, fetch Gmail, store token values, mutate mailbox messages, or create hidden workflow actions."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail audit readiness",
+        lead: "Use this to confirm local audit evidence for Gmail setup, sign-in, label resolution, classifier review, Inbox handoff, and release task creation.",
+        sourceMetricTitle: "Audit events",
+        sourceCount: mailboxProviderReleaseGateEvents.count,
+        boundaryDetail: "Local-only boundary: this panel displays local audit readiness only. It does not start Google sign-in, fetch Gmail, store token values, mutate mailbox messages, or create hidden workflow actions."
+      )
+
+      if !store.gmailMailboxConnections.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label(auditGmailCompileTitle, systemImage: auditGmailReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(auditGmailCompileColor)
+          Text(auditGmailCompileDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if let readiness = auditGmailReadiness {
+            CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 150 : 175) {
+              Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+              Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+              Badge(readiness.expectedCallbackScheme, color: .secondary)
+            }
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(auditGmailCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
   }
 
   private var inboxSourceTrailAuditPanel: some View {
