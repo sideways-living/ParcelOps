@@ -69,11 +69,8 @@ struct OrdersView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.gmailIntakeHealthSummaries.first
   }
-  private var pendingUncertainSpaceMailCount: Int {
-    latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0
-  }
   private var pendingUncertainMailboxCount: Int {
-    pendingUncertainSpaceMailCount
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
       + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
   }
   private var mailboxFetchedCount: Int {
@@ -150,7 +147,7 @@ struct OrdersView: View {
     }
 
     if rows.isEmpty {
-      rows.append(("Mailbox", "No refresh yet", "Run a manual SpaceMail or Gmail refresh, then create or link confirmed order rows from Inbox.", "envelope.badge.fill", .secondary))
+      rows.append(("Mailbox", "No refresh yet", "Run a manual refresh for the active mailbox provider, then create or link confirmed order rows from Inbox.", "envelope.badge.fill", .secondary))
     }
     return rows
   }
@@ -630,7 +627,7 @@ private struct OrdersInboxHandoffEmptyState: View {
     if fetchedCount > 0 {
       return "A manual mailbox refresh ran, but it did not produce an Inbox order handoff. Send or forward a clear order/tracking test email when testing this path."
     }
-    return "Run SpaceMail or Gmail refresh, or import an intake row first, then create/link an order from Inbox."
+    return "Run a manual refresh for the active mailbox provider, or import an intake row first, then create/link an order from Inbox."
   }
 
   private var color: Color {
