@@ -5229,31 +5229,97 @@ struct SettingsView: View {
     return "Mailbox setup, manual refresh, Inbox-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
   }
 
+  private var activeProviderCandidate: (provider: String, title: String, detail: String, tone: Color, rank: Int)? {
+    let spaceMailCandidate = latestSpaceMailSummary.map { summary in
+      activeProviderCandidate(
+        provider: "SpaceMail",
+        summaryDetail: summary.detail,
+        nextAction: summary.nextAction,
+        importedCount: summary.importedCount,
+        uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
+        filteredCount: summary.filteredCount,
+        duplicateCount: summary.duplicateCount,
+        fetchedCount: summary.fetchedCount,
+        tone: summary.tone
+      )
+    }
+    let gmailCandidate = latestGmailSummary.map { summary in
+      activeProviderCandidate(
+        provider: "Gmail",
+        summaryDetail: summary.detail,
+        nextAction: summary.nextAction,
+        importedCount: summary.importedCount,
+        uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
+        filteredCount: summary.filteredCount,
+        duplicateCount: summary.duplicateCount,
+        fetchedCount: summary.fetchedCount,
+        tone: summary.tone
+      )
+    }
+    return [spaceMailCandidate, gmailCandidate]
+      .compactMap { $0 }
+      .sorted { lhs, rhs in
+        if lhs.rank == rhs.rank { return lhs.provider < rhs.provider }
+        return lhs.rank > rhs.rank
+      }
+      .first
+  }
+
+  private func activeProviderCandidate(
+    provider: String,
+    summaryDetail: String,
+    nextAction: String,
+    importedCount: Int,
+    uncertainCount: Int,
+    filteredCount: Int,
+    duplicateCount: Int,
+    fetchedCount: Int,
+    tone: String
+  ) -> (provider: String, title: String, detail: String, tone: Color, rank: Int) {
+    let title: String
+    let rank: Int
+    if importedCount > 0 {
+      title = "\(provider) imported order mail"
+      rank = 500 + importedCount
+    } else if uncertainCount > 0 {
+      title = "\(provider) has uncertain mail to review"
+      rank = 400 + uncertainCount
+    } else if filteredCount > 0 {
+      title = "\(provider) filtered mixed mailbox mail"
+      rank = 300 + filteredCount
+    } else if duplicateCount > 0 {
+      title = "\(provider) found duplicate mailbox messages"
+      rank = 200 + duplicateCount
+    } else if fetchedCount > 0 {
+      title = "\(provider) fetched mailbox messages"
+      rank = 100 + fetchedCount
+    } else {
+      title = "\(provider) is ready for manual intake"
+      rank = 50
+    }
+
+    return (
+      provider,
+      title,
+      "\(provider): \(summaryDetail) \(nextAction)",
+      activeProviderTone(for: tone),
+      rank
+    )
+  }
+
+  private func activeProviderTone(for tone: String) -> Color {
+    switch tone {
+    case "success": return .green
+    case "attention": return .orange
+    case "warning": return .red
+    default: return .teal
+    }
+  }
+
   private var activeSetupTitle: String {
-    if let latestGmailSummary, !hasSpaceMailSetup {
-      if latestGmailSummary.importedCount > 0 {
-        return "Gmail imported order mail"
-      }
-      if latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
-        return "Gmail has uncertain mail to review"
-      }
-      if latestGmailSummary.filteredCount > 0 {
-        return "Gmail filtered mixed mailbox mail"
-      }
-      return "Gmail is ready for manual intake"
-    }
-    if let latestSpaceMailSummary {
-      if latestSpaceMailSummary.importedCount > 0 {
-        return "SpaceMail imported order mail"
-      }
-      if latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
-        return "SpaceMail has uncertain mail to review"
-      }
-      if latestSpaceMailSummary.filteredCount > 0 {
-        return "SpaceMail filtered mixed mailbox mail"
-      }
-      return "SpaceMail is ready for manual intake"
-    }
+    if let activeProviderCandidate { return activeProviderCandidate.title }
+    if hasSpaceMailSetup && hasGmailSetup { return "Run a manual refresh for an active mailbox provider" }
+    if hasSpaceMailSetup { return "Finish SpaceMail setup to start real intake" }
     if hasGmailSetup {
       return "Finish Gmail setup to start real intake"
     }
@@ -5261,34 +5327,21 @@ struct SettingsView: View {
   }
 
   private var activeSetupDetail: String {
-    if let latestGmailSummary, !hasSpaceMailSetup {
-      return "\(latestGmailSummary.displayName): \(latestGmailSummary.detail) \(latestGmailSummary.nextAction)"
+    if let activeProviderCandidate { return activeProviderCandidate.detail }
+    if hasSpaceMailSetup && hasGmailSetup {
+      return "Both SpaceMail and Gmail setup rows exist. Run the explicit manual read-only refresh for whichever mailbox is active today."
     }
-    guard let latestSpaceMailSummary else {
-      if hasGmailSetup {
-        return "Gmail setup exists. Finish required setup values, test Google sign-in, then use the explicit manual read-only Gmail refresh."
-      }
-      return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes."
+    if hasSpaceMailSetup {
+      return "SpaceMail setup exists. Set or check the Keychain credential, confirm host/folder settings, then use the explicit manual read-only SpaceMail refresh."
     }
-    return "\(latestSpaceMailSummary.displayName): \(latestSpaceMailSummary.detail) \(latestSpaceMailSummary.nextAction)"
+    if hasGmailSetup {
+      return "Gmail setup exists. Finish required setup values, test Google sign-in, then use the explicit manual read-only Gmail refresh."
+    }
+    return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes."
   }
 
   private var activeSetupTone: Color {
-    if let latestGmailSummary, !hasSpaceMailSetup {
-      switch latestGmailSummary.tone {
-      case "success": return .green
-      case "attention": return .orange
-      case "warning": return .red
-      default: return .teal
-      }
-    }
-    guard let latestSpaceMailSummary else { return .orange }
-    switch latestSpaceMailSummary.tone {
-    case "success": return .green
-    case "attention": return .orange
-    case "warning": return .red
-    default: return .teal
-    }
+    activeProviderCandidate?.tone ?? .orange
   }
 
   private var normalizedSettingsSearch: String {
