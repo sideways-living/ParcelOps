@@ -2863,6 +2863,7 @@ struct GmailReleaseBoundaryPanel: View {
   var sourceMetricTitle: String
   var sourceCount: Int
   var boundaryDetail: String
+  var showTasksLink: Bool = true
 
   private var summaries: [GmailReleaseSelfCheckSummary] {
     store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
@@ -2931,12 +2932,14 @@ struct GmailReleaseBoundaryPanel: View {
                 Label("Open Mailbox Monitor", systemImage: "tray.and.arrow.down.fill")
               }
               .buttonStyle(.bordered)
-              NavigationLink {
-                TasksView(store: store)
-              } label: {
-                Label("Open Tasks", systemImage: "checklist")
+              if showTasksLink {
+                NavigationLink {
+                  TasksView(store: store)
+                } label: {
+                  Label("Open Tasks", systemImage: "checklist")
+                }
+                .buttonStyle(.bordered)
               }
-              .buttonStyle(.bordered)
             }
           } else {
             Label("Gmail release checks do not currently block this local follow-up area.", systemImage: "checkmark.seal.fill")

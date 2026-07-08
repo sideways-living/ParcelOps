@@ -1028,7 +1028,8 @@ struct TasksView: View {
       lead: "Create a task from the release self-check only when Gmail setup, labels, sign-in, classifier review, Inbox handoff, or audit evidence needs a named owner.",
       sourceMetricTitle: "Task signals",
       sourceCount: pendingUncertainGmailCount + pendingFilteredGmailCount + gmailWarningCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, assign tasks automatically, or mutate mailbox messages."
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, assign tasks automatically, or mutate mailbox messages.",
+      showTasksLink: false
     )
   }
 
