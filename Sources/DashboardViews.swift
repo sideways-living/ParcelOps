@@ -734,6 +734,7 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        ActiveOperatorQueueFocusCard(store: store)
         inboxTriageQualityPanel
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         dailyFlowCheckpointPanel
