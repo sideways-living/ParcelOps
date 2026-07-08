@@ -91,7 +91,7 @@ struct ImportQueueView: View {
     }
 
     if rows.isEmpty {
-      rows.append(("Mailbox", "No provider refresh", "Run SpaceMail or Gmail refresh first, then promote confirmed intake into Import Queue only when staging is useful.", "envelope.badge.fill", .secondary))
+      rows.append(("Mailbox", "No provider refresh", "Run an active mailbox provider refresh first, then promote confirmed intake into Import Queue only when staging is useful.", "envelope.badge.fill", .secondary))
     }
     return rows
   }

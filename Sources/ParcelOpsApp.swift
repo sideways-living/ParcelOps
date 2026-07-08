@@ -143,9 +143,9 @@ struct ParcelOpsRootView: View {
   }
 
   private var sidebarMVPStatusDetail: String {
-    if !hasLiveMailboxSetup { return "Add SpaceMail or Gmail setup before live intake testing." }
-    if !hasLiveMailboxCredentialOrAuth { return "Set the SpaceMail Keychain credential or complete Gmail sign-in." }
-    if !hasRealMailboxRefreshEvidence { return "Run one manual read-only SpaceMail or Gmail refresh." }
+    if !hasLiveMailboxSetup { return "Add an active mailbox provider before live intake testing." }
+    if !hasLiveMailboxCredentialOrAuth { return "Set the mailbox credential or complete provider sign-in." }
+    if !hasRealMailboxRefreshEvidence { return "Run one manual read-only mailbox refresh." }
     if !hasInboxOrderHandoff { return "Create or link one order from Inbox." }
     if store.auditEvents.isEmpty { return "Perform one local action and confirm Audit." }
     return "Ready for a supervised daily-flow QA pass."

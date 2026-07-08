@@ -102,7 +102,7 @@ struct MailboxView: View {
         MailboxProviderOperatorReadinessStack(
           store: store,
           title: "Provider intake at a glance",
-          detail: "Start here to decide whether SpaceMail or Gmail is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness.",
+          detail: "Start here to decide which mailbox provider is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness.",
           showHandoffPacket: true,
           showMailboxLink: false
         )
@@ -333,7 +333,7 @@ struct MailboxView: View {
             MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
-            Text("Provider rows summarize the latest SpaceMail and Gmail outcomes. SpaceMail trend history, Gmail handoff, and Gmail trend status are shown here so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
+            Text("Provider rows summarize the latest active mailbox outcomes, trend history, handoff status, and refresh status so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -363,7 +363,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
-          Text("Microsoft 365 remains available as an advanced option. SpaceMail and Gmail are the current manual mailbox intake paths for this project.")
+          Text("Microsoft 365 remains available as an advanced option. The active mailbox provider rows above are the current manual intake paths for this project.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -460,7 +460,7 @@ struct MailboxView: View {
 
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
-            MVPEmptyState(title: "No forwarded emails yet", detail: "Run a SpaceMail or Gmail refresh, or import sample messages, to populate the mailbox review flow.", symbol: "envelope.badge")
+            MVPEmptyState(title: "No forwarded emails yet", detail: "Run an active mailbox provider refresh, or import sample messages, to populate the mailbox review flow.", symbol: "envelope.badge")
           } else {
             Text("Default view shows actionable intake only. Reviewed and ignored rows are preserved locally, but hidden unless you search or show resolved rows.")
               .font(.caption)

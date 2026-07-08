@@ -198,7 +198,7 @@ struct InboxView: View {
     return [
       (
         "Setup",
-        hasMailboxSetup ? "A manual mailbox setup exists." : "Add SpaceMail or Gmail setup in Mailbox Monitor.",
+        hasMailboxSetup ? "A manual mailbox setup exists." : "Add an active mailbox provider in Mailbox Monitor.",
         "server.rack",
         hasMailboxSetup ? .green : .orange,
         hasMailboxSetup
@@ -214,7 +214,7 @@ struct InboxView: View {
         "Refresh",
         latestSpaceMailSummary.map { "\($0.fetchedCount) SpaceMail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
           ?? latestGmailSummary.map { "\($0.fetchedCount) Gmail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
-          ?? "Run manual read-only SpaceMail or Gmail refresh.",
+          ?? "Run a manual read-only mailbox refresh.",
         "arrow.triangle.2.circlepath",
         hasRefreshEvidence ? .green : .orange,
         hasRefreshEvidence
@@ -554,7 +554,7 @@ struct InboxView: View {
     if latestMailboxFetchedCount > 0 {
       return "The latest refresh fetched \(latestMailboxFetchedCount) message\(latestMailboxFetchedCount == 1 ? "" : "s") but produced no Inbox work. Send a known test order or inspect Mailbox Monitor diagnostics."
     }
-    return "Run a manual SpaceMail or Gmail refresh from Mailbox Monitor after setup is ready."
+    return "Run a manual mailbox refresh from Mailbox Monitor after setup is ready."
   }
 
   private var missingOrderDiagnosticTone: Color {
@@ -767,7 +767,7 @@ struct InboxView: View {
   private var mailboxHealthPanel: some View {
     SettingsPanel(title: "Mailbox intake health", symbol: "server.rack") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Manual mailbox refreshes can come from SpaceMail or Gmail. This summary shows whether recent refreshes produced actionable intake or mostly filtered normal mail. Use Mailbox Monitor for setup, classifier tuning, and detailed diagnostics.")
+        Text("Manual mailbox refreshes can come from the active provider rows. This summary shows whether recent refreshes produced actionable intake or mostly filtered normal mail. Use Mailbox Monitor for setup, classifier tuning, and detailed diagnostics.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -973,7 +973,7 @@ private struct InboxSpaceMailDecisionGuide: View {
     if fetchedCount > 0 {
       return "No imported or uncertain order mail was found in the latest mailbox result."
     }
-    return "Run SpaceMail or Gmail refresh from Mailbox Monitor after confirming credential, sign-in, and setup status."
+    return "Run a mailbox refresh from Mailbox Monitor after confirming credential, sign-in, and setup status."
   }
 
   private var topActionColor: Color {

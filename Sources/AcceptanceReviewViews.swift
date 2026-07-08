@@ -88,7 +88,7 @@ struct AcceptanceReviewView: View {
     }
 
     if rows.isEmpty {
-      rows.append(("Mailbox", "No provider refresh", "Run SpaceMail or Gmail refresh, then review imported Inbox rows before they become acceptance candidates.", "envelope.badge.fill", .secondary))
+      rows.append(("Mailbox", "No provider refresh", "Run an active mailbox provider refresh, then review imported Inbox rows before they become acceptance candidates.", "envelope.badge.fill", .secondary))
     }
     return rows
   }
@@ -185,7 +185,7 @@ struct AcceptanceReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
           Label("Mailbox provider acceptance context", systemImage: "point.3.connected.trianglepath.dotted")
             .font(.subheadline.weight(.semibold))
-          Text("Acceptance Review should only close records after source, detected fields, and linked order decisions are clear. Provider rows explain what the latest SpaceMail or Gmail refresh contributed before acceptance.")
+          Text("Acceptance Review should only close records after source, detected fields, and linked order decisions are clear. Provider rows explain what the latest mailbox refresh contributed before acceptance.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

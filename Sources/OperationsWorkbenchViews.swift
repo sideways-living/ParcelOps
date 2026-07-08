@@ -324,7 +324,7 @@ struct OperationsWorkbenchView: View {
       return "\(mailboxWarningCount) mailbox diagnostic or parser issue\(mailboxWarningCount == 1 ? "" : "s") should be reviewed in Mailbox Monitor before creating Workbench exceptions."
     }
     if mailboxImportedCount > 0 {
-      return "\(mailboxImportedCount) likely order message\(mailboxImportedCount == 1 ? "" : "s") reached Inbox from SpaceMail or Gmail. Review or create/link orders there before expecting Workbench exceptions."
+      return "\(mailboxImportedCount) likely order message\(mailboxImportedCount == 1 ? "" : "s") reached Inbox from an active mailbox provider. Review or create/link orders there before expecting Workbench exceptions."
     }
     if mailboxUncertainCount > 0 {
       return "\(mailboxUncertainCount) ambiguous mailbox preview\(mailboxUncertainCount == 1 ? "" : "s") is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
@@ -341,7 +341,7 @@ struct OperationsWorkbenchView: View {
     if mailboxFetchedCount > 0 {
       return "The latest mailbox refresh fetched mail but produced no imported or uncertain order work. Use Mailbox Monitor only if an expected order is missing."
     }
-    return "Run SpaceMail or Gmail manual refresh from Mailbox Monitor when mailbox intake needs checking."
+    return "Run a manual mailbox refresh from Mailbox Monitor when mailbox intake needs checking."
   }
 
   private var mailboxProviderWorkbenchBreakdown: [(provider: String, detail: String, color: Color)] {
@@ -512,7 +512,7 @@ struct OperationsWorkbenchView: View {
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-        Text("Mailbox refresh trends are context for triage across SpaceMail and Gmail. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
+        Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -574,7 +574,7 @@ struct OperationsWorkbenchView: View {
       ),
       (
         "Mailbox review",
-        "Use Mailbox Monitor for uncertain, filtered, or parser-diagnostic SpaceMail/Gmail evidence that should not flood Workbench.",
+        "Use Mailbox Monitor for uncertain, filtered, or parser-diagnostic mailbox evidence that should not flood Workbench.",
         mailboxReviewCount,
         "Mailbox Monitor",
         "server.rack",
@@ -800,7 +800,7 @@ struct OperationsWorkbenchView: View {
           )
         }
 
-        Text("This overview reads local SpaceMail and Gmail results only. It does not fetch mail, change classifier rules, create records, or mutate mailbox messages.")
+        Text("This overview reads local mailbox-provider results only. It does not fetch mail, change classifier rules, create records, or mutate mailbox messages.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(color(for: mailboxWorkbenchBoundaryTone))
           .fixedSize(horizontal: false, vertical: true)
