@@ -53,6 +53,9 @@ struct ShipmentManifestsView: View {
         filterBar
         inboxManifestCoverage
         gmailManifestReleaseBoundary
+        if !store.gmailMailboxConnections.isEmpty {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        }
 
         SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {
           HStack {

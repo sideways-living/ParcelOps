@@ -51,6 +51,9 @@ struct DispatchReadinessView: View {
         filterBar
         inboxReadinessCoverage
         gmailReadinessReleaseBoundary
+        if !store.gmailMailboxConnections.isEmpty {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        }
 
         SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
           HStack {
