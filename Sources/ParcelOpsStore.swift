@@ -4392,6 +4392,7 @@ final class ParcelOpsStore {
   func spaceMailIntakeHealthSummary(for connection: SpaceMailIMAPConnection) -> SpaceMailIntakeHealthSummary {
     let mailboxID = connection.id
     let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }
+    let duplicateRefreshCounts = duplicateRefreshCounts(for: ingestRecords)
     let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
     let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
     let parserIssueCount = intakeParserDiagnostics.filter { linkedIntakeIDs.contains($0.intakeEmailID) }.count
@@ -4457,6 +4458,8 @@ final class ParcelOpsStore {
       fetchedCount: connection.lastRefreshFetchedCount,
       importedCount: connection.lastRefreshImportedCount,
       duplicateCount: connection.lastRefreshDuplicateCount,
+      duplicateRefreshedCount: duplicateRefreshCounts.updated,
+      duplicateNoChangeCount: duplicateRefreshCounts.noChange,
       filteredCount: connection.lastRefreshFilteredNonOrderCount,
       uncertainCount: connection.lastRefreshUncertainCount,
       parserIssueCount: parserIssueCount,
@@ -4471,6 +4474,7 @@ final class ParcelOpsStore {
   func gmailIntakeHealthSummary(for connection: GmailMailboxConnection) -> GmailIntakeHealthSummary {
     let mailboxID = connection.id
     let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }
+    let duplicateRefreshCounts = duplicateRefreshCounts(for: ingestRecords)
     let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
     let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
     let status = connection.connectionStatus
@@ -4550,12 +4554,21 @@ final class ParcelOpsStore {
       fetchedCount: connection.lastRefreshFetchedCount,
       importedCount: connection.lastRefreshImportedCount,
       duplicateCount: connection.lastRefreshDuplicateCount,
+      duplicateRefreshedCount: duplicateRefreshCounts.updated,
+      duplicateNoChangeCount: duplicateRefreshCounts.noChange,
       filteredCount: connection.lastRefreshFilteredNonOrderCount,
       uncertainCount: uncertainCount,
       linkedIntakeCount: linkedIntakeCount,
       pendingUncertainReviewCount: pendingUncertainCount,
       lastRefreshDate: connection.lastManualRefreshDate,
       lastRefreshSummary: connection.lastRefreshSummary
+    )
+  }
+
+  private func duplicateRefreshCounts(for ingestRecords: [MailboxIngestRecord]) -> (updated: Int, noChange: Int) {
+    (
+      updated: ingestRecords.filter { $0.status == .duplicateRefreshed }.count,
+      noChange: ingestRecords.filter { $0.status == .duplicateNoChange }.count
     )
   }
 
@@ -8938,17 +8951,17 @@ final class ParcelOpsStore {
     for message in messages {
       if let existingIngestRecord = preferredDuplicateIngestRecord(for: message) {
         duplicateCount += 1
-        let refreshedIntakeEmailID = refreshDuplicateIntakeEmail(from: message, existingIngestRecord: existingIngestRecord)
+        let refreshOutcome = refreshDuplicateIntakeEmail(from: message, existingIngestRecord: existingIngestRecord)
         let duplicateRecord = MailboxIngestRecord(
           providerMessageID: message.providerMessageID,
           sourceMailboxID: message.sourceMailboxID,
-          intakeEmailID: refreshedIntakeEmailID ?? existingIngestRecord.intakeEmailID,
+          intakeEmailID: refreshOutcome.intakeEmailID ?? existingIngestRecord.intakeEmailID,
           capturedDate: Self.auditTimestamp(),
-          status: .duplicateSkipped,
-        summary: "Skipped duplicate fetched mailbox message: \(message.subject)"
-      )
-      mailboxIngestRecords.insert(duplicateRecord, at: 0)
-      logAudit(action: .ignored, entityType: .intakeEmail, entityID: message.providerMessageID, entityLabel: message.subject, summary: "Duplicate fetched mailbox message skipped locally.", afterDetail: mailboxIngestAuditDetail(for: duplicateRecord))
+          status: refreshOutcome.status,
+          summary: "\(refreshOutcome.status.rawValue): \(message.subject)"
+        )
+        mailboxIngestRecords.insert(duplicateRecord, at: 0)
+        logAudit(action: .ignored, entityType: .intakeEmail, entityID: message.providerMessageID, entityLabel: message.subject, summary: "Duplicate fetched mailbox message handled locally.", afterDetail: mailboxIngestAuditDetail(for: duplicateRecord))
         continue
       }
 
@@ -8976,6 +8989,11 @@ final class ParcelOpsStore {
     return (importedCount, duplicateCount)
   }
 
+  private struct DuplicateIntakeRefreshOutcome {
+    var intakeEmailID: UUID?
+    var status: MailboxIngestStatus
+  }
+
   private func preferredDuplicateIngestRecord(for message: FetchedMailboxMessage) -> MailboxIngestRecord? {
     let matches = mailboxIngestRecords.filter {
       $0.providerMessageID == message.providerMessageID && $0.sourceMailboxID == message.sourceMailboxID
@@ -8986,7 +9004,7 @@ final class ParcelOpsStore {
   }
 
   @discardableResult
-  private func refreshDuplicateIntakeEmail(from message: FetchedMailboxMessage, existingIngestRecord: MailboxIngestRecord) -> UUID? {
+  private func refreshDuplicateIntakeEmail(from message: FetchedMailboxMessage, existingIngestRecord: MailboxIngestRecord) -> DuplicateIntakeRefreshOutcome {
     let linkedIndex = existingIngestRecord.intakeEmailID.flatMap { intakeEmailID in
       intakeEmails.firstIndex { $0.id == intakeEmailID }
     }
@@ -9000,7 +9018,7 @@ final class ParcelOpsStore {
         summary: "Duplicate fetched mailbox message had no linked intake email to refresh.",
         afterDetail: "Provider message ID: \(message.providerMessageID)\nNo intake email was created or duplicated. Duplicate tracking metadata was preserved."
       )
-      return nil
+      return DuplicateIntakeRefreshOutcome(intakeEmailID: nil, status: .duplicateSkipped)
     }
     let usedFallback = linkedIndex == nil
 
@@ -9026,7 +9044,7 @@ final class ParcelOpsStore {
         summary: "Duplicate fetched mailbox message refreshed with no intake field changes.",
         afterDetail: "Provider message ID: \(message.providerMessageID)\nNo detected fields changed. No intake email was duplicated. Duplicate tracking metadata was preserved.\(usedFallback ? "\nRefresh used the older messy intake fallback because the existing ingest record did not have a usable intake link." : "")"
       )
-      return before.id
+      return DuplicateIntakeRefreshOutcome(intakeEmailID: before.id, status: .duplicateNoChange)
     }
 
     intakeEmails[index] = refreshed
@@ -9040,7 +9058,7 @@ final class ParcelOpsStore {
       beforeDetail: before.auditDetail,
       afterDetail: "\(refreshed.auditDetail)\nChanged fields: \(changes.joined(separator: ", ")).\nProvider message ID: \(message.providerMessageID)\nExisting intake email was updated from the newly parsed fetched message. No duplicate intake email was created and duplicate tracking metadata was preserved.\(usedFallback ? "\nRefresh used the older messy intake fallback because the existing ingest record did not have a usable intake link." : "")"
     )
-    return refreshed.id
+    return DuplicateIntakeRefreshOutcome(intakeEmailID: refreshed.id, status: .duplicateRefreshed)
   }
 
   private func staleDuplicateIntakeIndex(for message: FetchedMailboxMessage) -> Int? {

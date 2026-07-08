@@ -711,6 +711,8 @@ struct MailboxIngestRecord: Identifiable, Hashable, Codable {
 enum MailboxIngestStatus: String, CaseIterable, Identifiable, Hashable, Codable {
   case imported = "Imported"
   case duplicateSkipped = "Duplicate skipped"
+  case duplicateRefreshed = "Duplicate refreshed"
+  case duplicateNoChange = "Duplicate no change"
 
   var id: String { rawValue }
 }
@@ -1884,6 +1886,8 @@ struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
   var fetchedCount: Int
   var importedCount: Int
   var duplicateCount: Int
+  var duplicateRefreshedCount: Int
+  var duplicateNoChangeCount: Int
   var filteredCount: Int
   var uncertainCount: Int
   var parserIssueCount: Int
@@ -1905,6 +1909,8 @@ struct GmailIntakeHealthSummary: Identifiable, Hashable {
   var fetchedCount: Int
   var importedCount: Int
   var duplicateCount: Int
+  var duplicateRefreshedCount: Int
+  var duplicateNoChangeCount: Int
   var filteredCount: Int
   var uncertainCount: Int
   var linkedIntakeCount: Int

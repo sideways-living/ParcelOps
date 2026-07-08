@@ -907,6 +907,8 @@ private struct MailboxProviderRefreshSummaryGrid: View {
             fetched: $0.fetchedCount,
             imported: $0.importedCount,
             duplicate: $0.duplicateCount,
+            duplicateRefreshed: $0.duplicateRefreshedCount,
+            duplicateNoChange: $0.duplicateNoChangeCount,
             filtered: $0.filteredCount,
             uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
             lastRefresh: $0.lastRefreshDate
@@ -928,6 +930,8 @@ private struct MailboxProviderRefreshSummaryGrid: View {
             fetched: $0.fetchedCount,
             imported: $0.importedCount,
             duplicate: $0.duplicateCount,
+            duplicateRefreshed: $0.duplicateRefreshedCount,
+            duplicateNoChange: $0.duplicateNoChangeCount,
             filtered: $0.filteredCount,
             uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
             lastRefresh: $0.lastRefreshDate
@@ -960,9 +964,16 @@ private struct MailboxProviderRefreshSummaryGrid: View {
           ("Fetched", "\(summary.fetched)", summary.fetched > 0 ? .blue : .secondary),
           ("Imported", "\(summary.imported)", summary.imported > 0 ? .green : .secondary),
           ("Duplicates", "\(summary.duplicate)", summary.duplicate > 0 ? .teal : .secondary),
+          ("Refreshed", "\(summary.duplicateRefreshed)", summary.duplicateRefreshed > 0 ? .green : .secondary),
           ("Filtered", "\(summary.filtered)", summary.filtered > 0 ? .teal : .secondary),
           ("Uncertain", "\(summary.uncertain)", summary.uncertain > 0 ? .orange : .secondary)
         ])
+        if summary.duplicateRefreshed > 0 || summary.duplicateNoChange > 0 {
+          Label("\(summary.duplicateRefreshed) duplicate refresh update\(summary.duplicateRefreshed == 1 ? "" : "s"), \(summary.duplicateNoChange) duplicate no-change result\(summary.duplicateNoChange == 1 ? "" : "s"). Existing Inbox rows were reused instead of duplicated.", systemImage: "arrow.triangle.2.circlepath")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(summary.duplicateRefreshed > 0 ? .green : .secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         Text("Next: \(summary.nextAction)")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(tone)
@@ -1004,6 +1015,8 @@ private struct MailboxProviderRefreshSummaryGrid: View {
     var fetched: Int
     var imported: Int
     var duplicate: Int
+    var duplicateRefreshed: Int
+    var duplicateNoChange: Int
     var filtered: Int
     var uncertain: Int
     var lastRefresh: String
