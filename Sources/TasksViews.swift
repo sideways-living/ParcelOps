@@ -2582,11 +2582,6 @@ struct ReviewTasksDetailView: View {
 
         CompactActionRow {
           NavigationLink {
-            TasksView(store: store)
-          } label: {
-            Label("Open Tasks", systemImage: "checklist")
-          }
-          NavigationLink {
             OperationsWorkbenchView(store: store)
           } label: {
             Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
