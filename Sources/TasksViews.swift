@@ -160,15 +160,6 @@ struct TasksView: View {
     }
   }
 
-  private var gmailReleaseTaskConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-
   private var weakInboxParseCount: Int {
     store.reviewIntakeEmails.filter { email in
       email.detectedOrderNumber.isPlaceholderValidationValue
@@ -980,20 +971,7 @@ struct TasksView: View {
           }
         }
 
-        if !gmailReleaseSelfChecks.isEmpty {
-          VStack(alignment: .leading, spacing: 8) {
-            Label("Gmail release task readiness", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(gmailReleaseBlockingCount > 0 ? .red : gmailReleaseAttentionCount > 0 ? .orange : .green)
-            Text("Create a task from the release self-check only when Gmail setup, labels, sign-in, classifier review, Inbox handoff, or audit evidence needs a named owner.")
-              .font(.caption2)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-              GmailReleaseSelfCheckSummaryCard(summary: summary)
-            }
-          }
-        }
+        gmailTaskReadinessPanel
 
         Text("Gmail refresh and sign-in are explicit Mailbox Monitor actions. Filtered and uncertain Gmail previews are review context first, not assigned backlog.")
           .font(.caption)
@@ -1037,16 +1015,21 @@ struct TasksView: View {
               mvpFeedbackMessage = "Gmail classifier tuning task created or refreshed."
             }
           }
-          if let connection = gmailReleaseTaskConnection {
-            Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-              mvpFeedbackMessage = "Gmail release self-check task created or refreshed."
-            }
-          }
         }
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var gmailTaskReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail task readiness",
+      lead: "Create a task from the release self-check only when Gmail setup, labels, sign-in, classifier review, Inbox handoff, or audit evidence needs a named owner.",
+      sourceMetricTitle: "Task signals",
+      sourceCount: pendingUncertainGmailCount + pendingFilteredGmailCount + gmailWarningCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, assign tasks automatically, or mutate mailbox messages."
+    )
   }
 
   private var gmailTaskContextDetail: String {
