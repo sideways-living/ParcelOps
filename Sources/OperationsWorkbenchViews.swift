@@ -1001,6 +1001,25 @@ struct OperationsWorkbenchView: View {
         .padding(10)
         .background(gmailLabelWorkbenchColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label(gmailWorkbenchCompileTitle, systemImage: gmailWorkbenchReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(gmailWorkbenchCompileColor)
+          Text(gmailWorkbenchCompileDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if let readiness = gmailWorkbenchReadiness {
+            CompactMetadataGrid(minimumWidth: 165) {
+              Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+              Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+              Badge(readiness.expectedCallbackScheme, color: .secondary)
+            }
+          }
+        }
+        .padding(10)
+        .background(gmailWorkbenchCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if gmailClassifierTuningCount > 0 || gmailClassifierHintCount > 0 {
           VStack(alignment: .leading, spacing: 6) {
             Label(gmailClassifierWorkbenchTitle, systemImage: "slider.horizontal.3")
@@ -1136,6 +1155,44 @@ struct OperationsWorkbenchView: View {
       return store.gmailMailboxConnections.first
     }
     return store.gmailMailboxConnections.first { $0.id == firstSummary.connectionID }
+  }
+
+  private var gmailWorkbenchReadiness: GmailOAuthReadinessSummary? {
+    gmailWorkbenchConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var gmailWorkbenchCompileBlockers: [String] {
+    guard let readiness = gmailWorkbenchReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var gmailWorkbenchCompileColor: Color {
+    guard let readiness = gmailWorkbenchReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+
+  private var gmailWorkbenchCompileTitle: String {
+    guard let readiness = gmailWorkbenchReadiness else { return "Gmail compiled setup not started" }
+    if readiness.isReady { return "Gmail compiled setup is ready" }
+    if !gmailWorkbenchCompileBlockers.isEmpty { return "Gmail compiled setup blocks real sign-in" }
+    return "Gmail setup values need review"
+  }
+
+  private var gmailWorkbenchCompileDetail: String {
+    guard let readiness = gmailWorkbenchReadiness else {
+      return "Gmail is optional. Add it only for mailboxes hosted by Gmail or Google Workspace."
+    }
+    if readiness.isReady {
+      return "Saved Gmail setup matches the compiled client ID and callback scheme. Workbench can focus on refresh, classifier, and Inbox handoff evidence."
+    }
+    if !gmailWorkbenchCompileBlockers.isEmpty {
+      return "Fix before creating operational follow-up: \(gmailWorkbenchCompileBlockers.joined(separator: "; ")). Update App/Info.plist and Project.json with the Google iOS client ID and reversed client ID scheme, then rebuild."
+    }
+    return readiness.detailText
   }
 
   private var gmailWorkbenchPrimaryLabel: String {
