@@ -161,6 +161,10 @@ struct ParcelOpsRootView: View {
     ]
   }
 
+  private var dailyFocusSections: [ParcelSection] {
+    [.inbox, .orders, .workbench, .dispatch, .tasks]
+  }
+
   var body: some View {
     GeometryReader { proxy in
       let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
@@ -206,6 +210,12 @@ struct ParcelOpsRootView: View {
                 }
               }
             } else {
+              Section("Daily Focus") {
+                sidebarDailyFocusSummary
+                  .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 8, trailing: 10))
+                  .listRowSeparator(.hidden)
+              }
+
               Section("Primary Workflow") {
                 ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
                   sidebarButton(for: section)
@@ -280,6 +290,47 @@ struct ParcelOpsRootView: View {
     .onOpenURL { url in
       store.handleMicrosoft365AuthCallback(url)
       store.handleGmailAuthCallback(url)
+    }
+  }
+
+  private var sidebarDailyFocusSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Start with the row that has the highest active count. Advanced records stay hidden unless you need diagnostics.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(dailyFocusSections) { section in
+          let count = attentionCount(for: section) ?? 0
+          Button {
+            selection = section
+            sidebarSearchText = ""
+          } label: {
+            HStack(spacing: 5) {
+              Image(systemName: section.symbol)
+                .frame(width: 14)
+              Text(section.shortTitle)
+                .lineLimit(1)
+              if count > 0 {
+                Text("\(count)")
+                  .font(.caption2.weight(.bold))
+                  .foregroundStyle(.white)
+                  .padding(.horizontal, 5)
+                  .padding(.vertical, 1)
+                  .background(attentionColor(for: section, count: count), in: Capsule())
+              }
+            }
+            .font(.caption.weight(.semibold))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        }
+      }
     }
   }
 
