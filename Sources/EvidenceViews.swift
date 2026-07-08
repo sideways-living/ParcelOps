@@ -262,6 +262,10 @@ struct EvidenceView: View {
             boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create evidence attachments, or mutate mailbox messages."
           )
 
+          if !store.gmailMailboxConnections.isEmpty {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
+
           if gmailSourceTrailEmails.isEmpty {
             Label("No Gmail-origin intake is linked to orders yet. Run a manual Gmail refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.weight(.semibold))

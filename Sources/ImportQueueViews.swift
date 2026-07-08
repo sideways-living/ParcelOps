@@ -259,6 +259,10 @@ struct ImportQueueView: View {
           boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, stage imports automatically, or mutate mailbox messages."
         )
 
+        if !store.gmailMailboxConnections.isEmpty {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        }
+
         if store.importQueueItems.isEmpty {
           MVPEmptyState(
             title: "No staged imports yet",

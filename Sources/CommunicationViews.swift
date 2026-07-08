@@ -287,6 +287,10 @@ struct CommunicationView: View {
             boundaryDetail: "Local-only boundary: this panel does not send Gmail messages, open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages."
           )
 
+          if !store.gmailMailboxConnections.isEmpty {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
+
           if !openGmailDrafts.isEmpty {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
               ForEach(openGmailDrafts.prefix(4)) { draft in

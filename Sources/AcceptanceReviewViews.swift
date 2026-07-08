@@ -223,6 +223,10 @@ struct AcceptanceReviewView: View {
           boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, accept records automatically, or mutate mailbox messages."
         )
 
+        if !store.gmailMailboxConnections.isEmpty {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        }
+
         if store.acceptanceCandidates.isEmpty {
           MVPEmptyState(
             title: "No acceptance candidates yet",

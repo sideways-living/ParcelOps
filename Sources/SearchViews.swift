@@ -350,6 +350,10 @@ private struct SearchReadinessPanel: View {
               sourceCount: latestGmailSummary?.fetchedCount ?? 0,
               boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, change search indexes, or mutate mailbox messages."
             )
+
+            if !store.gmailMailboxConnections.isEmpty {
+              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            }
           }
         }
 
