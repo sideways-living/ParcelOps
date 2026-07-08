@@ -65,6 +65,8 @@ struct AcceptanceReviewView: View {
         rows.append(("SpaceMail", "\(uncertain) uncertain", "Uncertain SpaceMail previews are not acceptance candidates until imported from Mailbox Monitor.", "server.rack", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered non-order SpaceMail messages should not reach Acceptance Review.", "server.rack", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("SpaceMail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate SpaceMail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "server.rack", .teal))
       } else if summary.duplicateCount > 0 {
         rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail messages should not create new acceptance candidates.", "server.rack", .teal))
       } else {
@@ -80,6 +82,8 @@ struct AcceptanceReviewView: View {
         rows.append(("Gmail", "\(uncertain) uncertain", "Uncertain Gmail previews are not acceptance candidates until imported from Mailbox Monitor.", "envelope.badge.shield.half.filled", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered non-order Gmail messages should not reach Acceptance Review.", "envelope.badge.shield.half.filled", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("Gmail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate Gmail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "envelope.badge.shield.half.filled", .teal))
       } else if summary.duplicateCount > 0 {
         rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail messages should not create new acceptance candidates.", "envelope.badge.shield.half.filled", .teal))
       } else {

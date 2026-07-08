@@ -68,6 +68,8 @@ struct ImportQueueView: View {
         rows.append(("SpaceMail", "\(uncertain) uncertain", "Uncertain SpaceMail previews remain in Mailbox Monitor until imported or dismissed.", "server.rack", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered non-order SpaceMail messages should not appear in Import Queue.", "server.rack", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("SpaceMail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate SpaceMail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "server.rack", .teal))
       } else if summary.duplicateCount > 0 {
         rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail messages were already captured; staged imports only change if an existing intake row is promoted.", "server.rack", .teal))
       } else {
@@ -83,6 +85,8 @@ struct ImportQueueView: View {
         rows.append(("Gmail", "\(uncertain) uncertain", "Uncertain Gmail previews remain in Mailbox Monitor until imported or dismissed.", "envelope.badge.shield.half.filled", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered non-order Gmail messages should not appear in Import Queue.", "envelope.badge.shield.half.filled", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("Gmail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate Gmail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "envelope.badge.shield.half.filled", .teal))
       } else if summary.duplicateCount > 0 {
         rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail messages were already captured; staged imports only change if an existing intake row is promoted.", "envelope.badge.shield.half.filled", .teal))
       } else {

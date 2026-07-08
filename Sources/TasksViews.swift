@@ -43,6 +43,10 @@ struct TasksView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.importedCount }
   }
 
+  private var spaceMailDuplicateRefreshedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
   private var spaceMailFilteredCount: Int {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
   }
@@ -69,6 +73,10 @@ struct TasksView: View {
 
   private var gmailImportedCount: Int {
     gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var gmailDuplicateRefreshedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
   }
 
   private var gmailFilteredCount: Int {
@@ -233,6 +241,10 @@ struct TasksView: View {
     spaceMailFilteredCount + gmailFilteredCount
   }
 
+  private var mailboxDuplicateRefreshedCount: Int {
+    spaceMailDuplicateRefreshedCount + gmailDuplicateRefreshedCount
+  }
+
   private var mailboxUncertainCount: Int {
     spaceMailUncertainCount + gmailUncertainCount
   }
@@ -245,6 +257,7 @@ struct TasksView: View {
     if mailboxWarningCount > 0 { return .orange }
     if mailboxUncertainCount > 0 || pendingMailboxReviewCount > 0 { return .teal }
     if mailboxImportedCount > 0 || readyInboxLinkCount > 0 { return .green }
+    if mailboxDuplicateRefreshedCount > 0 { return .teal }
     if mailboxFilteredCount > 0 { return .teal }
     return .secondary
   }
@@ -253,6 +266,7 @@ struct TasksView: View {
     if mailboxWarningCount > 0 { return "Mailbox setup or parser context needs review" }
     if mailboxUncertainCount > 0 || pendingMailboxReviewCount > 0 { return "Mailbox review belongs in Mailbox Monitor first" }
     if mailboxImportedCount > 0 || readyInboxLinkCount > 0 { return "Imported mailbox work belongs in Inbox first" }
+    if mailboxDuplicateRefreshedCount > 0 { return "Duplicate refresh updated existing Inbox rows" }
     if mailboxFilteredCount > 0 { return "Mixed-mailbox filtering is keeping Tasks clean" }
     return "Mailbox intake has no task pressure"
   }
@@ -268,6 +282,9 @@ struct TasksView: View {
     if mailboxImportedCount > 0 || readyInboxLinkCount > 0 {
       let count = max(mailboxImportedCount, readyInboxLinkCount)
       return "\(count) mailbox intake item\(count == 1 ? "" : "s") should be triaged in Inbox and converted into orders before task ownership is needed."
+    }
+    if mailboxDuplicateRefreshedCount > 0 {
+      return "\(mailboxDuplicateRefreshedCount) duplicate mailbox message\(mailboxDuplicateRefreshedCount == 1 ? "" : "s") refreshed existing Inbox rows. Create a task only if a refreshed row now needs named ownership."
     }
     if mailboxFilteredCount > 0 {
       return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox, so they should not appear as task work unless manually promoted."
@@ -808,6 +825,7 @@ struct TasksView: View {
         MetricStrip(items: [
           ("Fetched", "\(mailboxFetchedCount)", mailboxFetchedCount > 0 ? .blue : .secondary),
           ("Imported", "\(mailboxImportedCount)", mailboxImportedCount > 0 ? .green : .secondary),
+          ("Refreshed", "\(mailboxDuplicateRefreshedCount)", mailboxDuplicateRefreshedCount > 0 ? .teal : .secondary),
           ("Ready Inbox", "\(readyInboxLinkCount)", readyInboxLinkCount > 0 ? .teal : .secondary),
           ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount > 0 ? .orange : .secondary),
           ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount > 0 ? .teal : .secondary),
@@ -1305,6 +1323,7 @@ struct TasksView: View {
         MetricStrip(items: [
           ("Fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
           ("Imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
+          ("Refreshed", "\(mailboxDuplicateRefreshedCount)", mailboxDuplicateRefreshedCount == 0 ? .secondary : .teal),
           ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount == 0 ? .secondary : .orange),
           ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
           ("Filtered review", "\(pendingMailboxReviewCount)", pendingMailboxReviewCount == 0 ? .secondary : .teal),
@@ -1583,6 +1602,7 @@ struct TasksView: View {
     if mailboxImportedCount > 0 { return "Imported mail is waiting in Inbox" }
     if mailboxUncertainCount > 0 { return "Uncertain mail needs mailbox review" }
     if mailboxWarningCount > 0 { return "Mailbox diagnostics may need ownership" }
+    if mailboxDuplicateRefreshedCount > 0 { return "Duplicate refresh stayed out of task backlog" }
     if mailboxFilteredCount > 0 && mailboxImportedCount == 0 && mailboxUncertainCount == 0 { return "Filtered mail did not create tasks" }
     if mailboxFetchedCount > 0 { return "Latest refresh did not create task work" }
     return "Mailbox task escalation is clear"
@@ -1601,6 +1621,9 @@ struct TasksView: View {
     if mailboxWarningCount > 0 {
       return "\(mailboxWarningCount) mailbox diagnostic is present. Keep it as diagnostic context unless it needs assigned follow-up."
     }
+    if mailboxDuplicateRefreshedCount > 0 {
+      return "\(mailboxDuplicateRefreshedCount) duplicate mailbox message refreshed an existing Inbox row. That should remain Inbox review unless a person needs to own follow-up."
+    }
     if mailboxFilteredCount > 0 && mailboxImportedCount == 0 && mailboxUncertainCount == 0 {
       return "\(mailboxFilteredCount) mixed-mailbox message was filtered out. That is a normal non-order outcome, not task backlog."
     }
@@ -1613,6 +1636,7 @@ struct TasksView: View {
   private var mailboxTaskEscalationTone: Color {
     if mailboxLinkedTaskCount > 0 || mailboxImportedCount > 0 || mailboxUncertainCount > 0 { return .orange }
     if mailboxWarningCount > 0 { return .purple }
+    if mailboxDuplicateRefreshedCount > 0 { return .teal }
     if mailboxFilteredCount > 0 && mailboxImportedCount == 0 && mailboxUncertainCount == 0 { return .green }
     if mailboxFetchedCount > 0 { return .teal }
     return .secondary
@@ -1623,6 +1647,7 @@ struct TasksView: View {
     if mailboxImportedCount > 0 { return "tray.full.fill" }
     if mailboxUncertainCount > 0 { return "questionmark.folder.fill" }
     if mailboxWarningCount > 0 { return "text.magnifyingglass" }
+    if mailboxDuplicateRefreshedCount > 0 { return "arrow.triangle.2.circlepath" }
     if mailboxFilteredCount > 0 && mailboxImportedCount == 0 && mailboxUncertainCount == 0 { return "checkmark.seal.fill" }
     return "tray.and.arrow.down.fill"
   }

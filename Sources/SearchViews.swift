@@ -226,6 +226,10 @@ private struct SearchReadinessPanel: View {
         status = "\(summary.filteredCount) filtered"
         detail = "Filtered SpaceMail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
         color = .teal
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = "\(summary.duplicateRefreshedCount) refreshed"
+        detail = "Duplicate SpaceMail refresh updated existing Inbox rows. Search by order/tracking text or inspect Audit for the refreshed intake source."
+        color = .teal
       } else if summary.duplicateCount > 0 {
         status = "\(summary.duplicateCount) duplicate"
         detail = "Duplicate SpaceMail rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
@@ -254,6 +258,10 @@ private struct SearchReadinessPanel: View {
       } else if summary.filteredCount > 0 {
         status = "\(summary.filteredCount) filtered"
         detail = "Filtered Gmail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
+        color = .teal
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = "\(summary.duplicateRefreshedCount) refreshed"
+        detail = "Duplicate Gmail refresh updated existing Inbox rows. Search by order/tracking text or inspect Audit for the refreshed intake source."
         color = .teal
       } else if summary.duplicateCount > 0 {
         status = "\(summary.duplicateCount) duplicate"
