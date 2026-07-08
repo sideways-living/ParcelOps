@@ -1478,6 +1478,8 @@ struct GmailMailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      gmailCompiledConfigurationCard
+
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: gmailSetupBlockerSymbol)
@@ -2271,6 +2273,119 @@ struct GmailMailboxConnectionRow: View {
       || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var gmailCompiledConfigurationCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: readiness.isReady ? "app.badge.checkmark.fill" : "app.badge")
+          .foregroundStyle(gmailCompiledConfigurationColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Compiled Gmail app configuration")
+            .font(.caption.weight(.semibold))
+          Text(gmailCompiledConfigurationDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(gmailCompiledConfigurationNextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledConfigurationColor)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(readiness.isReady ? "Matches" : "Blocked", color: gmailCompiledConfigurationColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 155) {
+        Badge(gmailSavedClientIDSummary, color: gmailClientIDBadgeColor)
+        Badge(gmailSavedCallbackSchemeSummary, color: gmailRedirectBadgeColor)
+        Badge(readiness.compiledClientIDStatus, color: gmailCompiledClientStatusColor)
+        Badge(readiness.compiledCallbackSchemeStatus, color: gmailCompiledCallbackStatusColor)
+      }
+
+      if !gmailCompiledBlockingFields.isEmpty {
+        Text("Compile blockers: \(gmailCompiledBlockingFields.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Client IDs and URL schemes are non-secret app configuration. ParcelOps still does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail message bodies.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailCompiledConfigurationColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailCompiledConfigurationColor: Color {
+    readiness.isReady ? .green : .orange
+  }
+
+  private var gmailCompiledClientStatusColor: Color {
+    readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches")
+      || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present")
+      ? .green
+      : .orange
+  }
+
+  private var gmailCompiledCallbackStatusColor: Color {
+    readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes")
+      || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present")
+      ? .green
+      : .orange
+  }
+
+  private var gmailCompiledBlockingFields: [String] {
+    readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var gmailCompiledConfigurationDetail: String {
+    if readiness.isReady {
+      return "Saved Gmail setup matches the compiled app client ID and callback scheme. Real Google sign-in can be tested explicitly."
+    }
+    if !gmailCompiledBlockingFields.isEmpty {
+      return "Saved Gmail setup does not yet match the compiled app values required by GoogleSignIn callback handling."
+    }
+    return readiness.detailText
+  }
+
+  private var gmailCompiledConfigurationNextAction: String {
+    if readiness.isReady {
+      return "Next: use Test real Google sign-in, then run manual read-only Gmail refresh only when needed."
+    }
+    if !gmailCompiledBlockingFields.isEmpty {
+      return "Next: replace the Gmail placeholder values in Project.json and App/Info.plist with the Google iOS OAuth client ID and reversed URL scheme, regenerate/rebuild, then rerun readiness."
+    }
+    return "Next: finish the saved Gmail setup fields, then rerun readiness."
+  }
+
+  private var gmailSavedClientIDSummary: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Saved client ID missing" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Saved client ID placeholder"
+    }
+    return "Saved client ID set"
+  }
+
+  private var gmailSavedCallbackSchemeSummary: String {
+    let scheme = gmailRedirectSchemeDisplay
+    if scheme.isEmpty { return "Saved scheme missing" }
+    if scheme == GoogleGmailAuthAdapter.placeholderCallbackScheme || scheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Saved scheme placeholder"
+    }
+    return "Saved scheme set"
+  }
+
+  private var gmailRedirectSchemeDisplay: String {
+    gmailRedirectScheme(from: (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
   }
 
   private var gmailSetupBlockerTitle: String {
