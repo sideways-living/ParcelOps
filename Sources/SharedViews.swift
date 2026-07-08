@@ -6988,6 +6988,216 @@ struct LocalDataHygieneSummaryCard: View {
   }
 }
 
+struct ActiveOperatorQueueFocusCard: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var activeIntakeCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.reviewState == .needsReview
+        && !email.subject.isPlaceholderValidationValue
+        && !email.sender.isPlaceholderValidationValue
+    }.count
+  }
+
+  private var placeholderIntakeCount: Int {
+    store.reviewIntakeEmails.filter { email in
+      email.subject.isPlaceholderValidationValue
+        || email.sender.isPlaceholderValidationValue
+        || email.detectedOrderNumber.isPlaceholderValidationValue
+        || email.detectedTrackingNumber.isPlaceholderValidationValue
+        || email.rawBodyPreview.localizedCaseInsensitiveContains("Content-Type:")
+        || email.rawBodyPreview.localizedCaseInsensitiveContains("Return-Path:")
+    }.count
+  }
+
+  private var uncertainProviderCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+  }
+
+  private var filteredProviderCount: Int {
+    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+  }
+
+  private var activeWorkbenchCount: Int {
+    store.openWorkbenchItems.count
+  }
+
+  private var activeTaskCount: Int {
+    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+  }
+
+  private var blockedDispatchCount: Int {
+    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+  }
+
+  private var activeQueueCount: Int {
+    activeIntakeCount + uncertainProviderCount + activeWorkbenchCount + activeTaskCount + blockedDispatchCount
+  }
+
+  private var historicalNoiseCount: Int {
+    placeholderIntakeCount
+      + filteredProviderCount
+      + store.intakeEmails.filter { $0.reviewState == .ignored }.count
+      + store.mailboxIngestRecords.filter { $0.status == .duplicateSkipped }.count
+  }
+
+  private var tone: Color {
+    if activeQueueCount == 0 { return .green }
+    if activeQueueCount <= 8 { return .orange }
+    return .red
+  }
+
+  private var statusTitle: String {
+    if activeQueueCount == 0 { return "Active operator queue is clear" }
+    if activeQueueCount <= 8 { return "Focus on active operator work first" }
+    return "Active operator queue is noisy"
+  }
+
+  private var statusDetail: String {
+    if activeQueueCount == 0 {
+      return "Current Inbox, uncertain provider review, Workbench, Tasks, and blocked Dispatch work are quiet. Historical ignored, duplicate, and filtered rows can remain as audit evidence."
+    }
+    return "Work the active queue before judging the app by historical mailbox-test noise. Ignored rows, duplicate ingest, and filtered mixed-mailbox examples are deliberately lower priority."
+  }
+
+  private var focusRows: [FocusRow] {
+    [
+      FocusRow(
+        title: "Inbox review",
+        value: "\(activeIntakeCount)",
+        detail: activeIntakeCount == 0 ? "No clean active intake rows need review." : "Review clean intake rows before old placeholder rows.",
+        symbol: "tray.full.fill",
+        color: activeIntakeCount == 0 ? .green : .orange
+      ),
+      FocusRow(
+        title: "Uncertain providers",
+        value: "\(uncertainProviderCount)",
+        detail: uncertainProviderCount == 0 ? "No uncertain mailbox previews are waiting." : "Import true order messages or dismiss non-order previews.",
+        symbol: "questionmark.folder.fill",
+        color: uncertainProviderCount == 0 ? .green : .orange
+      ),
+      FocusRow(
+        title: "Workbench",
+        value: "\(activeWorkbenchCount)",
+        detail: activeWorkbenchCount == 0 ? "No open Workbench exceptions." : "Handle exceptions, mismatches, or blocked work here.",
+        symbol: "rectangle.stack.badge.person.crop.fill",
+        color: activeWorkbenchCount == 0 ? .green : .orange
+      ),
+      FocusRow(
+        title: "Tasks and handoffs",
+        value: "\(activeTaskCount)",
+        detail: activeTaskCount == 0 ? "No task or handoff attention needed." : "Complete, acknowledge, reopen, or assign follow-up work.",
+        symbol: "checklist",
+        color: activeTaskCount == 0 ? .green : .orange
+      ),
+      FocusRow(
+        title: "Blocked dispatch",
+        value: "\(blockedDispatchCount)",
+        detail: blockedDispatchCount == 0 ? "No blocked dispatch items." : "Unblock manifests or readiness checklists before handoff.",
+        symbol: "paperplane.fill",
+        color: blockedDispatchCount == 0 ? .green : .red
+      ),
+      FocusRow(
+        title: "Historical noise",
+        value: "\(historicalNoiseCount)",
+        detail: "Ignored, duplicate, filtered, or placeholder rows are useful context but should not drive daily work.",
+        symbol: "archivebox.fill",
+        color: historicalNoiseCount == 0 ? .green : .secondary
+      )
+    ]
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 210 : 240), spacing: 10)]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Active queue focus", symbol: "scope") {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "scope")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(statusTitle)
+            .font(.headline)
+          Text(statusDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(activeQueueCount == 0 ? "Clear" : "\(activeQueueCount) active", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Active", "\(activeQueueCount)", tone),
+        ("Inbox", "\(activeIntakeCount)", activeIntakeCount == 0 ? .green : .orange),
+        ("Uncertain", "\(uncertainProviderCount)", uncertainProviderCount == 0 ? .green : .orange),
+        ("Workbench", "\(activeWorkbenchCount)", activeWorkbenchCount == 0 ? .green : .orange),
+        ("Tasks", "\(activeTaskCount)", activeTaskCount == 0 ? .green : .orange),
+        ("Historical", "\(historicalNoiseCount)", .secondary)
+      ])
+
+      LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+        ForEach(focusRows) { row in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: row.symbol)
+              .foregroundStyle(row.color)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(row.title)
+                  .font(.caption.weight(.semibold))
+                Spacer(minLength: 6)
+                Text(row.value)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(row.color)
+              }
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { MailboxView(store: store) } label: { Label("Mailbox", systemImage: "server.rack") }
+          .buttonStyle(.bordered)
+        NavigationLink { OperationsWorkbenchView(store: store) } label: { Label("Workbench", systemImage: "rectangle.stack.badge.person.crop.fill") }
+          .buttonStyle(.bordered)
+        NavigationLink { TasksView(store: store) } label: { Label("Tasks", systemImage: "checklist") }
+          .buttonStyle(.bordered)
+        NavigationLink { DispatchView(store: store) } label: { Label("Dispatch", systemImage: "paperplane.fill") }
+          .buttonStyle(.bordered)
+      }
+
+      Text("Read-only boundary: this card only groups existing local state. It does not delete old test data, clear duplicate metadata, dismiss reviews, refresh mail, read Keychain, or mutate mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private struct FocusRow: Identifiable {
+    let id = UUID()
+    var title: String
+    var value: String
+    var detail: String
+    var symbol: String
+    var color: Color
+  }
+}
+
 private struct LocalPersistenceSnapshot {
   var storePath: String
   var expectedFileNames: [String]

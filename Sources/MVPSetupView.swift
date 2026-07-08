@@ -51,6 +51,7 @@ struct MVPSetupView: View {
           title: "Pre-test data hygiene",
           detail: "Check whether old mailbox/parser experiments are adding noise before running a new hands-on MVP pass."
         )
+        ActiveOperatorQueueFocusCard(store: store)
         LocalDataSafetyCard(store: store, compact: isCompact)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {
