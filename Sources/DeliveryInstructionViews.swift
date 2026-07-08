@@ -51,6 +51,7 @@ struct DeliveryInstructionsView: View {
         header
         filterBar
         inboxInstructionCoverage
+        gmailInstructionReadinessPanel
 
         SettingsPanel(title: "Reusable instructions", symbol: "signpost.right.and.left.fill") {
           HStack {
@@ -177,6 +178,23 @@ struct DeliveryInstructionsView: View {
     selectedEnabledState = nil
     selectedReviewState = nil
     instructionSearchText = ""
+  }
+
+  private var gmailInstructionReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail delivery instruction readiness",
+      lead: "Gmail-origin intake should create or update delivery instructions only after Gmail setup is ready and the Inbox order has confirmed destination, carrier, and delivery context.",
+      sourceMetricTitle: "Gmail instruction sources",
+      sourceCount: gmailInstructionSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, contact carriers, or change delivery instructions automatically."
+    )
+  }
+
+  private var gmailInstructionSourceCount: Int {
+    instructionProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func linkedOrder(for instruction: DeliveryInstructionRecord) -> TrackedOrder? {

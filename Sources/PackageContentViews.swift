@@ -47,6 +47,7 @@ struct PackageContentsView: View {
         header
         filterBar
         inboxPackageContentCoverage
+        gmailPackageContentReadinessPanel
 
         SettingsPanel(title: "Content records", symbol: "shippingbox.circle.fill") {
           HStack {
@@ -168,6 +169,23 @@ struct PackageContentsView: View {
     selectedLinkedEntityType = nil
     selectedReviewState = nil
     packageSearchText = ""
+  }
+
+  private var gmailPackageContentReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail package content readiness",
+      lead: "Gmail-origin intake should create package content work only after Gmail setup is ready and a person confirms the imported Inbox order and item details.",
+      sourceMetricTitle: "Gmail content sources",
+      sourceCount: gmailPackageContentSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, scan barcodes, run OCR, connect inventory, or change package content records automatically."
+    )
+  }
+
+  private var gmailPackageContentSourceCount: Int {
+    packageContentProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var inboxPackageContentCoverage: some View {

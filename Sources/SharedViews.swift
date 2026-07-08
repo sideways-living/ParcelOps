@@ -2856,6 +2856,105 @@ struct GmailReleaseSelfCheckSummaryCard: View {
   }
 }
 
+struct GmailReleaseBoundaryPanel: View {
+  var store: ParcelOpsStore
+  var title: String
+  var lead: String
+  var sourceMetricTitle: String
+  var sourceCount: Int
+  var boundaryDetail: String
+
+  private var summaries: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var blockingCount: Int {
+    summaries.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var attentionCount: Int {
+    summaries.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var firstActionConnection: GmailMailboxConnection? {
+    guard let summary = summaries.first(where: { $0.items.contains { !$0.isComplete } }),
+          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
+  private var color: Color {
+    if blockingCount > 0 { return .red }
+    if attentionCount > 0 { return .orange }
+    return .green
+  }
+
+  var body: some View {
+    if !summaries.isEmpty {
+      SettingsPanel(title: title, symbol: "envelope.badge.shield.half.filled") {
+        VStack(alignment: .leading, spacing: 10) {
+          Label("Gmail provider readiness boundary", systemImage: blockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(color)
+          Text(lead)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+          MetricStrip(items: [
+            ("Release blockers", "\(blockingCount)", blockingCount == 0 ? .green : .red),
+            ("Needs attention", "\(attentionCount)", attentionCount == 0 ? .green : .orange),
+            (sourceMetricTitle, "\(sourceCount)", sourceCount == 0 ? .secondary : .blue),
+            ("Connections", "\(summaries.count)", .teal)
+          ])
+
+          ForEach(summaries.prefix(2)) { summary in
+            GmailReleaseSelfCheckSummaryCard(summary: summary)
+          }
+
+          if blockingCount > 0 || attentionCount > 0 {
+            CompactActionRow {
+              if let connection = firstActionConnection {
+                Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                  store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                }
+                .buttonStyle(.bordered)
+              }
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "tray.and.arrow.down.fill")
+              }
+              .buttonStyle(.bordered)
+              NavigationLink {
+                TasksView(store: store)
+              } label: {
+                Label("Open Tasks", systemImage: "checklist")
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            Label("Gmail release checks do not currently block this local follow-up area.", systemImage: "checkmark.seal.fill")
+              .font(.caption)
+              .foregroundStyle(.green)
+          }
+
+          Text(boundaryDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+  }
+}
+
 struct MailboxReleaseBlockerCard: View {
   var summary: MailboxReleaseBlockerSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

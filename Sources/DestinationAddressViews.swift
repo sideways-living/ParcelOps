@@ -51,6 +51,7 @@ struct DestinationAddressesView: View {
         header
         filters
         inboxAddressCoverage
+        gmailAddressReadinessPanel
 
         SettingsPanel(title: "Addresses", symbol: "mappin.and.ellipse") {
           HStack {
@@ -153,6 +154,23 @@ struct DestinationAddressesView: View {
     selectedEnabled = nil
     selectedReviewState = nil
     addressSearchText = ""
+  }
+
+  private var gmailAddressReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail destination readiness",
+      lead: "Gmail-origin intake should influence destination records only after Gmail setup is ready and a person confirms the imported Inbox order details.",
+      sourceMetricTitle: "Gmail destination sources",
+      sourceCount: gmailAddressSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, geocode, sync contacts, or change destination records automatically."
+    )
+  }
+
+  private var gmailAddressSourceCount: Int {
+    addressProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var inboxAddressCoverage: some View {
