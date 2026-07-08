@@ -4919,6 +4919,105 @@ struct MailboxProviderSetupChecklistCard: View {
   }
 }
 
+struct MailboxProviderQuickStatusCard: View {
+  var summary: MailboxProviderComparisonSummary
+
+  private var color: Color {
+    color(for: summary.tone)
+  }
+
+  private var configuredProviderCount: Int {
+    summary.providers.filter { provider in
+      provider.providerName != "No provider"
+    }.count
+  }
+
+  private var totalFetchedCount: Int {
+    summary.providers.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var totalImportedCount: Int {
+    summary.providers.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var totalUncertainCount: Int {
+    summary.providers.reduce(0) { $0 + $1.uncertainCount }
+  }
+
+  private var totalBlockerCount: Int {
+    summary.providers.reduce(0) { $0 + $1.blockedCount }
+  }
+
+  private var nextActionTitle: String {
+    summary.actionItems.first?.title ?? summary.providers.first?.nextAction ?? "Run or review the active mailbox provider"
+  }
+
+  private var nextActionDetail: String {
+    summary.actionItems.first?.detail ?? summary.detail
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "mail.stack.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(summary.title)
+            .font(.headline)
+          Text(summary.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer()
+        Badge(summary.recommendedProvider, color: color)
+      }
+
+      MetricStrip(items: [
+        ("Providers", "\(configuredProviderCount)", configuredProviderCount > 0 ? .green : .orange),
+        ("Fetched", "\(totalFetchedCount)", totalFetchedCount > 0 ? .blue : .secondary),
+        ("Imported", "\(totalImportedCount)", totalImportedCount > 0 ? .green : .secondary),
+        ("Uncertain", "\(totalUncertainCount)", totalUncertainCount > 0 ? .orange : .green),
+        ("Blockers", "\(totalBlockerCount)", totalBlockerCount > 0 ? .red : .green)
+      ])
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: totalBlockerCount > 0 ? "wrench.and.screwdriver.fill" : "arrow.forward.circle.fill")
+          .foregroundStyle(color)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(nextActionTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(nextActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .teal
+    }
+  }
+}
+
 struct MailboxProviderComparisonCard: View {
   var summary: MailboxProviderComparisonSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -5500,6 +5599,7 @@ struct MailboxProviderOperatorReadinessStack: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
+          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store, showMailboxLink: showMailboxLink)
           if !store.gmailMailboxConnections.isEmpty {
