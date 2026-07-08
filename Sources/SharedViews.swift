@@ -3345,6 +3345,7 @@ struct MailboxOperatorDecisionCard: View {
 struct MailboxProviderTestQueueCard: View {
   var summary: MailboxProviderTestQueueSummary
   var store: ParcelOpsStore?
+  var showMailboxLink: Bool = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
 
@@ -3397,12 +3398,14 @@ struct MailboxProviderTestQueueCard: View {
           }
           .buttonStyle(.bordered)
 
-          NavigationLink {
-            MailboxView(store: store)
-          } label: {
-            Label("Mailbox Monitor", systemImage: "server.rack")
+          if showMailboxLink {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
 
           NavigationLink {
             InboxView(store: store)
@@ -3808,6 +3811,7 @@ struct MailboxProviderTroubleshootingCard: View {
 struct MailboxProviderReleaseGateCard: View {
   var summary: MailboxProviderReleaseGateSummary
   var store: ParcelOpsStore?
+  var showMailboxLink: Bool = true
   var showTasksLink: Bool = true
   var showAuditLink: Bool = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -3879,12 +3883,14 @@ struct MailboxProviderReleaseGateCard: View {
           }
           .buttonStyle(.bordered)
 
-          NavigationLink {
-            MailboxView(store: store)
-          } label: {
-            Label("Mailbox Monitor", systemImage: "server.rack")
+          if showMailboxLink {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
 
           NavigationLink {
             InboxView(store: store)
@@ -5455,6 +5461,7 @@ struct MailboxProviderOperatorReadinessStack: View {
   var detail: String = "Use this as the operator-level mailbox provider summary. Detailed setup, QA, troubleshooting, and release evidence is still available below."
   var showAdvancedEvidence: Bool = true
   var showHandoffPacket: Bool = false
+  var showMailboxLink: Bool = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -5466,7 +5473,7 @@ struct MailboxProviderOperatorReadinessStack: View {
             .fixedSize(horizontal: false, vertical: true)
 
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
-          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
+          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store, showMailboxLink: showMailboxLink)
           if !store.gmailMailboxConnections.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
               Label("Gmail provider checks", systemImage: "envelope.badge.shield.half.filled")
@@ -5484,10 +5491,12 @@ struct MailboxProviderOperatorReadinessStack: View {
           MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
 
           CompactActionRow {
-            NavigationLink {
-              MailboxView(store: store)
-            } label: {
-              Label("Mailbox Monitor", systemImage: "server.rack")
+            if showMailboxLink {
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Mailbox Monitor", systemImage: "server.rack")
+              }
             }
             NavigationLink {
               InboxView(store: store)
@@ -5513,7 +5522,7 @@ struct MailboxProviderOperatorReadinessStack: View {
         DisclosureGroup {
           VStack(alignment: .leading, spacing: 12) {
             MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-            MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store)
+            MailboxProviderTestQueueCard(summary: store.mailboxProviderTestQueueSummary, store: store, showMailboxLink: showMailboxLink)
             if !showHandoffPacket {
               MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
             }

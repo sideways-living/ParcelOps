@@ -103,7 +103,8 @@ struct MailboxView: View {
           store: store,
           title: "Provider intake at a glance",
           detail: "Start here to decide whether SpaceMail or Gmail is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness.",
-          showHandoffPacket: true
+          showHandoffPacket: true,
+          showMailboxLink: false
         )
 
         MailboxSpaceMailReadinessPanel(store: store)
