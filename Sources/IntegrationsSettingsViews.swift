@@ -394,7 +394,7 @@ struct IntegrationsView: View {
               .background((gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             }
 
-            SpaceMailPrimaryStatusStrip(store: store, title: "Current SpaceMail intake", showTitle: true)
+            SpaceMailPrimaryStatusStrip(store: store, title: "Current mailbox intake", showTitle: true)
 
             SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
             SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)

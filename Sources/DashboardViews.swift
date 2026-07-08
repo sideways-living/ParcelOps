@@ -90,6 +90,21 @@ struct DashboardView: View {
   private var hasSpaceMailManualRefreshEvidence: Bool {
     store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+  private var hasGmailManualRefreshEvidence: Bool {
+    store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+  private var hasReadyMailboxProviderPath: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredentialReference && hasSpaceMailManualRefreshEvidence)
+      || (hasGmailSetup && hasGmailConnectedAuth && hasGmailManualRefreshEvidence)
+  }
   private var spaceMailHealthAttentionCount: Int {
     store.spaceMailIntakeHealthSummaries.filter {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
@@ -594,17 +609,14 @@ struct DashboardView: View {
   }
 
   private var dailyFlowCheckpointItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
-    let setupBlockers = (hasSpaceMailSetup ? 0 : 1)
-      + (hasSpaceMailCredentialReference ? 0 : 1)
-      + (hasSpaceMailManualRefreshEvidence ? 0 : 1)
-      + setupAttentionCount
+    let setupBlockers = (hasReadyMailboxProviderPath ? 0 : 1) + setupAttentionCount
     let orderBlockers = problemOrdersCount + partialInboxOrderBlockers.count
     let workbenchBlockers = highPriorityOperatorWorkbenchItems.count + overdueOperatorWorkbenchItems.count + blockedOperatorWorkbenchItems.count
 
     return [
       (
         "Settings",
-        "Confirm SpaceMail setup, Keychain credential, manual refresh evidence, and planning-only placeholders.",
+        "Confirm the active mailbox provider setup, credential or sign-in, manual refresh evidence, and planning-only placeholders.",
         setupBlockers,
         "Settings",
         "gearshape.fill",
