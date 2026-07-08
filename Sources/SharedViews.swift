@@ -5364,6 +5364,21 @@ struct SpaceMailPrimaryStatusStrip: View {
       + gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
   }
 
+  private var duplicateCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.duplicateCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var duplicateRefreshedCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
+  private var duplicateNoChangeCount: Int {
+    healthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+  }
+
   private var filteredCount: Int {
     healthSummaries.reduce(0) { $0 + $1.filteredCount }
       + gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
@@ -5413,7 +5428,7 @@ struct SpaceMailPrimaryStatusStrip: View {
     guard let latest = gmailHealthSummaries.first else {
       return "Next: add Gmail setup placeholder"
     }
-    return "\(latest.fetchedCount) fetched, \(latest.importedCount) imported, \(latest.duplicateCount) duplicate, \(latest.filteredCount) filtered, \(latest.pendingUncertainReviewCount + latest.uncertainCount) uncertain. Next: \(latest.nextAction)"
+    return "\(latest.fetchedCount) fetched, \(latest.importedCount) imported, \(latest.duplicateCount) duplicate, \(latest.duplicateRefreshedCount) refreshed, \(latest.filteredCount) filtered, \(latest.pendingUncertainReviewCount + latest.uncertainCount) uncertain. Next: \(latest.nextAction)"
   }
 
   private var hasSpaceMailProvider: Bool {
@@ -5466,9 +5481,18 @@ struct SpaceMailPrimaryStatusStrip: View {
       MetricStrip(items: [
         ("Fetched", "\(fetchedCount)", fetchedCount == 0 ? .secondary : .blue),
         ("Imported", "\(importedCount)", importedCount == 0 ? .secondary : .green),
+        ("Duplicates", "\(duplicateCount)", duplicateCount == 0 ? .secondary : .teal),
+        ("Refreshed", "\(duplicateRefreshedCount)", duplicateRefreshedCount == 0 ? .secondary : .green),
         ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
         ("Uncertain", "\(uncertainCount)", uncertainCount == 0 ? .secondary : .orange)
       ])
+
+      if duplicateRefreshedCount > 0 || duplicateNoChangeCount > 0 {
+        Label("\(duplicateRefreshedCount) duplicate refresh update\(duplicateRefreshedCount == 1 ? "" : "s") and \(duplicateNoChangeCount) no-change result\(duplicateNoChangeCount == 1 ? "" : "s"). Existing Inbox rows were reused instead of duplicated.", systemImage: "arrow.triangle.2.circlepath")
+          .font(.caption2)
+          .foregroundStyle(duplicateRefreshedCount > 0 ? .green : .secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
         if hasSpaceMailProvider {
