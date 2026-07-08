@@ -428,24 +428,36 @@ struct DashboardView: View {
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
   }
-  private var openSpaceMailAssignedTasks: [ReviewTask] {
+  private var openMailboxAssignedTasks: [ReviewTask] {
     store.reviewTasks.filter { task in
       task.status != .completed
         && (
           task.title.localizedCaseInsensitiveContains("spacemail")
+            || task.title.localizedCaseInsensitiveContains("gmail")
+            || task.title.localizedCaseInsensitiveContains("mailbox")
             || task.summary.localizedCaseInsensitiveContains("spacemail")
+            || task.summary.localizedCaseInsensitiveContains("gmail")
+            || task.summary.localizedCaseInsensitiveContains("mailbox")
             || store.spaceMailIMAPConnections.contains { task.linkedEntityID == $0.id.uuidString }
+            || store.gmailMailboxConnections.contains { task.linkedEntityID == $0.id.uuidString }
         )
     }
   }
-  private var openSpaceMailAssignedHandoffs: [HandoffNote] {
+  private var openMailboxAssignedHandoffs: [HandoffNote] {
     store.handoffNotes.filter { note in
       note.status != .completed
         && (
           note.title.localizedCaseInsensitiveContains("spacemail")
+            || note.title.localizedCaseInsensitiveContains("gmail")
+            || note.title.localizedCaseInsensitiveContains("mailbox")
             || note.summary.localizedCaseInsensitiveContains("spacemail")
+            || note.summary.localizedCaseInsensitiveContains("gmail")
+            || note.summary.localizedCaseInsensitiveContains("mailbox")
             || note.notes.localizedCaseInsensitiveContains("spacemail")
+            || note.notes.localizedCaseInsensitiveContains("gmail")
+            || note.notes.localizedCaseInsensitiveContains("mailbox")
             || store.spaceMailIMAPConnections.contains { note.linkedEntityID == $0.id.uuidString }
+            || store.gmailMailboxConnections.contains { note.linkedEntityID == $0.id.uuidString }
         )
     }
   }
@@ -455,11 +467,11 @@ struct DashboardView: View {
   private var pendingSpaceMailFilteredCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
   }
-  private var spaceMailAssignedFollowUpCount: Int {
-    openSpaceMailAssignedTasks.count + openSpaceMailAssignedHandoffs.count
+  private var mailboxAssignedFollowUpCount: Int {
+    openMailboxAssignedTasks.count + openMailboxAssignedHandoffs.count
   }
-  private var spaceMailFollowUpNeedsDashboardAttention: Bool {
-    spaceMailAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0
+  private var mailboxFollowUpNeedsDashboardAttention: Bool {
+    mailboxAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0 || pendingGmailUncertainReviewCount > 0
   }
   private var spaceMailParserSuiteResults: [SpaceMailClassifierTestResult] {
     store.spaceMailIMAPConnections.flatMap(\.classifierTestResults)
@@ -814,12 +826,12 @@ struct DashboardView: View {
             MetricStrip(items: [
               ("Open", "\(store.openReviewTasks.count)", .blue),
               ("Attention", "\(store.reviewTasksNeedingAttention.count)", .orange),
-              ("SpaceMail", "\(spaceMailAssignedFollowUpCount)", spaceMailAssignedFollowUpCount == 0 ? .green : .purple),
+              ("Mailbox", "\(mailboxAssignedFollowUpCount)", mailboxAssignedFollowUpCount == 0 ? .green : .purple),
               ("Total", "\(store.reviewTasks.count)", .teal)
             ])
             CompactSpaceMailDashboardFollowUp(
-              tasks: Array(openSpaceMailAssignedTasks.prefix(2)),
-              handoffs: Array(openSpaceMailAssignedHandoffs.prefix(2)),
+              tasks: Array(openMailboxAssignedTasks.prefix(2)),
+              handoffs: Array(openMailboxAssignedHandoffs.prefix(2)),
               store: store
             )
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(4)), store: store)
@@ -1502,30 +1514,30 @@ struct DashboardView: View {
 
   @ViewBuilder
   private var spaceMailFollowUpPanel: some View {
-    if spaceMailFollowUpNeedsDashboardAttention {
-      SettingsPanel(title: "SpaceMail follow-up", symbol: "person.2.wave.2.fill") {
+    if mailboxFollowUpNeedsDashboardAttention {
+      SettingsPanel(title: "Mailbox follow-up", symbol: "person.2.wave.2.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Assigned SpaceMail review tasks and handoffs should be worked from Tasks, while uncertain mixed-mailbox previews stay in Mailbox Monitor until an operator imports or dismisses them.")
+          Text("Assigned mailbox review tasks and handoffs should be worked from Tasks, while uncertain mixed-mailbox previews stay in Mailbox Monitor until an operator imports or dismisses them.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
           MetricStrip(items: [
-            ("Assigned", "\(spaceMailAssignedFollowUpCount)", spaceMailAssignedFollowUpCount == 0 ? .green : .purple),
-            ("Tasks", "\(openSpaceMailAssignedTasks.count)", openSpaceMailAssignedTasks.isEmpty ? .green : .orange),
-            ("Handoffs", "\(openSpaceMailAssignedHandoffs.count)", openSpaceMailAssignedHandoffs.isEmpty ? .green : .blue),
-            ("Uncertain", "\(pendingSpaceMailUncertainCount)", pendingSpaceMailUncertainCount == 0 ? .green : .orange),
-            ("Filtered", "\(pendingSpaceMailFilteredCount)", pendingSpaceMailFilteredCount == 0 ? .secondary : .teal)
+            ("Assigned", "\(mailboxAssignedFollowUpCount)", mailboxAssignedFollowUpCount == 0 ? .green : .purple),
+            ("Tasks", "\(openMailboxAssignedTasks.count)", openMailboxAssignedTasks.isEmpty ? .green : .orange),
+            ("Handoffs", "\(openMailboxAssignedHandoffs.count)", openMailboxAssignedHandoffs.isEmpty ? .green : .blue),
+            ("Uncertain", "\(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount)", pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount == 0 ? .green : .orange),
+            ("Filtered", "\(pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount)", pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount == 0 ? .secondary : .teal)
           ])
 
           CompactSpaceMailDashboardFollowUp(
-            tasks: Array(openSpaceMailAssignedTasks.prefix(3)),
-            handoffs: Array(openSpaceMailAssignedHandoffs.prefix(3)),
+            tasks: Array(openMailboxAssignedTasks.prefix(3)),
+            handoffs: Array(openMailboxAssignedHandoffs.prefix(3)),
             store: store
           )
 
           CompactActionRow {
-            if spaceMailAssignedFollowUpCount > 0 {
+            if mailboxAssignedFollowUpCount > 0 {
               NavigationLink {
                 TasksView(store: store)
               } label: {
@@ -1535,7 +1547,7 @@ struct DashboardView: View {
             NavigationLink {
               MailboxView(store: store)
             } label: {
-              Label(pendingSpaceMailUncertainCount > 0 ? "Review uncertain mail" : "Open Mailbox Monitor", systemImage: "server.rack")
+              Label(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount > 0 ? "Review uncertain mail" : "Open Mailbox Monitor", systemImage: "server.rack")
             }
             NavigationLink {
               OperationsWorkbenchView(store: store)
@@ -3424,7 +3436,7 @@ struct CompactSpaceMailDashboardFollowUp: View {
   var store: ParcelOpsStore
 
   var body: some View {
-    CompactList(title: "Assigned SpaceMail work", symbol: "person.2.wave.2.fill") {
+    CompactList(title: "Assigned mailbox work", symbol: "person.2.wave.2.fill") {
       ForEach(tasks) { task in
         NavigationLink {
           TasksView(store: store)
@@ -3458,7 +3470,7 @@ struct CompactSpaceMailDashboardFollowUp: View {
           MailboxView(store: store)
         } label: {
           CompactRow(
-            title: "No assigned SpaceMail tasks yet",
+            title: "No assigned mailbox tasks yet",
             detail: "Use Mailbox Monitor to review uncertain mixed-mailbox previews or create follow-up tasks.",
             badge: "Mailbox",
             color: .teal
