@@ -2104,6 +2104,12 @@ struct MVPHandsOnDashboardStatus: View {
 
   private var hasManualRefresh: Bool {
     store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var manualMailboxRefreshCount: Int {
+    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
   }
 
   private var blockedDailyCount: Int {
@@ -2136,7 +2142,7 @@ struct MVPHandsOnDashboardStatus: View {
       return "\(blockedDailyCount) blocked work item needs review before this is ready for regular hands-on use."
     }
     if !hasManualRefresh {
-      return "The local Inbox-to-Orders flow has enough test data. Run SpaceMail refresh later when you want to verify the live mailbox path."
+      return "The local Inbox-to-Orders flow has enough test data. Run SpaceMail or Gmail refresh later when you want to verify the live mailbox path."
     }
     return "Use MVP Setup for the full checklist, then quit and reopen the app to confirm local JSON persistence."
   }
@@ -2160,7 +2166,7 @@ struct MVPHandsOnDashboardStatus: View {
       }
 
       MetricStrip(items: [
-        ("SpaceMail runs", "\(store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasManualRefresh ? .green : .orange),
+        ("Mailbox runs", "\(manualMailboxRefreshCount)", hasManualRefresh ? .green : .orange),
         ("Clear intake", "\(clearIntakeCount)", clearIntakeCount == 0 ? .orange : .green),
         ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
         ("Blocked", "\(blockedDailyCount)", blockedDailyCount == 0 ? .green : .red),
