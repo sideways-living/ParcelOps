@@ -98,8 +98,51 @@ struct InboxView: View {
     store.gmailIntakeHealthSummaries.first
   }
 
+  private var latestGmailConnection: GmailMailboxConnection? {
+    guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.first }
+    return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
+  }
+
   private var hasGmailSetup: Bool {
     !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var inboxGmailReadiness: GmailOAuthReadinessSummary? {
+    latestGmailConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var inboxGmailCompileBlockers: [String] {
+    guard let readiness = inboxGmailReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var inboxGmailCompileColor: Color {
+    guard let readiness = inboxGmailReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+
+  private var inboxGmailCompileTitle: String {
+    guard let readiness = inboxGmailReadiness else { return "Gmail app setup is optional" }
+    if readiness.isReady { return "Gmail app setup is ready for Inbox intake" }
+    if !inboxGmailCompileBlockers.isEmpty { return "Gmail app setup blocks Inbox intake" }
+    return "Gmail setup values need review"
+  }
+
+  private var inboxGmailCompileDetail: String {
+    guard let readiness = inboxGmailReadiness else {
+      return "Use Gmail only for Google-hosted mailboxes. SpaceMail can remain the active intake provider."
+    }
+    if readiness.isReady {
+      return "The saved Gmail setup matches the compiled client ID and callback scheme. Run sign-in and manual refresh only when Gmail is the active mailbox provider."
+    }
+    if !inboxGmailCompileBlockers.isEmpty {
+      return "Fix before testing Gmail Inbox intake: \(inboxGmailCompileBlockers.joined(separator: "; ")). Update App/Info.plist and Project.json, rebuild, then run the explicit Gmail readiness/sign-in steps."
+    }
+    return readiness.detailText
   }
 
   private var hasGmailConnectedAuth: Bool {
@@ -359,6 +402,27 @@ struct InboxView: View {
               .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+        }
+
+        if hasGmailSetup {
+          VStack(alignment: .leading, spacing: 6) {
+            Label(inboxGmailCompileTitle, systemImage: inboxGmailReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(inboxGmailCompileColor)
+            Text(inboxGmailCompileDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            if let readiness = inboxGmailReadiness {
+              CompactMetadataGrid(minimumWidth: isCompact ? 150 : 175) {
+                Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.expectedCallbackScheme, color: .secondary)
+              }
+            }
+          }
+          .padding(10)
+          .background(inboxGmailCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         CompactActionRow {
