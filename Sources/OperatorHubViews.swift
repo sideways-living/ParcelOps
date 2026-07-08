@@ -2743,6 +2743,8 @@ struct DispatchView: View {
           }
           .padding(10)
           .background(dispatchGmailCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         }
 
         gmailDispatchReadinessPanel
