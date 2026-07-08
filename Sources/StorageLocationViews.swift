@@ -50,6 +50,7 @@ struct StorageLocationsView: View {
         header
         filterBar
         inboxStorageCoverage
+        gmailStorageReadinessPanel
 
         SettingsPanel(title: "Storage location records", symbol: "cabinet.fill") {
           HStack {
@@ -286,6 +287,23 @@ struct StorageLocationsView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailStorageReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail storage readiness",
+      lead: "Gmail-origin intake should influence storage only after Gmail setup is ready and the imported Inbox order has confirmed receipt, location, and handoff context.",
+      sourceMetricTitle: "Gmail storage sources",
+      sourceCount: gmailStorageSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect warehouse systems, geocode locations, or change storage records automatically."
+    )
+  }
+
+  private var gmailStorageSourceCount: Int {
+    storageProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func clearFilters() {

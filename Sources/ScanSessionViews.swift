@@ -40,6 +40,7 @@ struct ScanSessionsView: View {
         header
         filterBar
         inboxScanCoverage
+        gmailScanReadinessPanel
 
         SettingsPanel(title: "Scan session records", symbol: "qrcode.viewfinder") {
           HStack {
@@ -275,6 +276,23 @@ struct ScanSessionsView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailScanReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail scan readiness",
+      lead: "Gmail-origin intake should create scan verification work only after Gmail setup is ready and the imported Inbox order has confirmed label, tracking, custody, or dispatch context.",
+      sourceMetricTitle: "Gmail scan sources",
+      sourceCount: gmailScanSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, access camera/scanner hardware, generate QR codes, or change scan session records automatically."
+    )
+  }
+
+  private var gmailScanSourceCount: Int {
+    scanProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func clearFilters() {

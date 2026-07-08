@@ -47,6 +47,7 @@ struct InventoryReceiptsView: View {
         header
         filterBar
         inboxInventoryReceiptCoverage
+        gmailInventoryReceiptReadinessPanel
 
         SettingsPanel(title: "Inventory receipt records", symbol: "archivebox.fill") {
           HStack {
@@ -287,6 +288,23 @@ struct InventoryReceiptsView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailInventoryReceiptReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail inventory receipt readiness",
+      lead: "Gmail-origin intake should start inventory receipt or handoff work only after Gmail setup is ready and the imported Inbox order has confirmed receipt, storage, and owner context.",
+      sourceMetricTitle: "Gmail receipt sources",
+      sourceCount: gmailInventoryReceiptSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect inventory systems, scan barcodes, or change inventory receipt records automatically."
+    )
+  }
+
+  private var gmailInventoryReceiptSourceCount: Int {
+    receiptProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func clearFilters() {

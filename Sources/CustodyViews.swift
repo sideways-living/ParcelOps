@@ -48,6 +48,7 @@ struct CustodyChainView: View {
         header
         filterBar
         inboxCustodyCoverage
+        gmailCustodyReadinessPanel
 
         SettingsPanel(title: "Custody chain records", symbol: "person.badge.shield.checkmark.fill") {
           HStack {
@@ -291,6 +292,23 @@ struct CustodyChainView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailCustodyReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail custody readiness",
+      lead: "Gmail-origin intake should create custody work only after Gmail setup is ready and the imported Inbox order has confirmed possession, source, destination, and owner context.",
+      sourceMetricTitle: "Gmail custody sources",
+      sourceCount: gmailCustodySourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, capture signatures, connect access-control systems, or change custody records automatically."
+    )
+  }
+
+  private var gmailCustodySourceCount: Int {
+    custodyProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func clearFilters() {

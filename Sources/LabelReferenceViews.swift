@@ -42,6 +42,7 @@ struct LabelReferencesView: View {
         header
         filterBar
         inboxLabelCoverage
+        gmailLabelReadinessPanel
 
         SettingsPanel(title: "Label reference records", symbol: "barcode.viewfinder") {
           HStack {
@@ -277,6 +278,23 @@ struct LabelReferencesView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailLabelReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail label readiness",
+      lead: "Gmail-origin intake should create label reference work only after Gmail setup is ready and the imported Inbox order has confirmed tracking, package, storage, or dispatch context.",
+      sourceMetricTitle: "Gmail label sources",
+      sourceCount: gmailLabelSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, generate labels, print labels, scan barcodes, or change label reference records automatically."
+    )
+  }
+
+  private var gmailLabelSourceCount: Int {
+    labelProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func clearFilters() {

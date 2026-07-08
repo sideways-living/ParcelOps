@@ -50,6 +50,7 @@ struct ReceivingInspectionsView: View {
         header
         filterBar
         inboxInspectionCoverage
+        gmailInspectionReadinessPanel
 
         SettingsPanel(title: "Receiving inspection records", symbol: "checklist.checked") {
           HStack {
@@ -302,6 +303,23 @@ struct ReceivingInspectionsView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailInspectionReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail receiving inspection readiness",
+      lead: "Gmail-origin intake should create receiving inspection work only after Gmail setup is ready and the imported Inbox order has confirmed item, quantity, and condition context.",
+      sourceMetricTitle: "Gmail inspection sources",
+      sourceCount: gmailInspectionSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, contact suppliers, scan barcodes, or change receiving inspection records automatically."
+    )
+  }
+
+  private var gmailInspectionSourceCount: Int {
+    inspectionProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
