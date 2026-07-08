@@ -410,20 +410,14 @@ struct InboxView: View {
           (metric.title, metric.value, mailboxProviderReleaseGateColor(for: metric.tone))
         })
 
-        if !store.gmailMailboxConnections.isEmpty {
-          VStack(alignment: .leading, spacing: 8) {
-            Label("Gmail release checks", systemImage: "envelope.badge.shield.half.filled")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-            Text("These Gmail checks explain whether Google setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are ready before Gmail becomes a daily intake path.")
-              .font(.caption2)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-            ForEach(store.gmailMailboxConnections) { connection in
-              GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
-            }
-          }
-        }
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail provider release checks",
+          lead: "These checks explain whether Google setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are ready before Gmail becomes a daily intake path.",
+          sourceMetricTitle: "Open gates",
+          sourceCount: openGates.count,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create provider handoff notes automatically, or mutate mailbox messages."
+        )
 
         if openGates.isEmpty {
           Label("Provider setup, refresh evidence, Inbox handoff, diagnostics, blockers, and release plan checks currently pass from local evidence.", systemImage: "checkmark.circle.fill")

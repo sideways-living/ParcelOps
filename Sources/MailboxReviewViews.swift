@@ -2577,19 +2577,6 @@ struct NeedsReviewView: View {
   private var gmailReleaseNeedsReview: Bool {
     gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
   }
-  private var gmailReleaseNeedsReviewConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-  private var gmailReleaseNeedsReviewColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
-  }
   private var mailboxProviderNeedsReview: Bool {
     store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" || gmailReleaseNeedsReview
   }
@@ -2738,45 +2725,14 @@ struct NeedsReviewView: View {
 
               MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
               MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-              if !gmailReleaseSelfChecks.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                  Label("Gmail release self-checks", systemImage: gmailReleaseNeedsReview ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(gmailReleaseNeedsReviewColor)
-                  Text("These are provider-readiness checks, not Inbox or Dispatch records. Create a task only when a missing Gmail setup, sign-in, labels, classifier review, Inbox handoff, or audit evidence item needs an owner.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                  MetricStrip(items: [
-                    ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-                    ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
-                    ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
-                  ])
-
-                  ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-                    GmailReleaseSelfCheckSummaryCard(summary: summary)
-                  }
-
-                  if gmailReleaseNeedsReview {
-                    CompactActionRow {
-                      NavigationLink {
-                        MailboxView(store: store)
-                      } label: {
-                        Label("Open Gmail setup", systemImage: "server.rack")
-                      }
-                      if let connection = gmailReleaseNeedsReviewConnection {
-                        Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                          store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                        }
-                      }
-                    }
-                    .buttonStyle(.bordered)
-                  }
-                }
-                .padding(10)
-                .background(gmailReleaseNeedsReviewColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-              }
+              GmailReleaseBoundaryPanel(
+                store: store,
+                title: "Gmail Needs Review boundary",
+                lead: "These are provider-readiness checks, not Inbox or Dispatch records. Create a task only when a missing Gmail setup, sign-in, labels, classifier review, Inbox handoff, or audit evidence item needs an owner.",
+                sourceMetricTitle: "Needs Review signals",
+                sourceCount: gmailReleaseBlockingCount + gmailReleaseAttentionCount,
+                boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Needs Review records automatically, or mutate mailbox messages."
+              )
             }
           }
         }
