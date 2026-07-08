@@ -1462,6 +1462,10 @@ private struct MailboxGmailReadinessPanel: View {
     store.gmailMailboxConnections.first
   }
 
+  private var latestReasonBreakdown: [SpaceMailClassifierReasonCount] {
+    primaryConnection?.lastRefreshReasonBreakdown ?? []
+  }
+
   private var primaryAuthState: GmailAuthSessionState? {
     guard let connection = primaryConnection else { return nil }
     return store.gmailAuthSessionState(for: connection)
@@ -1708,6 +1712,30 @@ private struct MailboxGmailReadinessPanel: View {
           .background(toneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
+        if !latestReasonBreakdown.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Latest Gmail classifier reasons", systemImage: "line.3.horizontal.decrease.circle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.teal)
+            Text("Safe labels from the last Gmail refresh. Use these to check why messages were imported, filtered, or held for uncertain review without opening Audit.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(latestReasonBreakdown.prefix(6))) { item in
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Badge(item.decision, color: classifierReasonColor(item.decision))
+                Text("\(item.count)x \(item.reason)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+              }
+            }
+          }
+          .padding(10)
+          .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         Text("Gmail remains manual and read-only. No background sync, mailbox mutation, token logging, or external classification is added by this readiness panel.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(readinessTone)
@@ -1746,6 +1774,13 @@ private struct MailboxGmailReadinessPanel: View {
     default:
       return .secondary
     }
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
   }
 
   private func hasMailboxBasics(_ connection: GmailMailboxConnection) -> Bool {
