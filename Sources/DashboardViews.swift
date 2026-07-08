@@ -151,7 +151,7 @@ struct DashboardView: View {
   }
   private var dashboardGmailCompileDetail: String {
     guard let readiness = dashboardGmailReadiness else {
-      return "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace."
+      return "Add Gmail only when the mailbox being tested is hosted by Gmail or Google Workspace."
     }
     if readiness.isReady {
       return "The saved Gmail setup matches the compiled client ID and callback URL scheme."
@@ -396,7 +396,7 @@ struct DashboardView: View {
       }
     } else {
       gmailValue = store.gmailMailboxConnections.isEmpty ? "Missing" : "Setup"
-      gmailDetail = store.gmailMailboxConnections.isEmpty ? "Add Gmail only for mailboxes hosted by Gmail or Google Workspace." : "Check Gmail readiness or run the mock/manual provider flow from Mailbox Monitor."
+      gmailDetail = store.gmailMailboxConnections.isEmpty ? "Add Gmail only for mailboxes hosted by Gmail or Google Workspace; otherwise use the active IMAP/provider path." : "Check Gmail readiness or run the mock/manual provider flow from Mailbox Monitor."
     }
 
     return [

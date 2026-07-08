@@ -1593,7 +1593,7 @@ private struct MailboxGmailReadinessPanel: View {
 
   private var readinessDetail: String {
     if !hasSetup {
-      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the main provider path."
+      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. Use the provider that hosts the active mailbox."
     }
     if !hasCoreSetup {
       return "Add mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not add secrets or token values."
