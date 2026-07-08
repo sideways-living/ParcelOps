@@ -2037,25 +2037,62 @@ struct MVPHandsOnTroubleshootingGuide: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasMailboxCredentialOrAuth: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+  }
+
+  private var fetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var filteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var uncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+  }
+
   private var latestMailboxDetail: String {
-    guard let summary = latestSpaceMailSummary else {
+    let summaries: [String] = [
+      latestSpaceMailSummary.map { "SpaceMail: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" },
+      latestGmailSummary.map { "Gmail: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" }
+    ].compactMap { $0 }
+    guard !summaries.isEmpty else {
       return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
     }
-    return "\(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+    return summaries.joined(separator: " ")
   }
 
   private var issueTone: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredential { return .orange }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
+    if !hasMailboxSetup || !hasMailboxCredentialOrAuth { return .orange }
+    if uncertainCount > 0 { return .orange }
     return .teal
   }
 
   private var issueTitle: String {
-    if !hasSpaceMailSetup { return "Most issues can be tested with the local demo first" }
-    if !hasSpaceMailCredential { return "SpaceMail setup exists; credential still needs attention" }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
-      return "SpaceMail has uncertain messages to review"
-    }
+    if !hasMailboxSetup { return "Most issues can be tested with the local demo first" }
+    if !hasMailboxCredentialOrAuth { return "Mailbox setup exists; credential or sign-in needs attention" }
+    if uncertainCount > 0 { return "Mailbox provider has uncertain messages to review" }
     return "Use this guide when Xcode, setup, or mailbox testing stalls"
   }
 
@@ -2086,7 +2123,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
         .secondary
       ),
       (
-        "SpaceMail imports nothing",
+        "Mailbox imports nothing",
         "Mixed mailbox mode is conservative. Filtered non-order mail stays out of Inbox; uncertain messages stay in Mailbox Monitor; only strong order/tracking evidence imports automatically.",
         "line.3.horizontal.decrease.circle",
         .blue
@@ -2104,8 +2141,8 @@ struct MVPHandsOnTroubleshootingGuide: View {
     [
       ("1. Prove local flow", "Seed the demo workflow from Dashboard or MVP Setup. This avoids relying on live mailbox content while testing UI and persistence.", "wand.and.stars", .green),
       ("2. Check source trail", "Open Inbox, Orders, and order detail. Confirm the source trail points back to intake/import/acceptance context.", "link.badge.plus", .blue),
-      ("3. Use Mailbox Monitor", "For SpaceMail, review latest refresh counts, uncertain examples, filtered examples, classifier tests, and credential status before changing parser rules.", "server.rack", .teal),
-      ("4. Confirm Audit", "Use Audit to verify local actions. Technical SpaceMail diagnostics can stay hidden unless you are debugging parser/provider internals.", "list.clipboard.fill", .purple),
+      ("3. Use Mailbox Monitor", "For the active provider, review latest refresh counts, uncertain examples, filtered examples, classifier tests, and credential or sign-in status before changing parser rules.", "server.rack", .teal),
+      ("4. Confirm Audit", "Use Audit to verify local actions. Technical provider diagnostics can stay hidden unless you are debugging parser/provider internals.", "list.clipboard.fill", .purple),
       ("5. Keep generated noise out", "Do not commit xcuserdata, DerivedData, local signing/team changes, or accidental generated project folders unless the change is intentionally shared.", "xmark.bin.fill", .orange)
     ]
   }
@@ -2125,15 +2162,15 @@ struct MVPHandsOnTroubleshootingGuide: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         Spacer()
-        Badge(hasSpaceMailCredential ? "Ready" : "Setup", color: issueTone)
+        Badge(hasMailboxCredentialOrAuth ? "Ready" : "Setup", color: issueTone)
       }
 
       MetricStrip(items: [
-        ("SpaceMail", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
-        ("Credential", hasSpaceMailCredential ? "Keychain" : "Needed", hasSpaceMailCredential ? .green : .orange),
-        ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", .blue),
-        ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-        ("Uncertain", "\(latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) > 0) ? .orange : .secondary),
+        ("Providers", hasMailboxSetup ? "Set" : "Needed", hasMailboxSetup ? .green : .orange),
+        ("Access", hasMailboxCredentialOrAuth ? "Ready" : "Needed", hasMailboxCredentialOrAuth ? .green : .orange),
+        ("Fetched", "\(fetchedCount)", .blue),
+        ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
+        ("Uncertain", "\(uncertainCount)", uncertainCount > 0 ? .orange : .secondary),
         ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
       ])
 
