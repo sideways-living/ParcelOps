@@ -707,7 +707,7 @@ struct IntegrationsView: View {
 
         if showsMicrosoftSetup {
           SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Microsoft 365 remains available as an advanced option, but SpaceMail IMAP is the current provider path for this project.")
+          Text("Microsoft 365 remains available as an advanced option. Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes as the current manual intake paths.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()

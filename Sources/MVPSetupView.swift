@@ -1409,7 +1409,7 @@ struct MVPReleaseCandidateQACard: View {
       ),
       (
         "Live mailbox evidence",
-        hasLiveSpaceMailEvidence ? "SpaceMail has at least one manual refresh result." : "Optional for demo readiness: run real SpaceMail only when credentials and mailbox state are available.",
+        hasLiveSpaceMailEvidence ? "A live mailbox provider has at least one manual refresh result." : "Optional for demo readiness: run real mailbox refresh only when credentials, sign-in, and mailbox state are available.",
         "server.rack",
         hasLiveSpaceMailEvidence ? .green : .secondary,
         hasLiveSpaceMailEvidence
@@ -1446,7 +1446,7 @@ struct MVPReleaseCandidateQACard: View {
     if completedRequiredCount == requiredItems.count {
       return "The local demo path has enough evidence for Inbox, Orders, Dispatch, Tasks, Audit, and persistence-oriented hands-on testing."
     }
-    return "Use the local demo path as the stable QA baseline. Live SpaceMail remains useful, but it should not block app usability checks."
+    return "Use the local demo path as the stable QA baseline. Live mailbox evidence remains useful, but it should not block app usability checks."
   }
 
   private var canCompleteHandoff: Bool {
@@ -1702,7 +1702,7 @@ struct MVPReleaseEvidenceReport: View {
 
   private var verdictDetail: String {
     if requiredBlockers.isEmpty {
-      return "The local path has enough traceable evidence for Dashboard, Inbox, Orders, Dispatch, Tasks, Audit, and persistence checks. Live SpaceMail evidence remains optional."
+      return "The local path has enough traceable evidence for Dashboard, Inbox, Orders, Dispatch, Tasks, Audit, and persistence checks. Live mailbox evidence remains optional."
     }
     return "Finish the required blockers below before treating this as a release-candidate baseline. This report avoids live integrations and uses local records only."
   }
@@ -2039,7 +2039,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
 
   private var latestMailboxDetail: String {
     guard let summary = latestSpaceMailSummary else {
-      return "No refresh summary yet. Start with the local demo workflow, then use SpaceMail only when credentials are ready."
+      return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
     }
     return "\(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
   }
