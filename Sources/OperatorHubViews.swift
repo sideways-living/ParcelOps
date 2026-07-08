@@ -2400,6 +2400,49 @@ struct DispatchView: View {
     store.gmailIntakeHealthSummaries.first
   }
 
+  private var dispatchGmailConnection: GmailMailboxConnection? {
+    guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.first }
+    return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
+  }
+
+  private var dispatchGmailReadiness: GmailOAuthReadinessSummary? {
+    dispatchGmailConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var dispatchGmailCompileBlockers: [String] {
+    guard let readiness = dispatchGmailReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var dispatchGmailCompileColor: Color {
+    guard let readiness = dispatchGmailReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+
+  private var dispatchGmailCompileTitle: String {
+    guard let readiness = dispatchGmailReadiness else { return "Gmail setup is optional for dispatch" }
+    if readiness.isReady { return "Gmail setup can feed dispatch after Inbox" }
+    if !dispatchGmailCompileBlockers.isEmpty { return "Gmail setup cannot feed dispatch yet" }
+    return "Gmail setup needs review before dispatch handoff"
+  }
+
+  private var dispatchGmailCompileDetail: String {
+    guard let readiness = dispatchGmailReadiness else {
+      return "Dispatch starts from local orders. Add Gmail only when a Google-hosted mailbox should create or link orders through Inbox first."
+    }
+    if readiness.isReady {
+      return "The compiled Gmail client ID and callback scheme match setup. Dispatch still waits for a Gmail message to become an Inbox-created or linked order."
+    }
+    if !dispatchGmailCompileBlockers.isEmpty {
+      return "Before Gmail can create dispatch candidates, fix: \(dispatchGmailCompileBlockers.joined(separator: "; ")). Rebuild, then run Gmail sign-in and manual refresh from Mailbox Monitor."
+    }
+    return readiness.detailText
+  }
+
   private var dispatchMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
@@ -2680,6 +2723,27 @@ struct DispatchView: View {
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+        if !store.gmailMailboxConnections.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label(dispatchGmailCompileTitle, systemImage: dispatchGmailReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(dispatchGmailCompileColor)
+            Text(dispatchGmailCompileDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            if let readiness = dispatchGmailReadiness {
+              CompactMetadataGrid(minimumWidth: isCompact ? 150 : 175) {
+                Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                Badge(readiness.expectedCallbackScheme, color: .secondary)
+              }
+            }
+          }
+          .padding(10)
+          .background(dispatchGmailCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         gmailDispatchReadinessPanel
 
