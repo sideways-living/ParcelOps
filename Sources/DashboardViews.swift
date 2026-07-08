@@ -128,6 +128,39 @@ struct DashboardView: View {
     guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.first }
     return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
   }
+  private var dashboardGmailReadiness: GmailOAuthReadinessSummary? {
+    latestGmailConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+  private var dashboardGmailCompileBlockers: [String] {
+    guard let readiness = dashboardGmailReadiness else { return [] }
+    return readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+  private var dashboardGmailCompileStatusColor: Color {
+    guard let readiness = dashboardGmailReadiness else { return .secondary }
+    return readiness.isReady ? .green : .orange
+  }
+  private var dashboardGmailCompileTitle: String {
+    guard let readiness = dashboardGmailReadiness else { return "Gmail app configuration not started" }
+    if readiness.isReady { return "Gmail app configuration matches setup" }
+    if !dashboardGmailCompileBlockers.isEmpty { return "Gmail compiled app configuration blocks sign-in" }
+    return "Gmail setup values need review"
+  }
+  private var dashboardGmailCompileDetail: String {
+    guard let readiness = dashboardGmailReadiness else {
+      return "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace."
+    }
+    if readiness.isReady {
+      return "The saved Gmail setup matches the compiled client ID and callback URL scheme."
+    }
+    if !dashboardGmailCompileBlockers.isEmpty {
+      return "Compile blockers: \(dashboardGmailCompileBlockers.joined(separator: "; ")). Update App/Info.plist and Project.json with the Google iOS client ID and reversed client ID scheme, then rebuild."
+    }
+    return readiness.detailText
+  }
   private var gmailSetupBlockerCount: Int {
     store.gmailMailboxConnections.filter { !store.gmailOAuthReadinessSummary(for: $0).isReady }.count
   }
@@ -1431,6 +1464,29 @@ struct DashboardView: View {
             Badge(latestGmailConnection?.mailboxMode.rawValue ?? "No Gmail setup", color: latestGmailConnection == nil ? .secondary : .teal)
             Badge(latestGmailSummary?.lastRefreshDate ?? "No refresh", color: latestGmailTone)
           }
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: dashboardGmailReadiness?.isReady == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+              .foregroundStyle(dashboardGmailCompileStatusColor)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(dashboardGmailCompileTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(dashboardGmailCompileStatusColor)
+              Text(dashboardGmailCompileDetail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              if let readiness = dashboardGmailReadiness {
+                CompactMetadataGrid(minimumWidth: 180) {
+                  Badge(readiness.compiledClientIDStatus, color: readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                  Badge(readiness.compiledCallbackSchemeStatus, color: readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present") ? .green : .orange)
+                  Badge(readiness.expectedCallbackScheme, color: .secondary)
+                }
+              }
+            }
+          }
+          .padding(8)
+          .background(dashboardGmailCompileStatusColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           Text(dashboardGmailLabelDetail)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(dashboardGmailLabelColor)
