@@ -2349,37 +2349,6 @@ struct DispatchView: View {
     store.gmailIntakeHealthSummaries.first
   }
 
-  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
-    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
-  }
-
-  private var gmailReleaseBlockingCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
-    }
-  }
-
-  private var gmailReleaseAttentionCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
-    }
-  }
-
-  private var gmailReleaseDispatchConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-
-  private var gmailReleaseDispatchColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
-  }
-
   private var dispatchMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
@@ -2626,8 +2595,7 @@ struct DispatchView: View {
           ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
           ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
-          ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue),
-          ("Gmail release", "\(gmailReleaseBlockingCount + gmailReleaseAttentionCount)", gmailReleaseBlockingCount + gmailReleaseAttentionCount == 0 ? .green : gmailReleaseDispatchColor)
+          ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
         ])
 
         VStack(alignment: .leading, spacing: 8) {
@@ -2662,39 +2630,7 @@ struct DispatchView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
-        if !gmailReleaseSelfChecks.isEmpty {
-          VStack(alignment: .leading, spacing: 8) {
-            Label("Gmail release boundary before Dispatch", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(gmailReleaseDispatchColor)
-            Text("Gmail release checks are mailbox-provider readiness. They should create Dispatch work only after Gmail imports a real Inbox row and that row is created or linked as an order.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-
-            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-              GmailReleaseSelfCheckSummaryCard(summary: summary)
-            }
-
-            if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
-              CompactActionRow {
-                NavigationLink {
-                  MailboxView(store: store)
-                } label: {
-                  Label("Open Gmail setup", systemImage: "server.rack")
-                }
-                if let connection = gmailReleaseDispatchConnection {
-                  Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                  }
-                }
-              }
-              .buttonStyle(.bordered)
-            }
-          }
-          .padding(10)
-          .background(gmailReleaseDispatchColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        }
+        gmailDispatchReadinessPanel
 
         CompactActionRow {
           NavigationLink {
@@ -2716,6 +2652,17 @@ struct DispatchView: View {
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var gmailDispatchReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail dispatch readiness",
+      lead: "Gmail release checks are mailbox-provider readiness. They should create Dispatch work only after Gmail imports a real Inbox row and that row is created or linked as an order.",
+      sourceMetricTitle: "Gmail imported",
+      sourceCount: latestGmailSummary?.importedCount ?? 0,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create dispatch records automatically, or mutate mailbox messages."
+    )
   }
 
   private var dispatchQueuePanel: some View {
