@@ -87,9 +87,9 @@ struct TimelineView: View {
         let detail: String
         switch tone {
         case "spacemail":
-          detail = "SpaceMail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up."
+          detail = "SpaceMail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up.\(providerRefreshSuffix(for: tone))"
         case "gmail":
-          detail = "Gmail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up."
+          detail = "Gmail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake supports local workflow testing. Confirm live work against the active mailbox provider when available."
         default:
@@ -101,6 +101,20 @@ struct TimelineView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private func providerRefreshSuffix(for tone: String) -> String {
+    let refreshedCount: Int
+    switch tone {
+    case "spacemail":
+      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    case "gmail":
+      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    default:
+      refreshedCount = 0
+    }
+    guard refreshedCount > 0 else { return "" }
+    return " \(refreshedCount) duplicate refresh\(refreshedCount == 1 ? "" : "es") updated existing Inbox rows without creating new timeline items."
   }
 
   var body: some View {

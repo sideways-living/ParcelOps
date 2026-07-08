@@ -72,9 +72,9 @@ struct ValidationView: View {
         let detail: String
         switch tone {
         case "spacemail":
-          detail = "SpaceMail intake can produce parser, tracking, destination, or order-number validation checks."
+          detail = "SpaceMail intake can produce parser, tracking, destination, or order-number validation checks.\(providerRefreshSuffix(for: tone))"
         case "gmail":
-          detail = "Gmail intake can produce parser, tracking, destination, or order-number validation checks."
+          detail = "Gmail intake can produce parser, tracking, destination, or order-number validation checks.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake is local test evidence; confirm live provider context before closing real validation work."
         default:
@@ -86,6 +86,20 @@ struct ValidationView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private func providerRefreshSuffix(for tone: String) -> String {
+    let refreshedCount: Int
+    switch tone {
+    case "spacemail":
+      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    case "gmail":
+      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    default:
+      refreshedCount = 0
+    }
+    guard refreshedCount > 0 else { return "" }
+    return " \(refreshedCount) duplicate refresh\(refreshedCount == 1 ? "" : "es") updated existing Inbox rows; review refreshed fields before closing validation."
   }
 
   var body: some View {

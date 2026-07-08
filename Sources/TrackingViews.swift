@@ -284,9 +284,9 @@ struct TrackingView: View {
         let detail: String
         switch tone {
         case "spacemail":
-          detail = "SpaceMail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up."
+          detail = "SpaceMail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up.\(providerRefreshSuffix(for: tone))"
         case "gmail":
-          detail = "Gmail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up."
+          detail = "Gmail intake supplied order or tracking context. Confirm linked tracking events before closing carrier follow-up.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake supplied local test context. Use real provider refresh before relying on this for live operations."
         default:
@@ -298,6 +298,20 @@ struct TrackingView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private func providerRefreshSuffix(for tone: String) -> String {
+    let refreshedCount: Int
+    switch tone {
+    case "spacemail":
+      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    case "gmail":
+      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    default:
+      refreshedCount = 0
+    }
+    guard refreshedCount > 0 else { return "" }
+    return " \(refreshedCount) duplicate refresh\(refreshedCount == 1 ? "" : "es") updated existing Inbox rows; confirm tracking values before adding carrier follow-up."
   }
 
   private var gmailTrackingSourceCount: Int {

@@ -75,9 +75,9 @@ struct ReconciliationView: View {
         let detail: String
         switch tone {
         case "spacemail":
-          detail = "SpaceMail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context."
+          detail = "SpaceMail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context.\(providerRefreshSuffix(for: tone))"
         case "gmail":
-          detail = "Gmail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context."
+          detail = "Gmail intake can create mismatches between parsed email values, order detail, tracking, and acceptance context.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake is local test evidence; confirm live provider context before closing real mismatches."
         default:
@@ -89,6 +89,20 @@ struct ReconciliationView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private func providerRefreshSuffix(for tone: String) -> String {
+    let refreshedCount: Int
+    switch tone {
+    case "spacemail":
+      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    case "gmail":
+      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    default:
+      refreshedCount = 0
+    }
+    guard refreshedCount > 0 else { return "" }
+    return " \(refreshedCount) duplicate refresh\(refreshedCount == 1 ? "" : "es") updated existing Inbox rows; verify refreshed source values before resolving mismatches."
   }
 
   var body: some View {

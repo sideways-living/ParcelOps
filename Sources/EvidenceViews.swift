@@ -67,9 +67,9 @@ struct EvidenceView: View {
         let detail: String
         switch tone {
         case "spacemail":
-          detail = "SpaceMail intake can provide the source trail even when no attachment is linked yet."
+          detail = "SpaceMail intake can provide the source trail even when no attachment is linked yet.\(providerRefreshSuffix(for: tone))"
         case "gmail":
-          detail = "Gmail intake can provide the source trail even when no attachment is linked yet."
+          detail = "Gmail intake can provide the source trail even when no attachment is linked yet.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake is local test evidence. Confirm live provider context before treating it as operational support."
         default:
@@ -81,6 +81,20 @@ struct EvidenceView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private func providerRefreshSuffix(for tone: String) -> String {
+    let refreshedCount: Int
+    switch tone {
+    case "spacemail":
+      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    case "gmail":
+      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    default:
+      refreshedCount = 0
+    }
+    guard refreshedCount > 0 else { return "" }
+    return " \(refreshedCount) duplicate refresh\(refreshedCount == 1 ? "" : "es") updated existing Inbox rows; no extra evidence row was created."
   }
 
   private var gmailSourceTrailEmails: [ForwardedEmailIntake] {
