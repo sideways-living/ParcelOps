@@ -589,7 +589,7 @@ struct DashboardView: View {
   }
 
   private var dailyStartTone: Color {
-    if !hasSpaceMailSetup || !hasSpaceMailCredentialReference || !hasSpaceMailManualRefreshEvidence { return .orange }
+    if !hasReadyMailboxProviderPath { return .orange }
     if incomingAttentionCount > 0 { return .orange }
     if !partialInboxOrderBlockers.isEmpty { return .orange }
     if problemOrdersCount > 0 { return .red }
@@ -602,9 +602,10 @@ struct DashboardView: View {
   }
 
   private var dailyStartTitle: String {
-    if !hasSpaceMailSetup { return "Set up SpaceMail first" }
-    if !hasSpaceMailCredentialReference { return "Add the SpaceMail Keychain credential" }
-    if !hasSpaceMailManualRefreshEvidence { return "Run one manual SpaceMail refresh" }
+    if !hasSpaceMailSetup && !hasGmailSetup { return "Set up a mailbox provider first" }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup { return "Add the SpaceMail Keychain credential" }
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup { return "Connect Gmail sign-in" }
+    if !hasReadyMailboxProviderPath { return "Run one manual mailbox refresh" }
     if incomingAttentionCount > 0 { return "Start in Inbox" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify Inbox-created orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
