@@ -56,6 +56,37 @@ struct CommunicationView: View {
     store.draftMessages.filter { $0.status != .sentLocally }
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseDraftConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
+  private var gmailReleaseDraftColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
+
   private var readyDrafts: [DraftMessage] {
     store.draftMessages.filter { $0.status == .ready }
   }
@@ -263,7 +294,7 @@ struct CommunicationView: View {
 
   @ViewBuilder
   private var gmailDraftFocusPanel: some View {
-    if !gmailDrafts.isEmpty {
+    if !gmailDrafts.isEmpty || !gmailReleaseSelfChecks.isEmpty {
       SettingsPanel(title: "Gmail draft focus", symbol: "envelope.badge.shield.half.filled") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Local drafts linked to Gmail intake, Gmail setup, classifier tuning, or provider-release work are grouped here. Send any ready message outside ParcelOps, then mark it sent locally.")
@@ -275,37 +306,77 @@ struct CommunicationView: View {
             ("Gmail drafts", "\(gmailDrafts.count)", .blue),
             ("Open", "\(openGmailDrafts.count)", openGmailDrafts.isEmpty ? .green : .orange),
             ("Ready", "\(gmailDrafts.filter { $0.status == .ready }.count)", gmailDrafts.contains { $0.status == .ready } ? .blue : .green),
-            ("Needs review", "\(gmailDrafts.filter { $0.reviewState != .accepted }.count)", gmailDrafts.contains { $0.reviewState != .accepted } ? .orange : .green)
+            ("Needs review", "\(gmailDrafts.filter { $0.reviewState != .accepted }.count)", gmailDrafts.contains { $0.reviewState != .accepted } ? .orange : .green),
+            ("Release checks", "\(gmailReleaseBlockingCount + gmailReleaseAttentionCount)", gmailReleaseBlockingCount + gmailReleaseAttentionCount == 0 ? .green : gmailReleaseDraftColor)
           ])
 
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
-            ForEach(openGmailDrafts.prefix(4)) { draft in
-              VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                  Label(draft.channel.rawValue, systemImage: "envelope.badge.shield.half.filled")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(draft.status == .ready ? .blue : .orange)
-                  Spacer()
-                  Badge(draft.status.rawValue, color: draft.status.color)
-                }
-                Text(draft.subject)
-                  .font(.caption.weight(.semibold))
-                  .lineLimit(2)
-                Text(gmailDraftActionSummary(for: draft))
-                  .font(.caption2)
-                  .foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
+          if !gmailReleaseSelfChecks.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Label("Gmail release message readiness", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(gmailReleaseDraftColor)
+              Text("Use this before drafting operator, customer, or supplier follow-up from Gmail intake. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before release messages are treated as routine.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+                GmailReleaseSelfCheckSummaryCard(summary: summary)
               }
-              .padding(10)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .background((draft.status == .ready ? Color.blue : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+                CompactActionRow {
+                  if let connection = gmailReleaseDraftConnection {
+                    Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                      store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                    }
+                  }
+                  NavigationLink {
+                    MailboxView(store: store)
+                  } label: {
+                    Label("Review Gmail setup", systemImage: "server.rack")
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(gmailReleaseDraftColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+
+          if !openGmailDrafts.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+              ForEach(openGmailDrafts.prefix(4)) { draft in
+                VStack(alignment: .leading, spacing: 6) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(draft.channel.rawValue, systemImage: "envelope.badge.shield.half.filled")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(draft.status == .ready ? .blue : .orange)
+                    Spacer()
+                    Badge(draft.status.rawValue, color: draft.status.color)
+                  }
+                  Text(draft.subject)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text(gmailDraftActionSummary(for: draft))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background((draft.status == .ready ? Color.blue : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
             }
           }
 
-          if openGmailDrafts.isEmpty {
+          if openGmailDrafts.isEmpty && !gmailDrafts.isEmpty {
             Label("All Gmail-related drafts are reviewed and marked sent locally.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
+          } else if openGmailDrafts.isEmpty && gmailDrafts.isEmpty {
+            Label("No Gmail-related drafts exist yet. Create a release task first if setup, classifier, Inbox handoff, or Audit evidence still needs ownership.", systemImage: "envelope.open.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailReleaseDraftColor)
           } else if openGmailDrafts.count > 4 {
             Text("\(openGmailDrafts.count - 4) more Gmail-related draft\(openGmailDrafts.count - 4 == 1 ? "" : "s") can be worked from the draft list below.")
               .font(.caption)
