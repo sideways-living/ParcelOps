@@ -174,6 +174,10 @@ struct AuditView: View {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
   }
 
+  private var spaceMailDuplicateRefreshedCount: Int {
+    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
   private var spaceMailFilteredCount: Int {
     spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
   }
@@ -203,6 +207,10 @@ struct AuditView: View {
 
   private var gmailDuplicateCount: Int {
     gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var gmailDuplicateRefreshedCount: Int {
+    gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
   }
 
   private var pendingFilteredGmailCount: Int {
@@ -237,6 +245,10 @@ struct AuditView: View {
     spaceMailDuplicateCount + gmailDuplicateCount
   }
 
+  private var mailboxDuplicateRefreshedCount: Int {
+    spaceMailDuplicateRefreshedCount + gmailDuplicateRefreshedCount
+  }
+
   private var mailboxFilteredCount: Int {
     spaceMailFilteredCount + gmailFilteredCount
   }
@@ -258,7 +270,7 @@ struct AuditView: View {
     if !spaceMailHealthSummaries.isEmpty {
       rows.append((
         "SpaceMail",
-        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailDuplicateRefreshedCount) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
         spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -266,7 +278,7 @@ struct AuditView: View {
     if !gmailHealthSummaries.isEmpty {
       rows.append((
         "Gmail",
-        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
         gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -795,6 +807,7 @@ struct AuditView: View {
           ("Uncertain", "\(mailboxUncertainCount)", mailboxUncertainCount == 0 ? .secondary : .orange),
           ("Filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
           ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .teal),
+          ("Refreshed", "\(mailboxDuplicateRefreshedCount)", mailboxDuplicateRefreshedCount == 0 ? .secondary : .green),
           ("Parser", "\(spaceMailParserIssueCount)", spaceMailParserIssueCount == 0 ? .secondary : .purple),
           ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange)
         ])

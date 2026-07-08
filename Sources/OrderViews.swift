@@ -85,6 +85,9 @@ struct OrdersView: View {
   private var mailboxDuplicateCount: Int {
     (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
   }
+  private var mailboxDuplicateRefreshedCount: Int {
+    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+  }
   private var orderMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
@@ -101,6 +104,10 @@ struct OrdersView: View {
         status = "\(uncertain) uncertain"
         detail = "Review uncertain SpaceMail previews in Mailbox Monitor before expecting Orders to change."
         color = .orange
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = "\(summary.duplicateRefreshedCount) refreshed"
+        detail = "Duplicate SpaceMail refreshed existing Inbox rows. Orders changes after the refreshed row is linked or created as an order."
+        color = .green
       } else if summary.duplicateCount > 0 {
         status = "\(summary.duplicateCount) duplicate"
         detail = "SpaceMail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
@@ -130,6 +137,10 @@ struct OrdersView: View {
         status = "\(uncertain) uncertain"
         detail = "Review uncertain Gmail previews in Mailbox Monitor before expecting Orders to change."
         color = .orange
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = "\(summary.duplicateRefreshedCount) refreshed"
+        detail = "Duplicate Gmail refreshed existing Inbox rows. Orders changes after the refreshed row is linked or created as an order."
+        color = .green
       } else if summary.duplicateCount > 0 {
         status = "\(summary.duplicateCount) duplicate"
         detail = "Gmail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
@@ -212,7 +223,8 @@ struct OrdersView: View {
           ("Mail fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
           ("Mail imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
           ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
-          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange)
+          ("Duplicates", "\(mailboxDuplicateCount)", mailboxDuplicateCount == 0 ? .secondary : .orange),
+          ("Refreshed", "\(mailboxDuplicateRefreshedCount)", mailboxDuplicateRefreshedCount == 0 ? .secondary : .green)
         ])
 
         VStack(alignment: .leading, spacing: 8) {
@@ -260,6 +272,7 @@ struct OrdersView: View {
             filteredCount: mailboxFilteredCount,
             uncertainCount: pendingUncertainMailboxCount,
             duplicateCount: mailboxDuplicateCount,
+            duplicateRefreshedCount: mailboxDuplicateRefreshedCount,
             store: store
           )
         } else {
@@ -602,11 +615,13 @@ private struct OrdersInboxHandoffEmptyState: View {
   var filteredCount: Int
   var uncertainCount: Int
   var duplicateCount: Int
+  var duplicateRefreshedCount: Int
   var store: ParcelOpsStore
 
   private var title: String {
     if importedCount > 0 { return "Imported intake is waiting in Inbox" }
     if uncertainCount > 0 { return "Uncertain mailbox mail needs review" }
+    if duplicateRefreshedCount > 0 { return "Existing Inbox rows were refreshed" }
     if duplicateCount > 0 { return "No new mailbox order handoff" }
     if filteredCount > 0 { return "No order mail reached Orders" }
     if fetchedCount > 0 { return "Mailbox refresh found no order handoff" }
@@ -619,6 +634,9 @@ private struct OrdersInboxHandoffEmptyState: View {
     }
     if uncertainCount > 0 {
       return "Mixed-mailbox filtering held possible order mail out of Inbox. Open Mailbox Monitor and import only true order updates."
+    }
+    if duplicateRefreshedCount > 0 {
+      return "The latest mailbox refresh updated existing Inbox rows without creating duplicates. Open Inbox and link the refreshed row to an order if it is ready."
     }
     if duplicateCount > 0 {
       return "The latest mailbox refresh found messages ParcelOps already captured or reviewed. Orders stays unchanged unless a new intake row is imported or an existing row is linked."
@@ -634,6 +652,7 @@ private struct OrdersInboxHandoffEmptyState: View {
 
   private var color: Color {
     if importedCount > 0 || uncertainCount > 0 { return .orange }
+    if duplicateRefreshedCount > 0 { return .green }
     if duplicateCount > 0 { return .teal }
     if filteredCount > 0 || fetchedCount > 0 { return .teal }
     return .secondary

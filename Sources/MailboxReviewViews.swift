@@ -47,6 +47,10 @@ struct MailboxView: View {
     (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
   }
 
+  private var latestMailboxDuplicateRefreshedCount: Int {
+    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+  }
+
   private var latestMailboxFilteredCount: Int {
     (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
   }
@@ -317,6 +321,7 @@ struct MailboxView: View {
               ("Fetched", "\(latestMailboxFetchedCount)", .blue),
               ("Imported", "\(latestMailboxImportedCount)", latestMailboxImportedCount > 0 ? .green : .secondary),
               ("Duplicates", "\(latestMailboxDuplicateCount)", latestMailboxDuplicateCount > 0 ? .orange : .secondary),
+              ("Refreshed", "\(latestMailboxDuplicateRefreshedCount)", latestMailboxDuplicateRefreshedCount > 0 ? .green : .secondary),
               ("Filtered", "\(latestMailboxFilteredCount)", latestMailboxFilteredCount > 0 ? .teal : .secondary),
               ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary)
             ])
@@ -582,6 +587,10 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
   }
 
+  private var latestDuplicateRefreshedCount: Int {
+    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+  }
+
   private var latestFilteredCount: Int {
     (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
   }
@@ -676,6 +685,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     if !hasProviderSetup { return "Set up a mailbox provider first" }
     if latestImportedCount > 0 { return "Latest refresh imported order candidates" }
     if latestUncertainCount > 0 { return "Review uncertain mailbox previews" }
+    if latestDuplicateRefreshedCount > 0 { return "Existing Inbox rows were refreshed" }
     if latestFilteredCount > 0 { return "Check filtered examples if an order is missing" }
     if parserDiagnosticCount > 0 { return "Parser diagnostics need review" }
     if latestFetchedCount > 0 { return "Latest refresh found no order candidates" }
@@ -691,6 +701,9 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     }
     if latestUncertainCount > 0 {
       return "\(latestUncertainCount) uncertain preview\(latestUncertainCount == 1 ? "" : "s") stayed out of Inbox. Import true order mail or dismiss non-order mail locally."
+    }
+    if latestDuplicateRefreshedCount > 0 {
+      return "\(latestDuplicateRefreshedCount) duplicate message\(latestDuplicateRefreshedCount == 1 ? "" : "s") refreshed existing Inbox rows. Open Inbox to confirm whether the refreshed row is ready to create or link as an order."
     }
     if latestFilteredCount > 0 {
       return "\(latestFilteredCount) fetched message\(latestFilteredCount == 1 ? "" : "s") were filtered as non-order. Use the examples below only when an expected order email is missing."
@@ -708,6 +721,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     if !hasProviderSetup { return .orange }
     if latestImportedCount > 0 { return .green }
     if latestUncertainCount > 0 || parserDiagnosticCount > 0 { return .orange }
+    if latestDuplicateRefreshedCount > 0 { return .green }
     if latestFilteredCount > 0 { return .teal }
     return .secondary
   }
@@ -735,6 +749,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
           ("Fetched", "\(latestFetchedCount)", latestFetchedCount > 0 ? .blue : .secondary),
           ("Imported", "\(latestImportedCount)", latestImportedCount > 0 ? .green : .secondary),
           ("Duplicates", "\(latestDuplicateCount)", latestDuplicateCount > 0 ? .orange : .secondary),
+          ("Refreshed", "\(latestDuplicateRefreshedCount)", latestDuplicateRefreshedCount > 0 ? .green : .secondary),
           ("Filtered", "\(latestFilteredCount)", latestFilteredCount > 0 ? .teal : .secondary),
           ("Uncertain", "\(latestUncertainCount)", latestUncertainCount > 0 ? .orange : .secondary),
           ("Parser", "\(parserDiagnosticCount)", parserDiagnosticCount > 0 ? .orange : .green)
