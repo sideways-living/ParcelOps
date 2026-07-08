@@ -1360,8 +1360,10 @@ struct MVPReleaseCandidateQACard: View {
     }.count
   }
 
-  private var hasLiveSpaceMailEvidence: Bool {
+  private var hasLiveMailboxEvidence: Bool {
     store.spaceMailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    } || store.gmailIntakeHealthSummaries.contains { summary in
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
     }
   }
@@ -1409,10 +1411,10 @@ struct MVPReleaseCandidateQACard: View {
       ),
       (
         "Live mailbox evidence",
-        hasLiveSpaceMailEvidence ? "A live mailbox provider has at least one manual refresh result." : "Optional for demo readiness: run real mailbox refresh only when credentials, sign-in, and mailbox state are available.",
+        hasLiveMailboxEvidence ? "A live mailbox provider has at least one manual refresh result." : "Optional for demo readiness: run real mailbox refresh only when credentials, sign-in, and mailbox state are available.",
         "server.rack",
-        hasLiveSpaceMailEvidence ? .green : .secondary,
-        hasLiveSpaceMailEvidence
+        hasLiveMailboxEvidence ? .green : .secondary,
+        hasLiveMailboxEvidence
       ),
       (
         "Persistence evidence",
@@ -1661,9 +1663,18 @@ struct MVPReleaseEvidenceReport: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var liveMailboxEvidenceReady: Bool {
-    guard let summary = latestSpaceMailSummary else { return false }
-    return summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    let hasSpaceMailEvidence = latestSpaceMailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 || $0.duplicateCount > 0 || $0.uncertainCount > 0
+    } ?? false
+    let hasGmailEvidence = latestGmailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 || $0.duplicateCount > 0 || $0.uncertainCount > 0
+    } ?? false
+    return hasSpaceMailEvidence || hasGmailEvidence
   }
 
   private var requiredBlockers: [String] {
@@ -1778,7 +1789,7 @@ struct MVPReleaseEvidenceReport: View {
         )
         evidenceLine(
           title: "Live mailbox is not a blocker",
-          detail: liveMailboxEvidenceReady ? "SpaceMail has refresh evidence for mixed-mailbox testing." : "SpaceMail evidence is useful, but release-candidate QA can continue with local demo data.",
+          detail: liveMailboxEvidenceReady ? "An active mailbox provider has refresh evidence for mixed-mailbox testing." : "Live mailbox evidence is useful, but release-candidate QA can continue with local demo data.",
           symbol: "server.rack",
           color: liveMailboxEvidenceReady ? .green : .secondary
         )
