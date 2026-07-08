@@ -878,6 +878,8 @@ struct AuditView: View {
               .background(auditColor(for: summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         }
 
         Text(spaceMailAuditOutcomeFootnote)
