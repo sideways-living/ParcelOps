@@ -255,8 +255,8 @@ struct InboxView: View {
       ),
       (
         "Refresh",
-        latestSpaceMailSummary.map { "\($0.fetchedCount) SpaceMail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
-          ?? latestGmailSummary.map { "\($0.fetchedCount) Gmail fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." }
+        latestSpaceMailSummary.map { "\($0.fetchedCount) SpaceMail fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered." }
+          ?? latestGmailSummary.map { "\($0.fetchedCount) Gmail fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered." }
           ?? "Run a manual read-only mailbox refresh.",
         "arrow.triangle.2.circlepath",
         hasRefreshEvidence ? .green : .orange,
@@ -634,7 +634,7 @@ struct InboxView: View {
     if let latestSpaceMailSummary {
       rows.append((
         "SpaceMail",
-        "\(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.duplicateCount) duplicate, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain.",
+        "\(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.duplicateCount) duplicate, \(latestSpaceMailSummary.duplicateRefreshedCount) refreshed, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain.",
         latestSpaceMailSummary.importedCount > 0 ? .green : (latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) > 0 ? .orange : latestSpaceMailSummary.filteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -642,7 +642,7 @@ struct InboxView: View {
     if let latestGmailSummary {
       rows.append((
         "Gmail",
-        "\(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.duplicateCount) duplicate, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain.",
+        "\(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.duplicateCount) duplicate, \(latestGmailSummary.duplicateRefreshedCount) refreshed, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain.",
         latestGmailSummary.importedCount > 0 ? .green : (latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) > 0 ? .orange : latestGmailSummary.filteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -2454,6 +2454,8 @@ struct DispatchView: View {
         rows.append(("SpaceMail", "\(uncertain) uncertain", "Review uncertain SpaceMail previews before expecting dispatch setup for those messages.", "server.rack", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered SpaceMail stayed out of Inbox, Orders, and Dispatch.", "server.rack", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("SpaceMail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate SpaceMail refreshed existing Inbox rows; Dispatch still waits for a linked or created order.", "server.rack", .green))
       } else if summary.duplicateCount > 0 {
         rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail does not create new dispatch setup unless an existing order is linked.", "server.rack", .teal))
       } else {
@@ -2469,6 +2471,8 @@ struct DispatchView: View {
         rows.append(("Gmail", "\(uncertain) uncertain", "Review uncertain Gmail previews before expecting dispatch setup for those messages.", "envelope.badge.shield.half.filled", .orange))
       } else if summary.filteredCount > 0 {
         rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered Gmail stayed out of Inbox, Orders, and Dispatch.", "envelope.badge.shield.half.filled", .teal))
+      } else if summary.duplicateRefreshedCount > 0 {
+        rows.append(("Gmail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate Gmail refreshed existing Inbox rows; Dispatch still waits for a linked or created order.", "envelope.badge.shield.half.filled", .green))
       } else if summary.duplicateCount > 0 {
         rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail does not create new dispatch setup unless an existing order is linked.", "envelope.badge.shield.half.filled", .teal))
       } else {

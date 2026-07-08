@@ -335,6 +335,11 @@ struct OperationsWorkbenchView: View {
     if mailboxFilteredOnlyOutcome {
       return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox. There is no Workbench exception until order mail is imported, promoted, or created."
     }
+    let refreshedDuplicateCount = spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    if refreshedDuplicateCount > 0 {
+      return "\(refreshedDuplicateCount) duplicate mailbox message\(refreshedDuplicateCount == 1 ? "" : "s") refreshed existing Inbox rows. Confirm the Inbox row or linked order before creating Workbench work."
+    }
     if mailboxDuplicateCount > 0 {
       return "\(mailboxDuplicateCount) duplicate mailbox message\(mailboxDuplicateCount == 1 ? "" : "s") were already captured or reviewed. No new Workbench work was created."
     }
@@ -350,7 +355,7 @@ struct OperationsWorkbenchView: View {
     if !spaceMailHealthSummaries.isEmpty {
       rows.append((
         "SpaceMail",
-        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
         spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -358,7 +363,7 @@ struct OperationsWorkbenchView: View {
     if !gmailHealthSummaries.isEmpty {
       rows.append((
         "Gmail",
-        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }) duplicate, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }) duplicate, \(gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
         gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : gmailWarningCount > 0 ? .orange : .secondary
       ))
     }
@@ -1144,6 +1149,10 @@ struct OperationsWorkbenchView: View {
         return "\(pendingGmailFilteredReviewCount) filtered Gmail preview is available for optional review. It is not Workbench work unless imported into Inbox."
       }
       return "\(gmailFilteredCount) mixed-mailbox Gmail message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
+    }
+    let refreshedDuplicateCount = gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    if refreshedDuplicateCount > 0 {
+      return "\(refreshedDuplicateCount) duplicate Gmail message\(refreshedDuplicateCount == 1 ? "" : "s") refreshed existing Inbox rows. Review the linked Inbox or order context before creating Workbench exceptions."
     }
     if gmailHealthSummaries.isEmpty {
       return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. Use whichever provider hosts the active mailbox."

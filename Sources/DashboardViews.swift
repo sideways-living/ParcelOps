@@ -267,6 +267,7 @@ struct DashboardView: View {
     if summary.importedCount > 0 { return "Latest SpaceMail refresh imported order mail" }
     if summary.pendingUncertainReviewCount > 0 || summary.uncertainCount > 0 { return "Latest SpaceMail refresh needs uncertain review" }
     if summary.filteredCount > 0 && summary.importedCount == 0 { return "Latest SpaceMail refresh filtered non-order mail" }
+    if summary.duplicateRefreshedCount > 0 { return "Latest SpaceMail refresh updated existing Inbox rows" }
     if summary.duplicateCount > 0 { return "Latest SpaceMail refresh found duplicates" }
     return summary.verdict
   }
@@ -280,7 +281,7 @@ struct DashboardView: View {
       }
       return "No real SpaceMail refresh summary is available yet. Run manual refresh from Mailbox Monitor."
     }
-    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.duplicateRefreshedCount) refreshed, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
   }
   private var latestGmailTitle: String {
     guard let summary = latestGmailSummary else {
@@ -299,7 +300,7 @@ struct DashboardView: View {
       return "No Gmail readiness or refresh summary is available yet. Use Mailbox Monitor to check setup."
     }
     let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
-    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
+    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.duplicateRefreshedCount) refreshed, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
   }
   private var dashboardGmailPrimaryLabel: String {
     guard let connection = latestGmailConnection else { return "None" }
@@ -1395,6 +1396,7 @@ struct DashboardView: View {
           ("Fetched", "\(latestSpaceMailSummary?.fetchedCount ?? 0)", (latestSpaceMailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
           ("Imported", "\(latestSpaceMailSummary?.importedCount ?? 0)", (latestSpaceMailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
           ("Duplicates", "\(latestSpaceMailSummary?.duplicateCount ?? 0)", (latestSpaceMailSummary?.duplicateCount ?? 0) > 0 ? .teal : .secondary),
+          ("Refreshed", "\(latestSpaceMailSummary?.duplicateRefreshedCount ?? 0)", (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) > 0 ? .green : .secondary),
           ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
           ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary),
           ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
