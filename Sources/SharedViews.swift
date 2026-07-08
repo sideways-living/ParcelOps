@@ -4921,9 +4921,14 @@ struct MailboxProviderSetupChecklistCard: View {
 
 struct MailboxProviderQuickStatusCard: View {
   var summary: MailboxProviderComparisonSummary
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var color: Color {
     color(for: summary.tone)
+  }
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
   }
 
   private var configuredProviderCount: Int {
@@ -4958,22 +4963,17 @@ struct MailboxProviderQuickStatusCard: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "mail.stack.fill")
-          .foregroundStyle(color)
-          .frame(width: 24)
-
-        VStack(alignment: .leading, spacing: 4) {
-          Text(summary.title)
-            .font(.headline)
-          Text(summary.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+      if isCompact {
+        VStack(alignment: .leading, spacing: 8) {
+          headerContent
+          Badge(summary.recommendedProvider, color: color)
         }
-
-        Spacer()
-        Badge(summary.recommendedProvider, color: color)
+      } else {
+        HStack(alignment: .top, spacing: 10) {
+          headerContent
+          Spacer()
+          Badge(summary.recommendedProvider, color: color)
+        }
       }
 
       MetricStrip(items: [
@@ -5002,6 +5002,24 @@ struct MailboxProviderQuickStatusCard: View {
     .padding(14)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var headerContent: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "mail.stack.fill")
+        .foregroundStyle(color)
+        .frame(width: 24)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(summary.title)
+          .font(.headline)
+        Text(summary.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func color(for tone: String) -> Color {
