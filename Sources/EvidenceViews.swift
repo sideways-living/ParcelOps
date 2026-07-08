@@ -101,6 +101,37 @@ struct EvidenceView: View {
     gmailSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseEvidenceConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
+  private var gmailReleaseEvidenceColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -250,8 +281,42 @@ struct EvidenceView: View {
             ("Gmail source rows", "\(gmailSourceTrailEmails.count)", gmailSourceTrailEmails.isEmpty ? .secondary : .blue),
             ("Gmail orders", "\(gmailSourceTrailOrders.count)", gmailSourceTrailOrders.isEmpty ? .secondary : .blue),
             ("Missing evidence", "\(gmailOrdersMissingEvidence.count)", gmailOrdersMissingEvidence.isEmpty ? .green : .orange),
-            ("Gmail refreshes", "\(store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount })", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal)
+            ("Gmail refreshes", "\(store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount })", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal),
+            ("Release checks", "\(gmailReleaseBlockingCount + gmailReleaseAttentionCount)", gmailReleaseBlockingCount + gmailReleaseAttentionCount == 0 ? .green : gmailReleaseEvidenceColor)
           ])
+
+          if !gmailReleaseSelfChecks.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Label("Gmail release evidence readiness", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(gmailReleaseEvidenceColor)
+              Text("Use this before treating Gmail source trails as sufficient release evidence. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+                GmailReleaseSelfCheckSummaryCard(summary: summary)
+              }
+              if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+                CompactActionRow {
+                  if let connection = gmailReleaseEvidenceConnection {
+                    Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                      store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                    }
+                  }
+                  NavigationLink {
+                    MailboxView(store: store)
+                  } label: {
+                    Label("Review Gmail setup", systemImage: "server.rack")
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(gmailReleaseEvidenceColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
 
           if gmailSourceTrailEmails.isEmpty {
             Label("No Gmail-origin intake is linked to orders yet. Run a manual Gmail refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
