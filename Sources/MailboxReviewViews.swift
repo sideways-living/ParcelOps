@@ -2706,6 +2706,8 @@ struct NeedsReviewView: View {
           detailWhenBusy: "Work through the primary review sections first. The advanced backlog is collapsed so it does not dominate daily triage."
         )
 
+        ActiveOperatorQueueFocusCard(store: store)
+
         SettingsPanel(title: "Find review work", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
