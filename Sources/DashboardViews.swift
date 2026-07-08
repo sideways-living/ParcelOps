@@ -658,6 +658,29 @@ struct DashboardView: View {
     return "No primary daily operator queue has promoted work right now. Use Audit or advanced routes only when checking detailed history."
   }
 
+  private var recommendedDailySection: ParcelSection {
+    if !hasSpaceMailSetup && !hasGmailSetup { return .settings }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup { return .settings }
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup { return .settings }
+    if !hasReadyMailboxProviderPath { return .settings }
+    if incomingAttentionCount > 0 { return .inbox }
+    if !partialInboxOrderBlockers.isEmpty { return .orders }
+    if problemOrdersCount > 0 { return .orders }
+    if highPriorityOperatorWorkbenchItems.count > 0 { return .workbench }
+    if reopenedInboxDispatchHandoffCount > 0 { return .dispatch }
+    if dispatchAttentionCount > 0 { return .dispatch }
+    if taskAttentionCount > 0 { return .tasks }
+    if setupAttentionCount > 0 { return .settings }
+    return .audit
+  }
+
+  private var recommendedDailyActionLabel: String {
+    if recommendedDailySection == .audit && dailyStartTone == .green {
+      return "Open Audit for confirmation"
+    }
+    return "Open \(recommendedDailySection.shortTitle)"
+  }
+
   private var dailyFlowCheckpointItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
     let setupBlockers = (hasReadyMailboxProviderPath ? 0 : 1) + setupAttentionCount
     let orderBlockers = problemOrdersCount + partialInboxOrderBlockers.count
@@ -1290,6 +1313,16 @@ struct DashboardView: View {
           ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
         ])
 
+        NavigationLink {
+          dailyRouteDestination(for: recommendedDailySection)
+        } label: {
+          Label(recommendedDailyActionLabel, systemImage: recommendedDailySection.symbol)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(dailyStartTone)
+        .help("Opens the current recommended daily route. This does not modify records or run refresh.")
+
         CompactActionRow {
           NavigationLink {
             InboxView(store: store)
@@ -1319,6 +1352,28 @@ struct DashboardView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  @ViewBuilder
+  private func dailyRouteDestination(for section: ParcelSection) -> some View {
+    switch section {
+    case .inbox:
+      InboxView(store: store)
+    case .orders:
+      OrdersView(store: store)
+    case .workbench:
+      OperationsWorkbenchView(store: store)
+    case .dispatch:
+      DispatchView(store: store)
+    case .tasks:
+      TasksView(store: store)
+    case .audit:
+      AuditView(store: store)
+    case .settings:
+      SettingsView(store: store)
+    default:
+      DashboardView(store: store)
     }
   }
 
