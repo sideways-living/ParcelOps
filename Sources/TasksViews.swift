@@ -1034,6 +1034,8 @@ struct TasksView: View {
           }
         }
 
+        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+
         gmailTaskReadinessPanel
 
         Text("Gmail refresh and sign-in are explicit Mailbox Monitor actions. Filtered and uncertain Gmail previews are review context first, not assigned backlog.")
