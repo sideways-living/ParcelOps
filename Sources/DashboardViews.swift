@@ -735,6 +735,7 @@ struct DashboardView: View {
         header
         dailyStartDecisionPanel
         ActiveOperatorQueueFocusCard(store: store)
+        RecentOperatorImprovementsCard()
         inboxTriageQualityPanel
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         dailyFlowCheckpointPanel

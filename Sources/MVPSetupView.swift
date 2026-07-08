@@ -53,6 +53,7 @@ struct MVPSetupView: View {
         )
         ActiveOperatorQueueFocusCard(store: store)
         PrimaryRouteShortcutGuideCard()
+        RecentOperatorImprovementsCard()
         LocalDataSafetyCard(store: store, compact: isCompact)
 
         LazyVGrid(columns: statusColumns, spacing: 12) {

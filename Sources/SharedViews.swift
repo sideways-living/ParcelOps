@@ -7257,6 +7257,70 @@ struct PrimaryRouteShortcutGuideCard: View {
   }
 }
 
+struct RecentOperatorImprovementsCard: View {
+  private let improvements: [(title: String, detail: String, symbol: String, color: Color)] = [
+    (
+      "Active queue focus",
+      "Dashboard, Needs Review, Settings, and MVP Setup now separate current operator work from historical mailbox-test noise.",
+      "scope",
+      .teal
+    ),
+    (
+      "Cleaner navigation",
+      "The desktop sidebar keeps advanced routes collapsed, shows daily route counts first, and avoids the old floating footer overlap.",
+      "sidebar.left",
+      .blue
+    ),
+    (
+      "Faster route switching",
+      "The macOS Navigate menu and visible shortcut hints support Command-1 through Command-8 for the primary workflow.",
+      "keyboard",
+      .purple
+    ),
+    (
+      "Mailbox QA clarity",
+      "Mailbox provider status, duplicate refresh handling, parser diagnostics, and source trails remain visible without flooding Inbox.",
+      "tray.full.fill",
+      .orange
+    )
+  ]
+
+  var body: some View {
+    SettingsPanel(title: "Recent operator improvements", symbol: "sparkles") {
+      Text("Use this as a short handoff note for what changed recently in the daily MVP experience.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(improvements, id: \.title) { item in
+          HStack(alignment: .top, spacing: 9) {
+            Image(systemName: item.symbol)
+              .foregroundStyle(item.color)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(9)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This is static release context only. It does not read mail, modify local records, touch credentials, or start background work.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
 private struct LocalPersistenceSnapshot {
   var storePath: String
   var expectedFileNames: [String]
