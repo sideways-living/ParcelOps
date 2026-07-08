@@ -4299,6 +4299,7 @@ struct SpaceMailIntakeHealthCard: View {
         Badge("\(summary.fetchedCount) fetched", color: .blue)
         Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
         Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.duplicateRefreshedCount) refreshed", color: summary.duplicateRefreshedCount > 0 ? .green : .secondary)
         Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
         Badge("\(summary.uncertainCount) uncertain", color: summary.uncertainCount > 0 ? .orange : .secondary)
         Badge("\(summary.parserIssueCount) parser checks", color: summary.parserIssueCount > 0 ? .orange : .secondary)
@@ -4375,6 +4376,9 @@ struct SpaceMailIntakeHealthCard: View {
     if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
       return "No primary queue: mixed-mailbox filter handled this refresh"
     }
+    if summary.duplicateRefreshedCount > 0 && summary.importedCount == 0 {
+      return "No new queue: duplicate refresh updated Inbox"
+    }
     if summary.duplicateCount > 0 && summary.importedCount == 0 {
       return "No primary queue: duplicate refresh"
     }
@@ -4396,6 +4400,9 @@ struct SpaceMailIntakeHealthCard: View {
     }
     if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
       return "This is expected for a mixed-use mailbox when recent mail does not contain strong order or tracking evidence."
+    }
+    if summary.duplicateRefreshedCount > 0 && summary.importedCount == 0 {
+      return "Existing Inbox rows were refreshed from duplicate provider message IDs. Review those rows in Inbox; no duplicate work item was created."
     }
     if summary.duplicateCount > 0 && summary.importedCount == 0 {
       return "ParcelOps already saw these provider message IDs, so no duplicate Inbox rows were created."
@@ -5239,6 +5246,7 @@ struct SettingsView: View {
         uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
         filteredCount: summary.filteredCount,
         duplicateCount: summary.duplicateCount,
+        duplicateRefreshedCount: summary.duplicateRefreshedCount,
         fetchedCount: summary.fetchedCount,
         tone: summary.tone
       )
@@ -5252,6 +5260,7 @@ struct SettingsView: View {
         uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
         filteredCount: summary.filteredCount,
         duplicateCount: summary.duplicateCount,
+        duplicateRefreshedCount: summary.duplicateRefreshedCount,
         fetchedCount: summary.fetchedCount,
         tone: summary.tone
       )
@@ -5273,6 +5282,7 @@ struct SettingsView: View {
     uncertainCount: Int,
     filteredCount: Int,
     duplicateCount: Int,
+    duplicateRefreshedCount: Int,
     fetchedCount: Int,
     tone: String
   ) -> (provider: String, title: String, detail: String, tone: Color, rank: Int) {
@@ -5287,6 +5297,9 @@ struct SettingsView: View {
     } else if filteredCount > 0 {
       title = "\(provider) filtered mixed mailbox mail"
       rank = 300 + filteredCount
+    } else if duplicateRefreshedCount > 0 {
+      title = "\(provider) refreshed existing Inbox rows"
+      rank = 250 + duplicateRefreshedCount
     } else if duplicateCount > 0 {
       title = "\(provider) found duplicate mailbox messages"
       rank = 200 + duplicateCount
