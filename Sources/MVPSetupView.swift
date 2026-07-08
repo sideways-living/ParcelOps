@@ -15,6 +15,7 @@ struct MVPSetupView: View {
         header
         MVPUsableVersionPanel(store: store)
         MVPDevelopmentProgressPanel(store: store)
+        MVPCompletionRoadmapPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
         MVPMailboxProviderStatusPanel(store: store)
         MVPMailboxProviderReleasePanel(store: store)
@@ -793,6 +794,216 @@ struct MVPUsableVersionPanel: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct MVPCompletionRoadmapPanel: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasSpaceMailCredential: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasActiveMailboxProvider: Bool {
+    hasSpaceMailCredential || hasGmailConnectedAuth
+  }
+
+  private var fetchedCount: Int {
+    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var importedCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var filteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var uncertainCount: Int {
+    (latestSpaceMailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
+      + (latestGmailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
+  }
+
+  private var inboxOrderCount: Int {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.filter { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+        || order.isInboxCreatedLocalOrder
+    }.count
+  }
+
+  private var openOperatorWorkCount: Int {
+    store.reviewIntakeEmails.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var hasAuditTrail: Bool {
+    !store.auditEvents.isEmpty
+  }
+
+  private var roadmapItems: [RoadmapItem] {
+    [
+      RoadmapItem(
+        title: "1. Daily local MVP",
+        status: "Mostly built",
+        detail: "Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, Settings, local JSON persistence, and local audit logging are in place.",
+        evidence: "Primary workflow screens exist and local actions are auditable.",
+        nextAction: "Keep using the simplified operator flow for hands-on testing.",
+        symbol: "checkmark.seal.fill",
+        color: .green
+      ),
+      RoadmapItem(
+        title: "2. Live mailbox intake",
+        status: hasActiveMailboxProvider && fetchedCount > 0 ? "Testable" : "Needs proof",
+        detail: "SpaceMail IMAP and Gmail both use explicit manual read-only refresh boundaries and feed the same provider-neutral Inbox intake path.",
+        evidence: "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered, \(uncertainCount) uncertain.",
+        nextAction: hasActiveMailboxProvider && fetchedCount > 0 ? "Repeat one provider refresh and verify imported/filtered/uncertain outcomes." : "Finish one provider credential/sign-in and run one manual refresh.",
+        symbol: "tray.and.arrow.down.fill",
+        color: hasActiveMailboxProvider && fetchedCount > 0 ? .green : .orange
+      ),
+      RoadmapItem(
+        title: "3. Inbox-to-order handoff",
+        status: inboxOrderCount > 0 ? "Proven" : "Needs sample",
+        detail: "The operator should be able to create or link an order from an imported intake row, then see the source trail in Orders, Dashboard, Workbench, Tasks, Dispatch, and Audit.",
+        evidence: "\(inboxOrderCount) Inbox-linked or forwarded-mailbox order\(inboxOrderCount == 1 ? "" : "s") found.",
+        nextAction: inboxOrderCount > 0 ? "Use one linked order for the next QA pass." : "Create or link one order from a confirmed Inbox row.",
+        symbol: "link.badge.plus",
+        color: inboxOrderCount > 0 ? .green : .orange
+      ),
+      RoadmapItem(
+        title: "4. Operator hardening",
+        status: openOperatorWorkCount > 0 ? "Active cleanup" : "Quiet",
+        detail: "The remaining MVP work is mostly QA, parser/classifier tuning, noisy-state cleanup, clearer labels, and compact-layout polish found during real use.",
+        evidence: "\(openOperatorWorkCount) open review, Workbench, Task, handoff, or blocked dispatch item\(openOperatorWorkCount == 1 ? "" : "s").",
+        nextAction: "Use hands-on testing to close confusing rows and keep adding small polish commits.",
+        symbol: "wrench.and.screwdriver.fill",
+        color: openOperatorWorkCount > 0 ? .orange : .green
+      ),
+      RoadmapItem(
+        title: "5. External integrations",
+        status: "Later",
+        detail: "Shopify, carrier APIs, outbound email, background sync, notifications, OCR, scanners, calendars, and file pickers remain out of scope until the manual operator workflow is stable.",
+        evidence: "Mailbox intake is the only live integration area currently being developed.",
+        nextAction: "Do not add more integrations until the mailbox-to-order workflow is repeatable.",
+        symbol: "network.slash",
+        color: .secondary
+      )
+    ]
+  }
+
+  private var completedCoreCount: Int {
+    roadmapItems.filter { $0.color == .green }.count
+  }
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 280), spacing: 10)]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Completion roadmap", symbol: "map.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "map.fill")
+            .foregroundStyle(completedCoreCount >= 3 ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(completedCoreCount >= 3 ? "Usable version is close; continue QA and cleanup" : "Usable shell exists; prove the live intake path")
+              .font(.headline)
+            Text("This roadmap is intentionally practical: it separates what is ready for supervised use, what still needs repeatable evidence, and what should wait until the core workflow is stable.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(completedCoreCount)/4 core", color: completedCoreCount >= 3 ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(fetchedCount)", fetchedCount > 0 ? .green : .secondary),
+          ("Imported", "\(importedCount)", importedCount > 0 ? .green : .secondary),
+          ("Inbox orders", "\(inboxOrderCount)", inboxOrderCount > 0 ? .green : .orange),
+          ("Open work", "\(openOperatorWorkCount)", openOperatorWorkCount == 0 ? .green : .orange),
+          ("Audit", hasAuditTrail ? "Present" : "Missing", hasAuditTrail ? .purple : .orange)
+        ])
+
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+          ForEach(roadmapItems) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: item.symbol)
+                  .foregroundStyle(item.color)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text(item.status)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(item.color)
+                }
+              }
+
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(item.evidence)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+                .fixedSize(horizontal: false, vertical: true)
+              Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Roadmap boundary: this panel reads local app state only. It does not fetch mail, sign in, read credentials, mutate mailbox messages, call Shopify/carriers, send mail, schedule background work, or write new records.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private struct RoadmapItem: Identifiable {
+    let id = UUID()
+    var title: String
+    var status: String
+    var detail: String
+    var evidence: String
+    var nextAction: String
+    var symbol: String
+    var color: Color
   }
 }
 
