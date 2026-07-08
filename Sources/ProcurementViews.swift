@@ -53,6 +53,7 @@ struct ProcurementView: View {
         header
         filterBar
         inboxProcurementCoverage
+        gmailProcurementReadinessPanel
 
         SettingsPanel(title: "Procurement requests", symbol: "cart.badge.plus") {
           HStack {
@@ -292,6 +293,23 @@ struct ProcurementView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailProcurementReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail procurement readiness",
+      lead: "Gmail-origin intake should create procurement work only after Gmail setup is ready and the imported Inbox order has confirmed item, budget, vendor, buyer, and receiving context.",
+      sourceMetricTitle: "Gmail procurement sources",
+      sourceCount: gmailProcurementSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, purchase items, connect supplier systems, or change procurement records automatically."
+    )
+  }
+
+  private var gmailProcurementSourceCount: Int {
+    procurementProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {

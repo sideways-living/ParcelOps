@@ -50,6 +50,7 @@ struct ReturnsClaimsView: View {
         header
         filterBar
         inboxReturnClaimCoverage
+        gmailReturnClaimReadinessPanel
 
         SettingsPanel(title: "Return and claim records", symbol: "arrow.uturn.backward.square.fill") {
           HStack {
@@ -289,6 +290,23 @@ struct ReturnsClaimsView: View {
       }
       return lhs.count > rhs.count
     }
+  }
+
+  private var gmailReturnClaimReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail return and claim readiness",
+      lead: "Gmail-origin intake should create return, refund, missing-item, or carrier-claim work only after Gmail setup is ready and the imported Inbox order has confirmed outcome, evidence, and owner context.",
+      sourceMetricTitle: "Gmail claim sources",
+      sourceCount: gmailClaimSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process refunds, submit carrier claims, or change return/claim records automatically."
+    )
+  }
+
+  private var gmailClaimSourceCount: Int {
+    claimProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {

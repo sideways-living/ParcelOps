@@ -41,6 +41,7 @@ struct ShipmentGroupsView: View {
         header
         filters
         inboxShipmentGroupCoverage
+        gmailShipmentGroupReadinessPanel
 
         SettingsPanel(title: "Shipment groups", symbol: "shippingbox.and.arrow.backward.fill") {
           HStack {
@@ -269,6 +270,23 @@ struct ShipmentGroupsView: View {
         if lhs.count != rhs.count { return lhs.count > rhs.count }
         return lhs.label < rhs.label
       }
+  }
+
+  private var gmailShipmentGroupReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail shipment group readiness",
+      lead: "Gmail-origin intake should create shipment grouping work only after Gmail setup is ready and the imported Inbox order has confirmed split-order, carrier, destination, and related-order context.",
+      sourceMetricTitle: "Gmail group sources",
+      sourceCount: gmailShipmentGroupSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book shipments, or change shipment group records automatically."
+    )
+  }
+
+  private var gmailShipmentGroupSourceCount: Int {
+    shipmentGroupProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
