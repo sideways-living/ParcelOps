@@ -2430,6 +2430,8 @@ private struct DashboardReleaseCandidateQACard: View {
   private var liveMailboxEvidenceReady: Bool {
     store.spaceMailIntakeHealthSummaries.contains { summary in
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    } || store.gmailIntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
     }
   }
 
@@ -2484,8 +2486,8 @@ private struct DashboardReleaseCandidateQACard: View {
         true
       ),
       (
-        "Live SpaceMail evidence",
-        liveMailboxEvidenceReady ? "A real or diagnostic SpaceMail refresh result exists." : "Optional: live mailbox evidence is useful but should not block local QA.",
+        "Live mailbox evidence",
+        liveMailboxEvidenceReady ? "A real or diagnostic SpaceMail or Gmail refresh result exists." : "Optional: live mailbox evidence is useful but should not block local QA.",
         "server.rack",
         liveMailboxEvidenceReady ? .green : .secondary,
         liveMailboxEvidenceReady,
@@ -2516,7 +2518,7 @@ private struct DashboardReleaseCandidateQACard: View {
     if completedRequiredCount == requiredCheckpoints.count {
       return "The Dashboard has enough local evidence for a hands-on pass through Inbox, Orders, Dispatch, Tasks, Audit, and persistence."
     }
-    return "Use this compact checklist before asking someone to test the app. Live SpaceMail evidence is optional; the local demo path is the stable baseline."
+    return "Use this compact checklist before asking someone to test the app. Live mailbox evidence is optional; the local demo path is the stable baseline."
   }
 
   private var canCompleteHandoff: Bool {
