@@ -26,7 +26,7 @@ struct MVPSetupView: View {
 
         MVPWorkflowGuide(
           title: "First usable workflow",
-          detail: "Use this path to test the current manual mailbox operator workflow end to end. SpaceMail and Gmail are the active manual intake paths; Microsoft 365 remains available as an advanced provider path.",
+          detail: "Use this path to test the current manual mailbox operator workflow end to end. Active mailbox providers are the manual intake paths; Microsoft 365 remains available as an advanced provider path.",
           steps: [
             "Confirm the relevant mailbox setup: SpaceMail IMAP with Keychain credential, or Gmail sign-in and labels.",
             "Run one explicit manual read-only refresh for the selected provider.",
@@ -121,7 +121,7 @@ struct MVPMailboxProviderReleasePanel: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(panelStatus == "Ready" ? "Mailbox provider handoff is ready" : "Review mailbox provider handoff before live testing")
               .font(.headline)
-            Text("Use this setup checkpoint before relying on SpaceMail or Gmail as daily intake. It shows release gates, handoff notes, and follow-up actions without running mailbox refresh, reading credentials, or changing mailbox state.")
+            Text("Use this setup checkpoint before relying on a mailbox provider as daily intake. It shows release gates, handoff notes, and follow-up actions without running mailbox refresh, reading credentials, or changing mailbox state.")
               .font(.callout)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -253,7 +253,7 @@ struct MVPMailboxProviderStatusPanel: View {
           )
           providerBlock(
             title: "Microsoft 365",
-            detail: "Keep as an advanced provider path for tenants that use Microsoft mailboxes. It should not block the current SpaceMail/Gmail MVP test path.",
+            detail: "Keep as an advanced provider path for tenants that use Microsoft mailboxes. It should not block the current mailbox-provider MVP test path.",
             symbol: "building.2.crop.circle",
             color: .teal
           )
@@ -534,7 +534,7 @@ struct MVPDevelopmentStatusPanel: View {
 
   private var maturityDetail: String {
     if liveCapabilityCount >= 5 {
-      return "The app now has local persistence, manual mailbox intake for SpaceMail and Gmail, mixed-mailbox filtering, Inbox triage, order handoff, Tasks, Dispatch context, Audit, and Settings. The next work should be QA, simplification, and specific gaps found during use."
+      return "The app now has local persistence, manual mailbox-provider intake, mixed-mailbox filtering, Inbox triage, order handoff, Tasks, Dispatch context, Audit, and Settings. The next work should be QA, simplification, and specific gaps found during use."
     }
     if liveCapabilityCount >= 3 {
       return "The main local workflow is present. Run one complete mailbox-to-Inbox-to-Order-to-Audit pass before treating it as operator-ready."
@@ -579,7 +579,7 @@ struct MVPDevelopmentStatusPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
           statusBlock(
             title: "Usable now",
-            detail: "Local JSON persistence, primary navigation, SpaceMail and Gmail manual refresh boundaries, mixed-mailbox filtering, Inbox triage, local order handoff, Tasks, Dispatch context, Audit, and Settings.",
+            detail: "Local JSON persistence, primary navigation, manual mailbox refresh boundaries, mixed-mailbox filtering, Inbox triage, local order handoff, Tasks, Dispatch context, Audit, and Settings.",
             symbol: "checkmark.circle.fill",
             color: .green
           )
@@ -717,7 +717,7 @@ struct MVPUsableVersionPanel: View {
       return "The mailbox setup exists, but real manual refresh still needs either a SpaceMail Keychain credential or a connected Gmail sign-in."
     }
     if inboxOrderCount == 0 {
-      return "Run a manual SpaceMail or Gmail refresh, review one imported intake row, then create or link an order to prove the daily flow."
+      return "Run a manual mailbox refresh, review one imported intake row, then create or link an order to prove the daily flow."
     }
     return "The main daily flow now covers mailbox intake, Inbox triage, order handoff, Workbench follow-up, Tasks, Dispatch context, Audit, and local Settings."
   }
@@ -759,7 +759,7 @@ struct MVPUsableVersionPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
           statusLine(
             title: "Usable today",
-            detail: "Manual SpaceMail and Gmail intake, mixed-mailbox filtering, Inbox triage, local order creation/linking, Tasks, Dispatch context, Audit, and JSON persistence.",
+            detail: "Manual mailbox-provider intake, mixed-mailbox filtering, Inbox triage, local order creation/linking, Tasks, Dispatch context, Audit, and JSON persistence.",
             symbol: "hand.thumbsup.fill",
             color: .green
           )
@@ -1112,7 +1112,7 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var nextTestTitle: String {
-    if !hasManualMailboxSetup { return "Next: add SpaceMail or Gmail setup" }
+    if !hasManualMailboxSetup { return "Next: add an active mailbox provider" }
     if !hasManualMailboxReady { return "Next: finish mailbox credential or sign-in" }
     if latestManualFetchedCount == 0 { return "Next: run one manual mailbox refresh" }
     if intakeReadyCount == 0 { return "Next: review Mailbox Monitor results" }
@@ -1130,7 +1130,7 @@ struct MVPHandsOnReleaseChecklist: View {
       return "Use the secure SpaceMail credential prompt or explicit Gmail sign-in. Do not put passwords, tokens, or auth details in notes or JSON."
     }
     if latestManualFetchedCount == 0 {
-      return "Run an explicit real SpaceMail or Gmail refresh. It is manual, read-only, and must not mutate the mailbox."
+      return "Run an explicit real mailbox refresh. It is manual, read-only, and must not mutate the mailbox."
     }
     if intakeReadyCount == 0 {
       return "Check whether messages were filtered, uncertain, duplicate, or imported. Import only genuine order mail."
@@ -1157,7 +1157,7 @@ struct MVPHandsOnReleaseChecklist: View {
     [
       (
         "1. Refresh intake",
-        "Run SpaceMail or Gmail manually, then confirm fetched, imported, duplicate, filtered, and uncertain counts are understandable.",
+        "Run a mailbox provider manually, then confirm fetched, imported, duplicate, filtered, and uncertain counts are understandable.",
         "server.rack",
         hasManualMailboxReady && latestManualFetchedCount > 0 ? .green : .orange,
         hasManualMailboxReady && latestManualFetchedCount > 0
@@ -1898,7 +1898,7 @@ struct MVPReleaseRunbook: View {
   private var normalSteps: [(String, String, String, Color)] {
     [
       ("1. Start at Dashboard", "Use Start here, Hands-on status, and Release-candidate checkpoint to decide where work should begin.", "square.grid.2x2.fill", .teal),
-      ("2. Prove intake", "Use Inbox or Mailbox Monitor. A local demo email is enough; SpaceMail or Gmail refresh is useful but optional for release-candidate QA.", "tray.full.fill", .blue),
+      ("2. Prove intake", "Use Inbox or Mailbox Monitor. A local demo email is enough; a real mailbox refresh is useful but optional for release-candidate QA.", "tray.full.fill", .blue),
       ("3. Create/link order", "Confirm merchant, order number, tracking, destination, and source trail before treating the order as operational.", "shippingbox.fill", .green),
       ("4. Close dispatch handoff", "Confirm manifest and readiness setup, then complete or reopen the local handoff as needed.", "paperplane.fill", .purple),
       ("5. Resolve owned work", "Open Workbench and Tasks. Complete only assigned local follow-up; filtered non-order mailbox results should not flood task work.", "checklist", .orange),
@@ -1913,13 +1913,13 @@ struct MVPReleaseRunbook: View {
       ("Order keeps source trail", "The order detail can explain where the order came from and what still needs review.", "tray.and.arrow.down.fill", .blue, hasDemoOrder),
       ("Dispatch has a handoff path", "The tester can see manifest/readiness context and complete or reopen local handoff records.", "checkmark.rectangle.stack.fill", .purple, hasDemoOrder),
       ("Audit explains the trail", "Recent local actions appear in Audit with safe non-secret details.", "list.clipboard.fill", .purple, hasAuditEvidence),
-      ("Settings explains boundaries", "Local JSON storage, SpaceMail/Gmail credentials or auth state, and disconnected integrations are clear from Settings/MVP Setup.", "lock.shield.fill", .green, true)
+      ("Settings explains boundaries", "Local JSON storage, mailbox credentials or auth state, and disconnected integrations are clear from Settings/MVP Setup.", "lock.shield.fill", .green, true)
     ]
   }
 
   private var knownLimitations: [(String, String, String, Color)] {
     [
-      ("Mailbox refresh is manual", "Real SpaceMail and Gmail refreshes are explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
+      ("Mailbox refresh is manual", "Real mailbox refreshes are explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
       ("Shopify is not connected", "Shopify records remain placeholders. No Shopify API, OAuth, store login, or order sync is active.", "cart.badge.plus", .orange),
       ("Carrier tracking is local", "Carrier events are local records only. No carrier APIs, label printing, booking, scanner, or tracking refresh is active.", "location.fill.viewfinder", .orange),
       ("Outbound communication is draft-only", "Draft messages and templates are local planning records. ParcelOps does not send email or notifications.", "paperplane.slash.fill", .secondary),

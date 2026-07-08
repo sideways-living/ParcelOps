@@ -706,9 +706,9 @@ struct DashboardView: View {
         MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
           title: "Daily operator path",
-          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail and Gmail are the active live intake paths; Microsoft 365 remains an advanced provider path.",
+          detail: "Use these screens in order for the current manual mailbox workflow. Active mailbox providers are the live intake paths; Microsoft 365 remains an advanced provider path.",
           steps: [
-            "Run or review the latest manual SpaceMail or Gmail refresh.",
+            "Run or review the latest manual mailbox refresh.",
             "Triage imported intake and decide on uncertain mixed-mailbox messages.",
             "Create or link an order from confirmed intake.",
             "Clear Workbench, Tasks, and Dispatch follow-up for that order.",
@@ -1662,7 +1662,7 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Inbox",
               count: incomingAttentionCount,
-              detail: "SpaceMail or Gmail refresh results, imported order emails, uncertain mixed-mailbox messages, parser checks, and staged intake waiting for triage.",
+              detail: "Mailbox refresh results, imported order emails, uncertain mixed-mailbox messages, parser checks, and staged intake waiting for triage.",
               nextAction: incomingAttentionCount == 0 ? "Review mailbox status" : "Triage mailbox intake",
               symbol: "tray.full.fill",
               tint: incomingAttentionCount == 0 ? .green : .orange
@@ -2664,7 +2664,7 @@ struct FirstLiveMailboxTestCard: View {
       return "Set/check the SpaceMail Keychain credential or complete Gmail sign-in. Do not place passwords, tokens, or app secrets in notes or JSON-backed fields."
     }
     if !hasRealRefresh {
-      return "Run the explicit real SpaceMail or Gmail refresh. It is manual and read-only."
+      return "Run the explicit real mailbox refresh. It is manual and read-only."
     }
     if hasOnlyNonOrderOutcome {
       return "The mixed-mailbox filter ran and kept non-order mail out of Inbox. Send or forward one clear order/tracking test email when you want to verify order creation."
@@ -2710,7 +2710,7 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: "Review intake",
-        detail: "Imported, uncertain, filtered, or duplicate SpaceMail/Gmail results are visible enough to explain the refresh outcome.",
+        detail: "Imported, uncertain, filtered, or duplicate mailbox refresh results are visible enough to explain the refresh outcome.",
         symbol: "tray.full.fill",
         isComplete: hasRefreshOutcome
       ),
@@ -2925,7 +2925,7 @@ struct CompactMailboxHealthList: View {
         } label: {
           CompactRow(
             title: "No mailbox refresh summary",
-            detail: "Add SpaceMail or Gmail setup when you are ready to test real mailbox intake.",
+            detail: "Add an active mailbox provider when you are ready to test real mailbox intake.",
             badge: "Setup",
             color: .secondary
           )

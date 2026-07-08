@@ -399,7 +399,7 @@ struct IntegrationsView: View {
             SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
             SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)
 
-            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches away from SpaceMail/Gmail mailbox intake.")
+            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches the active mailbox intake provider.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -4833,7 +4833,7 @@ struct SettingsReleaseCandidateCard: View {
       return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before judging the daily operator flow."
     }
     if manualRefreshCount == 0 {
-      return "Run one explicit manual mailbox refresh from Mailbox Monitor. SpaceMail and Gmail both feed the same local Inbox intake path."
+      return "Run one explicit manual mailbox refresh from Mailbox Monitor. Active providers feed the same local Inbox intake path."
     }
     if inboxCreatedOrdersCount == 0 {
       return "Create or link one order from Inbox so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
@@ -5103,7 +5103,7 @@ struct SettingsView: View {
       return "Complete the Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes before real Gmail refresh."
     }
     if settingsManualRefreshCount == 0 {
-      return "Run an explicit read-only SpaceMail or Gmail refresh so the app has a real refresh result before hands-on testing."
+      return "Run an explicit read-only mailbox refresh so the app has a real refresh result before hands-on testing."
     }
     if settingsInboxCreatedOrdersCount == 0 {
       return "Review imported intake in Inbox, then create or link one order so Orders, Workbench, Tasks, Dashboard, and Audit show the handoff."
@@ -5261,7 +5261,7 @@ struct SettingsView: View {
           ("Open work", "\(settingsOpenOperatorWorkCount)", settingsOpenOperatorWorkCount == 0 ? .green : .blue)
         ])
 
-        Text("Local boundary: SpaceMail and Gmail refreshes are manual and read-only; credentials and tokens stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
+        Text("Local boundary: mailbox refreshes are manual and read-only; credentials and tokens stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -5305,7 +5305,7 @@ struct SettingsView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(setupCompletionBlockerCount == 0 ? "Setup path is ready for hands-on use" : "Clear setup blockers before relying on daily intake")
               .font(.headline)
-            Text("This breaks Settings into the daily operator sequence: configure SpaceMail or Gmail, protect the credential or sign-in, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
+            Text("This breaks Settings into the daily operator sequence: configure the active mailbox provider, protect the credential or sign-in, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -5449,9 +5449,9 @@ struct SettingsView: View {
         if showsLocalOnlyStatus {
           MVPWorkflowGuide(
             title: "Before connecting live systems",
-            detail: "Most integrations remain local planning surfaces. SpaceMail and Gmail are the current manual, read-only mailbox intake paths when their credential/sign-in setup is ready.",
+            detail: "Most integrations remain local planning surfaces. Active mailbox providers are manual, read-only intake paths when their credential/sign-in setup is ready.",
             steps: [
-              "Use SpaceMail and Gmail only through explicit manual refresh actions.",
+              "Use mailbox providers only through explicit manual refresh actions.",
               "Enter SpaceMail passwords only in the secure Keychain prompt; use Google sign-in for Gmail. Do not put secrets in setup notes or JSON fields.",
               "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
               "Use Audit to confirm that local actions are being recorded."

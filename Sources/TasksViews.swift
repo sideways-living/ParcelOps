@@ -237,7 +237,7 @@ struct TasksView: View {
     [
       (
         "Setup and refresh",
-        "Use Mailbox Monitor for SpaceMail/Gmail credentials, sign-in, labels, manual refresh, and classifier diagnostics.",
+        "Use Mailbox Monitor for mailbox credentials, sign-in, labels, manual refresh, and classifier diagnostics.",
         "server.rack",
         mailboxWarningCount > 0 ? .orange : .teal
       ),
@@ -707,7 +707,7 @@ struct TasksView: View {
   private var taskScopePanel: some View {
     SettingsPanel(title: "Task scope", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Tasks should represent work someone owns. Parser checks, filtered SpaceMail/Gmail messages, and classifier diagnostics stay in Inbox, Mailbox Monitor, Workbench, and Audit unless a person creates a follow-up task from them.")
+        Text("Tasks should represent work someone owns. Parser checks, filtered mailbox messages, and classifier diagnostics stay in Inbox, Mailbox Monitor, Workbench, and Audit unless a person creates a follow-up task from them.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

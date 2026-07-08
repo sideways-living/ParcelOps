@@ -294,7 +294,7 @@ private struct SearchReadinessPanel: View {
       return "Some Inbox-created orders do not currently match intake, import, or acceptance source context. Open them here before closing related handoff work."
     }
     if uncertainMailboxCount > 0 {
-      return "Uncertain mixed-mailbox messages from SpaceMail or Gmail stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
+      return "Uncertain mixed-mailbox messages stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
     }
     if parserIssueCount > 0 {
       return "Parser diagnostics are hidden from the primary Inbox queue by default. Use Search or Mailbox Monitor when investigating a specific intake row."

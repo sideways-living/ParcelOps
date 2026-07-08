@@ -91,7 +91,7 @@ struct TimelineView: View {
         case "gmail":
           detail = "Gmail intake can appear as intake review, order creation, tracking, dispatch, task, and audit follow-up."
         case "mock":
-          detail = "Mock mailbox intake supports local workflow testing. Confirm live work against SpaceMail or Gmail when available."
+          detail = "Mock mailbox intake supports local workflow testing. Confirm live work against the active mailbox provider when available."
         default:
           detail = "Local mailbox intake can appear across the timeline once it is linked to an order or follow-up record."
         }

@@ -2312,7 +2312,7 @@ struct OperatorMVPReadinessCard: View {
         "Mailbox setup",
         hasMailboxSetup
           ? "At least one live mailbox path is configured for manual read-only intake."
-          : "Add or review SpaceMail or Gmail setup before expecting real intake.",
+          : "Add or review an active mailbox provider before expecting real intake.",
         hasMailboxSetup,
         hasMailboxSetup ? "success" : "warning",
         hasGmailSetup && !hasSpaceMailSetup ? "envelope.badge.shield.half.filled" : "server.rack"
@@ -2328,7 +2328,7 @@ struct OperatorMVPReadinessCard: View {
       ),
       (
         "Manual refresh evidence",
-        hasMailboxRefresh ? "At least one SpaceMail or Gmail manual refresh has produced local result evidence." : "Run a manual SpaceMail or Gmail refresh when credentials or sign-in are ready.",
+        hasMailboxRefresh ? "At least one manual mailbox refresh has produced local result evidence." : "Run a manual mailbox refresh when credentials or sign-in are ready.",
         hasMailboxRefresh,
         hasMailboxRefresh ? "success" : "attention",
         "arrow.down.to.line.compact"
@@ -3091,7 +3091,7 @@ struct MailboxRunTimelineCard: View {
       })
 
       if summary.entries.isEmpty {
-        Label("No refresh timeline exists yet. Run a manual SpaceMail or Gmail refresh to create local evidence.", systemImage: "clock.badge.questionmark")
+        Label("No refresh timeline exists yet. Run a manual mailbox refresh to create local evidence.", systemImage: "clock.badge.questionmark")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5070,7 +5070,7 @@ struct MailboxProviderComparisonCard: View {
         }
       }
 
-      Text("Provider comparison is local operator guidance only. SpaceMail and Gmail refreshes remain explicit, manual, read-only actions.")
+      Text("Provider comparison is local operator guidance only. Mailbox refreshes remain explicit, manual, read-only actions.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5377,7 +5377,7 @@ struct SpaceMailPrimaryStatusStrip: View {
         if !hasSpaceMailProvider && !hasGmailProvider {
           statusTile(
             title: "No mailbox provider configured",
-            detail: "Add SpaceMail or Gmail in Settings before testing live mailbox intake.",
+            detail: "Add an active mailbox provider in Settings before testing live mailbox intake.",
             footer: "Next: open Settings or Mailbox Monitor",
             symbol: "mail.stack",
             tone: "warning"
@@ -5670,7 +5670,7 @@ struct OperatorSupportSnapshotCard: View {
       ),
       (
         "Mixed mailbox mode",
-        "\(mailboxModeText). SpaceMail and Gmail mixed mailbox mode keep filtered non-order mail out of Inbox and hold uncertain mail for review.",
+        "\(mailboxModeText). Mixed mailbox mode keeps filtered non-order mail out of Inbox and holds uncertain mail for review.",
         "line.3.horizontal.decrease.circle",
         ((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) > 0 ? .teal : .secondary
       ),
@@ -5829,7 +5829,7 @@ struct OperatorTestSessionChecklistCard: View {
       ),
       (
         "2. Run read-only refresh",
-        "Manual SpaceMail or Gmail refresh has completed or returned a clear safe result.",
+        "Manual mailbox refresh has completed or returned a clear safe result.",
         [
           latestSpaceMailSummary.map { "SpaceMail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "SpaceMail no refresh summary.",
           latestGmailSummary.map { "Gmail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered." } ?? "Gmail no refresh summary."
