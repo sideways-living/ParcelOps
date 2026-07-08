@@ -2568,6 +2568,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshSummary: String
   var lastRefreshFilteredExamples: [String]?
   var lastRefreshUncertainExamples: [String]?
+  var lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount]?
   var uncertainMessages: [GmailReviewMessage]?
   var filteredMessages: [GmailReviewMessage]?
   var classifierTestSummary: String?
@@ -2602,6 +2603,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshSummary: String = "No Gmail refresh has run yet.",
     lastRefreshFilteredExamples: [String]? = nil,
     lastRefreshUncertainExamples: [String]? = nil,
+    lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount]? = nil,
     uncertainMessages: [GmailReviewMessage]? = nil,
     filteredMessages: [GmailReviewMessage]? = nil,
     classifierTestSummary: String? = nil,
@@ -2635,6 +2637,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshSummary = lastRefreshSummary
     self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
     self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
+    self.lastRefreshReasonBreakdown = lastRefreshReasonBreakdown
     self.uncertainMessages = uncertainMessages
     self.filteredMessages = filteredMessages
     self.classifierTestSummary = classifierTestSummary

@@ -1752,6 +1752,25 @@ struct GmailMailboxConnectionRow: View {
             .foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
         }
+        if let reasons = connection.lastRefreshReasonBreakdown, !reasons.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Gmail classifier reasons")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(Array(reasons.prefix(6))) { item in
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Badge(item.decision, color: classifierReasonColor(item.decision))
+                Text("\(item.count)x \(item.reason)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+              }
+            }
+          }
+          .padding(8)
+          .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+        }
       }
       .padding(10)
       .background((connection.lastRefreshUncertainCount ?? 0) > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -2610,6 +2629,13 @@ struct GmailMailboxConnectionRow: View {
     default:
       return .secondary
     }
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
   }
 
   private var gmailClassifierColor: Color {
