@@ -198,15 +198,6 @@ struct OperationsWorkbenchView: View {
     }
   }
 
-  private var gmailReleaseWorkbenchConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-      let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-
   private var mailboxFetchedCount: Int {
     spaceMailFetchedCount + gmailFetchedCount
   }
@@ -1052,22 +1043,7 @@ struct OperationsWorkbenchView: View {
           }
         }
 
-        if !gmailReleaseSelfChecks.isEmpty {
-          VStack(alignment: .leading, spacing: 8) {
-            Label("Gmail release boundary", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(gmailReleaseBoundaryColor)
-            Text("Release self-check failures are setup and readiness work first. Turn them into Workbench exceptions only when a named owner, blocker, or handoff is needed.")
-              .font(.caption2)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-            ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-              GmailReleaseSelfCheckSummaryCard(summary: summary)
-            }
-          }
-          .padding(10)
-          .background(gmailReleaseBoundaryColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        }
+        gmailWorkbenchReadinessPanel
 
         Text(pendingGmailFilteredReviewCount > 0
           ? "Filtered Gmail examples are waiting for optional review, but they stay out of Workbench until an operator imports one into Inbox or creates follow-up."
@@ -1092,15 +1068,21 @@ struct OperationsWorkbenchView: View {
           } label: {
             Label("Check Audit", systemImage: "list.clipboard.fill")
           }
-          if let connection = gmailReleaseWorkbenchConnection {
-            Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-            }
-          }
         }
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var gmailWorkbenchReadinessPanel: some View {
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail Workbench readiness",
+      lead: "Release self-check failures are setup and readiness work first. Turn them into Workbench exceptions only when a named owner, blocker, or handoff is needed.",
+      sourceMetricTitle: "Gmail issues",
+      sourceCount: gmailWarningCount + gmailUncertainCount + gmailClassifierTuningCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Workbench exceptions automatically, or mutate mailbox messages."
+    )
   }
 
   private var gmailWorkbenchTone: Color {
@@ -1226,12 +1208,6 @@ struct OperationsWorkbenchView: View {
     default:
       return .secondary
     }
-  }
-
-  private var gmailReleaseBoundaryColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
   }
 
   private var gmailClassifierWorkbenchTitle: String {
