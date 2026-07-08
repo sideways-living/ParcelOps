@@ -43,37 +43,6 @@ struct ContactsView: View {
       || !contactSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
-    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
-  }
-
-  private var gmailReleaseBlockingCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
-    }
-  }
-
-  private var gmailReleaseAttentionCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
-    }
-  }
-
-  private var gmailReleaseContactConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-
-  private var gmailReleaseContactColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
-  }
-
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -138,60 +107,20 @@ struct ContactsView: View {
 
   @ViewBuilder
   private var gmailContactReadinessPanel: some View {
-    if !gmailReleaseSelfChecks.isEmpty {
-      SettingsPanel(title: "Gmail contact readiness", symbol: "envelope.badge.shield.half.filled") {
-        VStack(alignment: .leading, spacing: 12) {
-          Text("Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail contact readiness",
+      lead: "Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.",
+      sourceMetricTitle: "Gmail contacts",
+      sourceCount: gmailContactSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages."
+    )
+  }
 
-          MetricStrip(items: [
-            ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-            ("Needs attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
-            ("Gmail contacts", "\(contactProviderRows.filter { $0.label.localizedCaseInsensitiveContains("Gmail") }.reduce(0) { $0 + $1.count })", .blue),
-            ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
-          ])
-
-          ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-            GmailReleaseSelfCheckSummaryCard(summary: summary)
-          }
-
-          if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
-            CompactActionRow {
-              if let connection = gmailReleaseContactConnection {
-                Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                  store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                }
-              }
-              NavigationLink {
-                MailboxView(store: store)
-              } label: {
-                Label("Review Gmail setup", systemImage: "server.rack")
-              }
-              NavigationLink {
-                TasksView(store: store)
-              } label: {
-                Label("Open Tasks", systemImage: "checklist")
-              }
-            }
-            .buttonStyle(.bordered)
-          } else {
-            Label("Gmail release checks do not currently block contact follow-up.", systemImage: "checkmark.seal.fill")
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.green)
-          }
-
-          Text("This panel reads local Gmail setup, refresh, classifier, Inbox handoff, and Audit state only. It does not open Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages.")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(gmailReleaseContactColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-      }
-    }
+  private var gmailContactSourceCount: Int {
+    contactProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
   }
 
   private var filterBar: some View {

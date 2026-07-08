@@ -46,41 +46,10 @@ struct AccountsView: View {
       || !accountSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
-    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
-  }
-
-  private var gmailReleaseBlockingCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
-    }
-  }
-
-  private var gmailReleaseAttentionCount: Int {
-    gmailReleaseSelfChecks.reduce(0) { total, summary in
-      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
-    }
-  }
-
-  private var gmailReleaseAccountConnection: GmailMailboxConnection? {
-    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
-          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
-    else {
-      return store.gmailMailboxConnections.first
-    }
-    return connection
-  }
-
   private var gmailAccountSourceCount: Int {
     accountProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
       .reduce(0) { total, row in total + row.count }
-  }
-
-  private var gmailReleaseAccountColor: Color {
-    if gmailReleaseBlockingCount > 0 { return .red }
-    if gmailReleaseAttentionCount > 0 { return .orange }
-    return .green
   }
 
   var body: some View {
@@ -210,62 +179,14 @@ struct AccountsView: View {
 
   @ViewBuilder
   private var gmailAccountReadinessPanel: some View {
-    if !gmailReleaseSelfChecks.isEmpty {
-      SettingsPanel(title: "Gmail account readiness", symbol: "envelope.badge.shield.half.filled") {
-        VStack(alignment: .leading, spacing: 10) {
-          Label("Provider readiness before account placeholders", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(gmailReleaseAccountColor)
-          Text("Gmail-origin intake should create account follow-up only after the Gmail setup can sign in, fetch read-only messages, classify likely order mail, and hand confirmed Inbox rows into Orders.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-          MetricStrip(items: [
-            ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-            ("Needs attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
-            ("Gmail account sources", "\(gmailAccountSourceCount)", gmailAccountSourceCount == 0 ? .secondary : .blue),
-            ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
-          ])
-
-          ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
-            GmailReleaseSelfCheckSummaryCard(summary: summary)
-          }
-
-          if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
-            CompactActionRow {
-              if let connection = gmailReleaseAccountConnection {
-                Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
-                  store.createReviewTaskFromGmailReleaseSelfCheck(connection)
-                }
-                .buttonStyle(.bordered)
-              }
-              NavigationLink {
-                MailboxView(store: store)
-              } label: {
-                Label("Open Mailbox Monitor", systemImage: "tray.and.arrow.down.fill")
-              }
-              .buttonStyle(.bordered)
-              NavigationLink {
-                TasksView(store: store)
-              } label: {
-                Label("Open Tasks", systemImage: "checklist")
-              }
-              .buttonStyle(.bordered)
-            }
-          } else {
-            Label("Gmail release checks do not currently block account placeholder follow-up.", systemImage: "checkmark.seal.fill")
-              .font(.caption)
-              .foregroundStyle(.green)
-          }
-
-          Text("Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, create credentials, or change account placeholders automatically.")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-        .padding(10)
-        .background(gmailReleaseAccountColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-      }
-    }
+    GmailReleaseBoundaryPanel(
+      store: store,
+      title: "Gmail account readiness",
+      lead: "Gmail-origin intake should create account follow-up only after the Gmail setup can sign in, fetch read-only messages, classify likely order mail, and hand confirmed Inbox rows into Orders.",
+      sourceMetricTitle: "Gmail account sources",
+      sourceCount: gmailAccountSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, create credentials, or change account placeholders automatically."
+    )
   }
 
   private var inboxAccountCoverage: some View {
