@@ -572,17 +572,20 @@ struct DashboardView: View {
   }
 
   private var dailyStartDetail: String {
-    if !hasSpaceMailSetup {
-      return "Add the non-secret SpaceMail IMAP setup from Settings or Mailbox Monitor before relying on live intake. You can still test the local demo flow."
+    if !hasSpaceMailSetup && !hasGmailSetup {
+      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before relying on live intake. You can still test the local demo flow."
     }
-    if !hasSpaceMailCredentialReference {
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup {
       return "Use the secure SpaceMail credential action. Do not put passwords or app passwords into setup notes or JSON-backed fields."
     }
-    if !hasSpaceMailManualRefreshEvidence {
-      return "Run the explicit read-only SpaceMail refresh once so Dashboard, Mailbox Monitor, and Audit have a real refresh result."
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup {
+      return "Use the explicit Google sign-in test before Gmail refresh. Token values stay out of JSON and Audit."
+    }
+    if !hasReadyMailboxProviderPath {
+      return "Run one explicit read-only refresh for the active mailbox provider so Dashboard, Mailbox Monitor, and Audit have a real refresh result."
     }
     if incomingAttentionCount > 0 {
-      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, SpaceMail review, import queue, or acceptance review."
+      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, provider review, import queue, or acceptance review."
     }
     if !partialInboxOrderBlockers.isEmpty {
       return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Confirm those before dispatch setup."

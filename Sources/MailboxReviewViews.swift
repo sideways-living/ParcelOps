@@ -1080,7 +1080,7 @@ private struct MailboxReviewStartPanel: View {
     if latestSummary == nil && latestGmailSummary == nil {
       return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Both paths feed the same local Inbox intake queue."
     }
-    return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning SpaceMail or investigating Audit evidence."
+    return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning the active mailbox provider or investigating Audit evidence."
   }
 
   var body: some View {
