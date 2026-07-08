@@ -1776,9 +1776,9 @@ final class ParcelOpsStore {
     if hasSpaceMailSetup && hasGmailSetup {
       providerEvidence = "SpaceMail and Gmail setup records both exist."
     } else if hasSpaceMailSetup {
-      providerEvidence = "SpaceMail setup exists; Gmail remains optional unless needed."
+      providerEvidence = "SpaceMail setup exists for an IMAP-hosted mailbox; Gmail can be added for Google-hosted mailboxes."
     } else if hasGmailSetup {
-      providerEvidence = "Gmail setup exists; SpaceMail remains optional unless needed."
+      providerEvidence = "Gmail setup exists for a Google-hosted mailbox; SpaceMail can be added for IMAP-hosted mailboxes."
     } else {
       providerEvidence = "No SpaceMail or Gmail provider setup exists."
     }
@@ -2534,7 +2534,7 @@ final class ParcelOpsStore {
     let tone: String
     if gmailMailboxConnections.isEmpty {
       verdict = "Gmail release snapshot: optional path not configured"
-      detail = "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace. SpaceMail can remain the primary mailbox intake path."
+      detail = "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace. Use whichever provider hosts the active mailbox."
       tone = "neutral"
     } else if setupBlockers == 0 && signedInCount > 0 && fetchedCount > 0 && openHandoffLines == 0 {
       verdict = "Gmail release snapshot: ready for supervised testing"
@@ -2760,7 +2760,7 @@ final class ParcelOpsStore {
     let tone: String
     if gmailMailboxConnections.isEmpty {
       title = "Gmail release blockers are optional"
-      detail = "No Gmail mailbox is configured. This is acceptable when SpaceMail remains the active provider."
+      detail = "No Gmail mailbox is configured. This is acceptable when the active mailbox is not hosted by Gmail or Google Workspace."
       tone = "neutral"
     } else if warningCount > 0 {
       title = "Gmail release has blocking setup items"
@@ -2808,7 +2808,7 @@ final class ParcelOpsStore {
     let decisions = [
       MailboxOperatorDecisionItem(
         title: "Leave Gmail optional",
-        detail: "No Gmail setup is configured. SpaceMail can remain the active mailbox path.",
+        detail: "No Gmail setup is configured. Use another provider path when the active mailbox is not hosted by Gmail or Google Workspace.",
         action: "Only add Gmail when a mailbox is hosted by Gmail or Google Workspace.",
         isActive: setupCount == 0,
         tone: setupCount == 0 ? "neutral" : "success",

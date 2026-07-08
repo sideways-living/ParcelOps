@@ -134,7 +134,7 @@ struct InboxView: View {
 
   private var inboxGmailCompileDetail: String {
     guard let readiness = inboxGmailReadiness else {
-      return "Use Gmail only for Google-hosted mailboxes. SpaceMail can remain the active intake provider."
+      return "Use Gmail only for Google-hosted mailboxes. Use the provider that hosts the active intake mailbox."
     }
     if readiness.isReady {
       return "The saved Gmail setup matches the compiled client ID and callback scheme. Run sign-in and manual refresh only when Gmail is the active mailbox provider."

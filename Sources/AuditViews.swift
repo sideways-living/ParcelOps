@@ -147,7 +147,7 @@ struct AuditView: View {
 
   private var auditGmailCompileDetail: String {
     guard let readiness = auditGmailReadiness else {
-      return "Gmail is optional. Keep using SpaceMail unless a mailbox is hosted by Gmail or Google Workspace."
+      return "Gmail setup is only needed for Gmail or Google Workspace mailboxes. Use the provider that hosts the mailbox being tested."
     }
     if readiness.isReady {
       return "Saved Gmail setup matches the compiled client ID and callback scheme. Audit can focus on sign-in, refresh, classifier, and Inbox handoff evidence."

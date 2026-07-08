@@ -1146,7 +1146,7 @@ struct OperationsWorkbenchView: View {
       return "\(gmailFilteredCount) mixed-mailbox Gmail message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
     }
     if gmailHealthSummaries.isEmpty {
-      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. SpaceMail can remain the primary path."
+      return "Add Gmail setup only for mailboxes hosted by Gmail or Google Workspace. Use whichever provider hosts the active mailbox."
     }
     return "Gmail setup exists, but the latest state did not produce imported or uncertain order work."
   }
@@ -1185,7 +1185,7 @@ struct OperationsWorkbenchView: View {
 
   private var gmailWorkbenchCompileDetail: String {
     guard let readiness = gmailWorkbenchReadiness else {
-      return "Gmail is optional. Add it only for mailboxes hosted by Gmail or Google Workspace."
+      return "Gmail setup is only needed for Gmail or Google Workspace mailboxes."
     }
     if readiness.isReady {
       return "Saved Gmail setup matches the compiled client ID and callback scheme. Workbench can focus on refresh, classifier, and Inbox handoff evidence."
@@ -1239,7 +1239,7 @@ struct OperationsWorkbenchView: View {
   private var gmailLabelWorkbenchDetail: String {
     switch gmailLabelWorkbenchStatus {
     case "No Gmail setup":
-      return "Gmail is optional. Add it only for mailboxes hosted by Gmail or Google Workspace."
+      return "Gmail setup is only needed for Gmail or Google Workspace mailboxes."
     case "Label issue":
       return "Fix the Gmail label in Mailbox Monitor before turning Gmail refreshes into operational exceptions. Use INBOX or an exact existing Gmail label."
     case "Custom label resolved":

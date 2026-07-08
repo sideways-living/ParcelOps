@@ -148,7 +148,7 @@ struct TasksView: View {
 
   private var gmailTaskCompileDetail: String {
     guard let readiness = gmailTaskOAuthReadiness else {
-      return "Add Gmail setup only when a Google-hosted mailbox should feed Inbox. SpaceMail can remain the live intake path."
+      return "Add Gmail setup only when a Google-hosted mailbox should feed Inbox. Use the provider that hosts the active mailbox."
     }
     if readiness.isReady {
       return "The saved Gmail setup matches the compiled client ID and callback scheme. Assign tasks only for named follow-up after sign-in, refresh, classifier review, or Inbox handoff."
