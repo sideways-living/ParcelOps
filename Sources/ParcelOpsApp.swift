@@ -21,6 +21,23 @@ extension View {
   }
 }
 
+private struct ParcelRouteShortcut {
+  var key: KeyEquivalent
+  var label: String
+  var modifiers: EventModifiers = .command
+}
+
+private extension View {
+  @ViewBuilder
+  func parcelRouteKeyboardShortcut(_ shortcut: ParcelRouteShortcut?) -> some View {
+    if let shortcut {
+      self.keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
+    } else {
+      self
+    }
+  }
+}
+
 struct ParcelOpsRootView: View {
   @State private var store = ParcelOpsStore()
   @State private var selection: ParcelSection = .dashboard
@@ -163,6 +180,20 @@ struct ParcelOpsRootView: View {
 
   private var dailyFocusSections: [ParcelSection] {
     [.inbox, .orders, .workbench, .dispatch, .tasks]
+  }
+
+  private func routeShortcut(for section: ParcelSection) -> ParcelRouteShortcut? {
+    switch section {
+    case .dashboard: ParcelRouteShortcut(key: "1", label: "⌘1")
+    case .inbox: ParcelRouteShortcut(key: "2", label: "⌘2")
+    case .orders: ParcelRouteShortcut(key: "3", label: "⌘3")
+    case .workbench: ParcelRouteShortcut(key: "4", label: "⌘4")
+    case .dispatch: ParcelRouteShortcut(key: "5", label: "⌘5")
+    case .tasks: ParcelRouteShortcut(key: "6", label: "⌘6")
+    case .audit: ParcelRouteShortcut(key: "7", label: "⌘7")
+    case .settings: ParcelRouteShortcut(key: "8", label: "⌘8")
+    default: nil
+    }
   }
 
   var body: some View {
@@ -329,6 +360,7 @@ struct ParcelOpsRootView: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+          .parcelRouteKeyboardShortcut(routeShortcut(for: section))
         }
       }
     }
@@ -430,6 +462,11 @@ struct ParcelOpsRootView: View {
           Label(section.title, systemImage: section.symbol)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
           Spacer(minLength: 6)
+          if let shortcut = routeShortcut(for: section) {
+            Text(shortcut.label)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+          }
           if let count, count > 0 {
             Badge("\(count)", color: attentionColor(for: section, count: count))
           }
@@ -442,6 +479,7 @@ struct ParcelOpsRootView: View {
       }
     }
     .buttonStyle(.plain)
+    .parcelRouteKeyboardShortcut(routeShortcut(for: section))
   }
 
   private func attentionCount(for section: ParcelSection) -> Int? {
