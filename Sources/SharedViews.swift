@@ -5723,6 +5723,10 @@ struct OperatorSupportSnapshotCard: View {
     store.spaceMailIMAPConnections.first
   }
 
+  private var hasMailboxProviderSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+  }
+
   private var inboxLinkedOrderCount: Int {
     Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
   }
@@ -5742,25 +5746,39 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var credentialReady: Bool {
-    store.spaceMailIMAPConnections.contains {
+    let hasSpaceMailCredential = store.spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
+    let hasGmailAuth = store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+    return hasSpaceMailCredential || hasGmailAuth
+  }
+
+  private var hasProviderRefreshEvidence: Bool {
+    let hasSpaceMailRefresh = latestSpaceMailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never"
+    } ?? false
+    let hasGmailRefresh = latestGmailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never"
+    } ?? false
+    return hasSpaceMailRefresh || hasGmailRefresh
   }
 
   private var supportTone: Color {
-    if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty { return .orange }
-    if !store.spaceMailIMAPConnections.isEmpty && !credentialReady { return .orange }
+    if !hasMailboxProviderSetup { return .orange }
+    if !credentialReady { return .orange }
     if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return .red }
-    if readiness.completedCount < readiness.totalCount { return .orange }
+    if !hasProviderRefreshEvidence { return .orange }
     return .green
   }
 
   private var supportBadge: String {
-    if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty { return "Setup needed" }
-    if !store.spaceMailIMAPConnections.isEmpty && !credentialReady { return "Credential needed" }
+    if !hasMailboxProviderSetup { return "Setup needed" }
+    if !credentialReady { return "Credential needed" }
     if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return "Check mailbox" }
-    if readiness.completedCount < readiness.totalCount { return "In progress" }
+    if !hasProviderRefreshEvidence { return "Refresh needed" }
     return "Ready"
   }
 
@@ -5782,9 +5800,9 @@ struct OperatorSupportSnapshotCard: View {
     [
       (
         "Mailbox readiness",
-        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail MVP checks complete. Gmail providers: \(store.gmailMailboxConnections.count). \(latestGmailSummary?.nextAction ?? "Add Gmail setup only when a mailbox uses Gmail or Google Workspace.")",
+        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail checks complete; \(store.gmailMailboxConnections.count) Gmail provider\(store.gmailMailboxConnections.count == 1 ? "" : "s") configured. \(latestGmailSummary?.nextAction ?? "Use whichever provider hosts the mailbox being tested today.")",
         "checklist.checked",
-        readiness.completedCount == readiness.totalCount && latestGmailSummary?.tone != "warning" ? .green : .orange
+        hasProviderRefreshEvidence && latestGmailSummary?.tone != "warning" && latestSpaceMailSummary?.tone != "warning" ? .green : .orange
       ),
       (
         "Mixed mailbox mode",
@@ -5930,6 +5948,10 @@ struct OperatorTestSessionChecklistCard: View {
     let hasAuditTrail = qa.checks.contains { $0.title == "Audit trail evidence" && $0.isComplete }
     let hasGmailRefresh = latestGmailSummary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never" } ?? false
     let hasGmailFiltering = latestGmailSummary.map { $0.filteredCount > 0 || $0.pendingUncertainReviewCount > 0 || $0.uncertainCount > 0 } ?? false
+    let hasGmailAuth = store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+    let hasAnyProviderCredentialOrAuth = hasCredential || hasGmailAuth
     let dispatchWorkCount = store.blockedShipmentManifests.count
       + store.undispatchedShipmentManifests.count
       + store.blockedDispatchChecklists.count
@@ -5939,11 +5961,11 @@ struct OperatorTestSessionChecklistCard: View {
     return [
       (
         "1. Confirm setup",
-        "SpaceMail connection and Keychain credential are ready before a real refresh.",
-        hasCredential ? "Credential evidence exists." : "Set or check the SpaceMail credential first.",
+        "The active mailbox provider has either a SpaceMail Keychain credential or Gmail sign-in before a real refresh.",
+        hasAnyProviderCredentialOrAuth ? "Credential or sign-in evidence exists." : "Set/check SpaceMail credentials or complete Gmail sign-in first.",
         "key.horizontal.fill",
-        hasCredential,
-        hasCredential ? .green : .orange
+        hasAnyProviderCredentialOrAuth,
+        hasAnyProviderCredentialOrAuth ? .green : .orange
       ),
       (
         "2. Run read-only refresh",
