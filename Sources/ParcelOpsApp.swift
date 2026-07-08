@@ -261,12 +261,15 @@ struct ParcelOpsRootView: View {
                 }
               }
             }
+
+            Section {
+              sidebarReviewFooter
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+            }
           }
           .navigationTitle("ParcelOps")
           .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
-          .safeAreaInset(edge: .bottom) {
-            sidebarReviewFooter
-          }
         } detail: {
           content(for: selection)
             .navigationTitle(selection.title)
