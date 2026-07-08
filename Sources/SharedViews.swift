@@ -5299,6 +5299,14 @@ struct SpaceMailPrimaryStatusStrip: View {
     return "\(latest.fetchedCount) fetched, \(latest.importedCount) imported, \(latest.duplicateCount) duplicate, \(latest.filteredCount) filtered, \(latest.pendingUncertainReviewCount + latest.uncertainCount) uncertain. Next: \(latest.nextAction)"
   }
 
+  private var hasSpaceMailProvider: Bool {
+    !store.spaceMailIMAPConnections.isEmpty || !healthSummaries.isEmpty
+  }
+
+  private var hasGmailProvider: Bool {
+    !store.gmailMailboxConnections.isEmpty || !gmailHealthSummaries.isEmpty
+  }
+
   private var classifierImpactPreviews: [SpaceMailClassifierImpactPreview] {
     store.spaceMailIMAPConnections.flatMap { store.spaceMailClassifierImpactPreviews(for: $0) }
   }
@@ -5318,7 +5326,13 @@ struct SpaceMailPrimaryStatusStrip: View {
   }
 
   private var color: Color {
-    color(for: plan.tone)
+    if hasSpaceMailProvider {
+      return color(for: plan.tone)
+    }
+    if hasGmailProvider {
+      return color(for: gmailStatusTone)
+    }
+    return .orange
   }
 
   var body: some View {
@@ -5340,21 +5354,35 @@ struct SpaceMailPrimaryStatusStrip: View {
       ])
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
-        statusTile(
-          title: "SpaceMail: \(plan.title)",
-          detail: "IMAP: \(plan.detail)",
-          footer: "Next: \(plan.primaryAction)",
-          symbol: "arrow.triangle.branch",
-          tone: plan.tone
-        )
+        if hasSpaceMailProvider {
+          statusTile(
+            title: "SpaceMail: \(plan.title)",
+            detail: "IMAP: \(plan.detail)",
+            footer: "Next: \(plan.primaryAction)",
+            symbol: "arrow.triangle.branch",
+            tone: plan.tone
+          )
+        }
 
-        statusTile(
-          title: gmailStatusTitle,
-          detail: gmailStatusDetail,
-          footer: gmailStatusFooter,
-          symbol: "envelope.badge.shield.half.filled",
-          tone: gmailStatusTone
-        )
+        if hasGmailProvider {
+          statusTile(
+            title: gmailStatusTitle,
+            detail: gmailStatusDetail,
+            footer: gmailStatusFooter,
+            symbol: "envelope.badge.shield.half.filled",
+            tone: gmailStatusTone
+          )
+        }
+
+        if !hasSpaceMailProvider && !hasGmailProvider {
+          statusTile(
+            title: "No mailbox provider configured",
+            detail: "Add SpaceMail or Gmail in Settings before testing live mailbox intake.",
+            footer: "Next: open Settings or Mailbox Monitor",
+            symbol: "mail.stack",
+            tone: "warning"
+          )
+        }
 
         statusTile(
           title: handoff.title,
