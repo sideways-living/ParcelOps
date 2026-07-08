@@ -3506,6 +3506,8 @@ struct MailboxProviderTestQueueCard: View {
 struct MailboxProviderHandoffPacketCard: View {
   var packet: MailboxProviderHandoffPacketSummary
   var store: ParcelOpsStore?
+  var showTasksLink: Bool = true
+  var showAuditLink: Bool = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
 
@@ -3563,19 +3565,23 @@ struct MailboxProviderHandoffPacketCard: View {
           }
           .buttonStyle(.bordered)
 
-          NavigationLink {
-            TasksView(store: store)
-          } label: {
-            Label("Open Tasks", systemImage: "checklist")
+          if showTasksLink {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
 
-          NavigationLink {
-            AuditView(store: store)
-          } label: {
-            Label("Open Audit", systemImage: "list.clipboard.fill")
+          if showAuditLink {
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Open Audit", systemImage: "list.clipboard.fill")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
         }
       }
 
@@ -3802,6 +3808,8 @@ struct MailboxProviderTroubleshootingCard: View {
 struct MailboxProviderReleaseGateCard: View {
   var summary: MailboxProviderReleaseGateSummary
   var store: ParcelOpsStore?
+  var showTasksLink: Bool = true
+  var showAuditLink: Bool = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
 
@@ -3899,19 +3907,23 @@ struct MailboxProviderReleaseGateCard: View {
           }
           .buttonStyle(.bordered)
 
-          NavigationLink {
-            TasksView(store: store)
-          } label: {
-            Label("Open Tasks", systemImage: "checklist")
+          if showTasksLink {
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
 
-          NavigationLink {
-            AuditView(store: store)
-          } label: {
-            Label("Open Audit", systemImage: "list.clipboard.fill")
+          if showAuditLink {
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Open Audit", systemImage: "list.clipboard.fill")
+            }
+            .buttonStyle(.bordered)
           }
-          .buttonStyle(.bordered)
         }
       }
 
