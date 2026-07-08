@@ -41,6 +41,37 @@ struct HandoffNotesView: View {
       || !handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
+    store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var gmailReleaseBlockingCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var gmailReleaseAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var gmailReleaseHandoffConnection: GmailMailboxConnection? {
+    guard let summary = gmailReleaseSelfChecks.first(where: { $0.items.contains { !$0.isComplete } }),
+          let connection = store.gmailMailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.gmailMailboxConnections.first
+    }
+    return connection
+  }
+
+  private var gmailReleaseHandoffColor: Color {
+    if gmailReleaseBlockingCount > 0 { return .red }
+    if gmailReleaseAttentionCount > 0 { return .orange }
+    return .green
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -280,7 +311,7 @@ struct HandoffNotesView: View {
 
   @ViewBuilder
   private var gmailHandoffFocusPanel: some View {
-    if !gmailHandoffNotes.isEmpty {
+    if !gmailHandoffNotes.isEmpty || !gmailReleaseSelfChecks.isEmpty {
       SettingsPanel(title: "Gmail handoff focus", symbol: "envelope.badge.shield.half.filled") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Gmail setup, sign-in, refresh, classifier, and provider-release handoffs are grouped here so shift notes do not get buried inside the generic mailbox provider queue.")
@@ -296,34 +327,76 @@ struct HandoffNotesView: View {
             ("Needs review", "\(gmailHandoffNotes.filter { $0.reviewState != .accepted }.count)", gmailHandoffNotes.contains { $0.reviewState != .accepted } ? .orange : .green)
           ])
 
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
-            ForEach(activeGmailHandoffNotes.prefix(4)) { note in
-              VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                  Label(note.priority.rawValue, systemImage: note.isLocallyOverdue ? "clock.badge.exclamationmark.fill" : "envelope.badge.shield.half.filled")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(note.isLocallyOverdue ? .red : note.priority.color)
-                  Spacer()
-                  Badge(note.status.rawValue, color: note.status.color)
-                }
-                Text(note.title)
-                  .font(.caption.weight(.semibold))
-                  .lineLimit(2)
-                Text(gmailHandoffActionSummary(for: note))
-                  .font(.caption2)
-                  .foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
+          if !gmailReleaseSelfChecks.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Label("Gmail release handoff readiness", systemImage: gmailReleaseBlockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(gmailReleaseHandoffColor)
+              Text("Use this before handing Gmail intake to the next operator. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear or assigned.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              MetricStrip(items: [
+                ("Blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
+                ("Attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
+                ("Connections", "\(gmailReleaseSelfChecks.count)", .teal)
+              ])
+              ForEach(gmailReleaseSelfChecks.prefix(2)) { summary in
+                GmailReleaseSelfCheckSummaryCard(summary: summary)
               }
-              .padding(10)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .background((note.isLocallyOverdue ? Color.red : note.priority.color).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              if gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0 {
+                CompactActionRow {
+                  if let connection = gmailReleaseHandoffConnection {
+                    Button("Create Gmail release task", systemImage: "checkmark.seal.fill") {
+                      store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+                    }
+                  }
+                  Button("Refresh provider handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+                    store.createHandoffNoteFromMailboxProviderHandoffPacket()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            .padding(10)
+            .background(gmailReleaseHandoffColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+
+          if !activeGmailHandoffNotes.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+              ForEach(activeGmailHandoffNotes.prefix(4)) { note in
+                VStack(alignment: .leading, spacing: 6) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(note.priority.rawValue, systemImage: note.isLocallyOverdue ? "clock.badge.exclamationmark.fill" : "envelope.badge.shield.half.filled")
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(note.isLocallyOverdue ? .red : note.priority.color)
+                    Spacer()
+                    Badge(note.status.rawValue, color: note.status.color)
+                  }
+                  Text(note.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text(gmailHandoffActionSummary(for: note))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background((note.isLocallyOverdue ? Color.red : note.priority.color).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
             }
           }
 
-          if activeGmailHandoffNotes.isEmpty {
+          if activeGmailHandoffNotes.isEmpty && !gmailHandoffNotes.isEmpty {
             Label("All Gmail handoff notes are completed and reviewed.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
+          } else if activeGmailHandoffNotes.isEmpty && gmailHandoffNotes.isEmpty {
+            Label("No Gmail handoff notes exist yet. Create a release task or refresh the provider handoff if Gmail setup needs operator continuity.", systemImage: "arrow.left.arrow.right.square.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailReleaseHandoffColor)
+              .fixedSize(horizontal: false, vertical: true)
           } else if activeGmailHandoffNotes.count > 4 {
             Text("\(activeGmailHandoffNotes.count - 4) more active Gmail handoff note\(activeGmailHandoffNotes.count - 4 == 1 ? "" : "s") can be worked from the Notes list below or Tasks.")
               .font(.caption)
