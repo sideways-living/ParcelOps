@@ -92,6 +92,7 @@ struct WishlistView: View {
         wishlistReadinessPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
+        wishlistSellerOptionReviewPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -354,6 +355,158 @@ struct WishlistView: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistSellerOptionReviewPanel: some View {
+    let issues = wishlistSellerOptionIssues
+    let readyOptions = wishlistReadySellerOptions
+    let totalOptions = store.wishlistItems.reduce(0) { count, item in
+      count + (item.comparisonOptions?.count ?? 0)
+    }
+    let missingAUD = issues.filter { $0.kind == "AUD total" }.count
+    let missingPostage = issues.filter { $0.kind == "Postage" }.count
+    let trustReview = issues.filter { $0.kind == "Trust" }.count
+
+    return SettingsPanel(title: "Seller option review", symbol: "storefront.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this to clean up manual seller options before purchase handoff. Each option should have a real product link, total AUD cost, postage cost/time, and explicit seller trust notes before it becomes the preferred purchase route.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Options", "\(totalOptions)", totalOptions == 0 ? .secondary : .blue),
+          ("Missing AUD", "\(missingAUD)", missingAUD == 0 ? .green : .orange),
+          ("Postage gaps", "\(missingPostage)", missingPostage == 0 ? .green : .orange),
+          ("Trust review", "\(trustReview)", trustReview == 0 ? .green : .red),
+          ("Ready-looking", "\(readyOptions.count)", readyOptions.isEmpty ? .secondary : .green)
+        ])
+
+        if totalOptions == 0 {
+          MVPEmptyState(
+            title: "No seller options yet",
+            detail: "Add a seller option or create a comparison plan on a Wishlist item before scoring and purchase handoff.",
+            symbol: "storefront.fill"
+          )
+        } else {
+          if issues.isEmpty {
+            Label("No obvious seller option gaps. Run local scoring and confirm live prices before buying externally.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Needs cleanup")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(Array(issues.prefix(6))) { issue in
+                WishlistSellerOptionIssueRow(issue: issue)
+              }
+              let remaining = max(issues.count - 6, 0)
+              if remaining > 0 {
+                Text("\(remaining) more seller option issue\(remaining == 1 ? "" : "s") need review.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+
+          if !readyOptions.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Ready-looking local candidates")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(Array(readyOptions.prefix(4))) { candidate in
+                WishlistSellerOptionIssueRow(issue: candidate)
+              }
+            }
+          }
+        }
+
+        Text("This panel is local guidance only. It does not verify live retailer prices, exchange rates, postage, delivery times, seller reviews, account access, checkout state, or payment readiness.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistSellerOptionIssues: [WishlistSellerOptionIssue] {
+    store.wishlistItems.flatMap { item in
+      (item.comparisonOptions ?? []).flatMap { option -> [WishlistSellerOptionIssue] in
+        var issues: [WishlistSellerOptionIssue] = []
+        let audText = option.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines)
+        let postageText = "\(option.postageCost) \(option.postageTime)".localizedLowercase
+        let trustText = option.trustRating.localizedLowercase
+
+        if audText.isEmpty || audText.localizedCaseInsensitiveContains("pending") || !audText.localizedCaseInsensitiveContains("aud") {
+          issues.append(WishlistSellerOptionIssue(
+            item: item,
+            option: option,
+            kind: "AUD total",
+            title: "AUD total missing",
+            detail: "Record total landed AUD cost including item, currency conversion, postage, and likely fees.",
+            symbol: "dollarsign.circle.fill",
+            color: .orange
+          ))
+        }
+
+        if postageText.contains("pending") || option.postageCost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || option.postageTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          issues.append(WishlistSellerOptionIssue(
+            item: item,
+            option: option,
+            kind: "Postage",
+            title: "Postage details missing",
+            detail: "Add postage cost and estimated delivery time before choosing this seller.",
+            symbol: "shippingbox.fill",
+            color: .orange
+          ))
+        }
+
+        if trustText.contains("unknown") || trustText.contains("review") || trustText.contains("needs") {
+          issues.append(WishlistSellerOptionIssue(
+            item: item,
+            option: option,
+            kind: "Trust",
+            title: "Seller trust needs review",
+            detail: "Confirm seller reputation, returns, warranty, contact details, and delivery evidence before purchase.",
+            symbol: "exclamationmark.shield.fill",
+            color: .red
+          ))
+        }
+
+        return issues
+      }
+    }
+  }
+
+  private var wishlistReadySellerOptions: [WishlistSellerOptionIssue] {
+    store.wishlistItems.flatMap { item in
+      (item.comparisonOptions ?? []).compactMap { option in
+        let searchable = [
+          option.estimatedAUDTotal,
+          option.postageCost,
+          option.postageTime,
+          option.trustRating,
+          option.trustNotes
+        ].joined(separator: " ").localizedLowercase
+        let hasAUD = searchable.contains("aud") && !searchable.contains("pending aud")
+        let hasPostage = !option.postageCost.localizedCaseInsensitiveContains("pending")
+          && !option.postageTime.localizedCaseInsensitiveContains("pending")
+        let trusted = option.trustRating.localizedCaseInsensitiveContains("trusted")
+          || option.trustRating.localizedCaseInsensitiveContains("high")
+          || option.trustRating.localizedCaseInsensitiveContains("accepted")
+        guard hasAUD && hasPostage && trusted else { return nil }
+        return WishlistSellerOptionIssue(
+          item: item,
+          option: option,
+          kind: "Ready",
+          title: "Ready-looking seller option",
+          detail: "Local fields look complete. Still confirm live price, stock, postage, returns, and account/payment details before buying externally.",
+          symbol: "checkmark.seal.fill",
+          color: .green
+        )
       }
     }
   }
@@ -636,6 +789,54 @@ struct CaptureChannelRow: View {
     .padding(10)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistSellerOptionIssue: Identifiable {
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)-\(kind)"
+  }
+
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var kind: String
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+}
+
+private struct WishlistSellerOptionIssueRow: View {
+  var issue: WishlistSellerOptionIssue
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: issue.symbol)
+        .foregroundStyle(issue.color)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Text(issue.title)
+            .font(.caption.weight(.semibold))
+          Badge(issue.kind, color: issue.color)
+        }
+        Text("\(issue.item.itemName) • \(issue.option.sellerName)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(issue.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("AUD \(issue.option.estimatedAUDTotal) • postage \(issue.option.postageCost), \(issue.option.postageTime) • trust \(issue.option.trustRating)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(issue.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
