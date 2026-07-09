@@ -612,6 +612,8 @@ struct OrdersView: View {
 
 private struct OrderWishlistSourceRow: View {
   var item: WishlistItem
+  var onTask: () -> Void
+  var onDraft: () -> Void
 
   private var handoff: WishlistPurchaseHandoff? {
     item.purchaseHandoff
@@ -636,7 +638,18 @@ private struct OrderWishlistSourceRow: View {
         }
       }
       Spacer(minLength: 8)
-      Badge("Wishlist", color: .pink)
+      VStack(alignment: .trailing, spacing: 6) {
+        Badge("Wishlist", color: .pink)
+        HStack(spacing: 6) {
+          Button("Task", systemImage: "checklist", action: onTask)
+            .labelStyle(.iconOnly)
+            .help("Create Wishlist follow-up task")
+          Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+            .labelStyle(.iconOnly)
+            .help("Create Wishlist review draft")
+        }
+        .buttonStyle(.bordered)
+      }
     }
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1916,7 +1929,13 @@ struct OrderDetailView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
               ForEach(wishlistItems) { item in
-                OrderWishlistSourceRow(item: item)
+                OrderWishlistSourceRow(item: item) {
+                  store.createReviewTask(from: item)
+                  feedbackMessage = "Wishlist follow-up task created locally from order source trail. No retailer, payment, browser, mailbox, or external service was contacted."
+                } onDraft: {
+                  store.createDraftMessage(from: item)
+                  feedbackMessage = "Wishlist review draft created locally from order source trail. No message was sent."
+                }
               }
             }
           }
