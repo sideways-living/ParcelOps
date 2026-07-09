@@ -13747,6 +13747,39 @@ final class ParcelOpsStore {
     suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: request).first?.id, orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, procurementRequestID: request.id, returnClaimID: request.returnClaimID, destinationAddressID: request.destinationAddressID, customerProfileID: request.customerProfileID, evidenceID: request.evidenceAttachmentIDs.first, ownerTeam: request.assignedBuyerTeam, locationText: "", context: "\(request.title) \(request.requestedItemsSummary) \(request.notes)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
   }
 
+  func suggestedInventoryReceipts(for item: WishlistItem) -> [InventoryReceiptRecord] {
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.pool,
+      item.purchaseDecision?.selectedSellerName,
+      item.purchaseHandoff?.sellerName,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedInventoryReceipts(
+      receivingInspectionID: inspection?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID,
+      shipmentGroupID: nil,
+      packageContentID: procurement?.packageContentID ?? inspection?.packageContentID,
+      procurementRequestID: procurement?.id ?? inspection?.procurementRequestID,
+      returnClaimID: nil,
+      destinationAddressID: procurement?.destinationAddressID ?? inspection?.destinationAddressID,
+      customerProfileID: procurement?.customerProfileID ?? inspection?.customerProfileID,
+      evidenceID: inspection?.evidenceAttachmentIDs.first ?? procurement?.evidenceAttachmentIDs.first,
+      ownerTeam: item.owner,
+      locationText: "",
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedInventoryReceipts(for claim: ReturnClaimRecord) -> [InventoryReceiptRecord] {
     suggestedInventoryReceipts(receivingInspectionID: suggestedReceivingInspections(for: claim).first?.id, orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, procurementRequestID: suggestedProcurementRequests(for: claim).first?.id, returnClaimID: claim.id, destinationAddressID: nil, customerProfileID: claim.customerProfileID, evidenceID: claim.evidenceAttachmentIDs.first, ownerTeam: claim.assignedOwnerTeam, locationText: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
   }
@@ -19201,6 +19234,52 @@ final class ParcelOpsStore {
       entityLabel: inspection.title,
       summary: "Wishlist receiving inspection staged locally.",
       afterDetail: "\(inspection.auditDetail)\nCreated from Wishlist item \(item.itemName). This is a local receiving checklist only; no carrier, supplier, warehouse, scanner, OCR, or mailbox action occurred."
+    )
+  }
+
+  func createWishlistInventoryReceipt(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let receipt = InventoryReceiptRecord(
+      title: "Wishlist inventory receipt: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      receivingInspectionID: inspection?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? inspection?.orderID,
+      shipmentGroupID: inspection?.shipmentGroupID,
+      packageContentID: procurement?.packageContentID ?? inspection?.packageContentID,
+      procurementRequestID: procurement?.id ?? inspection?.procurementRequestID,
+      returnClaimID: nil,
+      destinationAddressID: procurement?.destinationAddressID ?? inspection?.destinationAddressID,
+      customerProfileID: procurement?.customerProfileID ?? inspection?.customerProfileID,
+      evidenceAttachmentIDs: inspection?.evidenceAttachmentIDs ?? procurement?.evidenceAttachmentIDs ?? [],
+      receiptType: .stockReceipt,
+      stockHandoffStatus: .pending,
+      itemSummary: "\(item.itemName) from \(seller). Confirm final received item against Wishlist, procurement, order, and receiving inspection context.",
+      quantityReceived: 0,
+      quantityAccepted: 0,
+      quantityRejected: 0,
+      storageLocationSummary: "To assign after receipt or handoff",
+      assignedOwnerTeam: item.owner,
+      receivedDate: "Not received",
+      handoffDate: "To schedule",
+      discrepancySummary: "No inventory receipt discrepancy recorded yet.",
+      riskLevel: inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    inventoryReceipts.insert(receipt, at: 0)
+    persistInventoryReceipts()
+    logAudit(
+      action: .created,
+      entityType: .inventoryReceipt,
+      entityID: receipt.id.uuidString,
+      entityLabel: receipt.title,
+      summary: "Wishlist inventory receipt staged locally.",
+      afterDetail: "\(receipt.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local stock/handoff planning only; no warehouse, inventory API, scanner, carrier, supplier, or mailbox action occurred."
     )
   }
 

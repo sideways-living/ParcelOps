@@ -127,7 +127,8 @@ struct WishlistView: View {
                 suggestedAccounts: store.suggestedAccounts(for: item),
                 suggestedCosts: store.suggestedCostRecords(for: item),
                 suggestedProcurementRequests: store.suggestedProcurementRequests(for: item),
-                suggestedReceivingInspections: store.suggestedReceivingInspections(for: item)
+                suggestedReceivingInspections: store.suggestedReceivingInspections(for: item),
+                suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -186,6 +187,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: inspection)
               } onInspectionDraft: { inspection in
                 store.createDraftMessage(from: inspection)
+              } onAddInventoryReceipt: {
+                store.createWishlistInventoryReceipt(item)
+              } onInventoryReceiptTask: { receipt in
+                store.createReviewTask(from: receipt)
+              } onInventoryReceiptDraft: { receipt in
+                store.createDraftMessage(from: receipt)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -279,6 +286,12 @@ struct WishlistView: View {
               } onInspectionTask: { _ in
                 store.restoreWishlistItem(item)
               } onInspectionDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddInventoryReceipt: {
+                store.restoreWishlistItem(item)
+              } onInventoryReceiptTask: { _ in
+                store.restoreWishlistItem(item)
+              } onInventoryReceiptDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1094,6 +1107,7 @@ struct WishlistItemRow: View {
   var suggestedCosts: [CostRecord] = []
   var suggestedProcurementRequests: [ProcurementRequest] = []
   var suggestedReceivingInspections: [ReceivingInspectionRecord] = []
+  var suggestedInventoryReceipts: [InventoryReceiptRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1121,6 +1135,9 @@ struct WishlistItemRow: View {
   var onAddInspection: () -> Void
   var onInspectionTask: (ReceivingInspectionRecord) -> Void
   var onInspectionDraft: (ReceivingInspectionRecord) -> Void
+  var onAddInventoryReceipt: () -> Void
+  var onInventoryReceiptTask: (InventoryReceiptRecord) -> Void
+  var onInventoryReceiptDraft: (InventoryReceiptRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1610,6 +1627,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Inventory receipt", systemImage: "shippingbox.and.arrow.backward.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Use this to plan where the received item goes after inspection: stocked, handed off, partially accepted, rejected, or still pending local review.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedInventoryReceipts.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No stock or handoff receipt staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add receipt", systemImage: "shippingbox.and.arrow.backward") {
+                onAddInventoryReceipt()
+                feedbackMessage = "Wishlist inventory receipt staged locally. No warehouse, inventory API, scanner, carrier, supplier, or mailbox action occurred."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedInventoryReceipts.prefix(3)) { receipt in
+              WishlistInventoryReceiptRow(receipt: receipt) {
+                onInventoryReceiptTask(receipt)
+                feedbackMessage = "Inventory receipt task created locally. No warehouse, inventory API, scanner, or carrier integration was used."
+              } onDraft: {
+                onInventoryReceiptDraft(receipt)
+                feedbackMessage = "Inventory receipt follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1824,6 +1877,45 @@ private struct WishlistReceivingInspectionRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create receiving inspection follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistInventoryReceiptRow: View {
+  var receipt: InventoryReceiptRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "shippingbox.and.arrow.backward.fill")
+        .foregroundStyle(receipt.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(receipt.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(receipt.receiptType.rawValue) • \(receipt.assignedOwnerTeam) • \(receipt.storageLocationSummary)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(receipt.stockHandoffStatus.rawValue, color: receipt.stockHandoffStatus == .stocked || receipt.stockHandoffStatus == .handedOff ? .green : .blue)
+          Badge("\(receipt.quantityAccepted)/\(receipt.quantityReceived) accepted", color: receipt.quantityRejected > 0 ? .orange : .secondary)
+          Badge(receipt.reviewState.rawValue, color: receipt.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create inventory receipt task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create inventory receipt follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
