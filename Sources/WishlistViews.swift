@@ -129,7 +129,8 @@ struct WishlistView: View {
                 suggestedProcurementRequests: store.suggestedProcurementRequests(for: item),
                 suggestedReceivingInspections: store.suggestedReceivingInspections(for: item),
                 suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item),
-                suggestedStorageLocations: store.suggestedStorageLocations(for: item)
+                suggestedStorageLocations: store.suggestedStorageLocations(for: item),
+                suggestedCustodyRecords: store.suggestedCustodyRecords(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -200,6 +201,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: location)
               } onStorageLocationDraft: { location in
                 store.createDraftMessage(from: location)
+              } onAddCustody: {
+                store.createWishlistCustodyRecord(item)
+              } onCustodyTask: { custody in
+                store.createReviewTask(from: custody)
+              } onCustodyDraft: { custody in
+                store.createDraftMessage(from: custody)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -305,6 +312,12 @@ struct WishlistView: View {
               } onStorageLocationTask: { _ in
                 store.restoreWishlistItem(item)
               } onStorageLocationDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddCustody: {
+                store.restoreWishlistItem(item)
+              } onCustodyTask: { _ in
+                store.restoreWishlistItem(item)
+              } onCustodyDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1122,6 +1135,7 @@ struct WishlistItemRow: View {
   var suggestedReceivingInspections: [ReceivingInspectionRecord] = []
   var suggestedInventoryReceipts: [InventoryReceiptRecord] = []
   var suggestedStorageLocations: [StorageLocationRecord] = []
+  var suggestedCustodyRecords: [CustodyRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1155,6 +1169,9 @@ struct WishlistItemRow: View {
   var onAddStorageLocation: () -> Void
   var onStorageLocationTask: (StorageLocationRecord) -> Void
   var onStorageLocationDraft: (StorageLocationRecord) -> Void
+  var onAddCustody: () -> Void
+  var onCustodyTask: (CustodyRecord) -> Void
+  var onCustodyDraft: (CustodyRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1716,6 +1733,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Custody and responsibility", systemImage: "person.2.badge.gearshape.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Track who is responsible for the item as it moves from purchase confirmation to receiving, staging, storage, or handoff. This is a local chain-of-custody note, not a signature or scanner workflow.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedCustodyRecords.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No custody record staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add custody", systemImage: "person.2.badge.gearshape") {
+                onAddCustody()
+                feedbackMessage = "Wishlist custody record created locally. No signature capture, scanner, access-control, warehouse, carrier, supplier, or retailer system was contacted."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedCustodyRecords.prefix(3)) { custody in
+              WishlistCustodyRecordRow(custody: custody) {
+                onCustodyTask(custody)
+                feedbackMessage = "Custody review task created locally. No signature capture, scanner, access-control, or external system was used."
+              } onDraft: {
+                onCustodyDraft(custody)
+                feedbackMessage = "Custody follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -2008,6 +2061,45 @@ private struct WishlistStorageLocationRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create storage location follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistCustodyRecordRow: View {
+  var custody: CustodyRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "person.2.badge.gearshape.fill")
+        .foregroundStyle(custody.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(custody.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(custody.currentCustodianTeam) • \(custody.handoffMethod.rawValue) • \(custody.transferDate)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(custody.custodyStatus.rawValue, color: custody.custodyStatus == .received || custody.custodyStatus == .returnedClosed ? .green : .blue)
+          Badge(custody.assignedOwnerTeam, color: .blue)
+          Badge(custody.reviewState.rawValue, color: custody.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create custody review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create custody follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
