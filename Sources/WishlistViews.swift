@@ -2696,6 +2696,7 @@ private struct WishlistComparisonOptionCard: View {
           .foregroundStyle(.secondary)
           .lineLimit(3)
       }
+      WishlistSellerEvidenceChecklist(option: option)
       Text(option.trustNotes)
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -2747,6 +2748,76 @@ private struct WishlistComparisonOptionCard: View {
         isEditing = false
       }
     }
+  }
+}
+
+private struct WishlistSellerEvidenceChecklist: View {
+  var option: WishlistComparisonOption
+
+  private var evidenceItems: [(String, Bool, String)] {
+    let searchable = [
+      option.productURL,
+      option.listedPrice,
+      option.currency,
+      option.estimatedAUDTotal,
+      option.postageCost,
+      option.postageTime,
+      option.sellerRegion,
+      option.trustRating,
+      option.trustNotes,
+      option.recommendation
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+
+    return [
+      ("Product link", !option.productURL.isPlaceholderValidationValue && option.productURL.localizedCaseInsensitiveContains("http"), "Direct seller page"),
+      ("AUD total", option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud") && !option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending"), "Landed AUD"),
+      ("Postage cost", !option.postageCost.localizedCaseInsensitiveContains("pending") && !option.postageCost.isPlaceholderValidationValue, "Cost known"),
+      ("Postage time", !option.postageTime.localizedCaseInsensitiveContains("pending") && !option.postageTime.isPlaceholderValidationValue, "ETA known"),
+      ("Seller trust", !option.trustRating.localizedCaseInsensitiveContains("unknown") && !option.trustRating.localizedCaseInsensitiveContains("review"), "Trust noted"),
+      ("Returns/warranty", searchable.contains("return") || searchable.contains("warranty"), "Policy noted")
+    ]
+  }
+
+  private var missingItems: [String] {
+    evidenceItems.filter { !$0.1 }.map(\.0)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 6) {
+        Label("Evidence", systemImage: "checklist")
+          .font(.caption2.weight(.semibold))
+        Badge(missingItems.isEmpty ? "Complete enough for review" : "\(missingItems.count) missing", color: missingItems.isEmpty ? .green : .orange)
+      }
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(evidenceItems, id: \.0) { title, passed, detail in
+          HStack(spacing: 5) {
+            Image(systemName: passed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+              .foregroundStyle(passed ? Color.green : Color.orange)
+            VStack(alignment: .leading, spacing: 1) {
+              Text(title)
+                .font(.caption2.weight(.semibold))
+              Text(passed ? detail : "Needs check")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .padding(6)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background((passed ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        }
+      }
+      if !missingItems.isEmpty {
+        Text("Before purchase review, fill in: \(missingItems.joined(separator: ", ")).")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
