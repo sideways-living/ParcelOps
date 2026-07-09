@@ -757,6 +757,7 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        DashboardReleaseReadinessSnapshot(store: store)
         ActiveOperatorQueueFocusCard(store: store)
         RecentOperatorImprovementsCard()
         inboxTriageQualityPanel
@@ -2020,6 +2021,235 @@ private struct DashboardActionFeedbackPanel: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct DashboardReleaseReadinessSnapshot: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.spaceMailIntakeHealthSummaries.first
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var hasMailboxSetup: Bool {
+    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasMailboxReady: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+      || store.gmailMailboxConnections.contains { connection in
+        store.gmailAuthSessionState(for: connection).status == .connected
+      }
+  }
+
+  private var latestFetchedCount: Int {
+    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+  }
+
+  private var importedMailboxCount: Int {
+    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var uncertainMailboxCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+  }
+
+  private var filteredMailboxCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var inboxOrderCount: Int {
+    store.orders.filter { order in
+      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import" || order.isInboxCreatedLocalOrder
+    }.count
+  }
+
+  private var openCleanupCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + uncertainMailboxCount
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var readyCount: Int {
+    readinessRows.filter(\.isReady).count
+  }
+
+  private var tone: Color {
+    if readyCount >= readinessRows.count - 1 && openCleanupCount < 25 { return .green }
+    if readyCount >= 4 { return .teal }
+    return .orange
+  }
+
+  private var statusTitle: String {
+    if readyCount >= readinessRows.count - 1 && openCleanupCount < 25 {
+      return "Release-candidate path is close"
+    }
+    if readyCount >= 4 {
+      return "Usable path exists; cleanup and QA remain"
+    }
+    return "Finish the core proof path"
+  }
+
+  private var statusDetail: String {
+    if readyCount >= readinessRows.count - 1 && openCleanupCount < 25 {
+      return "Run a focused hands-on pass, verify persistence after restart, and capture any confusing labels or screens before adding more integrations."
+    }
+    if readyCount >= 4 {
+      return "The app is usable for supervised testing. Work down active cleanup, prove one clean Inbox-created order, and keep integrations manual."
+    }
+    return "Use Mailbox Monitor, Inbox, Orders, Dispatch, Tasks, and Audit to prove one complete local flow before expanding scope."
+  }
+
+  private var mailboxEvidenceText: String {
+    if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
+      return "Gmail latest: \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain."
+    }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
+      return "SpaceMail latest: \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+    }
+    return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
+  }
+
+  private var readinessRows: [ReadinessRow] {
+    [
+      ReadinessRow(
+        title: "Provider setup",
+        detail: hasMailboxSetup ? "SpaceMail or Gmail setup exists." : "Add the active mailbox provider before live intake testing.",
+        symbol: "server.rack",
+        isReady: hasMailboxSetup,
+        color: hasMailboxSetup ? .green : .orange
+      ),
+      ReadinessRow(
+        title: "Credential or sign-in",
+        detail: hasMailboxReady ? "The active provider has credential/sign-in readiness." : "Set SpaceMail Keychain credential or complete Gmail sign-in.",
+        symbol: "key.fill",
+        isReady: hasMailboxReady,
+        color: hasMailboxReady ? .green : .orange
+      ),
+      ReadinessRow(
+        title: "Manual refresh evidence",
+        detail: latestFetchedCount > 0 ? "\(latestFetchedCount) messages fetched in the latest provider evidence." : "Run one explicit manual read-only refresh when ready.",
+        symbol: "arrow.triangle.2.circlepath",
+        isReady: latestFetchedCount > 0,
+        color: latestFetchedCount > 0 ? .green : .orange
+      ),
+      ReadinessRow(
+        title: "Inbox-created order",
+        detail: inboxOrderCount > 0 ? "\(inboxOrderCount) order source exists from Inbox or manual import." : "Create or link one order from confirmed intake.",
+        symbol: "shippingbox.fill",
+        isReady: inboxOrderCount > 0,
+        color: inboxOrderCount > 0 ? .green : .orange
+      ),
+      ReadinessRow(
+        title: "Operator cleanup",
+        detail: openCleanupCount == 0 ? "No active cleanup signals." : "\(openCleanupCount) active cleanup signal\(openCleanupCount == 1 ? "" : "s") remain across Inbox, parser, Workbench, Tasks, and Dispatch.",
+        symbol: "line.3.horizontal.decrease.circle.fill",
+        isReady: openCleanupCount < 25,
+        color: openCleanupCount < 25 ? .teal : .orange
+      ),
+      ReadinessRow(
+        title: "Deferred integrations",
+        detail: "Shopify, carriers, outbound email, OCR, scanners, notifications, calendars, and background sync remain intentionally inactive.",
+        symbol: "pause.circle.fill",
+        isReady: true,
+        color: .secondary
+      )
+    ]
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Release-candidate snapshot", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: tone == .green ? "checkmark.seal.fill" : "target")
+            .foregroundStyle(tone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(statusTitle)
+              .font(.headline)
+            Text(statusDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(mailboxEvidenceText)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(tone)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(readyCount)/\(readinessRows.count)", color: tone)
+        }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestFetchedCount)", latestFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(importedMailboxCount)", importedMailboxCount > 0 ? .green : .secondary),
+          ("Filtered", "\(filteredMailboxCount)", filteredMailboxCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(uncertainMailboxCount)", uncertainMailboxCount > 0 ? .orange : .green),
+          ("Inbox orders", "\(inboxOrderCount)", inboxOrderCount > 0 ? .green : .orange),
+          ("Cleanup", "\(openCleanupCount)", openCleanupCount < 25 ? .teal : .orange)
+        ])
+
+        CompactMetadataGrid(minimumWidth: 190) {
+          ForEach(readinessRows) { row in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: row.isReady ? "checkmark.circle.fill" : row.symbol)
+                  .foregroundStyle(row.color)
+                  .frame(width: 18)
+                Text(row.title)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(row.color)
+              }
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink { MVPSetupView(store: store) } label: { Label("Full MVP setup", systemImage: "wrench.and.screwdriver.fill") }
+            .buttonStyle(.bordered)
+          NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
+            .buttonStyle(.bordered)
+          NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
+            .buttonStyle(.bordered)
+          NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
+            .buttonStyle(.bordered)
+        }
+
+        Text("Snapshot boundary: this panel reads local JSON-backed state only. It does not run mailbox refresh, read credentials, mutate mailboxes, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private struct ReadinessRow: Identifiable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var symbol: String
+    var isReady: Bool
+    var color: Color
   }
 }
 
