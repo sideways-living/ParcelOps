@@ -2333,6 +2333,26 @@ struct GmailMailboxConnectionRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
 
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Values to compile into the app", systemImage: "doc.on.clipboard.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailCompiledHandoffColor)
+        Text(gmailCompiledHandoffDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 4) {
+          compiledValueRow(label: "GIDClientID", value: gmailExpectedCompiledClientID)
+          compiledValueRow(label: "Gmail URL scheme", value: gmailExpectedCompiledCallbackScheme)
+        }
+        Text("After these values are updated in Project.json/App Info.plist and the Xcode project is regenerated, rerun Check readiness before testing real Google sign-in.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailCompiledHandoffColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(8)
+      .background(gmailCompiledHandoffColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       Text("Client IDs and URL schemes are non-secret app configuration. ParcelOps still does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail message bodies.")
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -2344,6 +2364,59 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailCompiledConfigurationColor: Color {
     readiness.isReady ? .green : .orange
+  }
+
+  private var gmailExpectedCompiledClientID: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Add the Google iOS OAuth client ID first" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder with the Google iOS OAuth client ID"
+    }
+    return clientID
+  }
+
+  private var gmailExpectedCompiledCallbackScheme: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if let expected = gmailExpectedRedirectScheme(for: clientID) {
+      return expected
+    }
+    let savedScheme = gmailRedirectSchemeDisplay
+    if savedScheme.isEmpty { return "Add the reversed client ID URL scheme first" }
+    if savedScheme == GoogleGmailAuthAdapter.placeholderCallbackScheme || savedScheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder with the reversed client ID URL scheme"
+    }
+    return savedScheme
+  }
+
+  private var gmailCompiledHandoffColor: Color {
+    gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+      && gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+      ? .blue
+      : .orange
+  }
+
+  private var gmailCompiledHandoffDetail: String {
+    if gmailCompiledHandoffColor == .blue {
+      return "These are the non-secret values the compiled app should contain for this saved Gmail setup."
+    }
+    return "Finish the saved Google iOS OAuth client ID and reversed URL scheme first; then this handoff will show exact compile-time values."
+  }
+
+  @ViewBuilder
+  private func compiledValueRow(label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(label)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(value)
+        .font(.caption.monospaced())
+        .textSelection(.enabled)
+        .lineLimit(3)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var gmailCompiledClientStatusColor: Color {
@@ -2540,6 +2613,15 @@ struct GmailMailboxConnectionRow: View {
       return scheme
     }
     return trimmed
+  }
+
+  private func gmailExpectedRedirectScheme(for clientID: String) -> String? {
+    let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+    let suffix = ".apps.googleusercontent.com"
+    guard trimmed.hasSuffix(suffix), trimmed.count > suffix.count else {
+      return nil
+    }
+    return "com.googleusercontent.apps.\(trimmed.dropLast(suffix.count))"
   }
 
   private var gmailOperatorNextTitle: String {
