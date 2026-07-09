@@ -343,8 +343,8 @@ struct MailboxView: View {
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
-            SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
-            MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+            SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
+            MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
             MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
