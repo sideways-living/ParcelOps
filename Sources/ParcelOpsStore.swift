@@ -18787,6 +18787,89 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistPurchaseDecision(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    let current = wishlistItems[index]
+    let options = current.comparisonOptions ?? []
+    let selectedOption = options.first { $0.id == current.preferredOptionID } ?? options.first
+    let rejectedOptions = options
+      .filter { $0.id != selectedOption?.id }
+      .map { "\($0.sellerName): \($0.estimatedAUDTotal), trust \($0.trustRating)" }
+      .joined(separator: " | ")
+    wishlistItems[index].purchaseDecision = WishlistPurchaseDecision(
+      selectedOptionID: selectedOption?.id,
+      selectedSellerName: selectedOption?.sellerName ?? current.storefront,
+      decisionStatus: selectedOption == nil ? "Blocked pending seller option" : "Draft decision",
+      totalAUDSummary: selectedOption?.estimatedAUDTotal ?? "No seller option selected",
+      postageSummary: selectedOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "No postage option selected",
+      trustSummary: selectedOption.map { "\($0.trustRating): \($0.trustNotes)" } ?? "Seller trust not assessed",
+      rejectedOptionsSummary: rejectedOptions.isEmpty ? "No rejected seller options recorded." : rejectedOptions,
+      decisionNotes: selectedOption == nil
+        ? "Add, edit, and score seller options before deciding where to buy."
+        : "Draft only. Confirm live price, stock, AUD total, postage, returns, warranty, seller trust, account, and payment readiness outside ParcelOps before buying.",
+      decidedBy: current.owner,
+      decidedDate: "Now",
+      reviewState: .needsReview
+    )
+    wishlistItems[index].status = selectedOption == nil ? "Purchase decision blocked" : "Purchase decision drafted"
+    wishlistItems[index].purchaseReadiness = selectedOption == nil ? "Seller option required before decision" : "Decision needs review before purchase"
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist purchase decision drafted locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nPurchase decision is a local review record only. No retailer page was opened, no account was accessed, no checkout or payment occurred, and no external seller verification ran."
+    )
+  }
+
+  func markWishlistPurchaseDecisionReviewed(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }), var decision = wishlistItems[index].purchaseDecision else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    decision.decisionStatus = "Decision reviewed"
+    decision.reviewState = .accepted
+    decision.decidedDate = "Now"
+    decision.decisionNotes = "Decision reviewed locally. Operator still must confirm live price, stock, postage, seller trust, account, payment, delivery address, returns, and warranty outside ParcelOps before buying."
+    wishlistItems[index].purchaseDecision = decision
+    wishlistItems[index].status = "Purchase decision reviewed"
+    wishlistItems[index].purchaseReadiness = "Ready for manual purchase handoff"
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist purchase decision reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReview only. ParcelOps did not buy the item, store payment details, open a retailer account, or monitor external checkout state."
+    )
+  }
+
+  func markWishlistPurchaseDecisionNeedsReview(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }), var decision = wishlistItems[index].purchaseDecision else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    decision.decisionStatus = "Decision needs review"
+    decision.reviewState = .needsReview
+    decision.decidedDate = "Now"
+    decision.decisionNotes = "Decision reopened because seller trust, total AUD cost, postage, returns, warranty, account, or payment readiness still needs manual confirmation."
+    wishlistItems[index].purchaseDecision = decision
+    wishlistItems[index].status = "Purchase decision needs review"
+    wishlistItems[index].purchaseReadiness = "Decision needs review before purchase"
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist purchase decision marked needing review.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nLocal review state only. No retailer, account, checkout, payment, mailbox, browser automation, or external verification action occurred."
+    )
+  }
+
   private func wishlistCheck(title: String, passed: Bool, failDetail: String, passDetail: String) -> WishlistPurchaseCheck {
     WishlistPurchaseCheck(
       title: title,
@@ -21050,8 +21133,9 @@ private extension WishlistItem {
     let checkSummary = (purchaseChecks ?? [])
       .map { "\($0.title): \($0.status) (\($0.severity))" }
       .joined(separator: " | ")
+    let decisionSummary = purchaseDecision.map { "seller \($0.selectedSellerName); status \($0.decisionStatus); total \($0.totalAUDSummary); postage \($0.postageSummary); trust \($0.trustSummary); review \($0.reviewState.rawValue)" } ?? "none"
     let handoffSummary = purchaseHandoff.map { "seller \($0.sellerName); account \($0.accountLabel); status \($0.purchaseStatus); order watch \($0.orderWatchStatus); linked order \($0.linkedOrderID?.uuidString ?? "none")" } ?? "none"
-    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); purchase handoff: \(handoffSummary); captured detail: \(capturedDetail)."
+    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); purchase decision: \(decisionSummary); purchase handoff: \(handoffSummary); captured detail: \(capturedDetail)."
   }
 }
 

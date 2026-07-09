@@ -134,6 +134,12 @@ struct WishlistView: View {
                 store.evaluateWishlistComparisonOptions(item)
               } onCheck: {
                 store.runWishlistPurchaseReadinessCheck(item)
+              } onDecision: {
+                store.createWishlistPurchaseDecision(item)
+              } onDecisionReviewed: {
+                store.markWishlistPurchaseDecisionReviewed(item)
+              } onDecisionNeedsReview: {
+                store.markWishlistPurchaseDecisionNeedsReview(item)
               } onHandoff: {
                 store.prepareWishlistPurchaseHandoff(item)
               } onPurchased: {
@@ -193,6 +199,12 @@ struct WishlistView: View {
               } onScore: {
                 store.restoreWishlistItem(item)
               } onCheck: {
+                store.restoreWishlistItem(item)
+              } onDecision: {
+                store.restoreWishlistItem(item)
+              } onDecisionReviewed: {
+                store.restoreWishlistItem(item)
+              } onDecisionNeedsReview: {
                 store.restoreWishlistItem(item)
               } onHandoff: {
                 store.restoreWishlistItem(item)
@@ -1016,6 +1028,9 @@ struct WishlistItemRow: View {
   var onAddOption: () -> Void
   var onScore: () -> Void
   var onCheck: () -> Void
+  var onDecision: () -> Void
+  var onDecisionReviewed: () -> Void
+  var onDecisionNeedsReview: () -> Void
   var onHandoff: () -> Void
   var onPurchased: () -> Void
   var onOrderSeen: () -> Void
@@ -1056,6 +1071,7 @@ struct WishlistItemRow: View {
 
       wishlistComparisonSummary
       wishlistPurchaseChecksSummary
+      wishlistPurchaseDecisionSummary
       wishlistPurchaseHandoffSummary
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
@@ -1138,6 +1154,13 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Run local purchase readiness check")
+          Button("Decision", systemImage: "doc.text.magnifyingglass") {
+            onDecision()
+            feedbackMessage = "Purchase decision drafted locally. Review why this seller is preferred before buying externally."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Draft purchase decision")
           Button("Handoff", systemImage: "person.crop.circle.badge.checkmark") {
             onHandoff()
             feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelOps."
@@ -1246,6 +1269,54 @@ struct WishlistItemRow: View {
     }
     .padding(10)
     .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var wishlistPurchaseDecisionSummary: some View {
+    if let decision = item.purchaseDecision {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label("Purchase decision", systemImage: "doc.text.magnifyingglass")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.brown)
+          Spacer(minLength: 8)
+          Badge(decision.decisionStatus, color: decision.reviewState == .accepted ? .green : .orange)
+        }
+
+        CompactMetadataGrid(minimumWidth: 180) {
+          PurchaseDecisionFact(title: "Seller", value: decision.selectedSellerName, symbol: "storefront.fill")
+          PurchaseDecisionFact(title: "AUD total", value: decision.totalAUDSummary, symbol: "dollarsign.circle.fill")
+          PurchaseDecisionFact(title: "Postage", value: decision.postageSummary, symbol: "shippingbox.fill")
+          PurchaseDecisionFact(title: "Trust", value: decision.trustSummary, symbol: "shield.checkered")
+        }
+
+        if !decision.rejectedOptionsSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          Text("Rejected/alternate options: \(decision.rejectedOptionsSummary)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text(decision.decisionNotes)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          Button("Reviewed", systemImage: "checkmark.seal") {
+            onDecisionReviewed()
+            feedbackMessage = "Purchase decision reviewed locally. Confirm live seller/account/payment details before buying externally."
+          }
+          .buttonStyle(.borderedProminent)
+          Button("Needs review", systemImage: "exclamationmark.triangle") {
+            onDecisionNeedsReview()
+            feedbackMessage = "Purchase decision reopened locally for seller, trust, postage, account, or payment review."
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+      .padding(10)
+      .background(.brown.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 
   @ViewBuilder
@@ -1365,6 +1436,31 @@ private struct PurchaseHandoffFact: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct PurchaseDecisionFact: View {
+  var title: String
+  var value: String
+  var symbol: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: symbol)
+        .foregroundStyle(.brown)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(value)
+          .font(.caption)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(.brown.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

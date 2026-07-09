@@ -2705,6 +2705,7 @@ struct WishlistItem: Identifiable, Hashable, Codable {
   var preferredOptionID: UUID?
   var comparisonOptions: [WishlistComparisonOption]?
   var purchaseChecks: [WishlistPurchaseCheck]?
+  var purchaseDecision: WishlistPurchaseDecision?
   var purchaseHandoff: WishlistPurchaseHandoff?
 }
 
@@ -2733,6 +2734,21 @@ struct WishlistPurchaseCheck: Identifiable, Hashable, Codable {
   var status: String
   var detail: String
   var severity: String
+}
+
+struct WishlistPurchaseDecision: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var selectedOptionID: UUID?
+  var selectedSellerName: String
+  var decisionStatus: String
+  var totalAUDSummary: String
+  var postageSummary: String
+  var trustSummary: String
+  var rejectedOptionsSummary: String
+  var decisionNotes: String
+  var decidedBy: String
+  var decidedDate: String
+  var reviewState: ReviewState
 }
 
 struct WishlistPurchaseHandoff: Identifiable, Hashable, Codable {
