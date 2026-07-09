@@ -13455,6 +13455,42 @@ final class ParcelOpsStore {
     suggestedProcurementRequests(vendorProfileID: cost.vendorProfileID, accountID: cost.accountID, customerProfileID: cost.customerProfileID, destinationAddressID: nil, packageContentID: cost.packageContentID, costRecordID: cost.id, returnClaimID: suggestedReturnClaims(for: cost).first?.id, evidenceID: cost.evidenceAttachmentIDs.first, budgetCode: cost.budgetCode, requesterTeam: cost.costOwnerTeam, buyerTeam: "", context: "\(cost.title) \(cost.notes)", linkedEntityType: .costRecord, linkedEntityID: cost.id.uuidString)
   }
 
+  func suggestedProcurementRequests(for item: WishlistItem) -> [ProcurementRequest] {
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let cost = suggestedCostRecords(for: item).first
+    let account = suggestedAccounts(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      seller,
+      item.owner,
+      item.pool,
+      item.purchaseDecision?.totalAUDSummary,
+      item.purchaseDecision?.postageSummary,
+      item.purchaseDecision?.decisionNotes,
+      item.purchaseHandoff?.expectedOrderSignals,
+      item.purchaseHandoff?.notes
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedProcurementRequests(
+      vendorProfileID: nil,
+      accountID: account?.id,
+      customerProfileID: nil,
+      destinationAddressID: nil,
+      packageContentID: nil,
+      costRecordID: cost?.id,
+      returnClaimID: nil,
+      evidenceID: nil,
+      budgetCode: wishlistBudgetCode(for: item),
+      requesterTeam: item.owner,
+      buyerTeam: item.owner,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedProcurementRequests(for claim: ReturnClaimRecord) -> [ProcurementRequest] {
     suggestedProcurementRequests(vendorProfileID: claim.vendorProfileID, accountID: claim.accountID, customerProfileID: claim.customerProfileID, destinationAddressID: nil, packageContentID: claim.packageContentID, costRecordID: claim.costRecordID, returnClaimID: claim.id, evidenceID: claim.evidenceAttachmentIDs.first, budgetCode: "", requesterTeam: claim.assignedOwnerTeam, buyerTeam: "", context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
   }
@@ -19041,6 +19077,52 @@ final class ParcelOpsStore {
       entityLabel: cost.title,
       summary: "Wishlist purchase cost placeholder created.",
       afterDetail: "\(cost.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local budget tracking only; no purchase, payment, reimbursement, accounting, bank, or retailer action occurred."
+    )
+  }
+
+  func createWishlistProcurementRequest(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let cost = suggestedCostRecords(for: item).first
+    let account = suggestedAccounts(for: item).first
+    let amountText = cost?.amountText ?? wishlistPurchaseAmountText(for: item)
+    let request = ProcurementRequest(
+      title: "Wishlist procurement: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      requesterTeam: item.owner,
+      requestedDate: Self.auditTimestamp(),
+      neededByDate: "Before external purchase",
+      vendorProfileID: nil,
+      accountID: account?.id,
+      customerProfileID: nil,
+      destinationAddressID: nil,
+      packageContentID: nil,
+      costRecordID: cost?.id,
+      returnClaimID: nil,
+      requestedItemsSummary: "\(item.itemName) from \(seller). Confirm final product page, AUD total, postage time, seller trust, account, payment method, and delivery details before buying externally.",
+      estimatedCostText: amountText,
+      currency: cost?.currency ?? "AUD",
+      budgetCode: cost?.budgetCode ?? wishlistBudgetCode(for: item),
+      approvalStatus: .draft,
+      procurementStatus: .requested,
+      assignedBuyerTeam: item.owner,
+      evidenceAttachmentIDs: [],
+      notes: "Local Wishlist procurement request only. No supplier API, checkout, browser automation, purchase order, payment, accounting, or mailbox action occurred. Preferred seller: \(seller). Account: \(account?.accountName ?? "to confirm").",
+      riskLevel: item.purchaseDecision?.reviewState == .accepted ? .medium : .high,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    procurementRequests.insert(request, at: 0)
+    persistProcurementRequests()
+    logAudit(
+      action: .created,
+      entityType: .procurementRequest,
+      entityID: request.id.uuidString,
+      entityLabel: request.title,
+      summary: "Wishlist procurement request created locally.",
+      afterDetail: "\(request.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local approval and buying coordination only; no external supplier, checkout, payment, or order system was contacted."
     )
   }
 

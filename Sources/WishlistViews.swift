@@ -125,7 +125,8 @@ struct WishlistView: View {
                 item: item,
                 confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item),
                 suggestedAccounts: store.suggestedAccounts(for: item),
-                suggestedCosts: store.suggestedCostRecords(for: item)
+                suggestedCosts: store.suggestedCostRecords(for: item),
+                suggestedProcurementRequests: store.suggestedProcurementRequests(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -172,6 +173,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: cost)
               } onCostDraft: { cost in
                 store.createDraftMessage(from: cost)
+              } onAddProcurement: {
+                store.createWishlistProcurementRequest(item)
+              } onProcurementTask: { request in
+                store.createReviewTask(from: request)
+              } onProcurementDraft: { request in
+                store.createDraftMessage(from: request)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -253,6 +260,12 @@ struct WishlistView: View {
               } onCostTask: { _ in
                 store.restoreWishlistItem(item)
               } onCostDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddProcurement: {
+                store.restoreWishlistItem(item)
+              } onProcurementTask: { _ in
+                store.restoreWishlistItem(item)
+              } onProcurementDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1066,6 +1079,7 @@ struct WishlistItemRow: View {
   var confirmationMatches: [ForwardedEmailIntake] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedCosts: [CostRecord] = []
+  var suggestedProcurementRequests: [ProcurementRequest] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1087,6 +1101,9 @@ struct WishlistItemRow: View {
   var onAddCost: () -> Void
   var onCostTask: (CostRecord) -> Void
   var onCostDraft: (CostRecord) -> Void
+  var onAddProcurement: () -> Void
+  var onProcurementTask: (ProcurementRequest) -> Void
+  var onProcurementDraft: (ProcurementRequest) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1504,6 +1521,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Procurement request", systemImage: "cart.badge.plus")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Use this when the item needs approval or buying coordination before an external purchase. It stays local and links back to the Wishlist item, account placeholder, and cost record.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedProcurementRequests.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No linked procurement request yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add request", systemImage: "cart.badge.plus") {
+                onAddProcurement()
+                feedbackMessage = "Wishlist procurement request created locally. Review approval, seller, account, budget, and delivery details before buying externally."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedProcurementRequests.prefix(3)) { request in
+              WishlistProcurementContextRow(request: request) {
+                onProcurementTask(request)
+                feedbackMessage = "Procurement review task created locally. No supplier, purchase order, or payment integration was used."
+              } onDraft: {
+                onProcurementDraft(request)
+                feedbackMessage = "Procurement follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1640,6 +1693,45 @@ private struct WishlistCostContextRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create cost follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistProcurementContextRow: View {
+  var request: ProcurementRequest
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "cart.badge.plus")
+        .foregroundStyle(request.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(request.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(request.estimatedCostText) \(request.currency) • \(request.budgetCode) • \(request.assignedBuyerTeam)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(request.approvalStatus.rawValue, color: request.approvalStatus == .approved ? .green : .orange)
+          Badge(request.procurementStatus.rawValue, color: request.procurementStatus == .received ? .green : .blue)
+          Badge(request.reviewState.rawValue, color: request.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create procurement review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create procurement follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
