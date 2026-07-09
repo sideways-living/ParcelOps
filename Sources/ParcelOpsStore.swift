@@ -14166,6 +14166,44 @@ final class ParcelOpsStore {
     suggestedScanSessionRecords(labelReferenceID: label.id, storageLocationID: label.storageLocationID, custodyRecordID: label.custodyRecordID, inventoryReceiptID: label.inventoryReceiptID, orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, packageContentID: label.packageContentID, evidenceID: label.evidenceAttachmentIDs.first, labelValue: label.labelValuePlaceholder, operatorTeam: label.assignedOwnerTeam, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
   }
 
+  func suggestedScanSessionRecords(for item: WishlistItem) -> [ScanSessionRecord] {
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.purchaseHandoff?.sellerName,
+      label?.labelValuePlaceholder,
+      location?.locationCode,
+      custody?.title,
+      receipt?.itemSummary,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedScanSessionRecords(
+      labelReferenceID: label?.id,
+      storageLocationID: location?.id,
+      custodyRecordID: custody?.id,
+      inventoryReceiptID: receipt?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      evidenceID: receipt?.evidenceAttachmentIDs.first ?? inspection?.evidenceAttachmentIDs.first ?? procurement?.evidenceAttachmentIDs.first,
+      labelValue: label?.labelValuePlaceholder ?? "WISHLIST-\(item.id.uuidString.prefix(8))",
+      operatorTeam: item.owner,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedScanSessionRecords(for location: StorageLocationRecord) -> [ScanSessionRecord] {
     suggestedScanSessionRecords(labelReferenceID: suggestedLabelReferenceRecords(for: location).first?.id, storageLocationID: location.id, custodyRecordID: suggestedCustodyRecords(for: location).first?.id, inventoryReceiptID: location.inventoryReceiptIDs.first, orderID: location.orderIDs.first, shipmentGroupID: location.shipmentGroupIDs.first, packageContentID: location.packageContentIDs.first, evidenceID: nil, labelValue: location.locationCode, operatorTeam: location.assignedOwnerTeam, context: "\(location.title) \(location.currentUsageSummary)", linkedEntityType: .storageLocation, linkedEntityID: location.id.uuidString)
   }
@@ -19516,6 +19554,52 @@ final class ParcelOpsStore {
       entityLabel: record.title,
       summary: "Wishlist label reference staged locally.",
       afterDetail: "\(record.auditDetail)\nCreated from Wishlist item \(item.itemName). This is a local label reference only; no barcode scanning, QR generation, label printing, camera, warehouse, carrier, supplier, retailer, or mailbox action occurred."
+    )
+  }
+
+  func createWishlistScanSession(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let expectedValue = label?.labelValuePlaceholder ?? "WISHLIST-\(item.id.uuidString.prefix(8).uppercased())"
+    let record = ScanSessionRecord(
+      title: "Wishlist manual verification: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      scanPurpose: .labelVerification,
+      scanMethodPlaceholder: .manualEntry,
+      expectedLabelReferenceValue: expectedValue,
+      capturedValuePlaceholder: "",
+      linkedLabelReferenceID: label?.id,
+      scanStatus: .planned,
+      mismatchSummary: "No manual verification has been recorded yet.",
+      assignedOperatorTeam: item.owner,
+      scanLocationStorageLocationID: location?.id,
+      custodyRecordID: custody?.id,
+      inventoryReceiptID: receipt?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      evidenceAttachmentIDs: receipt?.evidenceAttachmentIDs ?? inspection?.evidenceAttachmentIDs ?? procurement?.evidenceAttachmentIDs ?? [],
+      createdDate: Self.auditTimestamp(),
+      completedDate: "Not completed",
+      notes: "Local placeholder only. Use this for manual label/reference verification after purchase, receiving, storage, or custody handoff. No scanner hardware, camera access, barcode scanning, QR generation, label printing, carrier, warehouse, supplier, or retailer system was contacted.",
+      riskLevel: label?.riskLevel ?? custody?.riskLevel ?? location?.riskLevel ?? receipt?.riskLevel ?? inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      reviewState: .needsReview
+    )
+    scanSessionRecords.insert(record, at: 0)
+    persistScanSessionRecords()
+    logAudit(
+      action: .created,
+      entityType: .scanSession,
+      entityID: record.id.uuidString,
+      entityLabel: record.title,
+      summary: "Wishlist manual verification session staged locally.",
+      afterDetail: "\(record.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local manual verification only; no scanner hardware, camera, barcode scan, QR generation, label printing, carrier, warehouse, supplier, retailer, or mailbox action occurred."
     )
   }
 

@@ -131,7 +131,8 @@ struct WishlistView: View {
                 suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item),
                 suggestedStorageLocations: store.suggestedStorageLocations(for: item),
                 suggestedCustodyRecords: store.suggestedCustodyRecords(for: item),
-                suggestedLabelReferences: store.suggestedLabelReferenceRecords(for: item)
+                suggestedLabelReferences: store.suggestedLabelReferenceRecords(for: item),
+                suggestedScanSessions: store.suggestedScanSessionRecords(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -214,6 +215,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: label)
               } onLabelReferenceDraft: { label in
                 store.createDraftMessage(from: label)
+              } onAddScanSession: {
+                store.createWishlistScanSession(item)
+              } onScanSessionTask: { scan in
+                store.createReviewTask(from: scan)
+              } onScanSessionDraft: { scan in
+                store.createDraftMessage(from: scan)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -331,6 +338,12 @@ struct WishlistView: View {
               } onLabelReferenceTask: { _ in
                 store.restoreWishlistItem(item)
               } onLabelReferenceDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddScanSession: {
+                store.restoreWishlistItem(item)
+              } onScanSessionTask: { _ in
+                store.restoreWishlistItem(item)
+              } onScanSessionDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1150,6 +1163,7 @@ struct WishlistItemRow: View {
   var suggestedStorageLocations: [StorageLocationRecord] = []
   var suggestedCustodyRecords: [CustodyRecord] = []
   var suggestedLabelReferences: [LabelReferenceRecord] = []
+  var suggestedScanSessions: [ScanSessionRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1189,6 +1203,9 @@ struct WishlistItemRow: View {
   var onAddLabelReference: () -> Void
   var onLabelReferenceTask: (LabelReferenceRecord) -> Void
   var onLabelReferenceDraft: (LabelReferenceRecord) -> Void
+  var onAddScanSession: () -> Void
+  var onScanSessionTask: (ScanSessionRecord) -> Void
+  var onScanSessionDraft: (ScanSessionRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1822,6 +1839,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Manual verification", systemImage: "checklist.checked")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Stage a local manual check that the received item, label reference, storage location, and custody record line up. This is not scanner hardware, camera access, barcode scanning, or QR generation.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedScanSessions.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No manual verification session staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add check", systemImage: "checklist.checked") {
+                onAddScanSession()
+                feedbackMessage = "Wishlist manual verification session created locally. No scanner, camera, barcode, QR, printer, carrier, warehouse, or retailer system was contacted."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedScanSessions.prefix(3)) { scan in
+              WishlistScanSessionRow(scan: scan) {
+                onScanSessionTask(scan)
+                feedbackMessage = "Manual verification review task created locally. No scanner, camera, barcode, QR, printer, or external integration was used."
+              } onDraft: {
+                onScanSessionDraft(scan)
+                feedbackMessage = "Manual verification follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -2192,6 +2245,45 @@ private struct WishlistLabelReferenceRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create label reference follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistScanSessionRow: View {
+  var scan: ScanSessionRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "checklist.checked")
+        .foregroundStyle(scan.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(scan.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(scan.scanPurpose.rawValue) • \(scan.scanMethodPlaceholder.rawValue) • expected \(scan.expectedLabelReferenceValue)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(scan.scanStatus.rawValue, color: scan.scanStatus == .completed || scan.scanStatus == .matched ? .green : scan.scanStatus == .mismatchNeedsReview ? .red : .blue)
+          Badge(scan.assignedOperatorTeam, color: .blue)
+          Badge(scan.reviewState.rawValue, color: scan.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create manual verification review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create manual verification follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
