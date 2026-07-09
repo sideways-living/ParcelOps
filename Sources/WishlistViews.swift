@@ -1295,6 +1295,9 @@ struct WishlistItemRow: View {
       wishlistPurchaseChecksSummary
       wishlistPurchaseDecisionSummary
       wishlistPurchaseHandoffSummary
+      if !isDeleted {
+        wishlistOperatorNextStep
+      }
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
         if isDeleted {
@@ -1556,6 +1559,173 @@ struct WishlistItemRow: View {
       gaps.append("returns/warranty")
     }
     return gaps
+  }
+
+  @ViewBuilder
+  private var wishlistOperatorNextStep: some View {
+    let options = item.comparisonOptions ?? []
+    let checks = item.purchaseChecks ?? []
+    let failedChecks = checks.filter { $0.status != "Passed" }
+    let missingEvidence = missingSellerEvidenceLabels
+
+    if options.isEmpty {
+      wishlistNextStepPanel(
+        title: "Next: compare seller options",
+        detail: "Add or draft seller options before deciding where to buy. This stays local until you explicitly open a seller page.",
+        symbol: "magnifyingglass.circle.fill",
+        color: .teal
+      ) {
+        Button("Compare sellers", systemImage: "magnifyingglass.circle") {
+          onCompare()
+          feedbackMessage = "Local comparison plan created. No web search, retailer scrape, currency lookup, postage quote, or trust service was contacted."
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Add option", systemImage: "storefront") {
+          onAddOption()
+          feedbackMessage = "Manual seller option added locally. Fill in live price, AUD total, postage, trust, and product link before choosing where to buy."
+        }
+        .buttonStyle(.bordered)
+      }
+    } else if !missingEvidence.isEmpty {
+      wishlistNextStepPanel(
+        title: "Next: fill seller evidence gaps",
+        detail: "Confirm \(missingEvidence.joined(separator: ", ")) before purchase review. Create one task to track the missing evidence without duplicating work.",
+        symbol: "checklist",
+        color: .orange
+      ) {
+        Button("Evidence task", systemImage: "checklist") {
+          onEvidenceTask()
+          feedbackMessage = "Wishlist seller evidence task created locally. No web search, seller lookup, browser automation, purchase, payment, or external service ran."
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Score options", systemImage: "chart.bar.doc.horizontal") {
+          onScore()
+          feedbackMessage = "Seller options scored locally from existing comparison fields. Verify live price, postage, trust, returns, and account readiness before buying."
+        }
+        .buttonStyle(.bordered)
+      }
+    } else if checks.isEmpty || !failedChecks.isEmpty {
+      wishlistNextStepPanel(
+        title: checks.isEmpty ? "Next: run readiness check" : "Next: clear purchase blockers",
+        detail: checks.isEmpty ? "Run the local checklist before drafting a purchase decision." : "\(failedChecks.count) readiness item\(failedChecks.count == 1 ? "" : "s") still need review before handoff.",
+        symbol: "checklist.checked",
+        color: .indigo
+      ) {
+        Button("Run readiness", systemImage: "checklist.checked") {
+          onCheck()
+          feedbackMessage = "Purchase readiness checked locally. Fix blockers before buying externally."
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Task", systemImage: "checklist") {
+          onTask()
+          feedbackMessage = "Wishlist comparison review task created locally. Check Tasks for owner follow-up."
+        }
+        .buttonStyle(.bordered)
+      }
+    } else if item.purchaseDecision == nil {
+      wishlistNextStepPanel(
+        title: "Next: draft purchase decision",
+        detail: "Readiness checks are clear locally. Draft the seller decision so cost, trust, postage, and rejected options are recorded before purchase.",
+        symbol: "doc.text.magnifyingglass",
+        color: .brown
+      ) {
+        Button("Decision", systemImage: "doc.text.magnifyingglass") {
+          onDecision()
+          feedbackMessage = "Purchase decision drafted locally. Review why this seller is preferred before buying externally."
+        }
+        .buttonStyle(.borderedProminent)
+      }
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      wishlistNextStepPanel(
+        title: "Next: review purchase decision",
+        detail: "The decision exists but has not been accepted locally. Review it before preparing purchase handoff.",
+        symbol: "checkmark.seal",
+        color: .brown
+      ) {
+        Button("Reviewed", systemImage: "checkmark.seal") {
+          onDecisionReviewed()
+          feedbackMessage = "Purchase decision reviewed locally. Confirm live seller/account/payment details before buying externally."
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Decision task", systemImage: "checklist") {
+          onDecisionTask()
+          feedbackMessage = "Purchase decision review task created or refreshed locally. Check Tasks before buying externally."
+        }
+        .buttonStyle(.bordered)
+      }
+    } else if item.purchaseHandoff == nil {
+      wishlistNextStepPanel(
+        title: "Next: prepare manual purchase handoff",
+        detail: "The decision is reviewed locally. Prepare the handoff so account, expected order signals, and order watch state are tracked.",
+        symbol: "person.crop.circle.badge.checkmark",
+        color: .purple
+      ) {
+        Button("Prepare handoff", systemImage: "person.crop.circle.badge.checkmark") {
+          onHandoff()
+          feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelOps."
+        }
+        .buttonStyle(.borderedProminent)
+      }
+    } else if linkedOrder == nil {
+      wishlistNextStepPanel(
+        title: "Next: watch for order confirmation",
+        detail: "Purchase handoff is staged. After buying outside ParcelOps, mark the confirmation seen or link the matching local order.",
+        symbol: "envelope.badge.fill",
+        color: .purple
+      ) {
+        Button("Order seen", systemImage: "envelope.badge.fill") {
+          onOrderSeen()
+          feedbackMessage = "Order confirmation marked seen locally. Link the real order if needed."
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Link order", systemImage: "link") {
+          onLink()
+          feedbackMessage = "Wishlist item linked locally. Review the order context before closing this capture."
+        }
+        .buttonStyle(.bordered)
+      }
+    } else {
+      wishlistNextStepPanel(
+        title: "Next: use the linked order as source of truth",
+        detail: "Wishlist purchase context is linked to \(linkedOrder?.orderNumber ?? "a local order"). Continue tracking dispatch, receiving, evidence, and tasks from the order workflow.",
+        symbol: "shippingbox.fill",
+        color: .green
+      ) {
+        Button("Task", systemImage: "checklist") {
+          onTask()
+          feedbackMessage = "Wishlist comparison review task created locally. Check Tasks for owner follow-up."
+        }
+        .buttonStyle(.bordered)
+        Button("Draft", systemImage: "envelope.open") {
+          onDraft()
+          feedbackMessage = "Wishlist follow-up draft created locally. No message was sent."
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func wishlistNextStepPanel<Actions: View>(
+    title: String,
+    detail: String,
+    symbol: String,
+    color: Color,
+    @ViewBuilder actions: () -> Actions
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        actions()
+      }
+    }
+    .padding(10)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   @ViewBuilder
