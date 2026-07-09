@@ -771,6 +771,8 @@ struct WishlistView: View {
                   priority: request.reviewState == .needsReview ? .high : .normal,
                   assignee: "Wishlist review"
                 )
+              } onDraft: {
+                store.createWishlistResearchBriefDraft(request)
               } onRemove: {
                 store.removeWishlistResearchRequest(request)
               }
@@ -1079,6 +1081,7 @@ private struct WishlistResearchRequestRow: View {
   var onReviewed: () -> Void
   var onBlock: () -> Void
   var onTask: () -> Void
+  var onDraft: () -> Void
   var onRemove: () -> Void
 
   var body: some View {
@@ -1128,6 +1131,8 @@ private struct WishlistResearchRequestRow: View {
         Button("Block", systemImage: "exclamationmark.triangle", action: onBlock)
           .buttonStyle(.bordered)
         Button("Task", systemImage: "checklist", action: onTask)
+          .buttonStyle(.bordered)
+        Button("Brief", systemImage: "doc.text", action: onDraft)
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)

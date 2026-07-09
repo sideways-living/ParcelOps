@@ -18909,6 +18909,76 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistResearchBriefDraft(_ request: WishlistResearchRequest) {
+    let linkedID = request.wishlistItemID?.uuidString ?? request.id.uuidString
+    let linkedItem = request.wishlistItemID.flatMap { id in wishlistItems.first { $0.id == id } }
+    let optionSummary = (linkedItem?.comparisonOptions ?? [])
+      .prefix(6)
+      .map { option in
+        "- \(option.sellerName): \(option.listedPrice) \(option.currency), estimated total \(option.estimatedAUDTotal), postage \(option.postageCost) / \(option.postageTime), trust \(option.trustRating), URL \(option.productURL)"
+      }
+      .joined(separator: "\n")
+    let existingContext = optionSummary.isEmpty ? "- No seller options are recorded yet." : optionSummary
+    let body = """
+    Wishlist comparison research brief.
+
+    Item:
+    \(request.itemName)
+
+    Source URL:
+    \(request.sourceURL)
+
+    Budget:
+    \(request.maxBudgetAUD)
+
+    Region scope:
+    \(request.regionScope)
+
+    Seller criteria:
+    \(request.sellerCriteria)
+
+    Postage requirements:
+    \(request.postageRequirements)
+
+    Seller trust requirements:
+    \(request.trustRequirements)
+
+    Existing local seller options:
+    \(existingContext)
+
+    Required output:
+    - Compare Australian retailers first, then overseas retailers only where landed AUD cost, postage time, returns, warranty, and seller trust are acceptable.
+    - Record product link, seller name, listed price/currency, estimated AUD landed total, postage cost, postage ETA, seller region, returns/warranty notes, and trust evidence.
+    - Flag any seller with unclear delivery, poor trust signals, missing returns/warranty, or suspicious pricing.
+    - Recommend the safest practical option, not only the cheapest option.
+
+    Boundaries:
+    Do not buy anything, enter payment details, log in to retailer accounts, store credentials, mutate mailboxes, book carriers, or run background monitoring from this brief.
+    """
+    let draft = DraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: linkedID,
+      templateID: nil,
+      recipient: "Wishlist review",
+      subject: "Wishlist research brief: \(request.itemName)",
+      body: body,
+      channel: .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Wishlist research brief draft created locally.",
+      afterDetail: "\(draft.auditDetail)\nResearch request: \(request.auditDetail)\nNo web search, external agent, retailer access, login, checkout, payment, mailbox mutation, or background monitoring occurred."
+    )
+  }
+
   func removeWishlistResearchRequest(_ request: WishlistResearchRequest) {
     guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
     let removed = wishlistResearchRequests.remove(at: index)
