@@ -596,6 +596,8 @@ struct IntegrationsView: View {
               store.createSpaceMailShiftHandoffNote(for: connection)
             } onCreateShiftTask: {
               store.createSpaceMailShiftReviewTask(for: connection)
+            } onCreateLatestRefreshTask: {
+              store.createSpaceMailLatestRefreshReviewTask(for: connection)
             } onCreateParserQATask: {
               store.createSpaceMailParserQAReviewTask(for: connection)
             } onRemove: {
@@ -3323,6 +3325,7 @@ struct SpaceMailIMAPConnectionRow: View {
   var onCredentialClear: () -> Void
   var onCreateShiftHandoff: () -> Void
   var onCreateShiftTask: () -> Void
+  var onCreateLatestRefreshTask: () -> Void
   var onCreateParserQATask: () -> Void
   var onRemove: () -> Void
 
@@ -3768,7 +3771,8 @@ struct SpaceMailIMAPConnectionRow: View {
         .fixedSize(horizontal: false, vertical: true)
       CompactActionRow {
         Button("Create handoff note", systemImage: "arrow.left.arrow.right.square.fill", action: onCreateShiftHandoff)
-        Button("Create review task", systemImage: "checklist", action: onCreateShiftTask)
+        Button("Create refresh task", systemImage: "arrow.clockwise.circle.fill", action: onCreateLatestRefreshTask)
+        Button("Create shift task", systemImage: "person.crop.circle.badge.clock", action: onCreateShiftTask)
       }
       Text("Uses current local refresh counts, parser diagnostics, mixed-mailbox review queues, and Inbox/order handoff state. It does not fetch mail, read passwords, change classifier rules, or modify mailbox messages.")
         .font(.caption2.weight(.semibold))

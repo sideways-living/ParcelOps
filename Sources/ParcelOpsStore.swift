@@ -16793,6 +16793,97 @@ final class ParcelOpsStore {
     )
   }
 
+  func createSpaceMailLatestRefreshReviewTask(for connection: SpaceMailIMAPConnection) {
+    let taskID = "spacemail-latest-refresh-\(connection.id.uuidString)"
+    let latestHistory = connection.refreshHistory.first
+    let hasFailure = connection.connectionStatus.localizedCaseInsensitiveContains("failed")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("timeout")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("credential missing")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("auth")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("not configured")
+    let needsOperatorReview = hasFailure
+      || connection.lastRefreshImportedCount > 0
+      || connection.lastRefreshUncertainCount > 0
+      || !connection.uncertainMessages.isEmpty
+    let priority: TaskPriority = hasFailure ? .high : needsOperatorReview ? .normal : .low
+    let title = hasFailure
+      ? "Review SpaceMail refresh failure for \(connection.displayName)"
+      : needsOperatorReview
+        ? "Review SpaceMail refresh intake for \(connection.displayName)"
+        : "Confirm SpaceMail refresh result for \(connection.displayName)"
+    let historyLine = latestHistory.map {
+      "Latest history: \($0.eventType) at \($0.timestamp), status \($0.status), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicates, \($0.filteredNonOrderCount) filtered, \($0.uncertainCount) uncertain."
+    } ?? "No saved SpaceMail refresh history entry is available yet."
+    let nextAction: String
+    if hasFailure {
+      nextAction = "Check SpaceMail host, folder, SSL/TLS, Keychain credential status, and latest Audit diagnostics before retrying manual refresh."
+    } else if connection.lastRefreshImportedCount > 0 {
+      nextAction = "Review imported Inbox intake, then create or link confirmed order rows."
+    } else if connection.lastRefreshUncertainCount > 0 || !connection.uncertainMessages.isEmpty {
+      nextAction = "Review uncertain SpaceMail previews in Mailbox Monitor before they reach Inbox."
+    } else if connection.lastRefreshFilteredNonOrderCount > 0 {
+      nextAction = "Confirm filtered examples only if an expected order email is missing."
+    } else {
+      nextAction = "Confirm this quiet refresh is expected, then complete the task."
+    }
+    let summary = [
+      "Review latest SpaceMail refresh state for \(connection.displayName).",
+      "Connection status: \(connection.connectionStatus). Last refresh: \(connection.lastManualRefreshDate).",
+      "Counts: \(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount) uncertain.",
+      historyLine,
+      "Next action: \(nextAction)",
+      "Boundary: this task uses local refresh metadata only; it does not connect to IMAP, read Keychain credentials, import messages, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == taskID
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = title
+      reviewTasks[existingIndex].summary = summary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing SpaceMail latest refresh review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local SpaceMail refresh counters and history. No duplicate task was created. No IMAP connection, Keychain read, Inbox import, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: title,
+      summary: summary,
+      linkedEntityType: .integration,
+      linkedEntityID: taskID,
+      priority: priority,
+      dueDate: priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task created from latest SpaceMail refresh state.")
+    logAudit(
+      action: .created,
+      entityType: .spaceMailIMAPConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from latest SpaceMail refresh state.",
+      afterDetail: "\(summary)\nNo IMAP connection, Keychain read, Inbox import, external service call, or mailbox mutation occurred."
+    )
+  }
+
   func createSpaceMailParserQAReviewTask(for connection: SpaceMailIMAPConnection) {
     let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
     let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
