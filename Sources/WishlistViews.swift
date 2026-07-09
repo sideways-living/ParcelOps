@@ -123,6 +123,10 @@ struct WishlistView: View {
             ForEach(filteredItems) { item in
               WishlistItemRow(
                 item: item,
+                linkedOrder: item.purchaseHandoff?.linkedOrderID.flatMap { orderID in
+                  store.orders.first { $0.id == orderID }
+                },
+                store: store,
                 confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item),
                 suggestedAccounts: store.suggestedAccounts(for: item),
                 suggestedCosts: store.suggestedCostRecords(for: item),
@@ -1180,6 +1184,8 @@ private struct WishlistPlanningStep: View {
 
 struct WishlistItemRow: View {
   var item: WishlistItem
+  var linkedOrder: TrackedOrder?
+  var store: ParcelOpsStore?
   var confirmationMatches: [ForwardedEmailIntake] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedCosts: [CostRecord] = []
@@ -1584,6 +1590,35 @@ struct WishlistItemRow: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+
+        if let linkedOrder, let store {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Linked order", systemImage: "shippingbox.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+            Text("This Wishlist handoff is linked to \(linkedOrder.orderNumber). Use the order detail as the source of truth for tracking, dispatch setup, receiving, and evidence.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            CompactActionRow {
+              NavigationLink {
+                OrderDetailView(order: linkedOrder, store: store)
+              } label: {
+                Label("Open linked order", systemImage: "arrow.up.right.square.fill")
+              }
+            }
+            .buttonStyle(.bordered)
+          }
+          .padding(8)
+          .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        } else if handoff.linkedOrderID != nil {
+          Label("Linked order ID is stored, but the local order record was not found. Recreate or relink the order before staging downstream handoff records.", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(8)
+            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         VStack(alignment: .leading, spacing: 6) {
           Label("Account used for purchase", systemImage: "key.horizontal.fill")
