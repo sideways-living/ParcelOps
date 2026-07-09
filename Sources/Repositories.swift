@@ -42,6 +42,8 @@ protocol WishlistRepository {
   func saveWishlistItems(_ items: [WishlistItem])
   func loadDeletedWishlistItems() -> [WishlistItem]
   func saveDeletedWishlistItems(_ items: [WishlistItem])
+  func loadWishlistCaptureCandidates() -> [WishlistCaptureCandidate]
+  func saveWishlistCaptureCandidates(_ captures: [WishlistCaptureCandidate])
 }
 
 protocol SettingsRepository {
@@ -334,6 +336,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
 
   func saveDeletedWishlistItems(_ items: [WishlistItem]) {
     save(items, to: .deletedWishlistItems)
+  }
+
+  func loadWishlistCaptureCandidates() -> [WishlistCaptureCandidate] {
+    load([WishlistCaptureCandidate].self, from: .wishlistCaptureCandidates, defaultValue: SampleData.wishlistCaptureCandidates)
+  }
+
+  func saveWishlistCaptureCandidates(_ captures: [WishlistCaptureCandidate]) {
+    save(captures, to: .wishlistCaptureCandidates)
   }
 
   func loadSettings() -> ParcelOpsSettings {
@@ -669,6 +679,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case sourceConnections = "source-connections.json"
     case wishlistItems = "wishlist-items.json"
     case deletedWishlistItems = "deleted-wishlist-items.json"
+    case wishlistCaptureCandidates = "wishlist-capture-candidates.json"
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
     case evidenceAttachments = "evidence-attachments.json"
@@ -719,6 +730,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var sourceConnections = SampleData.connections
   private var wishlistItems = SampleData.wishlistItems
   private var deletedWishlistItems = SampleData.deletedWishlistItems
+  private var wishlistCaptureCandidates = SampleData.wishlistCaptureCandidates
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
   private var evidenceAttachments = SampleData.evidenceAttachments
@@ -787,6 +799,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadDeletedWishlistItems() -> [WishlistItem] { deletedWishlistItems }
   func saveDeletedWishlistItems(_ items: [WishlistItem]) { deletedWishlistItems = items }
+  func loadWishlistCaptureCandidates() -> [WishlistCaptureCandidate] { wishlistCaptureCandidates }
+  func saveWishlistCaptureCandidates(_ captures: [WishlistCaptureCandidate]) { wishlistCaptureCandidates = captures }
 
   func loadSettings() -> ParcelOpsSettings { settings }
   func saveSettings(_ settings: ParcelOpsSettings) { self.settings = settings }

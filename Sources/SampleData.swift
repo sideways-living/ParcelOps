@@ -290,6 +290,33 @@ enum SampleData {
     WishlistItem(itemName: "Dock safety cones", storefront: "Northwind Wholesale", storefrontURL: "https://northwind.example/cones", estimatedCost: "$76.00", owner: "Priya Shah", pool: "Facilities team", source: .browserExtension, status: "Ready", capturedDetail: "Captured through Chrome/Firefox extension path for cross-device wishlist intake.")
   ]
 
+  static var wishlistCaptureCandidates: [WishlistCaptureCandidate] = [
+    WishlistCaptureCandidate(
+      source: .browserExtension,
+      pageTitle: "Compact scanner product page",
+      pageURL: "https://safetypro.example/scanner-compact",
+      detectedStorefront: "SafetyPro Direct",
+      detectedPrice: "AUD 189.00",
+      productSummary: "Browser extension placeholder captured title, URL, and visible price for a compact barcode scanner.",
+      captureStatus: "Needs review",
+      reviewState: .needsReview,
+      capturedDate: "Sample only",
+      notes: "No browser extension is installed by ParcelOps yet. This sample represents the local payload shape expected from a future extension."
+    ),
+    WishlistCaptureCandidate(
+      source: .shareSheet,
+      pageTitle: "Thermal label roll listing",
+      pageURL: "https://officekit.example/thermal-rolls",
+      detectedStorefront: "Office Kit Store",
+      detectedPrice: "AUD 42.50",
+      productSummary: "Share-sheet placeholder captured a product listing that can become a wishlist item after review.",
+      captureStatus: "Review before import",
+      reviewState: .monitor,
+      capturedDate: "Sample only",
+      notes: "Local capture only. No share extension, scraper, account login, or checkout action is active."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

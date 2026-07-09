@@ -2747,6 +2747,20 @@ struct WishlistPurchaseHandoff: Identifiable, Hashable, Codable {
   var updatedAt: String
 }
 
+struct WishlistCaptureCandidate: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var source: WishlistSource
+  var pageTitle: String
+  var pageURL: String
+  var detectedStorefront: String
+  var detectedPrice: String
+  var productSummary: String
+  var captureStatus: String
+  var reviewState: ReviewState
+  var capturedDate: String
+  var notes: String
+}
+
 enum FulfillmentMethod: String, Hashable, Codable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"

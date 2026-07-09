@@ -24,6 +24,7 @@ final class ParcelOpsStore {
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
+  var wishlistCaptureCandidates: [WishlistCaptureCandidate]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -237,6 +238,7 @@ final class ParcelOpsStore {
     self.watchedFolders = repository.loadWatchedFolders()
     self.connections = repository.loadSourceConnections()
     self.wishlistItems = repository.loadWishlistItems()
+    self.wishlistCaptureCandidates = repository.loadWishlistCaptureCandidates()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -18183,6 +18185,78 @@ final class ParcelOpsStore {
     addWishlistItem(source: .manual, name: "Manual wishlist item", detail: "Manual placeholder item awaiting purchase details.")
   }
 
+  func addBrowserExtensionWishlistCapturePlaceholder() {
+    let capture = WishlistCaptureCandidate(
+      source: .browserExtension,
+      pageTitle: "Captured product page",
+      pageURL: "https://example.com/product-page",
+      detectedStorefront: "Storefront needs review",
+      detectedPrice: "Price needs review",
+      productSummary: "Browser extension staging placeholder. Confirm the item, seller, price, and purchase intent before promoting this into Wishlist items.",
+      captureStatus: "Needs review",
+      reviewState: .needsReview,
+      capturedDate: "Now",
+      notes: "Local staging only. No browser extension is installed, no browser tab was read, no scraping ran, and no external sync occurred."
+    )
+    wishlistCaptureCandidates.insert(capture, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: capture.id.uuidString,
+      entityLabel: capture.pageTitle,
+      summary: "Wishlist capture candidate staged locally.",
+      afterDetail: "\(capture.auditDetail)\nNo browser extension, page scraping, account login, purchase, payment, or network lookup occurred."
+    )
+  }
+
+  func promoteWishlistCaptureToItem(_ capture: WishlistCaptureCandidate) {
+    guard wishlistCaptureCandidates.contains(where: { $0.id == capture.id }) else { return }
+    wishlistCaptureCandidates.removeAll { $0.id == capture.id }
+    let item = WishlistItem(
+      itemName: capture.pageTitle.isPlaceholderValidationValue ? capture.productSummary : capture.pageTitle,
+      storefront: capture.detectedStorefront,
+      storefrontURL: capture.pageURL.isPlaceholderValidationValue ? "https://example.com" : capture.pageURL,
+      estimatedCost: capture.detectedPrice,
+      owner: "Current user",
+      pool: "Wishlist review",
+      source: capture.source,
+      status: "Needs review",
+      capturedDetail: "\(capture.productSummary) \(capture.notes)",
+      comparisonStatus: "Not compared",
+      comparisonNotes: "Promoted from local capture staging. Create a comparison plan before purchase.",
+      purchaseReadiness: "Needs comparison",
+      preferredOptionID: nil,
+      comparisonOptions: []
+    )
+    wishlistItems.insert(item, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist capture candidate promoted to item.",
+      beforeDetail: capture.auditDetail,
+      afterDetail: "\(item.auditDetail)\nPromoted from capture candidate \(capture.id.uuidString). No browser extension sync, web lookup, account login, purchase, payment, or retailer action occurred."
+    )
+  }
+
+  func dismissWishlistCapture(_ capture: WishlistCaptureCandidate) {
+    guard let index = wishlistCaptureCandidates.firstIndex(where: { $0.id == capture.id }) else { return }
+    let dismissed = wishlistCaptureCandidates.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: dismissed.id.uuidString,
+      entityLabel: dismissed.pageTitle,
+      summary: "Wishlist capture candidate dismissed locally.",
+      beforeDetail: dismissed.auditDetail,
+      afterDetail: "Candidate removed from local staging only. No wishlist item was created, no external service was contacted, and no browser data was changed."
+    )
+  }
+
   func convertWishlistToOrder(_ item: WishlistItem) {
     let order = TrackedOrder(
       orderNumber: "WISH-\(1000 + orders.count + 1)",
@@ -19837,6 +19911,7 @@ final class ParcelOpsStore {
 
   private func persistWishlist() {
     wishlistRepository.saveWishlistItems(wishlistItems)
+    wishlistRepository.saveWishlistCaptureCandidates(wishlistCaptureCandidates)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -20743,6 +20818,12 @@ private extension WishlistItem {
       .joined(separator: " | ")
     let handoffSummary = purchaseHandoff.map { "seller \($0.sellerName); account \($0.accountLabel); status \($0.purchaseStatus); order watch \($0.orderWatchStatus); linked order \($0.linkedOrderID?.uuidString ?? "none")" } ?? "none"
     return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); purchase handoff: \(handoffSummary); captured detail: \(capturedDetail)."
+  }
+}
+
+private extension WishlistCaptureCandidate {
+  var auditDetail: String {
+    "Source: \(source.rawValue); title: \(pageTitle); URL: \(pageURL); storefront: \(detectedStorefront); price: \(detectedPrice); status: \(captureStatus); review: \(reviewState.rawValue); captured: \(capturedDate); summary: \(productSummary); notes: \(notes)."
   }
 }
 

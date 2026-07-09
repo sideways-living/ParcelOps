@@ -84,11 +84,13 @@ struct WishlistView: View {
         HStack {
           Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
           Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
+          Button("Browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
           Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
         }
         .buttonStyle(.bordered)
 
         wishlistReadinessPanel
+        wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         gmailWishlistFocusPanel
         filterBar
@@ -97,7 +99,7 @@ struct WishlistView: View {
           CaptureChannelRow(symbol: "doc.richtext.fill", title: "PDF placeholder", detail: "Creates a local test item only. No file picker, OCR, or PDF parser runs from this screen.")
           CaptureChannelRow(symbol: "photo.fill", title: "Screenshot placeholder", detail: "Creates a local test item only. No screenshot picker, OCR, or image parser runs from this screen.")
           CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "Share path placeholder", detail: "Documents a future share-sheet flow. ParcelOps does not receive shared browser pages yet.")
-          CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Browser extension placeholder", detail: "Documents a future extension capture path. No browser extension or external sync is active here.")
+          CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Browser capture staging", detail: "Creates or reviews local capture candidates in the staging queue. No browser extension, scraping, or external sync is active here.")
         }
 
         SettingsPanel(title: "Wishlist items", symbol: "star.square.fill") {
@@ -338,6 +340,50 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistCaptureCandidatesPanel: some View {
+    SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Review local product-page capture candidates before they become Wishlist items. This is the boundary a future browser extension or share flow can write into; this screen does not install an extension, scrape pages, or sync with a browser.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge("\(store.wishlistCaptureCandidates.count) staged", color: store.wishlistCaptureCandidates.isEmpty ? .secondary : .blue)
+          Badge("\(store.wishlistCaptureCandidates.filter { $0.reviewState == .needsReview }.count) needs review", color: store.wishlistCaptureCandidates.contains { $0.reviewState == .needsReview } ? .orange : .green)
+          Badge("\(store.wishlistCaptureCandidates.filter { $0.source == .browserExtension }.count) extension path", color: .teal)
+        }
+
+        CompactActionRow {
+          Button("Add browser capture placeholder", systemImage: "puzzlepiece.extension.fill") {
+            store.addBrowserExtensionWishlistCapturePlaceholder()
+          }
+        }
+        .buttonStyle(.bordered)
+
+        if store.wishlistCaptureCandidates.isEmpty {
+          MVPEmptyState(
+            title: "No staged capture candidates",
+            detail: "Use the browser capture placeholder to test the future extension handoff without reading any browser page or contacting external services.",
+            symbol: "puzzlepiece.extension.fill",
+            actionTitle: "Add placeholder",
+            action: store.addBrowserExtensionWishlistCapturePlaceholder
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 320), spacing: 10)], spacing: 10) {
+            ForEach(store.wishlistCaptureCandidates) { capture in
+              WishlistCaptureCandidateRow(capture: capture) {
+                store.promoteWishlistCaptureToItem(capture)
+              } onDismiss: {
+                store.dismissWishlistCapture(capture)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   @ViewBuilder
   private var gmailWishlistFocusPanel: some View {
     if !store.gmailMailboxConnections.isEmpty || !gmailWishlistCandidateEmails.isEmpty {
@@ -516,6 +562,65 @@ struct CaptureChannelRow: View {
     .padding(10)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistCaptureCandidateRow: View {
+  var capture: WishlistCaptureCandidate
+  var onPromote: () -> Void
+  var onDismiss: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: capture.source.symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(capture.pageTitle.isPlaceholderValidationValue ? "Captured product page" : capture.pageTitle)
+            .font(.headline)
+            .lineLimit(2)
+          Text(capture.productSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(capture.reviewState.rawValue, color: capture.reviewState == .needsReview ? .orange : .blue)
+      }
+
+      CompactMetadataGrid(minimumWidth: 120) {
+        Label(capture.source.rawValue, systemImage: capture.source.symbol)
+        Label(capture.detectedStorefront, systemImage: "storefront.fill")
+        Label(capture.detectedPrice, systemImage: "dollarsign.circle.fill")
+        Label(capture.capturedDate, systemImage: "clock.fill")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      if !capture.pageURL.isPlaceholderValidationValue {
+        Text(capture.pageURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      Text(capture.notes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Promote to Wishlist", systemImage: "star.square.fill", action: onPromote)
+          .buttonStyle(.borderedProminent)
+        Button("Dismiss", systemImage: "xmark.circle", action: onDismiss)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
