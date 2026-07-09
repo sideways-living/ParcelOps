@@ -127,6 +127,8 @@ struct WishlistView: View {
               } onCompare: {
                 store.createWishlistComparisonPlan(item)
                 store.createWishlistResearchRequest(from: item)
+              } onAddOption: {
+                store.addManualWishlistSellerOptionPlaceholder(item)
               } onScore: {
                 store.evaluateWishlistComparisonOptions(item)
               } onCheck: {
@@ -141,6 +143,10 @@ struct WishlistView: View {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
                 store.markWishlistPreferredOption(item, option: option)
+              } onDuplicateOption: { option in
+                store.duplicateWishlistSellerOption(item, option: option)
+              } onRemoveOption: { option in
+                store.removeWishlistSellerOption(item, option: option)
               } onTask: {
                 store.createReviewTask(from: item)
               } onDraft: {
@@ -179,6 +185,8 @@ struct WishlistView: View {
                 store.permanentlyDeleteWishlistItem(item)
               } onCompare: {
                 store.restoreWishlistItem(item)
+              } onAddOption: {
+                store.restoreWishlistItem(item)
               } onScore: {
                 store.restoreWishlistItem(item)
               } onCheck: {
@@ -192,6 +200,10 @@ struct WishlistView: View {
               } onReady: {
                 store.restoreWishlistItem(item)
               } onPreferredOption: { _ in
+                store.restoreWishlistItem(item)
+              } onDuplicateOption: { _ in
+                store.restoreWishlistItem(item)
+              } onRemoveOption: { _ in
                 store.restoreWishlistItem(item)
               } onTask: {
                 store.restoreWishlistItem(item)
@@ -796,6 +808,7 @@ struct WishlistItemRow: View {
   var onConvert: () -> Void
   var onLink: () -> Void
   var onCompare: () -> Void
+  var onAddOption: () -> Void
   var onScore: () -> Void
   var onCheck: () -> Void
   var onHandoff: () -> Void
@@ -803,6 +816,8 @@ struct WishlistItemRow: View {
   var onOrderSeen: () -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
+  var onDuplicateOption: (WishlistComparisonOption) -> Void
+  var onRemoveOption: (WishlistComparisonOption) -> Void
   var onTask: () -> Void
   var onDraft: () -> Void
   var onDelete: () -> Void
@@ -889,6 +904,13 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Create local seller comparison plan")
+          Button("Add seller option", systemImage: "storefront") {
+            onAddOption()
+            feedbackMessage = "Manual seller option added locally. Fill in live price, AUD total, postage, trust, and product link before choosing where to buy."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Add seller option")
           Button("Score options", systemImage: "chart.bar.doc.horizontal") {
             onScore()
             feedbackMessage = "Seller options scored locally from existing comparison fields. Verify live price, postage, trust, returns, and account readiness before buying."
@@ -1002,6 +1024,12 @@ struct WishlistItemRow: View {
             ) {
               onPreferredOption(option)
               feedbackMessage = "Preferred seller selected locally. Confirm trust, postage, returns, and total AUD cost before purchase."
+            } onDuplicate: {
+              onDuplicateOption(option)
+              feedbackMessage = "Seller option copied locally. Adjust the copy with the alternate retailer, AUD total, postage, and trust notes."
+            } onRemove: {
+              onRemoveOption(option)
+              feedbackMessage = "Seller option removed locally. No retailer, browser, payment, or order state was changed."
             }
           }
         }
@@ -1173,6 +1201,8 @@ private struct WishlistComparisonOptionCard: View {
   var option: WishlistComparisonOption
   var isPreferred: Bool
   var onPrefer: () -> Void
+  var onDuplicate: () -> Void
+  var onRemove: () -> Void
 
   private var trustColor: Color {
     if option.trustRating.localizedCaseInsensitiveContains("high") || option.trustRating.localizedCaseInsensitiveContains("trusted") { return .green }
@@ -1226,6 +1256,18 @@ private struct WishlistComparisonOptionCard: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help(isPreferred ? "Preferred option" : "Select preferred option")
+        Button("Copy option", systemImage: "doc.on.doc") {
+          onDuplicate()
+        }
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Copy seller option")
+        Button("Remove option", systemImage: "trash") {
+          onRemove()
+        }
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Remove seller option")
       }
     }
     .padding(10)

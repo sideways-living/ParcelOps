@@ -18485,6 +18485,100 @@ final class ParcelOpsStore {
     )
   }
 
+  func addManualWishlistSellerOptionPlaceholder(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var options = wishlistItems[index].comparisonOptions ?? []
+    let optionNumber = options.count + 1
+    let option = WishlistComparisonOption(
+      sellerName: "Retailer option \(optionNumber)",
+      productURL: wishlistItems[index].storefrontURL.isPlaceholderValidationValue ? "https://example.com/product" : wishlistItems[index].storefrontURL,
+      listedPrice: "Pending",
+      currency: "AUD",
+      estimatedAUDTotal: "Pending AUD total",
+      postageCost: "Pending postage",
+      postageTime: "Pending delivery estimate",
+      sellerRegion: "Unknown",
+      trustRating: "Needs review",
+      trustNotes: "Confirm seller identity, recent reviews, returns, warranty, and delivery reliability before purchase.",
+      recommendation: "Manual review",
+      lastChecked: "Manual placeholder",
+      localScore: nil,
+      riskLevel: "Needs review",
+      decisionReason: "Manual seller option added locally. Live price, AUD total, postage, trust, returns, and account fit still need checking."
+    )
+    options.append(option)
+    wishlistItems[index].comparisonOptions = options
+    wishlistItems[index].comparisonStatus = "Manual seller options"
+    wishlistItems[index].purchaseReadiness = "Waiting for seller option review"
+    wishlistItems[index].comparisonNotes = "Manual seller options can be recorded before future agent research is connected. Verify live price, AUD conversion, postage, delivery time, seller trust, returns, and account readiness outside ParcelOps."
+    if wishlistItems[index].preferredOptionID == nil {
+      wishlistItems[index].preferredOptionID = option.id
+    }
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist seller option added locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nAdded seller option: \(option.sellerName). Manual comparison only. No retailer page was scraped, no currency/postage/trust lookup ran, no account was accessed, and no purchase or payment action occurred."
+    )
+  }
+
+  func duplicateWishlistSellerOption(_ item: WishlistItem, option: WishlistComparisonOption) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var options = wishlistItems[index].comparisonOptions ?? []
+    var duplicated = option
+    duplicated.id = UUID()
+    duplicated.sellerName = "\(option.sellerName) copy"
+    duplicated.recommendation = "Manual review"
+    duplicated.lastChecked = "Copied locally"
+    duplicated.localScore = nil
+    duplicated.riskLevel = "Needs review"
+    duplicated.decisionReason = "Copied from an existing seller option for manual adjustment."
+    options.append(duplicated)
+    wishlistItems[index].comparisonOptions = options
+    wishlistItems[index].comparisonStatus = "Manual seller options"
+    wishlistItems[index].purchaseReadiness = "Waiting for seller option review"
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist seller option duplicated locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nDuplicated seller option: \(duplicated.sellerName). Manual copy only. No retailer, browser, currency, postage, trust, purchase, or payment action occurred."
+    )
+  }
+
+  func removeWishlistSellerOption(_ item: WishlistItem, option: WishlistComparisonOption) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var options = wishlistItems[index].comparisonOptions ?? []
+    guard let optionIndex = options.firstIndex(where: { $0.id == option.id }) else { return }
+    let removed = options.remove(at: optionIndex)
+    wishlistItems[index].comparisonOptions = options
+    if wishlistItems[index].preferredOptionID == removed.id {
+      wishlistItems[index].preferredOptionID = options.first?.id
+    }
+    wishlistItems[index].comparisonStatus = options.isEmpty ? "Comparison needed" : "Manual seller options"
+    wishlistItems[index].purchaseReadiness = options.isEmpty ? "Waiting for seller options" : "Waiting for seller option review"
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist seller option removed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nRemoved seller option: \(removed.sellerName). Wishlist item, orders, accounts, retailer pages, and purchase state were not changed outside ParcelOps."
+    )
+  }
+
   func evaluateWishlistComparisonOptions(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
