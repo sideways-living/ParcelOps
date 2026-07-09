@@ -1,5 +1,15 @@
 import SwiftUI
 
+private struct ReleaseBlockerRow: Identifiable {
+  let id = UUID()
+  var title: String
+  var detail: String
+  var count: Int
+  var symbol: String
+  var color: Color
+  var isClear: Bool
+}
+
 struct OperationsWorkbenchView: View {
   var store: ParcelOpsStore
   @State private var selectedAssignee: String?
@@ -392,6 +402,121 @@ struct OperationsWorkbenchView: View {
       + reopenedInboxDispatchHandoffCount
   }
 
+  private var releaseProviderReadyCount: Int {
+    let spaceMailReady = store.spaceMailIMAPConnections.contains { connection in
+      !connection.emailAddressUsername.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
+        && !connection.imapHost.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
+        && connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+    }
+    let gmailReady = store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+    return [spaceMailReady, gmailReady].filter { $0 }.count
+  }
+
+  private var releaseMailboxEvidenceCount: Int {
+    mailboxFetchedCount + mailboxImportedCount + mailboxFilteredCount + mailboxUncertainCount + mailboxDuplicateCount
+  }
+
+  private var releaseInboxOrderCount: Int {
+    store.orders.filter { $0.isInboxCreatedLocalOrder }.count
+  }
+
+  private var releaseDispatchBlockerCount: Int {
+    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count + reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count
+  }
+
+  private var releaseTaskBlockerCount: Int {
+    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
+  }
+
+  private var releaseCleanupSignalCount: Int {
+    store.localDataHygieneSummary.signalCount + store.intakeParserDiagnostics.count
+  }
+
+  private var releaseReadyStepCount: Int {
+    releaseBlockerRows.filter(\.isClear).count
+  }
+
+  private var releaseBlockerTone: Color {
+    if releaseReadyStepCount >= releaseBlockerRows.count - 1 && releaseCleanupSignalCount < 20 { return .green }
+    if releaseProviderReadyCount > 0 && releaseMailboxEvidenceCount > 0 && releaseInboxOrderCount > 0 { return .teal }
+    return .orange
+  }
+
+  private var releaseBlockerTitle: String {
+    if releaseReadyStepCount >= releaseBlockerRows.count - 1 && releaseCleanupSignalCount < 20 {
+      return "Release path is mostly clear"
+    }
+    if releaseProviderReadyCount > 0 && releaseMailboxEvidenceCount > 0 && releaseInboxOrderCount > 0 {
+      return "Core flow works; clear follow-up before RC"
+    }
+    return "Prove the mailbox-to-order path first"
+  }
+
+  private var releaseBlockerDetail: String {
+    if releaseReadyStepCount >= releaseBlockerRows.count - 1 && releaseCleanupSignalCount < 20 {
+      return "Provider setup, refresh evidence, Inbox-created orders, and operational routing are visible. Run a focused hands-on pass and avoid expanding scope until remaining review work is intentional."
+    }
+    if releaseProviderReadyCount > 0 && releaseMailboxEvidenceCount > 0 && releaseInboxOrderCount > 0 {
+      return "The daily path has live intake evidence and at least one Inbox-created order. Work down dispatch, task, and cleanup signals before treating this as a release candidate."
+    }
+    return "Start with Mailbox Monitor, import one likely order email, create or link the order from Inbox, then check Orders, Dispatch, Tasks, and Audit."
+  }
+
+  private var releaseBlockerRows: [ReleaseBlockerRow] {
+    [
+      ReleaseBlockerRow(
+        title: "Mailbox provider ready",
+        detail: releaseProviderReadyCount > 0 ? "\(releaseProviderReadyCount) provider path has usable local credential or sign-in state." : "Set up SpaceMail or Gmail before relying on live intake.",
+        count: releaseProviderReadyCount,
+        symbol: "server.rack",
+        color: releaseProviderReadyCount > 0 ? .green : .orange,
+        isClear: releaseProviderReadyCount > 0
+      ),
+      ReleaseBlockerRow(
+        title: "Refresh evidence captured",
+        detail: releaseMailboxEvidenceCount > 0 ? "\(releaseMailboxEvidenceCount) mailbox refresh signal\(releaseMailboxEvidenceCount == 1 ? "" : "s") are available across fetched, imported, filtered, uncertain, or duplicate results." : "Run a manual provider refresh from Mailbox Monitor.",
+        count: releaseMailboxEvidenceCount,
+        symbol: "arrow.clockwise.circle.fill",
+        color: releaseMailboxEvidenceCount > 0 ? .green : .orange,
+        isClear: releaseMailboxEvidenceCount > 0
+      ),
+      ReleaseBlockerRow(
+        title: "Inbox-to-order handoff",
+        detail: releaseInboxOrderCount > 0 ? "\(releaseInboxOrderCount) order\(releaseInboxOrderCount == 1 ? "" : "s") exist from Inbox/import handoff." : "Create or link one order from Inbox so downstream screens have real local context.",
+        count: releaseInboxOrderCount,
+        symbol: "shippingbox.fill",
+        color: releaseInboxOrderCount > 0 ? .green : .orange,
+        isClear: releaseInboxOrderCount > 0
+      ),
+      ReleaseBlockerRow(
+        title: "Dispatch blockers",
+        detail: releaseDispatchBlockerCount == 0 ? "No blocked manifest, readiness, reopened handoff, or Inbox dispatch setup signals are promoted." : "\(releaseDispatchBlockerCount) dispatch signal\(releaseDispatchBlockerCount == 1 ? "" : "s") still need local confirmation.",
+        count: releaseDispatchBlockerCount,
+        symbol: "paperplane.fill",
+        color: releaseDispatchBlockerCount == 0 ? .green : .blue,
+        isClear: releaseDispatchBlockerCount == 0
+      ),
+      ReleaseBlockerRow(
+        title: "Owned follow-up",
+        detail: releaseTaskBlockerCount == 0 ? "Tasks, handoffs, and drafts are quiet enough for a release-candidate pass." : "\(releaseTaskBlockerCount) task, handoff, or draft signal\(releaseTaskBlockerCount == 1 ? "" : "s") still need owner review.",
+        count: releaseTaskBlockerCount,
+        symbol: "checklist",
+        color: releaseTaskBlockerCount == 0 ? .green : .purple,
+        isClear: releaseTaskBlockerCount == 0
+      ),
+      ReleaseBlockerRow(
+        title: "Cleanup pressure",
+        detail: releaseCleanupSignalCount == 0 ? "No local hygiene or parser diagnostic signal is open." : "\(releaseCleanupSignalCount) hygiene/parser signal\(releaseCleanupSignalCount == 1 ? "" : "s") remain. Clean only active confusion; preserve useful audit history.",
+        count: releaseCleanupSignalCount,
+        symbol: "stethoscope",
+        color: releaseCleanupSignalCount < 20 ? .teal : .orange,
+        isClear: releaseCleanupSignalCount < 20
+      )
+    ]
+  }
+
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - dailyAttentionCount, 0)
   }
@@ -509,6 +634,7 @@ struct OperationsWorkbenchView: View {
           detailWhenClear: "No primary workflow exceptions are waiting. Use advanced filters only when you need supporting records.",
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
+        releaseCandidateBlockersPanel
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         operatorSummary
@@ -829,6 +955,105 @@ struct OperationsWorkbenchView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var releaseCandidateBlockersPanel: some View {
+    SettingsPanel(title: "Release-candidate blocker routing", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: releaseBlockerTone == .green ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .font(.title3)
+            .foregroundStyle(releaseBlockerTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(releaseBlockerTitle)
+              .font(.headline)
+            Text(releaseBlockerDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge("\(releaseReadyStepCount)/\(releaseBlockerRows.count) clear", color: releaseBlockerTone)
+        }
+
+        MetricStrip(items: [
+          ("Providers", "\(releaseProviderReadyCount)", releaseProviderReadyCount > 0 ? .green : .orange),
+          ("Refresh", "\(releaseMailboxEvidenceCount)", releaseMailboxEvidenceCount > 0 ? .green : .orange),
+          ("Inbox orders", "\(releaseInboxOrderCount)", releaseInboxOrderCount > 0 ? .green : .orange),
+          ("Dispatch", "\(releaseDispatchBlockerCount)", releaseDispatchBlockerCount == 0 ? .green : .blue),
+          ("Tasks", "\(releaseTaskBlockerCount)", releaseTaskBlockerCount == 0 ? .green : .purple),
+          ("Cleanup", "\(releaseCleanupSignalCount)", releaseCleanupSignalCount < 20 ? .teal : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 240), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(releaseBlockerRows) { row in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(row.title, systemImage: row.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(row.color)
+                Spacer()
+                Badge("\(row.count)", color: row.color)
+              }
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        LocalDataHygieneSummaryCard(
+          store: store,
+          title: "Workbench cleanup pressure",
+          detail: "Use this before release testing to separate current operator blockers from old parser noise, ignored mail, duplicate ingest, and partial Inbox order follow-up.",
+          showExamples: false
+        )
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Dispatch", systemImage: "paperplane.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Local-only boundary: this panel reads existing local state only. It does not fetch mail, read credentials, create orders, mutate mailbox messages, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
