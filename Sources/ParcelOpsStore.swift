@@ -18394,6 +18394,101 @@ final class ParcelOpsStore {
     )
   }
 
+  func runWishlistPurchaseReadinessCheck(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    let checkedItem = wishlistItems[index]
+    let options = checkedItem.comparisonOptions ?? []
+    let preferredOption = options.first { $0.id == checkedItem.preferredOptionID }
+    var checks: [WishlistPurchaseCheck] = []
+
+    checks.append(wishlistCheck(
+      title: "Item and source",
+      passed: !checkedItem.itemName.isPlaceholderValidationValue && !checkedItem.storefrontURL.isPlaceholderValidationValue,
+      failDetail: "Confirm the exact item name and source URL before purchase.",
+      passDetail: "Item name and source URL are present."
+    ))
+    checks.append(wishlistCheck(
+      title: "Seller comparison",
+      passed: !options.isEmpty,
+      failDetail: "Add or generate seller options before choosing where to buy.",
+      passDetail: "\(options.count) seller option\(options.count == 1 ? "" : "s") available for review."
+    ))
+    checks.append(wishlistCheck(
+      title: "Preferred seller",
+      passed: preferredOption != nil,
+      failDetail: "Select a preferred seller option before marking ready to buy.",
+      passDetail: preferredOption.map { "Preferred seller is \($0.sellerName)." } ?? "Preferred seller selected."
+    ))
+
+    if let preferredOption {
+      let score = preferredOption.localScore ?? 0
+      let hasHighRisk = (preferredOption.riskLevel ?? "").localizedCaseInsensitiveContains("high")
+        || preferredOption.trustRating.localizedCaseInsensitiveContains("unknown")
+        || preferredOption.trustRating.localizedCaseInsensitiveContains("review")
+      checks.append(wishlistCheck(
+        title: "Seller trust",
+        passed: !hasHighRisk && score >= 55,
+        failDetail: "Seller trust or score needs review before purchase. Current score: \(preferredOption.localScore.map(String.init) ?? "not scored"); trust: \(preferredOption.trustRating).",
+        passDetail: "Preferred seller trust looks acceptable locally. Score: \(preferredOption.localScore.map(String.init) ?? "not scored")."
+      ))
+      checks.append(wishlistCheck(
+        title: "Postage and delivery",
+        passed: !preferredOption.postageCost.localizedCaseInsensitiveContains("pending")
+          && !preferredOption.postageTime.localizedCaseInsensitiveContains("pending"),
+        failDetail: "Postage cost and delivery time must be confirmed before purchase.",
+        passDetail: "Postage \(preferredOption.postageCost), delivery \(preferredOption.postageTime)."
+      ))
+      checks.append(wishlistCheck(
+        title: "AUD landed cost",
+        passed: preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("aud")
+          && !preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("pending"),
+        failDetail: "Confirm total landed AUD cost including item price, currency conversion, postage, and likely fees.",
+        passDetail: "AUD total is recorded as \(preferredOption.estimatedAUDTotal)."
+      ))
+    } else {
+      checks.append(WishlistPurchaseCheck(title: "Seller trust", status: "Blocked", detail: "Select and score a preferred seller before assessing trust.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "Postage and delivery", status: "Blocked", detail: "Select a preferred seller before checking postage and delivery time.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "AUD landed cost", status: "Blocked", detail: "Select a preferred seller before checking landed cost.", severity: "High"))
+    }
+
+    checks.append(wishlistCheck(
+      title: "Owner and account",
+      passed: !checkedItem.owner.isPlaceholderValidationValue,
+      failDetail: "Confirm who owns the purchase and which account should be used before buying.",
+      passDetail: "Owner is \(checkedItem.owner). Account choice still requires manual confirmation outside ParcelOps."
+    ))
+
+    let blockerCount = checks.filter { $0.status == "Blocked" || $0.severity == "High" }.count
+    let warningCount = checks.filter { $0.status == "Review" || $0.severity == "Medium" }.count
+    wishlistItems[index].purchaseChecks = checks
+    wishlistItems[index].purchaseReadiness = blockerCount > 0
+      ? "\(blockerCount) blockers before purchase"
+      : warningCount > 0
+        ? "\(warningCount) checks need review before purchase"
+        : "Ready for purchase review"
+    wishlistItems[index].status = blockerCount > 0 ? "Purchase blocked" : "Ready to purchase"
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist purchase readiness checked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReadiness result: \(blockerCount) blocker\(blockerCount == 1 ? "" : "s"), \(warningCount) warning\(warningCount == 1 ? "" : "s"). No live retailer, currency, postage, seller trust, account, checkout, purchase, payment, browser automation, or mailbox action occurred."
+    )
+  }
+
+  private func wishlistCheck(title: String, passed: Bool, failDetail: String, passDetail: String) -> WishlistPurchaseCheck {
+    WishlistPurchaseCheck(
+      title: title,
+      status: passed ? "Passed" : "Review",
+      detail: passed ? passDetail : failDetail,
+      severity: passed ? "Low" : "Medium"
+    )
+  }
+
   private func localWishlistOptionEvaluation(for option: WishlistComparisonOption) -> (score: Int, risk: String, recommendation: String, reasons: [String]) {
     let searchable = [
       option.sellerName,
@@ -20536,7 +20631,10 @@ private extension WishlistItem {
     let optionSummary = (comparisonOptions ?? [])
       .map { "\($0.sellerName): \($0.estimatedAUDTotal), postage \($0.postageCost)/\($0.postageTime), trust \($0.trustRating)" }
       .joined(separator: " | ")
-    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); captured detail: \(capturedDetail)."
+    let checkSummary = (purchaseChecks ?? [])
+      .map { "\($0.title): \($0.status) (\($0.severity))" }
+      .joined(separator: " | ")
+    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); captured detail: \(capturedDetail)."
   }
 }
 

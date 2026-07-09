@@ -125,6 +125,8 @@ struct WishlistView: View {
                 store.createWishlistComparisonPlan(item)
               } onScore: {
                 store.evaluateWishlistComparisonOptions(item)
+              } onCheck: {
+                store.runWishlistPurchaseReadinessCheck(item)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -168,6 +170,8 @@ struct WishlistView: View {
               } onCompare: {
                 store.restoreWishlistItem(item)
               } onScore: {
+                store.restoreWishlistItem(item)
+              } onCheck: {
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -537,6 +541,7 @@ struct WishlistItemRow: View {
   var onLink: () -> Void
   var onCompare: () -> Void
   var onScore: () -> Void
+  var onCheck: () -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onTask: () -> Void
@@ -570,6 +575,7 @@ struct WishlistItemRow: View {
         .foregroundStyle(.secondary)
 
       wishlistComparisonSummary
+      wishlistPurchaseChecksSummary
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
         if isDeleted {
@@ -637,6 +643,13 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Mark ready for purchase review")
+          Button("Readiness", systemImage: "checklist.checked") {
+            onCheck()
+            feedbackMessage = "Purchase readiness checked locally. Fix blockers before buying externally."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Run local purchase readiness check")
           Button("Task", systemImage: "checklist") {
             onTask()
             feedbackMessage = "Wishlist comparison review task created locally. Check Tasks for owner follow-up."
@@ -716,6 +729,35 @@ struct WishlistItemRow: View {
     .padding(10)
     .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
   }
+
+  @ViewBuilder
+  private var wishlistPurchaseChecksSummary: some View {
+    let checks = item.purchaseChecks ?? []
+    if !checks.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label("Purchase readiness", systemImage: "checklist.checked")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.indigo)
+          Spacer(minLength: 8)
+          Badge("\(checks.filter { $0.status == "Passed" }.count) passed", color: .green)
+          let reviewCount = checks.filter { $0.status != "Passed" }.count
+          Badge("\(reviewCount) review", color: reviewCount == 0 ? .green : .orange)
+        }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+          ForEach(checks) { check in
+            WishlistPurchaseCheckRow(check: check)
+          }
+        }
+        Text("Readiness checks are local guidance only. Confirm live seller, price, account, payment, postage, returns, and delivery details outside ParcelOps before buying.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(.indigo.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
 }
 
 private struct WishlistPreferredOptionSummary: View {
@@ -748,6 +790,44 @@ private struct WishlistPreferredOptionSummary: View {
     }
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseCheckRow: View {
+  var check: WishlistPurchaseCheck
+
+  private var color: Color {
+    if check.status == "Passed" { return .green }
+    if check.severity == "High" { return .red }
+    return .orange
+  }
+
+  private var symbol: String {
+    if check.status == "Passed" { return "checkmark.circle.fill" }
+    if check.severity == "High" { return "exclamationmark.triangle.fill" }
+    return "exclamationmark.circle.fill"
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Text(check.title)
+            .font(.caption.weight(.semibold))
+          Badge(check.status, color: color)
+        }
+        Text(check.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
