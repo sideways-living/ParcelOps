@@ -121,7 +121,7 @@ struct WishlistView: View {
             MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : store.addManualWishlistItemPlaceholder)
           } else {
             ForEach(filteredItems) { item in
-              WishlistItemRow(item: item, confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item)) {
+              WishlistItemRow(item: item, confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item), suggestedAccounts: store.suggestedAccounts(for: item)) {
                 store.convertWishlistToOrder(item)
               } onLink: {
                 store.linkWishlistItemToOrder(item)
@@ -150,6 +150,17 @@ struct WishlistView: View {
                 store.markWishlistOrderConfirmationSeen(item)
               } onUseConfirmation: { email in
                 store.confirmWishlistOrderFromIntake(item, email: email)
+              } onAddAccount: {
+                store.addAccountCredentialRecord(
+                  linkedEntityType: .supplier,
+                  linkedEntityID: item.id.uuidString,
+                  organisation: item.purchaseHandoff?.sellerName ?? item.storefront,
+                  label: item.itemName
+                )
+              } onAccountTask: { account in
+                store.createReviewTask(from: account)
+              } onAccountDraft: { account in
+                store.createDraftMessage(from: account)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -219,6 +230,12 @@ struct WishlistView: View {
               } onOrderSeen: {
                 store.restoreWishlistItem(item)
               } onUseConfirmation: { _ in
+                store.restoreWishlistItem(item)
+              } onAddAccount: {
+                store.restoreWishlistItem(item)
+              } onAccountTask: { _ in
+                store.restoreWishlistItem(item)
+              } onAccountDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1030,6 +1047,7 @@ private struct WishlistPlanningStep: View {
 struct WishlistItemRow: View {
   var item: WishlistItem
   var confirmationMatches: [ForwardedEmailIntake] = []
+  var suggestedAccounts: [AccountCredentialRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1045,6 +1063,9 @@ struct WishlistItemRow: View {
   var onPurchased: () -> Void
   var onOrderSeen: () -> Void
   var onUseConfirmation: (ForwardedEmailIntake) -> Void
+  var onAddAccount: () -> Void
+  var onAccountTask: (AccountCredentialRecord) -> Void
+  var onAccountDraft: (AccountCredentialRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1390,6 +1411,42 @@ struct WishlistItemRow: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Account used for purchase", systemImage: "key.horizontal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Track the retailer or supplier account reference here. ParcelOps stores only non-secret account placeholders; no passwords, tokens, payment details, or browser sessions are stored.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedAccounts.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No matching local account placeholder yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add account", systemImage: "key.badge.plus") {
+                onAddAccount()
+                feedbackMessage = "Account placeholder created from Wishlist handoff. No secrets, login, Keychain item, payment details, or retailer access were used."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedAccounts.prefix(3)) { account in
+              WishlistAccountContextRow(account: account) {
+                onAccountTask(account)
+                feedbackMessage = "Account review task created locally. No credentials or retailer account were accessed."
+              } onDraft: {
+                onAccountDraft(account)
+                feedbackMessage = "Account follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1449,6 +1506,44 @@ private struct WishlistOrderConfirmationCandidateRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Use this Inbox email as the Wishlist order confirmation")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistAccountContextRow: View {
+  var account: AccountCredentialRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "key.horizontal.fill")
+        .foregroundStyle(account.credentialStorageStatus.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(account.accountName)
+          .font(.caption.weight(.semibold))
+        Text("\(account.organisation) • \(account.usernameLabel)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(account.credentialStorageStatus.rawValue, color: account.credentialStorageStatus.color)
+          Badge(account.mfaStatus.rawValue, color: account.mfaStatus.color)
+          Badge(account.reviewState.rawValue, color: account.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create account review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create account follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))

@@ -14722,6 +14722,17 @@ final class ParcelOpsStore {
     }
   }
 
+  func suggestedAccounts(for item: WishlistItem) -> [AccountCredentialRecord] {
+    let seller = item.purchaseHandoff?.sellerName ?? item.storefront
+    return accountCredentialRecords.filter { account in
+      account.linkedEntityID == item.id.uuidString
+        || account.organisation.localizedCaseInsensitiveContains(seller)
+        || seller.localizedCaseInsensitiveContains(account.organisation)
+        || account.accountName.localizedCaseInsensitiveContains(item.storefront)
+        || item.storefront.localizedCaseInsensitiveContains(account.accountName)
+    }
+  }
+
   func suggestedAccounts(for contact: ContactDirectoryEntry) -> [AccountCredentialRecord] {
     accountCredentialRecords.filter { account in
       account.linkedContactID == contact.id
