@@ -466,7 +466,8 @@ struct DashboardView: View {
     store.reviewTasks.filter { task in
       task.status != .completed
         && (
-          task.title.localizedCaseInsensitiveContains("spacemail")
+          task.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
+            || task.title.localizedCaseInsensitiveContains("spacemail")
             || task.title.localizedCaseInsensitiveContains("gmail")
             || task.title.localizedCaseInsensitiveContains("mailbox")
             || task.summary.localizedCaseInsensitiveContains("spacemail")
@@ -475,6 +476,12 @@ struct DashboardView: View {
             || store.spaceMailIMAPConnections.contains { task.linkedEntityID == $0.id.uuidString }
             || store.gmailMailboxConnections.contains { task.linkedEntityID == $0.id.uuidString }
         )
+    }
+  }
+  private var openGmailRefreshTasks: [ReviewTask] {
+    openMailboxAssignedTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
     }
   }
   private var openMailboxAssignedHandoffs: [HandoffNote] {
@@ -1642,6 +1649,7 @@ struct DashboardView: View {
           MetricStrip(items: [
             ("Assigned", "\(mailboxAssignedFollowUpCount)", mailboxAssignedFollowUpCount == 0 ? .green : .purple),
             ("Tasks", "\(openMailboxAssignedTasks.count)", openMailboxAssignedTasks.isEmpty ? .green : .orange),
+            ("Gmail refresh", "\(openGmailRefreshTasks.count)", openGmailRefreshTasks.isEmpty ? .green : .purple),
             ("Handoffs", "\(openMailboxAssignedHandoffs.count)", openMailboxAssignedHandoffs.isEmpty ? .green : .blue),
             ("Uncertain", "\(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount)", pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount == 0 ? .green : .orange),
             ("Filtered", "\(pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount)", pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount == 0 ? .secondary : .teal)
