@@ -13601,6 +13601,38 @@ final class ParcelOpsStore {
     suggestedReceivingInspections(orderID: nil, shipmentGroupID: nil, packageContentID: request.packageContentID, procurementRequestID: request.id, returnClaimID: request.returnClaimID, destinationAddressID: request.destinationAddressID, customerProfileID: request.customerProfileID, evidenceID: request.evidenceAttachmentIDs.first, trackingEventID: nil, inspectorTeam: request.assignedBuyerTeam, context: "\(request.title) \(request.requestedItemsSummary) \(request.notes)", linkedEntityType: .procurementRequest, linkedEntityID: request.id.uuidString)
   }
 
+  func suggestedReceivingInspections(for item: WishlistItem) -> [ReceivingInspectionRecord] {
+    let procurement = suggestedProcurementRequests(for: item).first
+    let linkedOrderID = item.purchaseHandoff?.linkedOrderID
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.pool,
+      item.purchaseDecision?.selectedSellerName,
+      item.purchaseHandoff?.sellerName,
+      item.purchaseHandoff?.expectedOrderSignals,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedReceivingInspections(
+      orderID: linkedOrderID,
+      shipmentGroupID: nil,
+      packageContentID: procurement?.packageContentID,
+      procurementRequestID: procurement?.id,
+      returnClaimID: nil,
+      destinationAddressID: procurement?.destinationAddressID,
+      customerProfileID: procurement?.customerProfileID,
+      evidenceID: procurement?.evidenceAttachmentIDs.first,
+      trackingEventID: nil,
+      inspectorTeam: item.owner,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedReceivingInspections(for claim: ReturnClaimRecord) -> [ReceivingInspectionRecord] {
     suggestedReceivingInspections(orderID: claim.orderID, shipmentGroupID: claim.shipmentGroupID, packageContentID: claim.packageContentID, procurementRequestID: suggestedProcurementRequests(for: claim).first?.id, returnClaimID: claim.id, destinationAddressID: nil, customerProfileID: claim.customerProfileID, evidenceID: claim.evidenceAttachmentIDs.first, trackingEventID: claim.carrierTrackingEventIDs.first, inspectorTeam: claim.assignedOwnerTeam, context: "\(claim.title) \(claim.reasonSummary)", linkedEntityType: .returnClaim, linkedEntityID: claim.id.uuidString)
   }
@@ -19123,6 +19155,52 @@ final class ParcelOpsStore {
       entityLabel: request.title,
       summary: "Wishlist procurement request created locally.",
       afterDetail: "\(request.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local approval and buying coordination only; no external supplier, checkout, payment, or order system was contacted."
+    )
+  }
+
+  func createWishlistReceivingInspection(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let procurement = suggestedProcurementRequests(for: item).first
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let inspection = ReceivingInspectionRecord(
+      title: "Wishlist receiving check: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      orderID: item.purchaseHandoff?.linkedOrderID,
+      shipmentGroupID: nil,
+      packageContentID: procurement?.packageContentID,
+      procurementRequestID: procurement?.id,
+      returnClaimID: nil,
+      destinationAddressID: procurement?.destinationAddressID,
+      customerProfileID: procurement?.customerProfileID,
+      carrierTrackingEventIDs: [],
+      evidenceAttachmentIDs: [],
+      inspectionType: .procurementReceipt,
+      inspectionStatus: .pending,
+      expectedItemSummary: "\(item.itemName) from \(seller). Confirm item, quantity, model/variant, packaging condition, accessories, warranty paperwork, and delivery paperwork when received.",
+      receivedItemSummary: "Not received or inspected yet.",
+      quantityExpected: 1,
+      quantityReceived: 0,
+      conditionSummary: "Condition not inspected yet.",
+      discrepancyType: .none,
+      discrepancySummary: "No discrepancy recorded yet.",
+      assignedInspectorTeam: item.owner,
+      inspectionDate: "Not inspected",
+      dueDate: item.purchaseHandoff?.linkedOrderID == nil ? "After external purchase/order confirmation" : "When order arrives",
+      riskLevel: procurement?.riskLevel ?? (item.purchaseDecision?.reviewState == .accepted ? .medium : .high),
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    receivingInspections.insert(inspection, at: 0)
+    persistReceivingInspections()
+    logAudit(
+      action: .created,
+      entityType: .receivingInspection,
+      entityID: inspection.id.uuidString,
+      entityLabel: inspection.title,
+      summary: "Wishlist receiving inspection staged locally.",
+      afterDetail: "\(inspection.auditDetail)\nCreated from Wishlist item \(item.itemName). This is a local receiving checklist only; no carrier, supplier, warehouse, scanner, OCR, or mailbox action occurred."
     )
   }
 

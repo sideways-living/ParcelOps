@@ -126,7 +126,8 @@ struct WishlistView: View {
                 confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item),
                 suggestedAccounts: store.suggestedAccounts(for: item),
                 suggestedCosts: store.suggestedCostRecords(for: item),
-                suggestedProcurementRequests: store.suggestedProcurementRequests(for: item)
+                suggestedProcurementRequests: store.suggestedProcurementRequests(for: item),
+                suggestedReceivingInspections: store.suggestedReceivingInspections(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -179,6 +180,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: request)
               } onProcurementDraft: { request in
                 store.createDraftMessage(from: request)
+              } onAddInspection: {
+                store.createWishlistReceivingInspection(item)
+              } onInspectionTask: { inspection in
+                store.createReviewTask(from: inspection)
+              } onInspectionDraft: { inspection in
+                store.createDraftMessage(from: inspection)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -266,6 +273,12 @@ struct WishlistView: View {
               } onProcurementTask: { _ in
                 store.restoreWishlistItem(item)
               } onProcurementDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddInspection: {
+                store.restoreWishlistItem(item)
+              } onInspectionTask: { _ in
+                store.restoreWishlistItem(item)
+              } onInspectionDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1080,6 +1093,7 @@ struct WishlistItemRow: View {
   var suggestedAccounts: [AccountCredentialRecord] = []
   var suggestedCosts: [CostRecord] = []
   var suggestedProcurementRequests: [ProcurementRequest] = []
+  var suggestedReceivingInspections: [ReceivingInspectionRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1104,6 +1118,9 @@ struct WishlistItemRow: View {
   var onAddProcurement: () -> Void
   var onProcurementTask: (ProcurementRequest) -> Void
   var onProcurementDraft: (ProcurementRequest) -> Void
+  var onAddInspection: () -> Void
+  var onInspectionTask: (ReceivingInspectionRecord) -> Void
+  var onInspectionDraft: (ReceivingInspectionRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1557,6 +1574,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Receiving check", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Stage a local receiving inspection before the item arrives so the operator knows what to verify: item, quantity, condition, accessories, paperwork, and discrepancy follow-up.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedReceivingInspections.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No receiving check staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add check", systemImage: "checkmark.seal") {
+                onAddInspection()
+                feedbackMessage = "Wishlist receiving inspection staged locally. No carrier, supplier, scanner, OCR, or warehouse system was contacted."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedReceivingInspections.prefix(3)) { inspection in
+              WishlistReceivingInspectionRow(inspection: inspection) {
+                onInspectionTask(inspection)
+                feedbackMessage = "Receiving inspection task created locally. No carrier, warehouse, scanner, or OCR integration was used."
+              } onDraft: {
+                onInspectionDraft(inspection)
+                feedbackMessage = "Receiving inspection follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1732,6 +1785,45 @@ private struct WishlistProcurementContextRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create procurement follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistReceivingInspectionRow: View {
+  var inspection: ReceivingInspectionRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "checkmark.seal.fill")
+        .foregroundStyle(inspection.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(inspection.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(inspection.inspectionType.rawValue) • \(inspection.assignedInspectorTeam) • \(inspection.dueDate)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(inspection.inspectionStatus.rawValue, color: inspection.inspectionStatus == .resolved ? .green : .blue)
+          Badge(inspection.discrepancyType.rawValue, color: inspection.discrepancyType == .none ? .secondary : .orange)
+          Badge(inspection.reviewState.rawValue, color: inspection.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create receiving inspection task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create receiving inspection follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
