@@ -13197,6 +13197,39 @@ final class ParcelOpsStore {
     suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: draft).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: draft.recipient, context: "\(draft.subject) \(draft.body)", linkedEntityType: draft.linkedEntityType, linkedEntityID: draft.linkedEntityID)
   }
 
+  func suggestedCostRecords(for item: WishlistItem) -> [CostRecord] {
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let accountID = suggestedAccounts(for: item).first?.id
+    let amountContext = wishlistPurchaseAmountText(for: item)
+    let context = [
+      item.itemName,
+      item.storefront,
+      seller,
+      item.owner,
+      item.pool,
+      item.purchaseDecision?.totalAUDSummary,
+      item.purchaseDecision?.postageSummary,
+      item.purchaseHandoff?.expectedOrderSignals,
+      amountContext
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedCostRecords(
+      orderID: item.purchaseHandoff?.linkedOrderID,
+      shipmentGroupID: nil,
+      packageContentID: nil,
+      customerProfileID: nil,
+      vendorProfileID: nil,
+      accountID: accountID,
+      evidenceID: nil,
+      budgetCode: wishlistBudgetCode(for: item),
+      ownerTeam: item.owner,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedCostRecords(for item: WorkbenchItem) -> [CostRecord] {
     suggestedCostRecords(orderID: nil, shipmentGroupID: nil, packageContentID: suggestedPackageContents(for: item).first?.id, customerProfileID: nil, vendorProfileID: nil, accountID: nil, evidenceID: nil, budgetCode: "", ownerTeam: item.assignee, context: "\(item.title) \(item.summary)", linkedEntityType: item.linkedEntityType, linkedEntityID: item.linkedEntityID)
   }
@@ -18945,6 +18978,69 @@ final class ParcelOpsStore {
       status: passed ? "Passed" : "Review",
       detail: passed ? passDetail : failDetail,
       severity: passed ? "Low" : "Medium"
+    )
+  }
+
+  private func wishlistBudgetCode(for item: WishlistItem) -> String {
+    let pool = item.pool.trimmingCharacters(in: .whitespacesAndNewlines)
+    return pool.isEmpty ? "Wishlist" : "Wishlist / \(pool)"
+  }
+
+  private func wishlistPurchaseAmountText(for item: WishlistItem) -> String {
+    if let decisionTotal = item.purchaseDecision?.totalAUDSummary.trimmingCharacters(in: .whitespacesAndNewlines), !decisionTotal.isEmpty {
+      return decisionTotal
+    }
+    if let preferredOptionID = item.preferredOptionID,
+       let preferredOption = item.comparisonOptions?.first(where: { $0.id == preferredOptionID }) {
+      let preferredTotal = preferredOption.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !preferredTotal.isEmpty {
+        return preferredTotal
+      }
+    }
+    return item.estimatedCost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "AUD total to confirm" : item.estimatedCost
+  }
+
+  func createWishlistPurchaseCostRecord(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let account = suggestedAccounts(for: item).first
+    let amountText = wishlistPurchaseAmountText(for: item)
+    let postage = item.purchaseDecision?.postageSummary ?? item.comparisonOptions?.first(where: { $0.id == item.preferredOptionID })?.postageCost ?? "Postage to confirm"
+    let trust = item.purchaseDecision?.trustSummary ?? item.comparisonOptions?.first(where: { $0.id == item.preferredOptionID })?.trustRating ?? "Seller trust to confirm"
+    let cost = CostRecord(
+      title: "Wishlist purchase cost: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      orderID: item.purchaseHandoff?.linkedOrderID,
+      shipmentGroupID: nil,
+      packageContentID: nil,
+      customerProfileID: nil,
+      vendorProfileID: nil,
+      accountID: account?.id,
+      costCategory: .orderCost,
+      amountText: amountText,
+      currency: "AUD",
+      taxGSTText: "GST/import duty to confirm",
+      reimbursementStatus: .notSubmitted,
+      approvalStatus: .draft,
+      budgetCode: wishlistBudgetCode(for: item),
+      costOwnerTeam: item.owner,
+      evidenceAttachmentIDs: [],
+      notes: "Local Wishlist purchase budget placeholder for \(seller). Postage: \(postage). Trust: \(trust). Account: \(account?.accountName ?? "to confirm"). No payment, checkout, retailer API, accounting system, or bank feed was used.",
+      riskLevel: item.purchaseDecision?.reviewState == .accepted ? .medium : .high,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    costRecords.insert(cost, at: 0)
+    persistCostRecords()
+    logAudit(
+      action: .created,
+      entityType: .costRecord,
+      entityID: cost.id.uuidString,
+      entityLabel: cost.title,
+      summary: "Wishlist purchase cost placeholder created.",
+      afterDetail: "\(cost.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local budget tracking only; no purchase, payment, reimbursement, accounting, bank, or retailer action occurred."
     )
   }
 

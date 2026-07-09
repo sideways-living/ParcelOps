@@ -121,7 +121,12 @@ struct WishlistView: View {
             MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : store.addManualWishlistItemPlaceholder)
           } else {
             ForEach(filteredItems) { item in
-              WishlistItemRow(item: item, confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item), suggestedAccounts: store.suggestedAccounts(for: item)) {
+              WishlistItemRow(
+                item: item,
+                confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item),
+                suggestedAccounts: store.suggestedAccounts(for: item),
+                suggestedCosts: store.suggestedCostRecords(for: item)
+              ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
                 store.linkWishlistItemToOrder(item)
@@ -161,6 +166,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: account)
               } onAccountDraft: { account in
                 store.createDraftMessage(from: account)
+              } onAddCost: {
+                store.createWishlistPurchaseCostRecord(item)
+              } onCostTask: { cost in
+                store.createReviewTask(from: cost)
+              } onCostDraft: { cost in
+                store.createDraftMessage(from: cost)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -236,6 +247,12 @@ struct WishlistView: View {
               } onAccountTask: { _ in
                 store.restoreWishlistItem(item)
               } onAccountDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddCost: {
+                store.restoreWishlistItem(item)
+              } onCostTask: { _ in
+                store.restoreWishlistItem(item)
+              } onCostDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1048,6 +1065,7 @@ struct WishlistItemRow: View {
   var item: WishlistItem
   var confirmationMatches: [ForwardedEmailIntake] = []
   var suggestedAccounts: [AccountCredentialRecord] = []
+  var suggestedCosts: [CostRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1066,6 +1084,9 @@ struct WishlistItemRow: View {
   var onAddAccount: () -> Void
   var onAccountTask: (AccountCredentialRecord) -> Void
   var onAccountDraft: (AccountCredentialRecord) -> Void
+  var onAddCost: () -> Void
+  var onCostTask: (CostRecord) -> Void
+  var onCostDraft: (CostRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1447,6 +1468,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Cost and budget handoff", systemImage: "dollarsign.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Create a local cost placeholder once a seller is preferred or purchase handoff is ready. This records expected AUD total, postage, trust context, owner, budget code, and account link without payment processing or accounting integration.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedCosts.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No linked cost or budget placeholder yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add cost", systemImage: "dollarsign.circle") {
+                onAddCost()
+                feedbackMessage = "Wishlist purchase cost placeholder created locally. Review Costs & Budgets before buying externally."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedCosts.prefix(3)) { cost in
+              WishlistCostContextRow(cost: cost) {
+                onCostTask(cost)
+                feedbackMessage = "Cost review task created locally. No payment, reimbursement, or accounting integration was used."
+              } onDraft: {
+                onCostDraft(cost)
+                feedbackMessage = "Cost follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1544,6 +1601,45 @@ private struct WishlistAccountContextRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create account follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistCostContextRow: View {
+  var cost: CostRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "dollarsign.circle.fill")
+        .foregroundStyle(cost.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(cost.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(cost.amountText) \(cost.currency) • \(cost.budgetCode) • \(cost.costOwnerTeam)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(cost.approvalStatus.rawValue, color: cost.approvalStatus == .approved ? .green : .orange)
+          Badge(cost.reimbursementStatus.rawValue, color: cost.reimbursementStatus == .reimbursed ? .green : .secondary)
+          Badge(cost.reviewState.rawValue, color: cost.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create cost review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create cost follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
