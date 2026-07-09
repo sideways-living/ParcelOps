@@ -640,7 +640,12 @@ struct IntegrationsView: View {
               setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
-              authState: store.gmailAuthSessionState(for: connection)
+              authState: store.gmailAuthSessionState(for: connection),
+              activeRefreshTask: store.reviewTasks.first {
+                $0.linkedEntityType == .integration
+                  && $0.linkedEntityID == "gmail-latest-refresh-\(connection.id.uuidString)"
+                  && $0.status != .completed
+              }
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -1325,6 +1330,7 @@ struct GmailMailboxConnectionRow: View {
   var releaseSelfCheck: GmailReleaseSelfCheckSummary
   var labelReadiness: GmailLabelReadinessSummary
   var authState: GmailAuthSessionState
+  var activeRefreshTask: ReviewTask?
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMockRefresh: () -> Void
@@ -1372,6 +1378,7 @@ struct GmailMailboxConnectionRow: View {
     releaseSelfCheck: GmailReleaseSelfCheckSummary,
     labelReadiness: GmailLabelReadinessSummary,
     authState: GmailAuthSessionState,
+    activeRefreshTask: ReviewTask?,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
@@ -1412,6 +1419,7 @@ struct GmailMailboxConnectionRow: View {
     self.releaseSelfCheck = releaseSelfCheck
     self.labelReadiness = labelReadiness
     self.authState = authState
+    self.activeRefreshTask = activeRefreshTask
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMockRefresh = onMockRefresh
@@ -1707,8 +1715,37 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(gmailLabelResolutionColor)
           .fixedSize(horizontal: false, vertical: true)
+        if let activeRefreshTask {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Refresh follow-up task is active", systemImage: "checklist")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailRefreshTaskColor(activeRefreshTask))
+            Text(activeRefreshTask.title)
+              .font(.caption2.weight(.semibold))
+              .fixedSize(horizontal: false, vertical: true)
+            Text("Owner: \(activeRefreshTask.assignee) • Due: \(activeRefreshTask.dueDate)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+            CompactMetadataGrid(minimumWidth: 120) {
+              Badge(activeRefreshTask.status.rawValue, color: gmailRefreshTaskColor(activeRefreshTask))
+              Badge(activeRefreshTask.priority.rawValue, color: gmailRefreshTaskColor(activeRefreshTask))
+              Badge(activeRefreshTask.reviewState.rawValue, color: activeRefreshTask.reviewState == .accepted ? .green : .orange)
+            }
+            Text("Use Tasks to close this assigned follow-up. Use this row to refresh the existing task from the latest local Gmail counters.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .background(gmailRefreshTaskColor(activeRefreshTask).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        } else {
+          Label("No active refresh follow-up task. Create one only when a named owner needs this refresh result assigned.", systemImage: "checklist.unchecked")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         CompactActionRow {
-          Button("Create refresh task", systemImage: "checklist", action: onCreateRefreshTask)
+          Button(activeRefreshTask == nil ? "Create refresh task" : "Refresh task details", systemImage: "checklist", action: onCreateRefreshTask)
         }
         .buttonStyle(.bordered)
         Text(connection.lastRefreshSummary)
@@ -2893,6 +2930,14 @@ struct GmailMailboxConnectionRow: View {
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
     if (connection.lastRefreshUncertainCount ?? 0) > 0 { return .orange }
     return .secondary
+  }
+
+  private func gmailRefreshTaskColor(_ task: ReviewTask) -> Color {
+    if task.status == .blocked { return .red }
+    if task.priority == .urgent || task.priority == .high { return .orange }
+    if task.status == .inProgress { return .blue }
+    if task.reviewState != .accepted { return .orange }
+    return .teal
   }
 
   private var gmailRefreshModeLabel: String {

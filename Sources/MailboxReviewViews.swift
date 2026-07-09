@@ -243,7 +243,12 @@ struct MailboxView: View {
               setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
-              authState: store.gmailAuthSessionState(for: connection)
+              authState: store.gmailAuthSessionState(for: connection),
+              activeRefreshTask: store.reviewTasks.first {
+                $0.linkedEntityType == .integration
+                  && $0.linkedEntityID == "gmail-latest-refresh-\(connection.id.uuidString)"
+                  && $0.status != .completed
+              }
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
