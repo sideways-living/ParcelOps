@@ -6902,6 +6902,67 @@ struct LocalDataHygieneSummaryCard: View {
     return preferredTitles.compactMap { title in summary.metrics.first { $0.title == title } }
   }
 
+  private var cleanupPlanRows: [CleanupPlanRow] {
+    let metricLookup = Dictionary(uniqueKeysWithValues: summary.metrics.map { ($0.title, $0) })
+    let needsReviewCount = Int(metricLookup["Needs review"]?.value ?? "") ?? 0
+    let parserCount = Int(metricLookup["Parser diagnostics"]?.value ?? "") ?? 0
+    let uncertainCount = Int(metricLookup["Uncertain SpaceMail"]?.value ?? "") ?? 0
+    let filteredCount = Int(metricLookup["Filtered review"]?.value ?? "") ?? 0
+    let placeholderCount = Int(metricLookup["Intake placeholders"]?.value ?? "") ?? 0
+    let partialTaskCount = Int(metricLookup["Partial order tasks"]?.value ?? "") ?? 0
+
+    var rows: [CleanupPlanRow] = []
+    if needsReviewCount > 0 {
+      rows.append(CleanupPlanRow(
+        title: "Review current intake first",
+        detail: "\(needsReviewCount) intake row\(needsReviewCount == 1 ? "" : "s") still need local review. Work clean order candidates before parser experiments or historical ignored rows.",
+        symbol: "tray.full.fill",
+        color: .orange
+      ))
+    }
+    if uncertainCount > 0 {
+      rows.append(CleanupPlanRow(
+        title: "Resolve uncertain mailbox previews",
+        detail: "\(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") should be imported only if order-related, otherwise dismissed locally from Mailbox Monitor.",
+        symbol: "questionmark.folder.fill",
+        color: .orange
+      ))
+    }
+    if parserCount > 0 || placeholderCount > 0 {
+      rows.append(CleanupPlanRow(
+        title: "Separate parser noise from real work",
+        detail: "\(parserCount + placeholderCount) parser or placeholder signal\(parserCount + placeholderCount == 1 ? "" : "s") may be old test data. Reprocess only when tied to a current order email.",
+        symbol: "text.magnifyingglass",
+        color: .teal
+      ))
+    }
+    if partialTaskCount > 0 {
+      rows.append(CleanupPlanRow(
+        title: "Close owned follow-up",
+        detail: "\(partialTaskCount) task or handoff signal\(partialTaskCount == 1 ? "" : "s") should be completed, reopened, or assigned before calling the MVP flow clean.",
+        symbol: "checklist",
+        color: .purple
+      ))
+    }
+    if filteredCount > 0 {
+      rows.append(CleanupPlanRow(
+        title: "Leave filtered mail out of Inbox",
+        detail: "\(filteredCount) filtered preview\(filteredCount == 1 ? "" : "s") are low-priority review evidence. Import only if a real order was filtered too aggressively.",
+        symbol: "line.3.horizontal.decrease.circle.fill",
+        color: .secondary
+      ))
+    }
+    if rows.isEmpty {
+      rows.append(CleanupPlanRow(
+        title: "No cleanup pressure",
+        detail: "The active hygiene signals are quiet. Keep historical ignored, duplicate, and filtered records as audit context unless a specific row is misleading a tester.",
+        symbol: "checkmark.seal.fill",
+        color: .green
+      ))
+    }
+    return rows
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -6930,6 +6991,31 @@ struct LocalDataHygieneSummaryCard: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(tone)
         .fixedSize(horizontal: false, vertical: true)
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Cleanup plan", systemImage: "list.bullet.clipboard")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(tone)
+        CompactMetadataGrid(minimumWidth: 190) {
+          ForEach(cleanupPlanRows) { row in
+            VStack(alignment: .leading, spacing: 6) {
+              Label(row.title, systemImage: row.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(tone.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
       if showExamples && !summary.examples.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
@@ -6985,6 +7071,14 @@ struct LocalDataHygieneSummaryCard: View {
     default:
       return .blue
     }
+  }
+
+  private struct CleanupPlanRow: Identifiable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var symbol: String
+    var color: Color
   }
 }
 
