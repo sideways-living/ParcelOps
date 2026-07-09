@@ -1332,33 +1332,8 @@ struct TasksView: View {
           ("Task links", "\(mailboxLinkedTaskCount)", mailboxLinkedTaskCount == 0 ? .secondary : .purple)
         ])
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
-          ForEach(spaceMailPostRefreshPlan.items) { item in
-            VStack(alignment: .leading, spacing: 6) {
-              HStack(alignment: .top, spacing: 8) {
-                Image(systemName: item.symbol)
-                  .foregroundStyle(taskColor(for: item.tone))
-                  .frame(width: 18)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(item.title)
-                    .font(.caption.weight(.semibold))
-                  Text(item.actionLabel)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(taskColor(for: item.tone))
-                  Text(item.detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Badge("\(item.count)", color: taskColor(for: item.tone))
-              }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .background(taskColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-          }
-        }
+        SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
+        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
 
         Text("Create a task only when a person must own the follow-up. Imported order mail starts in Inbox, uncertain mail starts in Mailbox Monitor, and filtered mixed-mailbox examples stay out of Tasks unless manually promoted or converted into follow-up.")
           .font(.caption.weight(.semibold))
