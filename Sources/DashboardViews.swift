@@ -1889,6 +1889,7 @@ struct DashboardView: View {
             ])
             SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
             CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+            SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
