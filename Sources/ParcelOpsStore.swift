@@ -18555,6 +18555,44 @@ final class ParcelOpsStore {
     )
   }
 
+  func updateWishlistSellerOption(_ item: WishlistItem, option: WishlistComparisonOption) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    var options = wishlistItems[index].comparisonOptions ?? []
+    guard let optionIndex = options.firstIndex(where: { $0.id == option.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    let beforeOption = options[optionIndex]
+    var updated = option
+    updated.sellerName = updated.sellerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? beforeOption.sellerName : updated.sellerName
+    updated.productURL = updated.productURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? beforeOption.productURL : updated.productURL
+    updated.listedPrice = updated.listedPrice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending" : updated.listedPrice
+    updated.currency = updated.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "AUD" : updated.currency
+    updated.estimatedAUDTotal = updated.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending AUD total" : updated.estimatedAUDTotal
+    updated.postageCost = updated.postageCost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending postage" : updated.postageCost
+    updated.postageTime = updated.postageTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending delivery estimate" : updated.postageTime
+    updated.sellerRegion = updated.sellerRegion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown" : updated.sellerRegion
+    updated.trustRating = updated.trustRating.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Needs review" : updated.trustRating
+    updated.trustNotes = updated.trustNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Trust evidence still needs review." : updated.trustNotes
+    updated.recommendation = updated.recommendation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Manual review" : updated.recommendation
+    updated.lastChecked = "Edited locally"
+    updated.localScore = nil
+    updated.riskLevel = "Needs review"
+    updated.decisionReason = "Seller option edited manually. Re-run local scoring after confirming live price, AUD total, postage, delivery time, trust, returns, and account fit."
+    options[optionIndex] = updated
+    wishlistItems[index].comparisonOptions = options
+    wishlistItems[index].comparisonStatus = "Seller option edited"
+    wishlistItems[index].purchaseReadiness = "Waiting for seller option scoring"
+    persistWishlist()
+    logAudit(
+      action: .edited,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist seller option edited locally.",
+      beforeDetail: "\(beforeDetail)\nBefore seller option: \(beforeOption.sellerName); total: \(beforeOption.estimatedAUDTotal); postage: \(beforeOption.postageCost), \(beforeOption.postageTime); trust: \(beforeOption.trustRating).",
+      afterDetail: "\(wishlistItems[index].auditDetail)\nUpdated seller option: \(updated.sellerName); total: \(updated.estimatedAUDTotal); postage: \(updated.postageCost), \(updated.postageTime); trust: \(updated.trustRating). No retailer page, browser automation, currency API, postage API, trust lookup, account, checkout, purchase, or payment action occurred."
+    )
+  }
+
   func removeWishlistSellerOption(_ item: WishlistItem, option: WishlistComparisonOption) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

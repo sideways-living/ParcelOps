@@ -145,6 +145,8 @@ struct WishlistView: View {
                 store.markWishlistPreferredOption(item, option: option)
               } onDuplicateOption: { option in
                 store.duplicateWishlistSellerOption(item, option: option)
+              } onUpdateOption: { option in
+                store.updateWishlistSellerOption(item, option: option)
               } onRemoveOption: { option in
                 store.removeWishlistSellerOption(item, option: option)
               } onTask: {
@@ -202,6 +204,8 @@ struct WishlistView: View {
               } onPreferredOption: { _ in
                 store.restoreWishlistItem(item)
               } onDuplicateOption: { _ in
+                store.restoreWishlistItem(item)
+              } onUpdateOption: { _ in
                 store.restoreWishlistItem(item)
               } onRemoveOption: { _ in
                 store.restoreWishlistItem(item)
@@ -817,6 +821,7 @@ struct WishlistItemRow: View {
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
+  var onUpdateOption: (WishlistComparisonOption) -> Void
   var onRemoveOption: (WishlistComparisonOption) -> Void
   var onTask: () -> Void
   var onDraft: () -> Void
@@ -1027,6 +1032,9 @@ struct WishlistItemRow: View {
             } onDuplicate: {
               onDuplicateOption(option)
               feedbackMessage = "Seller option copied locally. Adjust the copy with the alternate retailer, AUD total, postage, and trust notes."
+            } onUpdate: { updatedOption in
+              onUpdateOption(updatedOption)
+              feedbackMessage = "Seller option saved locally. Re-run local scoring after confirming price, AUD total, postage, and trust details."
             } onRemove: {
               onRemoveOption(option)
               feedbackMessage = "Seller option removed locally. No retailer, browser, payment, or order state was changed."
@@ -1202,7 +1210,27 @@ private struct WishlistComparisonOptionCard: View {
   var isPreferred: Bool
   var onPrefer: () -> Void
   var onDuplicate: () -> Void
+  var onUpdate: (WishlistComparisonOption) -> Void
   var onRemove: () -> Void
+  @State private var isEditing = false
+  @State private var draft: WishlistComparisonOption
+
+  init(
+    option: WishlistComparisonOption,
+    isPreferred: Bool,
+    onPrefer: @escaping () -> Void,
+    onDuplicate: @escaping () -> Void,
+    onUpdate: @escaping (WishlistComparisonOption) -> Void,
+    onRemove: @escaping () -> Void
+  ) {
+    self.option = option
+    self.isPreferred = isPreferred
+    self.onPrefer = onPrefer
+    self.onDuplicate = onDuplicate
+    self.onUpdate = onUpdate
+    self.onRemove = onRemove
+    _draft = State(initialValue: option)
+  }
 
   private var trustColor: Color {
     if option.trustRating.localizedCaseInsensitiveContains("high") || option.trustRating.localizedCaseInsensitiveContains("trusted") { return .green }
@@ -1256,6 +1284,13 @@ private struct WishlistComparisonOptionCard: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help(isPreferred ? "Preferred option" : "Select preferred option")
+        Button("Edit option", systemImage: "pencil") {
+          draft = option
+          isEditing = true
+        }
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Edit seller option")
         Button("Copy option", systemImage: "doc.on.doc") {
           onDuplicate()
         }
@@ -1273,6 +1308,77 @@ private struct WishlistComparisonOptionCard: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background((isPreferred ? Color.green : trustColor).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      WishlistComparisonOptionEditor(option: $draft) {
+        isEditing = false
+      } onSave: {
+        onUpdate(draft)
+        isEditing = false
+      }
+    }
+  }
+}
+
+private struct WishlistComparisonOptionEditor: View {
+  @Binding var option: WishlistComparisonOption
+  var onCancel: () -> Void
+  var onSave: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack {
+        Label("Seller option", systemImage: "storefront.fill")
+          .font(.headline)
+        Spacer()
+        Button("Cancel", action: onCancel)
+          .buttonStyle(.bordered)
+        Button("Save", action: onSave)
+          .buttonStyle(.borderedProminent)
+      }
+
+      Text("Record manual comparison details only. ParcelOps does not verify live prices, contact retailers, calculate postage, access accounts, or purchase anything from this editor.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      ScrollView {
+        VStack(alignment: .leading, spacing: 12) {
+          GroupBox("Retailer") {
+            VStack(alignment: .leading, spacing: 10) {
+              TextField("Seller name", text: $option.sellerName)
+              TextField("Product URL", text: $option.productURL)
+              TextField("Seller region", text: $option.sellerRegion)
+              TextField("Recommendation", text: $option.recommendation)
+            }
+          }
+
+          GroupBox("Price and postage") {
+            VStack(alignment: .leading, spacing: 10) {
+              TextField("Listed price", text: $option.listedPrice)
+              TextField("Currency", text: $option.currency)
+              TextField("Estimated AUD total", text: $option.estimatedAUDTotal)
+              TextField("Postage cost", text: $option.postageCost)
+              TextField("Postage time", text: $option.postageTime)
+            }
+          }
+
+          GroupBox("Trust and decision notes") {
+            VStack(alignment: .leading, spacing: 10) {
+              TextField("Trust rating", text: $option.trustRating)
+              TextField("Trust notes", text: $option.trustNotes, axis: .vertical)
+                .lineLimit(3...6)
+              TextField("Decision reason", text: Binding(
+                get: { option.decisionReason ?? "" },
+                set: { option.decisionReason = $0 }
+              ), axis: .vertical)
+                .lineLimit(2...5)
+            }
+          }
+        }
+      }
+    }
+    .padding(20)
+    .frame(minWidth: 520, minHeight: 560)
   }
 }
 
