@@ -14657,6 +14657,48 @@ final class ParcelOpsStore {
     suggestedDispatchReadinessChecklists(shipmentManifestID: manifest.id, orderID: manifest.includedOrderIDs.first, shipmentGroupID: manifest.shipmentGroupIDs.first, inventoryReceiptID: manifest.inventoryReceiptIDs.first, packageContentID: manifest.packageContentIDs.first, custodyRecordID: manifest.custodyRecordIDs.first, labelReferenceID: manifest.labelReferenceIDs.first, scanSessionID: manifest.scanSessionIDs.first, evidenceID: manifest.evidenceAttachmentIDs.first, ownerTeam: manifest.assignedOwnerTeam, dateText: manifest.plannedDispatchDate, context: "\(manifest.title) \(manifest.notes)", linkedEntityType: .shipmentManifest, linkedEntityID: manifest.id.uuidString)
   }
 
+  func suggestedDispatchReadinessChecklists(for item: WishlistItem) -> [DispatchReadinessChecklist] {
+    let manifest = suggestedShipmentManifestRecords(for: item).first
+    let scan = suggestedScanSessionRecords(for: item).first
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.purchaseHandoff?.sellerName,
+      item.purchaseHandoff?.purchaseStatus,
+      manifest?.title,
+      scan?.title,
+      label?.labelValuePlaceholder,
+      custody?.title,
+      receipt?.itemSummary,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedDispatchReadinessChecklists(
+      shipmentManifestID: manifest?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      inventoryReceiptID: receipt?.id,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      custodyRecordID: custody?.id,
+      labelReferenceID: label?.id,
+      scanSessionID: scan?.id,
+      evidenceID: scan?.evidenceAttachmentIDs.first ?? label?.evidenceAttachmentIDs.first ?? receipt?.evidenceAttachmentIDs.first ?? inspection?.evidenceAttachmentIDs.first ?? procurement?.evidenceAttachmentIDs.first,
+      ownerTeam: item.owner,
+      dateText: manifest?.plannedDispatchDate ?? item.purchaseHandoff?.updatedAt ?? "",
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedDispatchReadinessChecklists(for scan: ScanSessionRecord) -> [DispatchReadinessChecklist] {
     suggestedDispatchReadinessChecklists(shipmentManifestID: suggestedShipmentManifestRecords(for: scan).first?.id, orderID: scan.orderID, shipmentGroupID: scan.shipmentGroupID, inventoryReceiptID: scan.inventoryReceiptID, packageContentID: scan.packageContentID, custodyRecordID: scan.custodyRecordID, labelReferenceID: scan.linkedLabelReferenceID, scanSessionID: scan.id, evidenceID: scan.evidenceAttachmentIDs.first, ownerTeam: scan.assignedOperatorTeam, dateText: scan.completedDate, context: "\(scan.title) \(scan.notes)", linkedEntityType: .scanSession, linkedEntityID: scan.id.uuidString)
   }
@@ -19692,6 +19734,54 @@ final class ParcelOpsStore {
       entityLabel: manifest.title,
       summary: "Wishlist dispatch manifest staged locally.",
       afterDetail: "\(manifest.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local dispatch planning only; no carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, mailbox, or background action occurred."
+    )
+  }
+
+  func createWishlistDispatchReadinessChecklist(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let manifest = suggestedShipmentManifestRecords(for: item).first
+    let scan = suggestedScanSessionRecords(for: item).first
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let orderID = item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID
+    let checklist = DispatchReadinessChecklist(
+      title: "Wishlist dispatch readiness: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      shipmentManifestID: manifest?.id,
+      orderIDs: orderID.map { [$0] } ?? [],
+      shipmentGroupIDs: [receipt?.shipmentGroupID, inspection?.shipmentGroupID].compactMap { $0 },
+      inventoryReceiptIDs: receipt.map { [$0.id] } ?? [],
+      packageContentIDs: [receipt?.packageContentID, inspection?.packageContentID, procurement?.packageContentID].compactMap { $0 },
+      custodyRecordIDs: custody.map { [$0.id] } ?? [],
+      labelReferenceIDs: label.map { [$0.id] } ?? [],
+      scanSessionIDs: scan.map { [$0.id] } ?? [],
+      evidenceAttachmentIDs: scan?.evidenceAttachmentIDs ?? label?.evidenceAttachmentIDs ?? receipt?.evidenceAttachmentIDs ?? inspection?.evidenceAttachmentIDs ?? procurement?.evidenceAttachmentIDs ?? [],
+      checklistType: .manifestReadiness,
+      checklistStatus: .draft,
+      requiredChecksSummary: "Confirm purchase/order evidence, receiving result, storage/handoff location, custody owner, label reference, manual verification, and any outbound manifest before handoff.",
+      completedChecksSummary: "No Wishlist dispatch readiness checks completed yet.",
+      missingRequirementsSummary: "Review order confirmation, receiving, custody, label reference, manual verification, and outbound handoff requirement before marking ready.",
+      assignedOwnerTeam: item.owner,
+      plannedDispatchDate: manifest?.plannedDispatchDate ?? "To schedule if outbound handoff is needed",
+      completedDate: "Not completed",
+      riskLevel: manifest?.riskLevel ?? scan?.riskLevel ?? label?.riskLevel ?? custody?.riskLevel ?? receipt?.riskLevel ?? inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    dispatchReadinessChecklists.insert(checklist, at: 0)
+    persistDispatchReadinessChecklists()
+    logAudit(
+      action: .created,
+      entityType: .dispatchChecklist,
+      entityID: checklist.id.uuidString,
+      entityLabel: checklist.title,
+      summary: "Wishlist dispatch readiness checklist staged locally.",
+      afterDetail: "\(checklist.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local readiness planning only; no carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, mailbox, notification, calendar, or background action occurred."
     )
   }
 

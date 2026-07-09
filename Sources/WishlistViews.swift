@@ -133,7 +133,8 @@ struct WishlistView: View {
                 suggestedCustodyRecords: store.suggestedCustodyRecords(for: item),
                 suggestedLabelReferences: store.suggestedLabelReferenceRecords(for: item),
                 suggestedScanSessions: store.suggestedScanSessionRecords(for: item),
-                suggestedShipmentManifests: store.suggestedShipmentManifestRecords(for: item)
+                suggestedShipmentManifests: store.suggestedShipmentManifestRecords(for: item),
+                suggestedDispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -228,6 +229,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: manifest)
               } onShipmentManifestDraft: { manifest in
                 store.createDraftMessage(from: manifest)
+              } onAddDispatchChecklist: {
+                store.createWishlistDispatchReadinessChecklist(item)
+              } onDispatchChecklistTask: { checklist in
+                store.createReviewTask(from: checklist)
+              } onDispatchChecklistDraft: { checklist in
+                store.createDraftMessage(from: checklist)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -357,6 +364,12 @@ struct WishlistView: View {
               } onShipmentManifestTask: { _ in
                 store.restoreWishlistItem(item)
               } onShipmentManifestDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddDispatchChecklist: {
+                store.restoreWishlistItem(item)
+              } onDispatchChecklistTask: { _ in
+                store.restoreWishlistItem(item)
+              } onDispatchChecklistDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1178,6 +1191,7 @@ struct WishlistItemRow: View {
   var suggestedLabelReferences: [LabelReferenceRecord] = []
   var suggestedScanSessions: [ScanSessionRecord] = []
   var suggestedShipmentManifests: [ShipmentManifestRecord] = []
+  var suggestedDispatchChecklists: [DispatchReadinessChecklist] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1223,6 +1237,9 @@ struct WishlistItemRow: View {
   var onAddShipmentManifest: () -> Void
   var onShipmentManifestTask: (ShipmentManifestRecord) -> Void
   var onShipmentManifestDraft: (ShipmentManifestRecord) -> Void
+  var onAddDispatchChecklist: () -> Void
+  var onDispatchChecklistTask: (DispatchReadinessChecklist) -> Void
+  var onDispatchChecklistDraft: (DispatchReadinessChecklist) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1928,6 +1945,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Dispatch readiness", systemImage: "checkmark.rectangle.stack.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Use this as a final local readiness gate before any outbound handoff. It checks the order evidence, receipt, storage, custody, label reference, manual verification, and manifest context without booking or sending anything.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedDispatchChecklists.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No dispatch readiness checklist staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add checklist", systemImage: "checkmark.rectangle.stack") {
+                onAddDispatchChecklist()
+                feedbackMessage = "Wishlist dispatch readiness checklist created locally. No carrier booking, label printing, scanner, camera, warehouse, notification, calendar, or external service was used."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedDispatchChecklists.prefix(3)) { checklist in
+              WishlistDispatchChecklistRow(checklist: checklist) {
+                onDispatchChecklistTask(checklist)
+                feedbackMessage = "Dispatch readiness review task created locally. No carrier, label, scanner, notification, calendar, or external integration was used."
+              } onDraft: {
+                onDispatchChecklistDraft(checklist)
+                feedbackMessage = "Dispatch readiness follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -2376,6 +2429,45 @@ private struct WishlistShipmentManifestRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create dispatch manifest follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistDispatchChecklistRow: View {
+  var checklist: DispatchReadinessChecklist
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "checkmark.rectangle.stack.fill")
+        .foregroundStyle(checklist.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(checklist.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(checklist.checklistType.rawValue) • \(checklist.plannedDispatchDate)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus == .ready || checklist.checklistStatus == .completed ? .green : checklist.checklistStatus == .blockedNeedsReview ? .red : .blue)
+          Badge(checklist.assignedOwnerTeam, color: .blue)
+          Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create dispatch readiness review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create dispatch readiness follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
