@@ -201,6 +201,15 @@ struct InboxView: View {
       }.count
   }
 
+  private var mailboxProviderTestQueue: MailboxProviderTestQueueSummary {
+    store.mailboxProviderTestQueueSummary
+  }
+
+  private var mailboxProviderNextItems: [MailboxProviderTestQueueItem] {
+    let incomplete = mailboxProviderTestQueue.items.filter { !$0.isComplete }
+    return Array((incomplete.isEmpty ? mailboxProviderTestQueue.items : incomplete).prefix(isCompact ? 3 : 4))
+  }
+
   private var blockedIncomingCount: Int {
     store.blockedImportQueueItems.count
   }
@@ -330,6 +339,7 @@ struct InboxView: View {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         inboxSummaryPanel
+        mailboxProviderNextStepPanel
         mailboxProviderReleaseGatePanel
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         SpaceMailPrimaryStatusStrip(store: store)
@@ -344,6 +354,93 @@ struct InboxView: View {
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var mailboxProviderNextStepPanel: some View {
+    let summary = mailboxProviderTestQueue
+    let color = mailboxProviderReleaseGateColor(for: summary.tone)
+
+    return SettingsPanel(title: "Active mailbox provider next step", symbol: "point.3.connected.trianglepath.dotted") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: summary.tone == "success" ? "checkmark.seal.fill" : "arrow.forward.circle.fill")
+            .font(.title3)
+            .foregroundStyle(color)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(summary.title)
+              .font(.headline)
+            Text(summary.detail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(summary.currentProvider, color: color)
+        }
+
+        MetricStrip(items: summary.metrics.map { metric in
+          (metric.title, metric.value, mailboxProviderReleaseGateColor(for: metric.tone))
+        })
+
+        if !mailboxProviderNextItems.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 190 : 240), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(mailboxProviderNextItems) { item in
+              VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: item.isComplete ? "checkmark.circle.fill" : item.symbol)
+                    .foregroundStyle(mailboxProviderReleaseGateColor(for: item.tone))
+                    .frame(width: 18)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                      .font(.caption.weight(.semibold))
+                      .fixedSize(horizontal: false, vertical: true)
+                    Text("\(item.providerName) • \(item.phase)")
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(mailboxProviderReleaseGateColor(for: item.tone))
+                  }
+                }
+                Text(item.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Label(item.nextAction, systemImage: "arrow.forward.circle.fill")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(mailboxProviderReleaseGateColor(for: item.tone))
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(mailboxProviderReleaseGateColor(for: item.tone).opacity(item.isComplete ? 0.05 : 0.1), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Use this as the Inbox-level provider decision point. It does not start sign-in, run IMAP/Gmail refresh, read credentials, mutate mailboxes, or import messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            SettingsView(store: store)
+          } label: {
+            Label("Settings", systemImage: "gearshape.2.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
   }
 
   private var inboxSummaryPanel: some View {
