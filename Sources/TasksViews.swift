@@ -551,9 +551,9 @@ struct TasksView: View {
             } label: {
               CompactRow(
                 title: item.itemName,
-                detail: "\(item.status) • \(item.purchaseReadiness ?? "readiness not checked")",
+                detail: "\(item.status) • \(item.operatorPurchaseNextAction)",
                 badge: item.purchaseHandoff == nil ? "Wishlist" : "Handoff",
-                color: item.status.localizedCaseInsensitiveContains("blocked") ? .red : .purple
+                color: item.operatorPurchaseBlockers.isEmpty ? .green : item.status.localizedCaseInsensitiveContains("blocked") ? .red : .purple
               )
             }
             .buttonStyle(.plain)

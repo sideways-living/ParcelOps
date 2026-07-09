@@ -2487,6 +2487,7 @@ private struct WishlistWorkbenchFollowUpRow: View {
   }
 
   private var tone: Color {
+    if item.operatorPurchaseBlockers.isEmpty { return .green }
     if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
     if item.status.localizedCaseInsensitiveContains("confirmation") { return .orange }
     if handoff != nil { return .purple }
@@ -2494,6 +2495,9 @@ private struct WishlistWorkbenchFollowUpRow: View {
   }
 
   private var nextAction: String {
+    if !item.operatorPurchaseBlockers.isEmpty {
+      return item.operatorPurchaseNextAction
+    }
     if item.status.localizedCaseInsensitiveContains("blocked") {
       return "Resolve purchase readiness blockers before manual buying."
     }
@@ -2522,6 +2526,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        if !item.operatorPurchaseBlockers.isEmpty {
+          Text("Blockers: \(item.operatorPurchaseBlockers.prefix(3).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         if let handoff {
           Text("Handoff: \(handoff.sellerName) • \(handoff.purchaseStatus) • \(handoff.orderWatchStatus)")
             .font(.caption2)

@@ -2777,6 +2777,94 @@ struct WishlistCaptureCandidate: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+extension WishlistItem {
+  var operatorPurchaseBlockers: [String] {
+    let options = comparisonOptions ?? []
+    let preferred = preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    }
+    let failedChecks = (purchaseChecks ?? []).filter { $0.status != "Passed" }
+    var blockers: [String] = []
+
+    if options.isEmpty {
+      blockers.append("add seller options")
+    }
+    if preferred == nil {
+      blockers.append("choose preferred seller")
+    }
+    if let preferred {
+      let gaps = preferred.operatorSellerEvidenceGaps
+      if !gaps.isEmpty {
+        blockers.append("confirm \(gaps.joined(separator: ", "))")
+      }
+    }
+    if purchaseChecks?.isEmpty != false {
+      blockers.append("run readiness check")
+    } else if !failedChecks.isEmpty {
+      blockers.append("clear \(failedChecks.count) readiness item\(failedChecks.count == 1 ? "" : "s")")
+    }
+    if purchaseDecision == nil {
+      blockers.append("draft purchase decision")
+    } else if purchaseDecision?.reviewState != .accepted {
+      blockers.append("review purchase decision")
+    }
+    if purchaseHandoff == nil {
+      blockers.append("prepare handoff")
+    } else if purchaseHandoff?.linkedOrderID == nil {
+      blockers.append("link order after confirmation")
+    }
+
+    return blockers
+  }
+
+  var operatorPurchaseNextAction: String {
+    if operatorPurchaseBlockers.isEmpty {
+      return "Use linked order or final manual verification as the source of truth."
+    }
+    return "Next: \(operatorPurchaseBlockers.prefix(2).joined(separator: "; "))."
+  }
+}
+
+extension WishlistComparisonOption {
+  var operatorSellerEvidenceGaps: [String] {
+    let searchable = [
+      productURL,
+      listedPrice,
+      currency,
+      estimatedAUDTotal,
+      postageCost,
+      postageTime,
+      sellerRegion,
+      trustRating,
+      trustNotes,
+      recommendation
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+
+    var gaps: [String] = []
+    if productURL.isPlaceholderValidationValue || !productURL.localizedCaseInsensitiveContains("http") {
+      gaps.append("product link")
+    }
+    if !estimatedAUDTotal.localizedCaseInsensitiveContains("aud") || estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
+      gaps.append("AUD total")
+    }
+    if postageCost.localizedCaseInsensitiveContains("pending") || postageCost.isPlaceholderValidationValue {
+      gaps.append("postage cost")
+    }
+    if postageTime.localizedCaseInsensitiveContains("pending") || postageTime.isPlaceholderValidationValue {
+      gaps.append("postage time")
+    }
+    if trustRating.localizedCaseInsensitiveContains("unknown") || trustRating.localizedCaseInsensitiveContains("review") {
+      gaps.append("seller trust")
+    }
+    if !searchable.contains("return") && !searchable.contains("warranty") {
+      gaps.append("returns/warranty")
+    }
+    return gaps
+  }
+}
+
 struct WishlistResearchRequest: Identifiable, Hashable, Codable {
   var id = UUID()
   var wishlistItemID: UUID?
