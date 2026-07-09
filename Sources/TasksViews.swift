@@ -1053,6 +1053,7 @@ struct TasksView: View {
         }
 
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
 
         gmailTaskReadinessPanel
 
