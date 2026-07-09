@@ -130,7 +130,8 @@ struct WishlistView: View {
                 suggestedReceivingInspections: store.suggestedReceivingInspections(for: item),
                 suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item),
                 suggestedStorageLocations: store.suggestedStorageLocations(for: item),
-                suggestedCustodyRecords: store.suggestedCustodyRecords(for: item)
+                suggestedCustodyRecords: store.suggestedCustodyRecords(for: item),
+                suggestedLabelReferences: store.suggestedLabelReferenceRecords(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -207,6 +208,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: custody)
               } onCustodyDraft: { custody in
                 store.createDraftMessage(from: custody)
+              } onAddLabelReference: {
+                store.createWishlistLabelReference(item)
+              } onLabelReferenceTask: { label in
+                store.createReviewTask(from: label)
+              } onLabelReferenceDraft: { label in
+                store.createDraftMessage(from: label)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -318,6 +325,12 @@ struct WishlistView: View {
               } onCustodyTask: { _ in
                 store.restoreWishlistItem(item)
               } onCustodyDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddLabelReference: {
+                store.restoreWishlistItem(item)
+              } onLabelReferenceTask: { _ in
+                store.restoreWishlistItem(item)
+              } onLabelReferenceDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1136,6 +1149,7 @@ struct WishlistItemRow: View {
   var suggestedInventoryReceipts: [InventoryReceiptRecord] = []
   var suggestedStorageLocations: [StorageLocationRecord] = []
   var suggestedCustodyRecords: [CustodyRecord] = []
+  var suggestedLabelReferences: [LabelReferenceRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1172,6 +1186,9 @@ struct WishlistItemRow: View {
   var onAddCustody: () -> Void
   var onCustodyTask: (CustodyRecord) -> Void
   var onCustodyDraft: (CustodyRecord) -> Void
+  var onAddLabelReference: () -> Void
+  var onLabelReferenceTask: (LabelReferenceRecord) -> Void
+  var onLabelReferenceDraft: (LabelReferenceRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1769,6 +1786,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Label reference", systemImage: "tag.square.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Create a local label placeholder that ties the Wishlist item to receiving, storage, custody, or handoff notes. This does not generate a barcode, QR code, printable label, scan, or carrier label.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedLabelReferences.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No label reference staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add label", systemImage: "tag.square") {
+                onAddLabelReference()
+                feedbackMessage = "Wishlist label reference created locally. No barcode, QR, printer, scanner, camera, carrier, warehouse, or retailer system was contacted."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedLabelReferences.prefix(3)) { label in
+              WishlistLabelReferenceRow(label: label) {
+                onLabelReferenceTask(label)
+                feedbackMessage = "Label reference review task created locally. No scanner, printer, QR, barcode, carrier, or warehouse integration was used."
+              } onDraft: {
+                onLabelReferenceDraft(label)
+                feedbackMessage = "Label reference follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -2100,6 +2153,45 @@ private struct WishlistCustodyRecordRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create custody follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistLabelReferenceRow: View {
+  var label: LabelReferenceRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "tag.square.fill")
+        .foregroundStyle(label.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(label.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(label.labelType.rawValue) • \(label.labelValuePlaceholder) • \(label.labelSource.rawValue)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(label.labelStatus.rawValue, color: label.labelStatus == .scannedVerified ? .green : label.labelStatus == .invalidNeedsReview ? .red : .blue)
+          Badge(label.assignedOwnerTeam, color: .blue)
+          Badge(label.reviewState.rawValue, color: label.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create label reference review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create label reference follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))

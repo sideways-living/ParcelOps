@@ -14713,6 +14713,43 @@ final class ParcelOpsStore {
     suggestedLabelReferenceRecords(storageLocationID: record.storageLocationID ?? record.destinationLocationID ?? record.sourceLocationID, inventoryReceiptID: record.inventoryReceiptID, custodyRecordID: record.id, orderID: record.orderID, shipmentGroupID: record.shipmentGroupID, packageContentID: record.packageContentID, evidenceID: record.evidenceAttachmentIDs.first, labelValue: "", carrier: "", ownerTeam: record.assignedOwnerTeam, context: "\(record.title) \(record.custodyReason)", linkedEntityType: .custodyRecord, linkedEntityID: record.id.uuidString)
   }
 
+  func suggestedLabelReferenceRecords(for item: WishlistItem) -> [LabelReferenceRecord] {
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.purchaseHandoff?.sellerName,
+      item.purchaseHandoff?.purchaseStatus,
+      location?.locationCode,
+      custody?.title,
+      receipt?.itemSummary,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedLabelReferenceRecords(
+      storageLocationID: location?.id,
+      inventoryReceiptID: receipt?.id,
+      custodyRecordID: custody?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      evidenceID: receipt?.evidenceAttachmentIDs.first ?? inspection?.evidenceAttachmentIDs.first ?? procurement?.evidenceAttachmentIDs.first,
+      labelValue: "\(item.itemName) WISHLIST-\(item.id.uuidString.prefix(8))",
+      carrier: "",
+      ownerTeam: item.owner,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedLabelReferenceRecords(for receipt: InventoryReceiptRecord) -> [LabelReferenceRecord] {
     suggestedLabelReferenceRecords(storageLocationID: suggestedStorageLocations(for: receipt).first?.id, inventoryReceiptID: receipt.id, custodyRecordID: suggestedCustodyRecords(for: receipt).first?.id, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, packageContentID: receipt.packageContentID, evidenceID: receipt.evidenceAttachmentIDs.first, labelValue: receipt.storageLocationSummary, carrier: "", ownerTeam: receipt.assignedOwnerTeam, context: "\(receipt.title) \(receipt.itemSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
   }
@@ -19436,6 +19473,49 @@ final class ParcelOpsStore {
       entityLabel: record.title,
       summary: "Wishlist custody record staged locally.",
       afterDetail: "\(record.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local custody planning only; no signature capture, scanner, access-control, warehouse, carrier, supplier, retailer, or mailbox action occurred."
+    )
+  }
+
+  func createWishlistLabelReference(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let labelValue = "WISHLIST-\(item.id.uuidString.prefix(8).uppercased())"
+    let record = LabelReferenceRecord(
+      title: "Wishlist label reference: \(item.itemName)",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      labelType: .custodyLabel,
+      labelValuePlaceholder: labelValue,
+      labelSource: .manualPlaceholder,
+      labelStatus: .draft,
+      associatedCarrier: "Not carrier-specific",
+      storageLocationID: location?.id,
+      inventoryReceiptID: receipt?.id,
+      custodyRecordID: custody?.id,
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      evidenceAttachmentIDs: receipt?.evidenceAttachmentIDs ?? inspection?.evidenceAttachmentIDs ?? procurement?.evidenceAttachmentIDs ?? [],
+      assignedOwnerTeam: item.owner,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      notes: "Local placeholder only. Use this as a reference for manual receiving, storage, custody, or handoff notes. No barcode scanning, QR generation, label printing, camera, warehouse, carrier, supplier, or retailer system was contacted.",
+      riskLevel: custody?.riskLevel ?? location?.riskLevel ?? receipt?.riskLevel ?? inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      reviewState: .needsReview
+    )
+    labelReferenceRecords.insert(record, at: 0)
+    persistLabelReferenceRecords()
+    logAudit(
+      action: .created,
+      entityType: .labelReference,
+      entityID: record.id.uuidString,
+      entityLabel: record.title,
+      summary: "Wishlist label reference staged locally.",
+      afterDetail: "\(record.auditDetail)\nCreated from Wishlist item \(item.itemName). This is a local label reference only; no barcode scanning, QR generation, label printing, camera, warehouse, carrier, supplier, retailer, or mailbox action occurred."
     )
   }
 
