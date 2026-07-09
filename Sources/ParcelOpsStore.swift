@@ -13861,6 +13861,39 @@ final class ParcelOpsStore {
     suggestedStorageLocations(inventoryReceiptID: receipt.id, receivingInspectionID: receipt.receivingInspectionID, packageContentID: receipt.packageContentID, orderID: receipt.orderID, shipmentGroupID: receipt.shipmentGroupID, ownerTeam: receipt.assignedOwnerTeam, areaZone: "", locationText: receipt.storageLocationSummary, context: "\(receipt.title) \(receipt.itemSummary) \(receipt.storageLocationSummary)", linkedEntityType: .inventoryReceipt, linkedEntityID: receipt.id.uuidString)
   }
 
+  func suggestedStorageLocations(for item: WishlistItem) -> [StorageLocationRecord] {
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.pool,
+      item.purchaseDecision?.selectedSellerName,
+      item.purchaseHandoff?.sellerName,
+      receipt?.itemSummary,
+      receipt?.storageLocationSummary,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedStorageLocations(
+      inventoryReceiptID: receipt?.id,
+      receivingInspectionID: inspection?.id,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      orderID: item.purchaseHandoff?.linkedOrderID,
+      shipmentGroupID: nil,
+      ownerTeam: item.owner,
+      areaZone: "",
+      locationText: receipt?.storageLocationSummary ?? "",
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedStorageLocations(for inspection: ReceivingInspectionRecord) -> [StorageLocationRecord] {
     suggestedStorageLocations(inventoryReceiptID: suggestedInventoryReceipts(for: inspection).first?.id, receivingInspectionID: inspection.id, packageContentID: inspection.packageContentID, orderID: inspection.orderID, shipmentGroupID: inspection.shipmentGroupID, ownerTeam: inspection.assignedInspectorTeam, areaZone: "", locationText: "", context: "\(inspection.title) \(inspection.receivedItemSummary)", linkedEntityType: .receivingInspection, linkedEntityID: inspection.id.uuidString)
   }
@@ -19280,6 +19313,45 @@ final class ParcelOpsStore {
       entityLabel: receipt.title,
       summary: "Wishlist inventory receipt staged locally.",
       afterDetail: "\(receipt.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local stock/handoff planning only; no warehouse, inventory API, scanner, carrier, supplier, or mailbox action occurred."
+    )
+  }
+
+  func createWishlistStorageLocation(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let location = StorageLocationRecord(
+      title: "Wishlist staging location: \(item.itemName)",
+      locationType: .stagingArea,
+      locationCode: "WISHLIST-\(item.id.uuidString.prefix(8).uppercased())",
+      areaZone: item.pool.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Wishlist staging" : "\(item.pool) staging",
+      capacitySummary: "Capacity to confirm before receipt or handoff.",
+      currentUsageSummary: "Reserved locally for \(item.itemName).",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      inventoryReceiptIDs: receipt.map { [$0.id] } ?? [],
+      receivingInspectionIDs: inspection.map { [$0.id] } ?? [],
+      packageContentIDs: [receipt?.packageContentID, inspection?.packageContentID, procurement?.packageContentID].compactMap { $0 },
+      orderIDs: [item.purchaseHandoff?.linkedOrderID, receipt?.orderID, inspection?.orderID].compactMap { $0 },
+      shipmentGroupIDs: [receipt?.shipmentGroupID, inspection?.shipmentGroupID].compactMap { $0 },
+      assignedOwnerTeam: item.owner,
+      accessNotes: "Local placeholder only. Assign real shelf, bin, desk, locker, or handoff area after the item arrives. No warehouse, access-control, map, scanner, carrier, supplier, or inventory API was contacted.",
+      riskLevel: receipt?.riskLevel ?? inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      isEnabled: true,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    storageLocations.insert(location, at: 0)
+    persistStorageLocations()
+    logAudit(
+      action: .created,
+      entityType: .storageLocation,
+      entityID: location.id.uuidString,
+      entityLabel: location.title,
+      summary: "Wishlist storage location staged locally.",
+      afterDetail: "\(location.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local location planning only; no warehouse, map, scanner, access-control, carrier, supplier, or inventory system was contacted."
     )
   }
 

@@ -128,7 +128,8 @@ struct WishlistView: View {
                 suggestedCosts: store.suggestedCostRecords(for: item),
                 suggestedProcurementRequests: store.suggestedProcurementRequests(for: item),
                 suggestedReceivingInspections: store.suggestedReceivingInspections(for: item),
-                suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item)
+                suggestedInventoryReceipts: store.suggestedInventoryReceipts(for: item),
+                suggestedStorageLocations: store.suggestedStorageLocations(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -193,6 +194,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: receipt)
               } onInventoryReceiptDraft: { receipt in
                 store.createDraftMessage(from: receipt)
+              } onAddStorageLocation: {
+                store.createWishlistStorageLocation(item)
+              } onStorageLocationTask: { location in
+                store.createReviewTask(from: location)
+              } onStorageLocationDraft: { location in
+                store.createDraftMessage(from: location)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -292,6 +299,12 @@ struct WishlistView: View {
               } onInventoryReceiptTask: { _ in
                 store.restoreWishlistItem(item)
               } onInventoryReceiptDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddStorageLocation: {
+                store.restoreWishlistItem(item)
+              } onStorageLocationTask: { _ in
+                store.restoreWishlistItem(item)
+              } onStorageLocationDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1108,6 +1121,7 @@ struct WishlistItemRow: View {
   var suggestedProcurementRequests: [ProcurementRequest] = []
   var suggestedReceivingInspections: [ReceivingInspectionRecord] = []
   var suggestedInventoryReceipts: [InventoryReceiptRecord] = []
+  var suggestedStorageLocations: [StorageLocationRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1138,6 +1152,9 @@ struct WishlistItemRow: View {
   var onAddInventoryReceipt: () -> Void
   var onInventoryReceiptTask: (InventoryReceiptRecord) -> Void
   var onInventoryReceiptDraft: (InventoryReceiptRecord) -> Void
+  var onAddStorageLocation: () -> Void
+  var onStorageLocationTask: (StorageLocationRecord) -> Void
+  var onStorageLocationDraft: (StorageLocationRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1663,6 +1680,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Storage or handoff location", systemImage: "archivebox.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Reserve a local staging spot for the item after receipt. This can later become a real shelf, bin, desk, locker, or handoff area assignment.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedStorageLocations.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No staging location reserved yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add location", systemImage: "archivebox") {
+                onAddStorageLocation()
+                feedbackMessage = "Wishlist staging location created locally. No warehouse, map, access-control, scanner, carrier, supplier, or inventory system was contacted."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedStorageLocations.prefix(3)) { location in
+              WishlistStorageLocationRow(location: location) {
+                onStorageLocationTask(location)
+                feedbackMessage = "Storage location task created locally. No warehouse, access-control, scanner, map, or inventory integration was used."
+              } onDraft: {
+                onStorageLocationDraft(location)
+                feedbackMessage = "Storage location follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -1916,6 +1969,45 @@ private struct WishlistInventoryReceiptRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create inventory receipt follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistStorageLocationRow: View {
+  var location: StorageLocationRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "archivebox.fill")
+        .foregroundStyle(location.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(location.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(location.locationType.rawValue) • \(location.locationCode) • \(location.areaZone)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(location.isEnabled ? "Enabled" : "Disabled", color: location.isEnabled ? .green : .secondary)
+          Badge(location.assignedOwnerTeam, color: .blue)
+          Badge(location.reviewState.rawValue, color: location.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create storage location task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create storage location follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
