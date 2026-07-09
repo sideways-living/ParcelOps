@@ -373,21 +373,34 @@ struct RealGmailMailboxClient: GmailMailboxClient {
         return GmailMailboxFetchResult(
           status: .noMessages,
           messages: [],
-          detail: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+          detail: appendGmailTokenMetadata(
+            tokenResult.tokenMetadataDetail,
+            to: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+          )
         )
       }
       return GmailMailboxFetchResult(
         status: .success,
         messages: messages,
-        detail: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+        detail: appendGmailTokenMetadata(
+          tokenResult.tokenMetadataDetail,
+          to: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+        )
       )
     } catch let error as RealGmailMailboxError {
-      return GmailMailboxFetchResult(status: error.status, messages: [], detail: error.safeDetail)
+      return GmailMailboxFetchResult(
+        status: error.status,
+        messages: [],
+        detail: appendGmailTokenMetadata(tokenResult.tokenMetadataDetail, to: error.safeDetail)
+      )
     } catch {
       return GmailMailboxFetchResult(
         status: .networkFailed,
         messages: [],
-        detail: "Real Gmail API manual refresh failed: \(Self.safeErrorSummary(error)). No token value, authorization header, full URL, Gmail raw body, or mailbox mutation was logged or stored."
+        detail: appendGmailTokenMetadata(
+          tokenResult.tokenMetadataDetail,
+          to: "Real Gmail API manual refresh failed: \(Self.safeErrorSummary(error)). No token value, authorization header, full URL, Gmail raw body, or mailbox mutation was logged or stored."
+        )
       )
     }
     #else
@@ -404,6 +417,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     var status: GmailMailboxFetchStatus
     var accessToken: String?
     var detail: String
+    var tokenMetadataDetail: String = "Gmail token metadata unavailable because no in-memory access token was available."
   }
 
   @MainActor
@@ -457,10 +471,146 @@ struct RealGmailMailboxClient: GmailMailboxClient {
         continuation.resume(returning: TokenResult(
           status: .success,
           accessToken: token,
-          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value."
+          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value.",
+          tokenMetadataDetail: Self.safeGmailTokenMetadata(
+            token,
+            grantedScopes: grantedScopes,
+            expectedMailbox: connection.emailAddress
+          )
         ))
       }
     }
+  }
+
+  private func appendGmailTokenMetadata(_ tokenMetadata: String, to detail: String) -> String {
+    "\(detail)\nGmail token metadata only:\n\(tokenMetadata)"
+  }
+
+  private static func safeGmailTokenMetadata(
+    _ token: String,
+    grantedScopes: [String],
+    expectedMailbox: String
+  ) -> String {
+    let sdkScopes = grantedScopes
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      .map { safeTokenMetadataValue($0, limit: 80) }
+      .joined(separator: " ")
+    let sdkHasReadOnly = grantedScopes.contains { scope in
+      scope.localizedCaseInsensitiveContains("gmail.readonly") ||
+      scope.localizedCaseInsensitiveContains("gmail.metadata")
+    }
+
+    guard let claims = jwtPayloadClaims(from: token) else {
+      return [
+        "Token format: opaque or non-JWT",
+        "SDK granted scopes: \(sdkScopes.isEmpty ? "unavailable" : sdkScopes)",
+        "SDK reports Gmail readonly/metadata scope: \(sdkHasReadOnly ? "yes" : "no")",
+        "Token claim metadata: unavailable for opaque token",
+        "No raw token, auth header, callback URL, password, or client secret was logged or stored."
+      ].joined(separator: "\n")
+    }
+
+    let audience = safeClaimText(claims["aud"])
+    let issuer = safeClaimText(claims["iss"])
+    let authorizedParty = safeClaimText(claims["azp"])
+    let scopeClaim = safeClaimText(claims["scope"] ?? claims["scp"])
+    let emailClaim = safeClaimText(claims["email"] ?? claims["upn"] ?? claims["preferred_username"])
+    let hasGmailScope = scopeClaim.localizedCaseInsensitiveContains("gmail.readonly") ||
+      scopeClaim.localizedCaseInsensitiveContains("gmail.metadata") ||
+      sdkHasReadOnly
+    let expiry = safeJWTDate(claims["exp"])
+    let issuedAt = safeJWTDate(claims["iat"])
+    let expired = jwtDateIsExpired(claims["exp"])
+    let mailboxComparison = safeMailboxClaimComparison(emailClaim: emailClaim, expectedMailbox: expectedMailbox)
+
+    return [
+      "Token format: JWT claims decoded safely",
+      "Audience: \(safeTokenMetadataValue(audience, limit: 120))",
+      "Issuer: \(safeTokenMetadataValue(issuer, limit: 120))",
+      "Authorized party/client: \(authorizedParty.isEmpty ? "unavailable" : "present")",
+      "Claim scopes: \(scopeClaim.isEmpty ? "unavailable" : safeTokenMetadataValue(scopeClaim, limit: 160))",
+      "SDK granted scopes: \(sdkScopes.isEmpty ? "unavailable" : sdkScopes)",
+      "Has Gmail readonly/metadata scope: \(hasGmailScope ? "yes" : "no")",
+      "Mailbox claim: \(emailClaim.isEmpty ? "unavailable" : "present")",
+      "Mailbox claim comparison: \(mailboxComparison)",
+      "Issued at: \(issuedAt)",
+      "Expiry: \(expiry)",
+      "Expired now: \(expired)",
+      "No raw token, auth header, callback URL, password, or client secret was logged or stored."
+    ].joined(separator: "\n")
+  }
+
+  private static func jwtPayloadClaims(from token: String) -> [String: Any]? {
+    let parts = token.split(separator: ".")
+    guard parts.count >= 2 else { return nil }
+    var payload = String(parts[1])
+      .replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    let padding = payload.count % 4
+    if padding > 0 {
+      payload += String(repeating: "=", count: 4 - padding)
+    }
+    guard let data = Data(base64Encoded: payload),
+          let object = try? JSONSerialization.jsonObject(with: data),
+          let claims = object as? [String: Any] else {
+      return nil
+    }
+    return claims
+  }
+
+  private static func safeClaimText(_ value: Any?) -> String {
+    if let string = value as? String {
+      return string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let strings = value as? [String] {
+      return strings.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let number = value as? NSNumber {
+      return number.stringValue
+    }
+    return ""
+  }
+
+  private static func safeJWTDate(_ value: Any?) -> String {
+    let timestamp: TimeInterval?
+    if let number = value as? NSNumber {
+      timestamp = number.doubleValue
+    } else if let string = value as? String, let double = Double(string) {
+      timestamp = double
+    } else {
+      timestamp = nil
+    }
+    guard let timestamp else { return "unavailable" }
+    return ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: timestamp))
+  }
+
+  private static func jwtDateIsExpired(_ value: Any?) -> String {
+    let timestamp: TimeInterval?
+    if let number = value as? NSNumber {
+      timestamp = number.doubleValue
+    } else if let string = value as? String, let double = Double(string) {
+      timestamp = double
+    } else {
+      timestamp = nil
+    }
+    guard let timestamp else { return "unknown" }
+    return Date(timeIntervalSince1970: timestamp) <= Date() ? "yes" : "no"
+  }
+
+  private static func safeMailboxClaimComparison(emailClaim: String, expectedMailbox: String) -> String {
+    let expected = expectedMailbox.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let claim = emailClaim.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if expected.isEmpty || claim.isEmpty { return "unable to compare" }
+    return expected == claim ? "matches configured mailbox" : "differs from configured mailbox"
+  }
+
+  private static func safeTokenMetadataValue(_ value: String, limit: Int) -> String {
+    let redacted = value
+      .replacingOccurrences(of: #"Bearer\s+[A-Za-z0-9._\-]+"#, with: "Bearer [redacted]", options: .regularExpression)
+      .replacingOccurrences(of: #"[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"#, with: "[redacted-jwt]", options: .regularExpression)
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+    return String(redacted.prefix(limit))
   }
 
   @MainActor
