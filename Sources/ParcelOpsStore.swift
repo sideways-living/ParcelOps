@@ -2982,6 +2982,32 @@ final class ParcelOpsStore {
       )
     }
 
+    let historyEntries = gmailMailboxConnections.flatMap { connection in
+      (connection.refreshHistory ?? []).prefix(4).map { entry in
+        let entryTone: String
+        if entry.status.localizedCaseInsensitiveContains("auth")
+          || entry.status.localizedCaseInsensitiveContains("failed")
+          || entry.status.localizedCaseInsensitiveContains("rejected")
+          || entry.status.localizedCaseInsensitiveContains("not configured") {
+          entryTone = "warning"
+        } else if entry.importedCount > 0 || entry.uncertainCount > 0 {
+          entryTone = "attention"
+        } else if entry.filteredNonOrderCount > 0 || entry.duplicateCount > 0 {
+          entryTone = "success"
+        } else {
+          entryTone = "neutral"
+        }
+        return GmailRefreshTrendEntry(
+          id: entry.id,
+          timestamp: entry.timestamp,
+          displayName: connection.displayName,
+          status: "\(entry.eventType): \(entry.status)",
+          detail: "\(entry.fetchedCount) fetched, \(entry.importedCount) imported, \(entry.duplicateCount) duplicates, \(entry.filteredNonOrderCount) filtered, \(entry.uncertainCount) uncertain. \(entry.summary)",
+          tone: entryTone
+        )
+      }
+    }
+
     let eventEntries = recentEvents.prefix(6).map { event in
       let afterDetail = event.afterDetail ?? ""
       let eventTone: String
@@ -3009,7 +3035,7 @@ final class ParcelOpsStore {
         tone: eventTone
       )
     }
-    let entries = Array((connectionEntries + eventEntries).prefix(8))
+    let entries = Array((historyEntries + connectionEntries + eventEntries).prefix(8))
 
     return GmailRefreshTrendSummary(
       title: title,
@@ -15484,6 +15510,20 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = []
       draft.lastRefreshUncertainExamples = []
       draft.lastRefreshSummary = "Real Gmail readiness check: \(status.rawValue). \(detail)"
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: timestamp,
+          eventType: "Readiness check",
+          status: status.rawValue,
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: 0,
+          uncertainCount: 0,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     logAudit(
       action: .evaluated,
@@ -15534,6 +15574,20 @@ final class ParcelOpsStore {
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
       draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
       draft.lastRefreshSummary = "Mock Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: timestamp,
+          eventType: "Mock refresh",
+          status: fetchResult.status.rawValue,
+          fetchedCount: fetchResult.messages.count,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: filterResult.filteredCount,
+          uncertainCount: filterResult.uncertainCount,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     let reasonBreakdown = filterResult.reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; ")
     logAudit(
@@ -15579,6 +15633,20 @@ final class ParcelOpsStore {
       draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
       draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
       draft.lastRefreshSummary = "Real Gmail refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. Duplicate-safe handling updates existing intake rows where refreshed parsed fields differ. \(fetchResult.detail)"
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: timestamp,
+          eventType: "Real refresh",
+          status: fetchResult.status.rawValue,
+          fetchedCount: fetchResult.messages.count,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: filterResult.filteredCount,
+          uncertainCount: filterResult.uncertainCount,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     let reasonBreakdown = filterResult.reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; ")
 
@@ -15625,6 +15693,20 @@ final class ParcelOpsStore {
       draft.lastRefreshUncertainCount = current.count
       draft.lastRefreshUncertainExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
       draft.lastRefreshSummary = "Gmail uncertain preview imported locally. \(current.count) uncertain Gmail previews remain."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain imported",
+          status: "Imported locally",
+          fetchedCount: 0,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: draft.filteredMessages?.count ?? 0,
+          uncertainCount: current.count,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     logAudit(
       action: .created,
@@ -15644,6 +15726,20 @@ final class ParcelOpsStore {
       draft.lastRefreshUncertainCount = current.count
       draft.lastRefreshUncertainExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
       draft.lastRefreshSummary = "Gmail uncertain preview dismissed locally. \(current.count) uncertain Gmail previews remain."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain dismissed",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages?.count ?? 0,
+          uncertainCount: current.count,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     logAudit(
       action: .ignored,
@@ -15672,6 +15768,20 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredNonOrderCount = current.count
       draft.lastRefreshFilteredExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
       draft.lastRefreshSummary = "Gmail filtered preview imported locally. \(current.count) filtered Gmail previews remain."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered imported",
+          status: "Imported locally",
+          fetchedCount: 0,
+          importedCount: result.imported,
+          duplicateCount: result.duplicates,
+          filteredNonOrderCount: current.count,
+          uncertainCount: draft.uncertainMessages?.count ?? 0,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     logAudit(
       action: .created,
@@ -15691,6 +15801,20 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredNonOrderCount = current.count
       draft.lastRefreshFilteredExamples = current.prefix(5).map { "\($0.subject) (\($0.reason))" }
       draft.lastRefreshSummary = "Gmail filtered preview dismissed locally. \(current.count) filtered Gmail previews remain."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered dismissed",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: current.count,
+          uncertainCount: draft.uncertainMessages?.count ?? 0,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
     }
     logAudit(
       action: .ignored,
@@ -18140,6 +18264,12 @@ final class ParcelOpsStore {
   private func appendSpaceMailRefreshHistory(_ entry: SpaceMailRefreshHistoryEntry, to connection: inout SpaceMailIMAPConnection) {
     connection.refreshHistory.insert(entry, at: 0)
     connection.refreshHistory = Array(connection.refreshHistory.prefix(12))
+  }
+
+  private func appendGmailRefreshHistory(_ entry: GmailRefreshHistoryEntry, to connection: inout GmailMailboxConnection) {
+    var history = connection.refreshHistory ?? []
+    history.insert(entry, at: 0)
+    connection.refreshHistory = Array(history.prefix(12))
   }
 
   private func spaceMailFilterPresetConfiguration(_ preset: SpaceMailFilterPreset) -> (trustedSenders: [String], importKeywords: [String], uncertainKeywords: [String], filterKeywords: [String]) {

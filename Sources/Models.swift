@@ -1919,6 +1919,19 @@ struct GmailIntakeHealthSummary: Identifiable, Hashable {
   var lastRefreshSummary: String
 }
 
+struct GmailRefreshHistoryEntry: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var timestamp: String
+  var eventType: String
+  var status: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var filteredNonOrderCount: Int
+  var uncertainCount: Int
+  var summary: String
+}
+
 struct SpaceMailMVPReadinessSummary: Hashable {
   var verdict: String
   var detail: String
@@ -2573,6 +2586,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var filteredMessages: [GmailReviewMessage]?
   var classifierTestSummary: String?
   var classifierTestResults: [GmailClassifierTestResult]?
+  var refreshHistory: [GmailRefreshHistoryEntry]?
   var trustedSenderHints: [String]?
   var importKeywordHints: [String]?
   var uncertainKeywordHints: [String]?
@@ -2608,6 +2622,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     filteredMessages: [GmailReviewMessage]? = nil,
     classifierTestSummary: String? = nil,
     classifierTestResults: [GmailClassifierTestResult]? = nil,
+    refreshHistory: [GmailRefreshHistoryEntry]? = nil,
     trustedSenderHints: [String]? = nil,
     importKeywordHints: [String]? = nil,
     uncertainKeywordHints: [String]? = nil,
@@ -2642,6 +2657,7 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.filteredMessages = filteredMessages
     self.classifierTestSummary = classifierTestSummary
     self.classifierTestResults = classifierTestResults
+    self.refreshHistory = refreshHistory
     self.trustedSenderHints = trustedSenderHints
     self.importKeywordHints = importKeywordHints
     self.uncertainKeywordHints = uncertainKeywordHints

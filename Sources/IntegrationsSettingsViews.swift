@@ -1775,6 +1775,10 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background((connection.lastRefreshUncertainCount ?? 0) > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+      if let history = connection.refreshHistory, !history.isEmpty {
+        gmailRefreshHistory(history)
+      }
+
       VStack(alignment: .leading, spacing: 8) {
         Label("Gmail troubleshooting runbook", systemImage: "wrench.and.screwdriver.fill")
           .font(.caption.weight(.semibold))
@@ -2287,6 +2291,66 @@ struct GmailMailboxConnectionRow: View {
     }
     .padding()
     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailRefreshHistory(_ history: [GmailRefreshHistoryEntry]) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Recent Gmail activity", systemImage: "clock.arrow.circlepath")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        Spacer()
+        Badge("\(history.count) saved", color: .blue)
+      }
+      Text("Local history keeps recent readiness, refresh, and review outcomes here. Use Audit only when you need the full diagnostic detail.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(Array(history.prefix(6))) { entry in
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(entry.eventType)
+                .font(.caption.weight(.semibold))
+              Text(entry.timestamp)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge(entry.status, color: gmailHistoryColor(for: entry))
+          }
+          CompactMetadataGrid(minimumWidth: 96) {
+            Badge("\(entry.fetchedCount) fetched", color: .blue)
+            Badge("\(entry.importedCount) imported", color: entry.importedCount > 0 ? .green : .secondary)
+            Badge("\(entry.duplicateCount) dupes", color: entry.duplicateCount > 0 ? .orange : .secondary)
+            Badge("\(entry.filteredNonOrderCount) filtered", color: entry.filteredNonOrderCount > 0 ? .teal : .secondary)
+            Badge("\(entry.uncertainCount) uncertain", color: entry.uncertainCount > 0 ? .orange : .secondary)
+          }
+          Text(entry.summary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailHistoryColor(for entry: GmailRefreshHistoryEntry) -> Color {
+    let status = entry.status.lowercased()
+    if status.contains("auth") || status.contains("failed") || status.contains("rejected") || status.contains("not configured") {
+      return .red
+    }
+    if entry.importedCount > 0 { return .green }
+    if entry.uncertainCount > 0 || status.contains("dismissed") { return .orange }
+    if entry.filteredNonOrderCount > 0 || entry.duplicateCount > 0 { return .teal }
+    if status.contains("ready") || status.contains("success") { return .green }
+    return .secondary
   }
 
   private var hasMissingCoreGmailSetup: Bool {
