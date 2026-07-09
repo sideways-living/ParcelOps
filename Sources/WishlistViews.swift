@@ -1291,6 +1291,7 @@ struct WishlistItemRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      wishlistPurchasePacketSummary
       wishlistComparisonSummary
       wishlistPurchaseChecksSummary
       wishlistPurchaseDecisionSummary
@@ -1438,6 +1439,131 @@ struct WishlistItemRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var wishlistPurchasePacketSummary: some View {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { id in options.first { $0.id == id } }
+    let decision = item.purchaseDecision
+    let handoff = item.purchaseHandoff
+    let checks = item.purchaseChecks ?? []
+    let failedChecks = checks.filter { $0.status != "Passed" }
+    let blockers = wishlistPurchasePacketBlockers(
+      options: options,
+      preferred: preferred,
+      decision: decision,
+      handoff: handoff,
+      failedChecks: failedChecks
+    )
+
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Purchase packet", systemImage: "doc.text.image.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        Spacer(minLength: 8)
+        Badge(blockers.isEmpty ? "Packet looks ready" : "\(blockers.count) blocker\(blockers.count == 1 ? "" : "s")", color: blockers.isEmpty ? .green : .orange)
+      }
+
+      CompactMetadataGrid(minimumWidth: 170) {
+        PurchasePacketFact(title: "Preferred seller", value: preferred?.sellerName ?? decision?.selectedSellerName ?? "Seller not selected", symbol: "storefront.fill", color: preferred == nil ? .orange : .teal)
+        PurchasePacketFact(title: "AUD total", value: decision?.totalAUDSummary ?? preferred?.estimatedAUDTotal ?? item.estimatedCost, symbol: "dollarsign.circle.fill", color: wishlistPacketValueNeedsReview(decision?.totalAUDSummary ?? preferred?.estimatedAUDTotal ?? item.estimatedCost) ? .orange : .green)
+        PurchasePacketFact(title: "Postage", value: decision?.postageSummary ?? preferred.map { "\($0.postageCost), \($0.postageTime)" } ?? "Postage not reviewed", symbol: "shippingbox.fill", color: preferred == nil ? .orange : .purple)
+        PurchasePacketFact(title: "Trust", value: decision?.trustSummary ?? preferred?.trustRating ?? "Trust not reviewed", symbol: "shield.checkered", color: wishlistPacketTrustColor(decision?.trustSummary ?? preferred?.trustRating ?? ""))
+        PurchasePacketFact(title: "Decision", value: decision?.decisionStatus ?? "Decision not drafted", symbol: "doc.text.magnifyingglass", color: decision?.reviewState == .accepted ? .green : .orange)
+        PurchasePacketFact(title: "Order link", value: linkedOrder?.orderNumber ?? (handoff?.linkedOrderID == nil ? "No linked order yet" : "Linked order missing"), symbol: "link", color: linkedOrder == nil ? .orange : .green)
+      }
+
+      if blockers.isEmpty {
+        Label("Local packet is ready for manual live verification. Confirm current price, stock, postage, seller trust, account, delivery address, and payment details outside ParcelOps before buying.", systemImage: "checkmark.seal.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Before purchase")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(blockers.prefix(5), id: \.self) { blocker in
+            Label(blocker, systemImage: "exclamationmark.triangle.fill")
+              .font(.caption2)
+              .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          let remaining = max(blockers.count - 5, 0)
+          if remaining > 0 {
+            Text("\(remaining) more blocker\(remaining == 1 ? "" : "s") shown in the detailed sections below.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+
+      Text("This packet is a local buying checklist only. ParcelOps does not verify live retailer pages, convert currency live, quote postage, assess seller reputation externally, buy items, or store payment details.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func wishlistPurchasePacketBlockers(
+    options: [WishlistComparisonOption],
+    preferred: WishlistComparisonOption?,
+    decision: WishlistPurchaseDecision?,
+    handoff: WishlistPurchaseHandoff?,
+    failedChecks: [WishlistPurchaseCheck]
+  ) -> [String] {
+    var blockers: [String] = []
+    if options.isEmpty {
+      blockers.append("Add or draft seller comparison options.")
+    }
+    if preferred == nil {
+      blockers.append("Select a preferred seller option.")
+    }
+    if let preferred {
+      let gaps = wishlistSellerEvidenceGaps(for: preferred)
+      if !gaps.isEmpty {
+        blockers.append("Complete preferred seller evidence: \(gaps.joined(separator: ", ")).")
+      }
+    }
+    if failedChecks.isEmpty && item.purchaseChecks?.isEmpty != false {
+      blockers.append("Run the local purchase readiness check.")
+    } else if !failedChecks.isEmpty {
+      blockers.append("Resolve \(failedChecks.count) readiness check item\(failedChecks.count == 1 ? "" : "s").")
+    }
+    if decision == nil {
+      blockers.append("Draft the purchase decision.")
+    } else if decision?.reviewState != .accepted {
+      blockers.append("Review and accept the purchase decision locally.")
+    }
+    if handoff == nil {
+      blockers.append("Prepare the manual purchase handoff.")
+    } else if linkedOrder == nil {
+      blockers.append("After external purchase, link or create the local order when confirmation arrives.")
+    }
+    return blockers
+  }
+
+  private func wishlistPacketValueNeedsReview(_ value: String) -> Bool {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+    return normalized.isEmpty
+      || normalized.contains("pending")
+      || normalized.contains("confirm")
+      || normalized.contains("review")
+      || normalized.isPlaceholderValidationValue
+  }
+
+  private func wishlistPacketTrustColor(_ value: String) -> Color {
+    if value.localizedCaseInsensitiveContains("trusted") || value.localizedCaseInsensitiveContains("high") || value.localizedCaseInsensitiveContains("accepted") {
+      return .green
+    }
+    if value.localizedCaseInsensitiveContains("unknown") || value.localizedCaseInsensitiveContains("review") || value.localizedCaseInsensitiveContains("blocked") {
+      return .orange
+    }
+    return .secondary
   }
 
   @ViewBuilder
@@ -2810,6 +2936,32 @@ private struct PurchaseHandoffFact: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct PurchasePacketFact: View {
+  var title: String
+  var value: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(value)
+          .font(.caption)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
