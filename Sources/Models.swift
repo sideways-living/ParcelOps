@@ -2699,6 +2699,27 @@ struct WishlistItem: Identifiable, Hashable, Codable {
   var source: WishlistSource
   var status: String
   var capturedDetail: String
+  var comparisonStatus: String?
+  var comparisonNotes: String?
+  var purchaseReadiness: String?
+  var preferredOptionID: UUID?
+  var comparisonOptions: [WishlistComparisonOption]?
+}
+
+struct WishlistComparisonOption: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sellerName: String
+  var productURL: String
+  var listedPrice: String
+  var currency: String
+  var estimatedAUDTotal: String
+  var postageCost: String
+  var postageTime: String
+  var sellerRegion: String
+  var trustRating: String
+  var trustNotes: String
+  var recommendation: String
+  var lastChecked: String
 }
 
 enum FulfillmentMethod: String, Hashable, Codable {

@@ -241,7 +241,51 @@ enum SampleData {
   ]
 
   static var wishlistItems: [WishlistItem] = [
-    WishlistItem(itemName: "Compact barcode scanner", storefront: "SafetyPro Direct", storefrontURL: "https://safetypro.example/scanner-compact", estimatedCost: "$189.00", owner: "Mia Chen", pool: "Shared company pool", source: .shareSheet, status: "Ready", capturedDetail: "Shared from Safari with item URL, visible price, and supplier page title."),
+    WishlistItem(
+      itemName: "Compact barcode scanner",
+      storefront: "SafetyPro Direct",
+      storefrontURL: "https://safetypro.example/scanner-compact",
+      estimatedCost: "$189.00",
+      owner: "Mia Chen",
+      pool: "Shared company pool",
+      source: .shareSheet,
+      status: "Ready",
+      capturedDetail: "Shared from Safari with item URL, visible price, and supplier page title.",
+      comparisonStatus: "Comparison ready",
+      comparisonNotes: "Local placeholder comparison only. Real agent research, exchange rates, postage checks, and seller trust checks are not connected.",
+      purchaseReadiness: "Ready once owner confirms preferred seller",
+      preferredOptionID: nil,
+      comparisonOptions: [
+        WishlistComparisonOption(
+          sellerName: "SafetyPro Direct AU",
+          productURL: "https://safetypro.example/scanner-compact",
+          listedPrice: "189.00",
+          currency: "AUD",
+          estimatedAUDTotal: "AUD 201.00",
+          postageCost: "AUD 12.00",
+          postageTime: "2-4 business days",
+          sellerRegion: "Australia",
+          trustRating: "High",
+          trustNotes: "Known local supplier placeholder; verify ABN, returns, and recent reviews before purchase.",
+          recommendation: "Best local option",
+          lastChecked: "Sample only"
+        ),
+        WishlistComparisonOption(
+          sellerName: "Global Warehouse Placeholder",
+          productURL: "https://global.example/scanner-compact",
+          listedPrice: "82.00",
+          currency: "USD",
+          estimatedAUDTotal: "AUD 154.00 + postage pending",
+          postageCost: "Pending",
+          postageTime: "10-21 business days",
+          sellerRegion: "Overseas",
+          trustRating: "Needs review",
+          trustNotes: "Lower item price but delivery certainty and warranty need verification.",
+          recommendation: "Research before choosing",
+          lastChecked: "Sample only"
+        )
+      ]
+    ),
     WishlistItem(itemName: "Thermal label rolls", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/thermal-rolls", estimatedCost: "$42.50", owner: "Jordan Lee", pool: "Personal wishlist", source: .screenshot, status: "Needs review", capturedDetail: "Screenshot parser found item title and price, but storefront URL needs confirmation."),
     WishlistItem(itemName: "Dock safety cones", storefront: "Northwind Wholesale", storefrontURL: "https://northwind.example/cones", estimatedCost: "$76.00", owner: "Priya Shah", pool: "Facilities team", source: .browserExtension, status: "Ready", capturedDetail: "Captured through Chrome/Firefox extension path for cross-device wishlist intake.")
   ]

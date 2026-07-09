@@ -18238,6 +18238,95 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistComparisonPlan(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    let optionID = UUID()
+    let sellerName = wishlistItems[index].storefront.isPlaceholderValidationValue ? "Primary seller placeholder" : wishlistItems[index].storefront
+    wishlistItems[index].comparisonStatus = "Needs agent research"
+    wishlistItems[index].comparisonNotes = "Compare Australian and overseas sellers, convert totals to AUD, include postage cost/time, and assess seller trust before purchase. This is a local planning record only; no web research or agent run has started."
+    wishlistItems[index].purchaseReadiness = "Waiting for comparison"
+    wishlistItems[index].preferredOptionID = optionID
+    wishlistItems[index].comparisonOptions = [
+      WishlistComparisonOption(
+        id: optionID,
+        sellerName: sellerName,
+        productURL: wishlistItems[index].storefrontURL,
+        listedPrice: wishlistItems[index].estimatedCost,
+        currency: "AUD or source currency",
+        estimatedAUDTotal: "Pending AUD total",
+        postageCost: "Pending postage",
+        postageTime: "Pending delivery estimate",
+        sellerRegion: "Unknown",
+        trustRating: "Needs review",
+        trustNotes: "Verify seller reputation, returns, warranty, delivery history, and recent independent reviews before recommending.",
+        recommendation: "Baseline option",
+        lastChecked: "Not checked"
+      ),
+      WishlistComparisonOption(
+        sellerName: "Overseas retailer placeholder",
+        productURL: "https://example.com/research-required",
+        listedPrice: "Pending",
+        currency: "Foreign currency",
+        estimatedAUDTotal: "Pending FX and postage",
+        postageCost: "Pending international postage",
+        postageTime: "Pending",
+        sellerRegion: "Overseas",
+        trustRating: "Unknown",
+        trustNotes: "Use only after seller trust, delivery reliability, and total landed cost are confirmed.",
+        recommendation: "Research candidate",
+        lastChecked: "Not checked"
+      )
+    ]
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist comparison plan created locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nComparison plan only. No browsing, web scraping, currency lookup, seller trust lookup, browser extension sync, purchase API, payment, or external agent run occurred."
+    )
+  }
+
+  func markWishlistPreferredOption(_ item: WishlistItem, option: WishlistComparisonOption) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    wishlistItems[index].preferredOptionID = option.id
+    wishlistItems[index].comparisonStatus = "Preferred seller selected"
+    wishlistItems[index].purchaseReadiness = option.trustRating.localizedCaseInsensitiveContains("high") || option.trustRating.localizedCaseInsensitiveContains("trusted")
+      ? "Ready for purchase review"
+      : "Trust review required before purchase"
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist preferred seller option selected locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nPreferred seller: \(option.sellerName); estimated total: \(option.estimatedAUDTotal); postage: \(option.postageCost), \(option.postageTime); trust: \(option.trustRating). No purchase, payment, browser automation, or external seller check occurred."
+    )
+  }
+
+  func markWishlistReadyForPurchase(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    wishlistItems[index].status = "Ready to purchase"
+    wishlistItems[index].purchaseReadiness = "Ready to purchase after manual account/payment confirmation"
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist item marked ready for purchase locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReady means local operator readiness only. ParcelOps did not buy the item, open an account, save payment credentials, monitor checkout, or contact any retailer."
+    )
+  }
+
   func deleteWishlistItem(_ item: WishlistItem) {
     let beforeDetail = item.auditDetail
     wishlistItems.removeAll { $0.id == item.id }
@@ -18300,7 +18389,22 @@ final class ParcelOpsStore {
   }
 
   private func addWishlistItem(source: WishlistSource, name: String, detail: String) {
-    let item = WishlistItem(itemName: name, storefront: "Pending storefront", storefrontURL: "https://example.com", estimatedCost: "Pending", owner: "Current user", pool: "Personal wishlist", source: source, status: "Needs review", capturedDetail: detail)
+    let item = WishlistItem(
+      itemName: name,
+      storefront: "Pending storefront",
+      storefrontURL: "https://example.com",
+      estimatedCost: "Pending",
+      owner: "Current user",
+      pool: "Personal wishlist",
+      source: source,
+      status: "Needs review",
+      capturedDetail: detail,
+      comparisonStatus: "Not compared",
+      comparisonNotes: "Add direct product URLs or retailer pages, then create a local comparison plan before purchase.",
+      purchaseReadiness: "Needs comparison",
+      preferredOptionID: nil,
+      comparisonOptions: []
+    )
     wishlistItems.insert(item, at: 0)
     persistWishlist()
     logAudit(
@@ -20228,7 +20332,10 @@ private extension AcceptanceRecord {
 
 private extension WishlistItem {
   var auditDetail: String {
-    "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); captured detail: \(capturedDetail)."
+    let optionSummary = (comparisonOptions ?? [])
+      .map { "\($0.sellerName): \($0.estimatedAUDTotal), postage \($0.postageCost)/\($0.postageTime), trust \($0.trustRating)" }
+      .joined(separator: " | ")
+    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); captured detail: \(capturedDetail)."
   }
 }
 

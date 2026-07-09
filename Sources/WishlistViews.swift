@@ -89,6 +89,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistReadinessPanel
+        wishlistComparisonPlanningPanel
         gmailWishlistFocusPanel
         filterBar
 
@@ -120,6 +121,12 @@ struct WishlistView: View {
                 store.convertWishlistToOrder(item)
               } onLink: {
                 store.linkWishlistItemToOrder(item)
+              } onCompare: {
+                store.createWishlistComparisonPlan(item)
+              } onReady: {
+                store.markWishlistReadyForPurchase(item)
+              } onPreferredOption: { option in
+                store.markWishlistPreferredOption(item, option: option)
               } onDelete: {
                 store.deleteWishlistItem(item)
               }
@@ -152,6 +159,12 @@ struct WishlistView: View {
                 store.restoreWishlistItem(item)
               } onLink: {
                 store.permanentlyDeleteWishlistItem(item)
+              } onCompare: {
+                store.restoreWishlistItem(item)
+              } onReady: {
+                store.restoreWishlistItem(item)
+              } onPreferredOption: { _ in
+                store.restoreWishlistItem(item)
               } onDelete: {
                 store.permanentlyDeleteWishlistItem(item)
               }
@@ -250,6 +263,49 @@ struct WishlistView: View {
             }
           }
         }
+      }
+    }
+  }
+
+  private var wishlistComparisonPlanningPanel: some View {
+    let activeItems = store.wishlistItems
+    let comparedItems = activeItems.filter { !($0.comparisonOptions ?? []).isEmpty }
+    let purchaseReadyItems = activeItems.filter {
+      $0.status.localizedCaseInsensitiveContains("ready to purchase")
+        || ($0.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready")
+    }
+    let trustReviewItems = activeItems.filter {
+      ($0.comparisonOptions ?? []).contains { option in
+        option.trustRating.localizedCaseInsensitiveContains("unknown")
+          || option.trustRating.localizedCaseInsensitiveContains("review")
+      }
+    }
+
+    return SettingsPanel(title: "Purchase comparison planning", symbol: "magnifyingglass.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the local planning boundary for the future shopping agent. A real agent should compare Australian and overseas sellers, convert totals to AUD, include postage costs and delivery times, and reject low-trust sellers before a human buys anything.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Wishlist", "\(activeItems.count)", activeItems.isEmpty ? .secondary : .blue),
+          ("Compared", "\(comparedItems.count)", comparedItems.isEmpty ? .secondary : .teal),
+          ("Ready", "\(purchaseReadyItems.count)", purchaseReadyItems.isEmpty ? .secondary : .green),
+          ("Trust review", "\(trustReviewItems.count)", trustReviewItems.isEmpty ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 240), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistPlanningStep(number: "1", title: "Capture item", detail: "Manual entry, share sheet, screenshot, PDF, or future browser extension records item and source URL locally.")
+          WishlistPlanningStep(number: "2", title: "Compare sellers", detail: "Future agent should check AU and overseas retailers, AUD landed cost, postage, delivery time, returns, and warranty.")
+          WishlistPlanningStep(number: "3", title: "Trust filter", detail: "Seller trust must beat price. Low-trust or unknown sellers should stay blocked until reviewed.")
+          WishlistPlanningStep(number: "4", title: "Purchase handoff", detail: "Only after a seller is selected should the item become ready to purchase or convert to a local order draft.")
+        }
+
+        Text("Not active yet: live web search, retailer scraping, currency feeds, postage quote APIs, browser extension capture, account detection, checkout automation, purchase monitoring, and payment handling.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -435,11 +491,41 @@ struct CaptureChannelRow: View {
   }
 }
 
+private struct WishlistPlanningStep: View {
+  var number: String
+  var title: String
+  var detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Text(number)
+        .font(.caption.weight(.bold))
+        .foregroundStyle(.white)
+        .frame(width: 22, height: 22)
+        .background(.teal, in: Circle())
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct WishlistItemRow: View {
   var item: WishlistItem
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
+  var onCompare: () -> Void
+  var onReady: () -> Void
+  var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDelete: () -> Void
   @State private var feedbackMessage: String?
 
@@ -467,6 +553,8 @@ struct WishlistItemRow: View {
       Text(item.capturedDetail)
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      wishlistComparisonSummary
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
         if isDeleted {
@@ -513,6 +601,20 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Link to existing order")
+          Button("Compare sellers", systemImage: "magnifyingglass.circle") {
+            onCompare()
+            feedbackMessage = "Local comparison plan created. No web search, retailer scrape, currency lookup, postage quote, or trust service was contacted."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Create local seller comparison plan")
+          Button("Ready to buy", systemImage: "checkmark.seal") {
+            onReady()
+            feedbackMessage = "Wishlist item marked ready for purchase review locally. ParcelOps did not buy anything or store payment details."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Mark ready for purchase review")
           Button("Delete", systemImage: "trash") {
             onDelete()
             feedbackMessage = "Wishlist item moved to deleted locally. No external shopfront, mailbox, or order system was changed."
@@ -530,6 +632,104 @@ struct WishlistItemRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var wishlistComparisonSummary: some View {
+    let options = item.comparisonOptions ?? []
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Comparison", systemImage: "magnifyingglass.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer(minLength: 8)
+        Badge(item.comparisonStatus ?? "Not compared", color: options.isEmpty ? .secondary : .teal)
+        if let readiness = item.purchaseReadiness {
+          Badge(readiness, color: readiness.localizedCaseInsensitiveContains("ready") ? .green : .orange)
+        }
+      }
+
+      if let notes = item.comparisonNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(notes)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if options.isEmpty {
+        Text("No seller options yet. Create a local comparison plan before converting this to an order or buying externally.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      } else {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], alignment: .leading, spacing: 8) {
+          ForEach(options) { option in
+            WishlistComparisonOptionCard(
+              option: option,
+              isPreferred: item.preferredOptionID == option.id
+            ) {
+              onPreferredOption(option)
+              feedbackMessage = "Preferred seller selected locally. Confirm trust, postage, returns, and total AUD cost before purchase."
+            }
+          }
+        }
+      }
+    }
+    .padding(10)
+    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistComparisonOptionCard: View {
+  var option: WishlistComparisonOption
+  var isPreferred: Bool
+  var onPrefer: () -> Void
+
+  private var trustColor: Color {
+    if option.trustRating.localizedCaseInsensitiveContains("high") || option.trustRating.localizedCaseInsensitiveContains("trusted") { return .green }
+    if option.trustRating.localizedCaseInsensitiveContains("review") || option.trustRating.localizedCaseInsensitiveContains("unknown") { return .orange }
+    return .secondary
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(option.sellerName)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Spacer(minLength: 8)
+        Badge(isPreferred ? "Preferred" : option.recommendation, color: isPreferred ? .green : .blue)
+      }
+      Text("\(option.estimatedAUDTotal) • postage \(option.postageCost) • \(option.postageTime)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("\(option.sellerRegion) • trust: \(option.trustRating)")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(trustColor)
+      Text(option.trustNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+      HStack {
+        if let url = URL(string: option.productURL), !option.productURL.isPlaceholderValidationValue {
+          Link(destination: url) {
+            Label("Open seller", systemImage: "safari")
+          }
+          .buttonStyle(.bordered)
+          .labelStyle(.iconOnly)
+          .help("Open seller page")
+        }
+        Button(isPreferred ? "Preferred" : "Prefer", systemImage: isPreferred ? "checkmark.seal.fill" : "checkmark.seal") {
+          onPrefer()
+        }
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help(isPreferred ? "Preferred option" : "Select preferred option")
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background((isPreferred ? Color.green : trustColor).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
