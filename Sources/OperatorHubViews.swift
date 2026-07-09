@@ -861,7 +861,10 @@ struct InboxView: View {
           }
 
           ForEach(store.gmailIntakeHealthSummaries) { summary in
-            InboxGmailHealthRow(summary: summary)
+            InboxGmailHealthRow(
+              summary: summary,
+              reasonBreakdown: store.gmailMailboxConnections.first { $0.id == summary.connectionID }?.lastRefreshReasonBreakdown ?? []
+            )
           }
         }
 
@@ -1228,6 +1231,7 @@ private struct InboxMailboxHealthRow: View {
 
 private struct InboxGmailHealthRow: View {
   var summary: GmailIntakeHealthSummary
+  var reasonBreakdown: [SpaceMailClassifierReasonCount] = []
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -1256,6 +1260,25 @@ private struct InboxGmailHealthRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      if !reasonBreakdown.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Classifier reasons", systemImage: "line.3.horizontal.decrease.circle.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+          ForEach(Array(reasonBreakdown.prefix(4))) { item in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Badge(item.decision, color: classifierReasonColor(item.decision))
+              Text("\(item.count)x \(item.reason)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(8)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
       if summary.filteredCount > 0 {
         Text("Filtered Gmail examples are reviewable in Mailbox Monitor and Needs Review. Import one only when the classifier was too strict.")
           .font(.caption2.weight(.semibold))
@@ -1279,6 +1302,13 @@ private struct InboxGmailHealthRow: View {
     default:
       return .blue
     }
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
   }
 }
 
