@@ -18636,6 +18636,7 @@ final class ParcelOpsStore {
   }
 
   func convertWishlistToOrder(_ item: WishlistItem) {
+    let beforeDetail = item.auditDetail
     let order = TrackedOrder(
       orderNumber: "WISH-\(1000 + orders.count + 1)",
       store: item.storefront,
@@ -18655,7 +18656,30 @@ final class ParcelOpsStore {
       contactHistory: [ContactHistoryEvent(time: "Now", source: .manual, contactPoint: "Wishlist", summary: "Wishlist item converted to order draft.", evidence: item.capturedDetail, reviewState: .needsReview)]
     )
     orders.insert(order, at: 0)
+
+    if let wishlistIndex = wishlistItems.firstIndex(where: { $0.id == item.id }) {
+      var handoff = wishlistItems[wishlistIndex].purchaseHandoff
+        ?? WishlistPurchaseHandoff(
+          sellerName: item.storefront,
+          accountLabel: "\(item.owner) account to confirm",
+          purchaseStatus: "Converted to local order draft",
+          expectedOrderSignals: "\(item.storefront) | \(item.itemName)",
+          orderWatchStatus: "Local order draft created from Wishlist.",
+          linkedOrderID: nil,
+          notes: "Wishlist item converted into a local order draft. No purchase, payment, checkout, retailer login, or mailbox action occurred.",
+          updatedAt: "Now"
+        )
+      handoff.purchaseStatus = "Converted to local order draft"
+      handoff.orderWatchStatus = "Linked to local order draft \(order.orderNumber)."
+      handoff.linkedOrderID = order.id
+      handoff.updatedAt = "Now"
+      wishlistItems[wishlistIndex].purchaseHandoff = handoff
+      wishlistItems[wishlistIndex].status = "Linked to order draft"
+      wishlistItems[wishlistIndex].purchaseReadiness = "Local order draft created from Wishlist"
+    }
+
     persistOrders()
+    persistWishlist()
     logAudit(
       action: .created,
       entityType: .order,
@@ -18670,24 +18694,83 @@ final class ParcelOpsStore {
       entityID: item.id.uuidString,
       entityLabel: item.itemName,
       summary: "Wishlist item converted into local order draft \(order.orderNumber).",
-      afterDetail: "\(item.auditDetail)\nCreated order: \(order.orderNumber) \(order.id.uuidString)"
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems.first { $0.id == item.id }?.auditDetail ?? item.auditDetail)\nCreated order: \(order.orderNumber) \(order.id.uuidString). Downstream Wishlist receiving, inventory, custody, label, verification, manifest, and dispatch readiness records can now inherit this local order context."
     )
   }
 
   func linkWishlistItemToOrder(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
-    wishlistItems[index].status = "Linked to existing order"
+    let matchedOrder = bestWishlistOrderMatch(for: wishlistItems[index])
+
+    var handoff = wishlistItems[index].purchaseHandoff
+      ?? WishlistPurchaseHandoff(
+        sellerName: wishlistItems[index].storefront,
+        accountLabel: "\(wishlistItems[index].owner) account to confirm",
+        purchaseStatus: "Order link review needed",
+        expectedOrderSignals: "\(wishlistItems[index].storefront) | \(wishlistItems[index].itemName)",
+        orderWatchStatus: "Manual link action used.",
+        linkedOrderID: nil,
+        notes: "Manual link action only. Confirm the matched order before closing Wishlist follow-up.",
+        updatedAt: "Now"
+      )
+    handoff.purchaseStatus = matchedOrder == nil ? "Order link needs manual selection" : "Linked to existing local order"
+    handoff.orderWatchStatus = matchedOrder == nil
+      ? "No confident local order match was found. Use Inbox or Orders to create/link the confirmation."
+      : "Linked to local order \(matchedOrder?.orderNumber ?? "")."
+    handoff.linkedOrderID = matchedOrder?.id
+    handoff.updatedAt = "Now"
+    wishlistItems[index].purchaseHandoff = handoff
+    wishlistItems[index].status = matchedOrder == nil ? "Order link needs review" : "Linked to existing order"
+    wishlistItems[index].purchaseReadiness = matchedOrder == nil ? "Choose or create local order before downstream handoff" : "Existing local order linked"
     persistWishlist()
     logAudit(
       action: .linked,
       entityType: .wishlistItem,
       entityID: wishlistItems[index].id.uuidString,
       entityLabel: wishlistItems[index].itemName,
-      summary: "Wishlist item marked linked to an existing order.",
+      summary: matchedOrder == nil ? "Wishlist order link needs manual review." : "Wishlist item linked to existing order \(matchedOrder?.orderNumber ?? "").",
       beforeDetail: beforeDetail,
-      afterDetail: wishlistItems[index].auditDetail
+      afterDetail: "\(wishlistItems[index].auditDetail)\nMatched order: \(matchedOrder?.orderNumber ?? "none"). No mailbox fetch, retailer login, browser automation, checkout, payment, or external service occurred."
     )
+  }
+
+  private func bestWishlistOrderMatch(for item: WishlistItem) -> TrackedOrder? {
+    let handoff = item.purchaseHandoff
+    let itemName = item.itemName.localizedLowercase
+    let seller = (handoff?.sellerName ?? item.storefront).localizedLowercase
+    let expectedSignals = (handoff?.expectedOrderSignals ?? "")
+      .components(separatedBy: CharacterSet(charactersIn: "|,"))
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
+      .filter { $0.count >= 4 && !$0.isPlaceholderValidationValue }
+
+    return orders
+      .map { order -> (TrackedOrder, Int) in
+        let searchable = [
+          order.orderNumber,
+          order.store,
+          order.customer,
+          order.trackingNumber,
+          order.destination,
+          order.latestStatus,
+          order.timeline.map(\.detail).joined(separator: " "),
+          order.contactHistory.map(\.evidence).joined(separator: " ")
+        ]
+          .joined(separator: " ")
+          .localizedLowercase
+        var score = 0
+        if !seller.isEmpty && searchable.contains(seller) { score += 4 }
+        if !itemName.isEmpty && searchable.contains(itemName) { score += 4 }
+        if expectedSignals.contains(where: { searchable.contains($0) }) { score += 3 }
+        if order.source == .manual && order.orderNumber.localizedCaseInsensitiveContains("WISH") { score += 2 }
+        if order.reviewState == .needsReview { score += 1 }
+        return (order, score)
+      }
+      .filter { $0.1 >= 4 }
+      .sorted { $0.1 > $1.1 }
+      .first?
+      .0
   }
 
   func createWishlistComparisonPlan(_ item: WishlistItem) {
