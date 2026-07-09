@@ -16223,6 +16223,101 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromGmailLatestRefresh(_ connection: GmailMailboxConnection) {
+    let taskID = "gmail-latest-refresh-\(connection.id.uuidString)"
+    let latestHistory = connection.refreshHistory?.first
+    let uncertainCount = connection.uncertainMessages?.count ?? connection.lastRefreshUncertainCount ?? 0
+    let filteredCount = connection.filteredMessages?.count ?? connection.lastRefreshFilteredNonOrderCount
+    let hasFailure = connection.connectionStatus.localizedCaseInsensitiveContains("auth")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("failed")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("rejected")
+      || connection.connectionStatus.localizedCaseInsensitiveContains("not configured")
+    let priority: TaskPriority = hasFailure || uncertainCount > 0 ? .normal : connection.lastRefreshImportedCount > 0 ? .normal : .low
+    let title = hasFailure
+      ? "Review Gmail refresh failure for \(connection.displayName)"
+      : connection.lastRefreshImportedCount > 0 || uncertainCount > 0
+        ? "Review Gmail refresh intake for \(connection.displayName)"
+        : "Confirm Gmail refresh result for \(connection.displayName)"
+    let historyLine = latestHistory.map {
+      "Latest history: \($0.eventType) at \($0.timestamp), status \($0.status), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicates, \($0.filteredNonOrderCount) filtered, \($0.uncertainCount) uncertain."
+    } ?? "No saved Gmail refresh history entry is available yet."
+    let summary = [
+      "Review latest Gmail refresh state for \(connection.displayName).",
+      "Connection status: \(connection.connectionStatus). Last refresh: \(connection.lastManualRefreshDate).",
+      "Counts: \(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount ?? 0) uncertain.",
+      historyLine,
+      "Next action: \(gmailLatestRefreshTaskNextAction(for: connection, hasFailure: hasFailure, uncertainCount: uncertainCount, filteredCount: filteredCount)).",
+      "Boundary: this task uses local refresh metadata only; it does not run Google sign-in, request tokens, call Gmail, import messages, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == taskID
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = title
+      reviewTasks[existingIndex].summary = summary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .normal ? "Tomorrow" : "This week"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail latest refresh review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail refresh counters and history. No duplicate task was created. No Gmail API call, OAuth token, mailbox fetch, Inbox import, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: title,
+      summary: summary,
+      linkedEntityType: .integration,
+      linkedEntityID: taskID,
+      priority: priority,
+      dueDate: priority == .normal ? "Tomorrow" : "This week",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Review task created from latest Gmail refresh state.")
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from latest Gmail refresh state.",
+      afterDetail: summary
+    )
+  }
+
+  private func gmailLatestRefreshTaskNextAction(for connection: GmailMailboxConnection, hasFailure: Bool, uncertainCount: Int, filteredCount: Int) -> String {
+    if hasFailure {
+      return "Open Mailbox Monitor, inspect the Gmail troubleshooting runbook, then retry sign-in or readiness only after setup is corrected"
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Open Inbox and create or link orders from imported Gmail intake"
+    }
+    if uncertainCount > 0 {
+      return "Review uncertain Gmail previews in Mailbox Monitor and import true order mail"
+    }
+    if filteredCount > 0 {
+      return "Check filtered examples only if expected order mail is missing; otherwise no Inbox action is needed"
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Confirm duplicates did not create extra Inbox rows"
+    }
+    return "Run refresh again only when new Gmail order mail is expected"
+  }
+
   func gmailAuthSessionState(for connection: GmailMailboxConnection) -> GmailAuthSessionState {
     gmailAuthSessionStates[connection.id] ?? GmailAuthSessionState(
       connectionID: connection.id,

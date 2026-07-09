@@ -274,6 +274,8 @@ struct MailboxView: View {
               store.createReviewTaskFromGmailOAuthPlan(connection)
             } onCreateReleaseTask: {
               store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+            } onCreateRefreshTask: {
+              store.createReviewTaskFromGmailLatestRefresh(connection)
             } onImportUncertain: { message in
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in

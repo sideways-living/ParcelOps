@@ -671,6 +671,8 @@ struct IntegrationsView: View {
               store.createReviewTaskFromGmailOAuthPlan(connection)
             } onCreateReleaseTask: {
               store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+            } onCreateRefreshTask: {
+              store.createReviewTaskFromGmailLatestRefresh(connection)
             } onImportUncertain: { message in
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
@@ -1338,6 +1340,7 @@ struct GmailMailboxConnectionRow: View {
   var onReviewPlan: () -> Void
   var onCreatePlanTask: () -> Void
   var onCreateReleaseTask: () -> Void
+  var onCreateRefreshTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
   var onCreateUncertainTask: (GmailReviewMessage) -> Void
@@ -1384,6 +1387,7 @@ struct GmailMailboxConnectionRow: View {
     onReviewPlan: @escaping () -> Void,
     onCreatePlanTask: @escaping () -> Void,
     onCreateReleaseTask: @escaping () -> Void,
+    onCreateRefreshTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
     onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
@@ -1423,6 +1427,7 @@ struct GmailMailboxConnectionRow: View {
     self.onReviewPlan = onReviewPlan
     self.onCreatePlanTask = onCreatePlanTask
     self.onCreateReleaseTask = onCreateReleaseTask
+    self.onCreateRefreshTask = onCreateRefreshTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
     self.onCreateUncertainTask = onCreateUncertainTask
@@ -1702,6 +1707,10 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(gmailLabelResolutionColor)
           .fixedSize(horizontal: false, vertical: true)
+        CompactActionRow {
+          Button("Create refresh task", systemImage: "checklist", action: onCreateRefreshTask)
+        }
+        .buttonStyle(.bordered)
         Text(connection.lastRefreshSummary)
           .font(.caption)
           .foregroundStyle(.secondary)
