@@ -127,6 +127,10 @@ struct WishlistView: View {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
                 store.markWishlistPreferredOption(item, option: option)
+              } onTask: {
+                store.createReviewTask(from: item)
+              } onDraft: {
+                store.createDraftMessage(from: item)
               } onDelete: {
                 store.deleteWishlistItem(item)
               }
@@ -164,6 +168,10 @@ struct WishlistView: View {
               } onReady: {
                 store.restoreWishlistItem(item)
               } onPreferredOption: { _ in
+                store.restoreWishlistItem(item)
+              } onTask: {
+                store.restoreWishlistItem(item)
+              } onDraft: {
                 store.restoreWishlistItem(item)
               } onDelete: {
                 store.permanentlyDeleteWishlistItem(item)
@@ -526,6 +534,8 @@ struct WishlistItemRow: View {
   var onCompare: () -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
+  var onTask: () -> Void
+  var onDraft: () -> Void
   var onDelete: () -> Void
   @State private var feedbackMessage: String?
 
@@ -615,6 +625,20 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Mark ready for purchase review")
+          Button("Task", systemImage: "checklist") {
+            onTask()
+            feedbackMessage = "Wishlist comparison review task created locally. Check Tasks for owner follow-up."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Create comparison review task")
+          Button("Draft", systemImage: "envelope.open") {
+            onDraft()
+            feedbackMessage = "Wishlist purchase review draft created locally. No message was sent."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Create purchase review draft")
           Button("Delete", systemImage: "trash") {
             onDelete()
             feedbackMessage = "Wishlist item moved to deleted locally. No external shopfront, mailbox, or order system was changed."

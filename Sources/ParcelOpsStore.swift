@@ -18327,6 +18327,62 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTask(from item: WishlistItem) {
+    let optionCount = item.comparisonOptions?.count ?? 0
+    let trustIssueCount = (item.comparisonOptions ?? []).filter {
+      $0.trustRating.localizedCaseInsensitiveContains("unknown")
+        || $0.trustRating.localizedCaseInsensitiveContains("review")
+    }.count
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      label: item.itemName,
+      summary: "Compare wishlist item before purchase: \(item.itemName). \(optionCount) seller option\(optionCount == 1 ? "" : "s"); \(trustIssueCount) trust review signal\(trustIssueCount == 1 ? "" : "s"). Confirm AUD landed cost, postage, delivery time, returns, seller trust, and account/payment readiness before buying.",
+      priority: trustIssueCount > 0 || optionCount == 0 ? .high : .normal,
+      assignee: item.owner
+    )
+  }
+
+  func createDraftMessage(from item: WishlistItem) {
+    let optionSummary = (item.comparisonOptions ?? [])
+      .prefix(4)
+      .map { "\($0.sellerName): \($0.estimatedAUDTotal), postage \($0.postageCost), \($0.postageTime), trust \($0.trustRating)" }
+      .joined(separator: "\n")
+    createDraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      label: item.itemName,
+      recipient: item.owner
+    )
+    if let draftIndex = draftMessages.firstIndex(where: { $0.linkedEntityID == item.id.uuidString && $0.linkedEntityType == .wishlistItem }) {
+      draftMessages[draftIndex].subject = "Wishlist purchase review: \(item.itemName)"
+      draftMessages[draftIndex].body = """
+      Please review this wishlist item before purchase.
+
+      Item: \(item.itemName)
+      Storefront: \(item.storefront)
+      Source URL: \(item.storefrontURL)
+      Estimated cost: \(item.estimatedCost)
+      Comparison status: \(item.comparisonStatus ?? "Not compared")
+      Purchase readiness: \(item.purchaseReadiness ?? "Not assessed")
+
+      Seller options:
+      \(optionSummary.isEmpty ? "No seller options have been compared yet." : optionSummary)
+
+      Confirm total landed AUD cost, postage time, seller trust, returns/warranty, and which account should be used before buying. ParcelOps has not purchased anything or stored payment details.
+      """
+      persistDraftMessages()
+    }
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draftMessages.first(where: { $0.linkedEntityID == item.id.uuidString && $0.linkedEntityType == .wishlistItem })?.id.uuidString ?? item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist purchase review draft created locally.",
+      afterDetail: "\(item.auditDetail)\nDraft only. No outbound email was sent, no retailer was contacted, no browser automation ran, and no purchase or payment action occurred."
+    )
+  }
+
   func deleteWishlistItem(_ item: WishlistItem) {
     let beforeDetail = item.auditDetail
     wishlistItems.removeAll { $0.id == item.id }

@@ -3381,6 +3381,7 @@ enum ReviewTaskLinkedEntityType: String, CaseIterable, Identifiable, Hashable, C
   case shipmentGroup = "Shipment group"
   case importQueueItem = "Import queue item"
   case acceptanceRecord = "Acceptance record"
+  case wishlistItem = "Wishlist item"
   case reconciliationIssue = "Reconciliation issue"
 
   var id: String { rawValue }
