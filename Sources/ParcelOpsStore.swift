@@ -19044,6 +19044,108 @@ final class ParcelOpsStore {
     )
   }
 
+  func suggestedWishlistOrderConfirmations(for item: WishlistItem) -> [ForwardedEmailIntake] {
+    guard item.purchaseHandoff != nil else { return [] }
+    return intakeEmails
+      .filter { email in
+        email.reviewState != .ignored && wishlistOrderConfirmationScore(item: item, email: email) >= 4
+      }
+      .sorted { first, second in
+        let firstScore = wishlistOrderConfirmationScore(item: item, email: first)
+        let secondScore = wishlistOrderConfirmationScore(item: item, email: second)
+        if firstScore == secondScore {
+          return first.receivedDate > second.receivedDate
+        }
+        return firstScore > secondScore
+      }
+  }
+
+  func confirmWishlistOrderFromIntake(_ item: WishlistItem, email: ForwardedEmailIntake) {
+    guard let wishlistIndex = wishlistItems.firstIndex(where: { $0.id == item.id }),
+          let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
+    let beforeDetail = wishlistItems[wishlistIndex].auditDetail
+    let intakeBeforeDetail = intakeEmails[emailIndex].auditDetail
+
+    var linkedOrderID = intakeEmails[emailIndex].linkedOrderID
+    if linkedOrderID == nil {
+      createOrder(from: intakeEmails[emailIndex])
+      linkedOrderID = intakeEmails.first(where: { $0.id == email.id })?.linkedOrderID
+    } else {
+      intakeEmails[emailIndex].reviewState = .reviewed
+      persistIntakeEmails()
+    }
+
+    var handoff = wishlistItems[wishlistIndex].purchaseHandoff
+      ?? WishlistPurchaseHandoff(
+        sellerName: wishlistItems[wishlistIndex].storefront,
+        accountLabel: "\(wishlistItems[wishlistIndex].owner) account to confirm",
+        purchaseStatus: "Order confirmation review needed",
+        expectedOrderSignals: "\(wishlistItems[wishlistIndex].storefront) | \(wishlistItems[wishlistIndex].itemName)",
+        orderWatchStatus: "Order confirmation matched from Inbox",
+        linkedOrderID: nil,
+        notes: "Manual confirmation marker created from Inbox.",
+        updatedAt: "Now"
+      )
+    handoff.purchaseStatus = linkedOrderID == nil
+      ? "Inbox confirmation used; order link needs review"
+      : "Inbox confirmation linked locally"
+    handoff.orderWatchStatus = "Inbox intake '\(intakeEmails.first(where: { $0.id == email.id })?.subject ?? email.subject)' was used as the local purchase confirmation."
+    handoff.linkedOrderID = linkedOrderID
+    handoff.updatedAt = "Now"
+    handoff.notes = "Operator confirmed this Inbox intake row as the Wishlist purchase confirmation. No mailbox was fetched, no retailer account was accessed, and no payment or checkout data was stored."
+    wishlistItems[wishlistIndex].purchaseHandoff = handoff
+    wishlistItems[wishlistIndex].status = linkedOrderID == nil ? "Order confirmation needs linking" : "Order confirmation linked"
+    wishlistItems[wishlistIndex].purchaseReadiness = "Order confirmation matched from Inbox"
+
+    persistWishlist()
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[wishlistIndex].id.uuidString,
+      entityLabel: wishlistItems[wishlistIndex].itemName,
+      summary: linkedOrderID == nil ? "Wishlist Inbox confirmation used locally." : "Wishlist Inbox confirmation linked to order locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[wishlistIndex].auditDetail)\nIntake before: \(intakeBeforeDetail)\nNo mailbox fetch, browser automation, retailer login, checkout, payment, notification, or external monitoring occurred."
+    )
+  }
+
+  private func wishlistOrderConfirmationScore(item: WishlistItem, email: ForwardedEmailIntake) -> Int {
+    let handoff = item.purchaseHandoff
+    let searchable = [
+      email.sender,
+      email.subject,
+      email.rawBodyPreview,
+      email.detectedMerchant,
+      email.detectedOrderNumber,
+      email.detectedTrackingNumber
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+    let itemName = item.itemName.localizedLowercase
+    let seller = (handoff?.sellerName ?? item.storefront).localizedLowercase
+    let signals = (handoff?.expectedOrderSignals ?? "")
+      .components(separatedBy: CharacterSet(charactersIn: "|,"))
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
+      .filter { $0.count >= 4 && !$0.isPlaceholderValidationValue }
+
+    var score = 0
+    if !seller.isEmpty && searchable.contains(seller) { score += 3 }
+    if !itemName.isEmpty && searchable.contains(itemName) { score += 3 }
+    if signals.contains(where: { searchable.contains($0) }) { score += 2 }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue { score += 3 }
+    if !email.detectedTrackingNumber.isPlaceholderValidationValue { score += 3 }
+    if searchable.contains("order") { score += 1 }
+    if searchable.contains("confirmation") || searchable.contains("confirmed") { score += 2 }
+    if searchable.contains("shipped") || searchable.contains("tracking") || searchable.contains("dispatch") || searchable.contains("delivery") { score += 2 }
+    if searchable.contains("invoice") || searchable.contains("receipt") { score += 1 }
+    if email.linkedOrderID != nil { score += 2 }
+    if email.reviewState == .reviewed { score += 1 }
+    if searchable.contains("newsletter") || searchable.contains("unsubscribe") || searchable.contains("promotion") {
+      score -= 3
+    }
+    return score
+  }
+
   private func localWishlistOptionEvaluation(for option: WishlistComparisonOption) -> (score: Int, risk: String, recommendation: String, reasons: [String]) {
     let searchable = [
       option.sellerName,

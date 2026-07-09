@@ -121,7 +121,7 @@ struct WishlistView: View {
             MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : store.addManualWishlistItemPlaceholder)
           } else {
             ForEach(filteredItems) { item in
-              WishlistItemRow(item: item) {
+              WishlistItemRow(item: item, confirmationMatches: store.suggestedWishlistOrderConfirmations(for: item)) {
                 store.convertWishlistToOrder(item)
               } onLink: {
                 store.linkWishlistItemToOrder(item)
@@ -148,6 +148,8 @@ struct WishlistView: View {
                 store.recordWishlistPurchasedExternally(item)
               } onOrderSeen: {
                 store.markWishlistOrderConfirmationSeen(item)
+              } onUseConfirmation: { email in
+                store.confirmWishlistOrderFromIntake(item, email: email)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -215,6 +217,8 @@ struct WishlistView: View {
               } onPurchased: {
                 store.restoreWishlistItem(item)
               } onOrderSeen: {
+                store.restoreWishlistItem(item)
+              } onUseConfirmation: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1025,6 +1029,7 @@ private struct WishlistPlanningStep: View {
 
 struct WishlistItemRow: View {
   var item: WishlistItem
+  var confirmationMatches: [ForwardedEmailIntake] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1039,6 +1044,7 @@ struct WishlistItemRow: View {
   var onHandoff: () -> Void
   var onPurchased: () -> Void
   var onOrderSeen: () -> Void
+  var onUseConfirmation: (ForwardedEmailIntake) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1383,10 +1389,69 @@ struct WishlistItemRow: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+
+        if !confirmationMatches.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.purple)
+            Text("These are stored Inbox intake rows that match this Wishlist handoff. Use one only after confirming it is the purchase confirmation.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(confirmationMatches.prefix(3)) { email in
+              WishlistOrderConfirmationCandidateRow(email: email) {
+                onUseConfirmation(email)
+                feedbackMessage = "Wishlist handoff linked to an existing Inbox confirmation locally. Check Orders for the created or linked order."
+              }
+            }
+          }
+          .padding(8)
+          .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
       }
       .padding(10)
       .background(.purple.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
     }
+  }
+}
+
+private struct WishlistOrderConfirmationCandidateRow: View {
+  var email: ForwardedEmailIntake
+  var onUse: () -> Void
+
+  private var detail: String {
+    [
+      email.sender,
+      email.receivedDate,
+      email.detectedOrderNumber.isPlaceholderValidationValue ? nil : "Order \(email.detectedOrderNumber)",
+      email.detectedTrackingNumber.isPlaceholderValidationValue ? nil : "Tracking \(email.detectedTrackingNumber)"
+    ]
+      .compactMap { $0 }
+      .joined(separator: " • ")
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "envelope.open.fill")
+        .foregroundStyle(.purple)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(email.subject.isPlaceholderValidationValue ? "Inbox confirmation candidate" : email.subject)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+      Spacer(minLength: 8)
+      Button("Use", systemImage: "link.badge.plus", action: onUse)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Use this Inbox email as the Wishlist order confirmation")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
