@@ -595,6 +595,7 @@ struct OrdersView: View {
     linkedIntakeEmails(for: order).count
       + store.importQueueItems(for: order).count
       + store.acceptanceRecords(for: order).count
+      + store.wishlistItemsLinked(to: order).count
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
@@ -607,6 +608,40 @@ struct OrdersView: View {
     }
   }
 
+}
+
+private struct OrderWishlistSourceRow: View {
+  var item: WishlistItem
+
+  private var handoff: WishlistPurchaseHandoff? {
+    item.purchaseHandoff
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "star.square.fill")
+        .foregroundStyle(.pink)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.itemName)
+          .font(.caption.weight(.semibold))
+        Text("\(handoff?.sellerName ?? item.storefront) • \(handoff?.purchaseStatus ?? item.status)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        if let handoff {
+          Text("Order watch: \(handoff.orderWatchStatus)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      Spacer(minLength: 8)
+      Badge("Wishlist", color: .pink)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct OrdersInboxHandoffEmptyState: View {
@@ -1853,10 +1888,11 @@ struct OrderDetailView: View {
     let emails = linkedIntakeEmails(for: order)
     let imports = store.importQueueItems(for: order)
     let acceptance = store.acceptanceRecords(for: order)
+    let wishlistItems = store.wishlistItemsLinked(to: order)
 
     return Panel(title: "Inbox source trail", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Trace the local intake, import, and acceptance records that led to this order. Use this before editing operational details or marking the handoff reviewed.")
+        Text("Trace the local intake, import, acceptance, and Wishlist records that led to this order. Use this before editing operational details or marking the handoff reviewed.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -1864,15 +1900,27 @@ struct OrderDetailView: View {
           Badge("\(emails.count) intake emails", color: emails.isEmpty ? .secondary : .teal)
           Badge("\(imports.count) import items", color: imports.isEmpty ? .secondary : .blue)
           Badge("\(acceptance.count) acceptance records", color: acceptance.isEmpty ? .secondary : .purple)
+          Badge("\(wishlistItems.count) wishlist", color: wishlistItems.isEmpty ? .secondary : .pink)
         }
 
-        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty {
+        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty && wishlistItems.isEmpty {
           MVPEmptyState(
             title: "No source records matched",
-            detail: "This order still looks Inbox-created, but no linked intake, import, or acceptance records matched the current order number.",
+            detail: "This order still looks Inbox-created, but no linked intake, import, acceptance, or Wishlist handoff records matched the current order number.",
             symbol: "tray.and.arrow.down.fill"
           )
         } else {
+          if !wishlistItems.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Wishlist handoff")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(wishlistItems) { item in
+                OrderWishlistSourceRow(item: item)
+              }
+            }
+          }
+
           ForEach(emails) { email in
             OrderIntakeSourceRow(email: email, store: store)
           }

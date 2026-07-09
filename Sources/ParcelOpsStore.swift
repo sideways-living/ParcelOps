@@ -19109,6 +19109,14 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {
+    wishlistItems.filter { item in
+      item.purchaseHandoff?.linkedOrderID == order.id
+        || item.status.localizedCaseInsensitiveContains(order.orderNumber)
+        || item.purchaseReadiness?.localizedCaseInsensitiveContains(order.orderNumber) == true
+    }
+  }
+
   private func wishlistOrderConfirmationScore(item: WishlistItem, email: ForwardedEmailIntake) -> Int {
     let handoff = item.purchaseHandoff
     let searchable = [
