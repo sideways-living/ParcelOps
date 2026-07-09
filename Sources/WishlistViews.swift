@@ -140,6 +140,8 @@ struct WishlistView: View {
                 store.markWishlistPurchaseDecisionReviewed(item)
               } onDecisionNeedsReview: {
                 store.markWishlistPurchaseDecisionNeedsReview(item)
+              } onDecisionTask: {
+                store.createWishlistPurchaseDecisionReviewTask(item)
               } onHandoff: {
                 store.prepareWishlistPurchaseHandoff(item)
               } onPurchased: {
@@ -205,6 +207,8 @@ struct WishlistView: View {
               } onDecisionReviewed: {
                 store.restoreWishlistItem(item)
               } onDecisionNeedsReview: {
+                store.restoreWishlistItem(item)
+              } onDecisionTask: {
                 store.restoreWishlistItem(item)
               } onHandoff: {
                 store.restoreWishlistItem(item)
@@ -1031,6 +1035,7 @@ struct WishlistItemRow: View {
   var onDecision: () -> Void
   var onDecisionReviewed: () -> Void
   var onDecisionNeedsReview: () -> Void
+  var onDecisionTask: () -> Void
   var onHandoff: () -> Void
   var onPurchased: () -> Void
   var onOrderSeen: () -> Void
@@ -1310,6 +1315,11 @@ struct WishlistItemRow: View {
           Button("Needs review", systemImage: "exclamationmark.triangle") {
             onDecisionNeedsReview()
             feedbackMessage = "Purchase decision reopened locally for seller, trust, postage, account, or payment review."
+          }
+          .buttonStyle(.bordered)
+          Button("Task", systemImage: "checklist") {
+            onDecisionTask()
+            feedbackMessage = "Purchase decision review task created or refreshed locally. Check Tasks before buying externally."
           }
           .buttonStyle(.bordered)
         }

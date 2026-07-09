@@ -18870,6 +18870,64 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistPurchaseDecisionReviewTask(_ item: WishlistItem) {
+    let decision = item.purchaseDecision
+    let taskTitle = "Review Wishlist purchase decision: \(item.itemName)"
+    let taskSummary = [
+      "Confirm the selected seller before purchase.",
+      "Seller: \(decision?.selectedSellerName ?? "No seller selected").",
+      "AUD total: \(decision?.totalAUDSummary ?? "Not recorded").",
+      "Postage: \(decision?.postageSummary ?? "Not recorded").",
+      "Trust: \(decision?.trustSummary ?? "Not recorded").",
+      "Alternates: \(decision?.rejectedOptionsSummary ?? "No alternates recorded").",
+      "Confirm live price, stock, delivery time, returns, warranty, account, delivery address, and payment readiness outside ParcelOps before buying."
+    ].joined(separator: " ")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("purchase decision")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = decision?.reviewState == .accepted ? .normal : .high
+      reviewTasks[existingIndex].dueDate = "Today"
+      reviewTasks[existingIndex].assignee = item.owner
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Wishlist purchase decision review task refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from Wishlist purchase decision. No duplicate task was created and no external purchase, payment, account, retailer, browser, or mailbox action occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: taskSummary,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      priority: decision?.reviewState == .accepted ? .normal : .high,
+      dueDate: "Today",
+      assignee: item.owner,
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from Wishlist purchase decision."
+    )
+  }
+
   private func wishlistCheck(title: String, passed: Bool, failDetail: String, passDetail: String) -> WishlistPurchaseCheck {
     WishlistPurchaseCheck(
       title: title,
