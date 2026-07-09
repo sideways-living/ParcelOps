@@ -1133,6 +1133,82 @@ struct MVPDevelopmentProgressPanel: View {
     return "Keep focusing on the local daily flow: setup, manual refresh, Inbox triage, order handoff, dispatch context, tasks, and audit trace."
   }
 
+  private var currentStageTitle: String {
+    if completedFoundationCount >= progressItems.count - 1 && openOperationalNoiseCount < 25 {
+      return "Supervised MVP test candidate"
+    }
+    if hasManualMailboxReady && hasRefreshEvidence && hasInboxOrderHandoff {
+      return "Usable local workflow with cleanup remaining"
+    }
+    if hasManualMailboxReady && hasRefreshEvidence {
+      return "Live intake proven; order handoff next"
+    }
+    if hasManualMailboxSetup {
+      return "Mailbox setup exists; prove refresh and handoff"
+    }
+    return "Local app shell ready; mailbox setup next"
+  }
+
+  private var currentStageDetail: String {
+    if completedFoundationCount >= progressItems.count - 1 && openOperationalNoiseCount < 25 {
+      return "The app can be used for a supervised hands-on pass. Focus on clearing noisy review data, verifying one real intake-to-order path, and recording any operator confusion."
+    }
+    if hasManualMailboxReady && hasRefreshEvidence && hasInboxOrderHandoff {
+      return "Core daily flow is present. The remaining work is mostly QA, classifier/parser tuning, compact UI polish, and cleanup of old test artifacts."
+    }
+    if hasManualMailboxReady && hasRefreshEvidence {
+      return "A mailbox provider has produced local refresh evidence. Create or link one order from Inbox to prove the operational handoff."
+    }
+    if hasManualMailboxSetup {
+      return "Confirm credential/sign-in readiness, run one manual read-only refresh, then use the latest refresh summary to decide whether Inbox should receive work."
+    }
+    return "Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep Microsoft 365 advanced until a licensed mailbox is available."
+  }
+
+  private var activeMailboxEvidence: String {
+    if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
+      return "Gmail: \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain."
+    }
+    if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
+      return "SpaceMail: \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+    }
+    if hasGmailSetup || hasSpaceMailSetup {
+      return "Mailbox setup exists, but no useful manual refresh evidence is available yet."
+    }
+    return "No active mailbox provider is configured for live intake yet."
+  }
+
+  private var remainingBlockers: [(title: String, detail: String, symbol: String, color: Color)] {
+    var items: [(title: String, detail: String, symbol: String, color: Color)] = []
+    if !hasManualMailboxSetup {
+      items.append(("Choose provider", "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes.", "server.rack", .orange))
+    } else if !hasManualMailboxReady {
+      items.append(("Finish auth", "Set the SpaceMail Keychain credential or complete Gmail sign-in before relying on real refresh.", "key.fill", .orange))
+    }
+    if !hasRefreshEvidence {
+      items.append(("Run manual refresh", "Run one explicit read-only provider refresh to prove local intake without background sync.", "arrow.triangle.2.circlepath", .orange))
+    }
+    if !hasInboxOrderHandoff {
+      items.append(("Prove Inbox-to-order", "Create or link one order from a confirmed intake row and verify the source trail.", "shippingbox.fill", .orange))
+    }
+    if openOperationalNoiseCount >= 25 {
+      items.append(("Reduce test noise", "Clear, review, or ignore old parser and mailbox test rows before judging the operator experience.", "line.3.horizontal.decrease.circle.fill", .teal))
+    }
+    if items.isEmpty {
+      items.append(("No major blocker", "Continue hands-on QA and capture issues that prevent a normal operator from completing the daily flow.", "checkmark.seal.fill", .green))
+    }
+    return items
+  }
+
+  private var nextPragmaticActions: [(title: String, detail: String, symbol: String)] {
+    [
+      ("Run one focused QA pass", "Dashboard -> Mailbox Monitor -> Inbox -> Orders -> Workbench -> Dispatch -> Tasks -> Audit.", "checklist.checked"),
+      ("Use one known test order", "Keep a single clean intake email as the baseline for parser, order creation, and dispatch handoff checks.", "envelope.open.fill"),
+      ("Clear old noise after testing", "Review or ignore obsolete intake/parser rows so progress counts reflect current behaviour.", "trash.slash.fill"),
+      ("Delay new integrations", "Do Gmail/SpaceMail hardening before Shopify, carrier APIs, outbound email, OCR, notifications, or background work.", "pause.circle.fill")
+    ]
+  }
+
   private var progressItems: [(title: String, detail: String, isComplete: Bool, symbol: String, color: Color)] {
     [
       (
@@ -1224,6 +1300,45 @@ struct MVPDevelopmentProgressPanel: View {
           ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .purple)
         ])
 
+        VStack(alignment: .leading, spacing: 10) {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: progressTone == .green ? "checkmark.seal.fill" : "target")
+              .foregroundStyle(progressTone)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+              Text(currentStageTitle)
+                .font(.subheadline.weight(.semibold))
+              Text(currentStageDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(activeMailboxEvidence)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(progressTone)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+
+          CompactMetadataGrid(minimumWidth: 180) {
+            ForEach(remainingBlockers, id: \.title) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Text(item.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+        .padding(10)
+        .background(progressTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(progressItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 7) {
@@ -1242,6 +1357,27 @@ struct MVPDevelopmentProgressPanel: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Next practical development actions", systemImage: "arrow.forward.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+          CompactMetadataGrid(minimumWidth: 190) {
+            ForEach(nextPragmaticActions, id: \.title) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                Text(item.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
           }
         }
 
