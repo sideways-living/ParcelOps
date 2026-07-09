@@ -25,6 +25,7 @@ final class ParcelOpsStore {
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
   var wishlistCaptureCandidates: [WishlistCaptureCandidate]
+  var wishlistResearchRequests: [WishlistResearchRequest]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -239,6 +240,7 @@ final class ParcelOpsStore {
     self.connections = repository.loadSourceConnections()
     self.wishlistItems = repository.loadWishlistItems()
     self.wishlistCaptureCandidates = repository.loadWishlistCaptureCandidates()
+    self.wishlistResearchRequests = repository.loadWishlistResearchRequests()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -18364,6 +18366,105 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistResearchRequest(from item: WishlistItem) {
+    if let existingIndex = wishlistResearchRequests.firstIndex(where: { $0.wishlistItemID == item.id }) {
+      let beforeDetail = wishlistResearchRequests[existingIndex].auditDetail
+      wishlistResearchRequests[existingIndex].requestStatus = "Scope refreshed"
+      wishlistResearchRequests[existingIndex].lastReviewedDate = "Now"
+      wishlistResearchRequests[existingIndex].reviewState = .needsReview
+      wishlistResearchRequests[existingIndex].notes = "Scope refreshed from current wishlist item. No live research or external agent run occurred."
+      persistWishlist()
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Wishlist research request refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(wishlistResearchRequests[existingIndex].auditDetail)\nNo web search, retailer scraping, currency lookup, seller trust lookup, browser automation, account login, purchase, or payment action occurred."
+      )
+      return
+    }
+
+    let request = WishlistResearchRequest(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sourceURL: item.storefrontURL,
+      regionScope: "Compare Australian sellers first, then overseas sellers only if landed AUD cost, postage time, returns, and seller trust are acceptable.",
+      sellerCriteria: "Find direct product pages from reputable retailers. Record product URL, listed price, currency, estimated AUD landed total, postage cost/time, seller region, returns/warranty notes, and trust evidence.",
+      maxBudgetAUD: item.estimatedCost.localizedCaseInsensitiveContains("aud") ? item.estimatedCost : "Confirm AUD budget",
+      postageRequirements: "Include postage cost and delivery estimate. Flag slow or uncertain delivery before purchase.",
+      trustRequirements: "Reject low-trust sellers even when cheaper. Prefer established stores with clear contact, returns, warranty, and delivery evidence.",
+      requestStatus: "Ready for future agent",
+      createdDate: "Now",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .needsReview,
+      notes: "Local research brief only. ParcelOps has not searched the web, contacted sellers, opened browser pages, logged in, purchased, or stored payment details."
+    )
+    wishlistResearchRequests.insert(request, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist comparison research request staged locally.",
+      afterDetail: "\(request.auditDetail)\nSource item: \(item.auditDetail)\nNo external research, network call, browser automation, account login, checkout, purchase, or payment action occurred."
+    )
+  }
+
+  func markWishlistResearchRequestReviewed(_ request: WishlistResearchRequest) {
+    guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = wishlistResearchRequests[index].auditDetail
+    wishlistResearchRequests[index].requestStatus = "Reviewed for future agent"
+    wishlistResearchRequests[index].lastReviewedDate = "Now"
+    wishlistResearchRequests[index].reviewState = .accepted
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistResearchRequests[index].wishlistItemID?.uuidString ?? wishlistResearchRequests[index].id.uuidString,
+      entityLabel: wishlistResearchRequests[index].itemName,
+      summary: "Wishlist research request reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistResearchRequests[index].auditDetail)\nReview only. No external agent, retailer search, currency lookup, browser automation, purchase, or payment action occurred."
+    )
+  }
+
+  func blockWishlistResearchRequest(_ request: WishlistResearchRequest) {
+    guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let beforeDetail = wishlistResearchRequests[index].auditDetail
+    wishlistResearchRequests[index].requestStatus = "Blocked pending scope"
+    wishlistResearchRequests[index].lastReviewedDate = "Now"
+    wishlistResearchRequests[index].reviewState = .needsReview
+    wishlistResearchRequests[index].notes = "Clarify item, source URL, budget, postage expectations, or trust criteria before future agent research."
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistResearchRequests[index].wishlistItemID?.uuidString ?? wishlistResearchRequests[index].id.uuidString,
+      entityLabel: wishlistResearchRequests[index].itemName,
+      summary: "Wishlist research request blocked pending scope.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistResearchRequests[index].auditDetail)\nBlocked locally. No external agent, retailer search, browser automation, purchase, or payment action occurred."
+    )
+  }
+
+  func removeWishlistResearchRequest(_ request: WishlistResearchRequest) {
+    guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    let removed = wishlistResearchRequests.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: removed.wishlistItemID?.uuidString ?? removed.id.uuidString,
+      entityLabel: removed.itemName,
+      summary: "Wishlist research request removed locally.",
+      beforeDetail: removed.auditDetail,
+      afterDetail: "Research request removed only. Wishlist item data, orders, mailboxes, retailers, accounts, and browser state were not changed."
+    )
+  }
+
   func markWishlistPreferredOption(_ item: WishlistItem, option: WishlistComparisonOption) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
@@ -19912,6 +20013,7 @@ final class ParcelOpsStore {
   private func persistWishlist() {
     wishlistRepository.saveWishlistItems(wishlistItems)
     wishlistRepository.saveWishlistCaptureCandidates(wishlistCaptureCandidates)
+    wishlistRepository.saveWishlistResearchRequests(wishlistResearchRequests)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -20824,6 +20926,12 @@ private extension WishlistItem {
 private extension WishlistCaptureCandidate {
   var auditDetail: String {
     "Source: \(source.rawValue); title: \(pageTitle); URL: \(pageURL); storefront: \(detectedStorefront); price: \(detectedPrice); status: \(captureStatus); review: \(reviewState.rawValue); captured: \(capturedDate); summary: \(productSummary); notes: \(notes)."
+  }
+}
+
+private extension WishlistResearchRequest {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); source URL: \(sourceURL); region scope: \(regionScope); seller criteria: \(sellerCriteria); max budget: \(maxBudgetAUD); postage: \(postageRequirements); trust: \(trustRequirements); status: \(requestStatus); created: \(createdDate); last reviewed: \(lastReviewedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

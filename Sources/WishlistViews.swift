@@ -92,6 +92,7 @@ struct WishlistView: View {
         wishlistReadinessPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
+        wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
 
@@ -125,6 +126,7 @@ struct WishlistView: View {
                 store.linkWishlistItemToOrder(item)
               } onCompare: {
                 store.createWishlistComparisonPlan(item)
+                store.createWishlistResearchRequest(from: item)
               } onScore: {
                 store.evaluateWishlistComparisonOptions(item)
               } onCheck: {
@@ -384,6 +386,62 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistResearchRequestsPanel: some View {
+    let openRequests = store.wishlistResearchRequests.filter { $0.reviewState != .accepted }
+    let blockedRequests = store.wishlistResearchRequests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let readyRequests = store.wishlistResearchRequests.filter { $0.requestStatus.localizedCaseInsensitiveContains("ready") || $0.requestStatus.localizedCaseInsensitiveContains("reviewed") }
+
+    return SettingsPanel(title: "Future agent research queue", symbol: "list.bullet.clipboard.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("These are local briefs for a future comparison agent. Each request defines what to compare across Australian and overseas retailers, which postage details to capture, and what seller trust evidence is required before buying.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Research briefs", "\(store.wishlistResearchRequests.count)", store.wishlistResearchRequests.isEmpty ? .secondary : .blue),
+          ("Open", "\(openRequests.count)", openRequests.isEmpty ? .green : .orange),
+          ("Ready/reviewed", "\(readyRequests.count)", readyRequests.isEmpty ? .secondary : .green),
+          ("Blocked", "\(blockedRequests.count)", blockedRequests.isEmpty ? .green : .red)
+        ])
+
+        if store.wishlistResearchRequests.isEmpty {
+          MVPEmptyState(
+            title: "No research briefs yet",
+            detail: "Use Compare on a Wishlist item to create a local brief for future seller research. No live web search or external agent runs from this screen.",
+            symbol: "list.bullet.clipboard.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 340), spacing: 10)], spacing: 10) {
+            ForEach(store.wishlistResearchRequests) { request in
+              WishlistResearchRequestRow(request: request) {
+                store.markWishlistResearchRequestReviewed(request)
+              } onBlock: {
+                store.blockWishlistResearchRequest(request)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: request.wishlistItemID?.uuidString ?? request.id.uuidString,
+                  label: request.itemName,
+                  summary: "Prepare wishlist comparison research: \(request.itemName). Confirm seller criteria, AUD landed cost, postage timing, returns/warranty, and seller trust requirements before any purchase.",
+                  priority: request.reviewState == .needsReview ? .high : .normal,
+                  assignee: "Wishlist review"
+                )
+              } onRemove: {
+                store.removeWishlistResearchRequest(request)
+              }
+            }
+          }
+        }
+
+        Text("Not active yet: browsing retailer sites, exchange-rate lookup, postage quote APIs, seller trust services, browser automation, account login, checkout, payment, or background monitoring.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   @ViewBuilder
   private var gmailWishlistFocusPanel: some View {
     if !store.gmailMailboxConnections.isEmpty || !gmailWishlistCandidateEmails.isEmpty {
@@ -621,6 +679,87 @@ private struct WishlistCaptureCandidateRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistResearchRequestRow: View {
+  var request: WishlistResearchRequest
+  var onReviewed: () -> Void
+  var onBlock: () -> Void
+  var onTask: () -> Void
+  var onRemove: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "list.bullet.clipboard.fill")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(request.itemName)
+            .font(.headline)
+            .lineLimit(2)
+          Text(request.requestStatus)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 8)
+        Badge(request.reviewState.rawValue, color: request.reviewState == .needsReview ? .orange : .green)
+      }
+
+      CompactMetadataGrid(minimumWidth: 145) {
+        Label(request.maxBudgetAUD, systemImage: "dollarsign.circle.fill")
+        Label(request.createdDate, systemImage: "clock.fill")
+        Label(request.lastReviewedDate, systemImage: "checkmark.seal.fill")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 6) {
+        WishlistResearchLine(title: "Scope", detail: request.regionScope)
+        WishlistResearchLine(title: "Seller criteria", detail: request.sellerCriteria)
+        WishlistResearchLine(title: "Postage", detail: request.postageRequirements)
+        WishlistResearchLine(title: "Trust", detail: request.trustRequirements)
+      }
+
+      if !request.sourceURL.isPlaceholderValidationValue {
+        Text(request.sourceURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      CompactActionRow {
+        Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)
+          .buttonStyle(.borderedProminent)
+        Button("Block", systemImage: "exclamationmark.triangle", action: onBlock)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onTask)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", action: onRemove)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistResearchLine: View {
+  var title: String
+  var detail: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title)
+        .font(.caption.weight(.semibold))
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 

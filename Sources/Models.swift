@@ -2761,6 +2761,23 @@ struct WishlistCaptureCandidate: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct WishlistResearchRequest: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var wishlistItemID: UUID?
+  var itemName: String
+  var sourceURL: String
+  var regionScope: String
+  var sellerCriteria: String
+  var maxBudgetAUD: String
+  var postageRequirements: String
+  var trustRequirements: String
+  var requestStatus: String
+  var createdDate: String
+  var lastReviewedDate: String
+  var reviewState: ReviewState
+  var notes: String
+}
+
 enum FulfillmentMethod: String, Hashable, Codable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"

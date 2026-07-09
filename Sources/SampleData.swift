@@ -317,6 +317,39 @@ enum SampleData {
     )
   ]
 
+  static var wishlistResearchRequests: [WishlistResearchRequest] = [
+    WishlistResearchRequest(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sourceURL: "https://safetypro.example/scanner-compact",
+      regionScope: "Compare Australian sellers first, then overseas sellers if landed cost and trust are acceptable.",
+      sellerCriteria: "Prefer retailers with clear returns, ABN or established trading history, warranty information, and direct product links.",
+      maxBudgetAUD: "AUD 250 landed cost",
+      postageRequirements: "Show postage cost and expected delivery time. Prefer under 7 business days for local options.",
+      trustRequirements: "Exclude unknown sellers, marketplaces with unclear fulfilment, and stores with weak delivery evidence.",
+      requestStatus: "Ready for future agent",
+      createdDate: "Sample only",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .monitor,
+      notes: "Local planning record only. No live retailer search, currency conversion, seller trust lookup, browser automation, checkout, or purchase occurs."
+    ),
+    WishlistResearchRequest(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      sourceURL: "https://officekit.example/thermal-rolls",
+      regionScope: "Australian suppliers only unless overseas postage is materially cheaper and reliable.",
+      sellerCriteria: "Compare pack size, label compatibility, returns, and delivery reliability.",
+      maxBudgetAUD: "AUD 70 landed cost",
+      postageRequirements: "Include postage cost and stock availability; flag pickup options separately.",
+      trustRequirements: "Prefer known office suppliers or stores with clear business identity and recent delivery reviews.",
+      requestStatus: "Needs scope review",
+      createdDate: "Sample only",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .needsReview,
+      notes: "Planning placeholder for future comparison workflow."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]
