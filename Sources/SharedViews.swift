@@ -5701,6 +5701,8 @@ struct MailboxProviderOperatorReadinessStack: View {
             MailboxOperationsHandoffCard(summary: store.mailboxOperationsHandoffSummary)
             SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
             SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+            SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
+            SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
             MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
