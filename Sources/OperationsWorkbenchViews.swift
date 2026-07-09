@@ -650,6 +650,7 @@ struct OperationsWorkbenchView: View {
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+        SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
         SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
