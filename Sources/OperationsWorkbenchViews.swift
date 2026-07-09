@@ -650,6 +650,7 @@ struct OperationsWorkbenchView: View {
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
