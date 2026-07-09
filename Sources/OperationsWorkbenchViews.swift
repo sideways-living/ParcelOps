@@ -208,6 +208,14 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  private var activeGmailRefreshTasks: [ReviewTask] {
+    store.reviewTasks.filter { task in
+      task.linkedEntityType == .integration
+        && task.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
+        && task.status != .completed
+    }
+  }
+
   private var mailboxFetchedCount: Int {
     spaceMailFetchedCount + gmailFetchedCount
   }
@@ -1210,9 +1218,45 @@ struct OperationsWorkbenchView: View {
           ("Filtered", "\(gmailFilteredCount)", gmailFilteredCount == 0 ? .secondary : .teal),
           ("Warnings", "\(gmailWarningCount)", gmailWarningCount == 0 ? .green : .orange),
           ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange),
+          ("Refresh tasks", "\(activeGmailRefreshTasks.count)", activeGmailRefreshTasks.isEmpty ? .green : .purple),
           ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
           ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange)
         ])
+
+        if !activeGmailRefreshTasks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Active Gmail refresh follow-up", systemImage: "checklist")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.purple)
+            Text("These tasks were created from the latest Gmail refresh result. Work them in Tasks; use Mailbox Monitor only to refresh the source evidence.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 240), spacing: 8)], alignment: .leading, spacing: 8) {
+              ForEach(activeGmailRefreshTasks.prefix(3)) { task in
+                VStack(alignment: .leading, spacing: 6) {
+                  Text(task.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text("Owner: \(task.assignee) • Due: \(task.dueDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  CompactMetadataGrid(minimumWidth: 105) {
+                    Badge(task.status.rawValue, color: gmailRefreshTaskWorkbenchColor(task))
+                    Badge(task.priority.rawValue, color: gmailRefreshTaskWorkbenchColor(task))
+                    Badge(task.reviewState.rawValue, color: task.reviewState == .accepted ? .green : .orange)
+                  }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(gmailRefreshTaskWorkbenchColor(task).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+          .padding(10)
+          .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         VStack(alignment: .leading, spacing: 6) {
           Label("Gmail label handoff", systemImage: gmailLabelWorkbenchStatus == "Label issue" ? "tag.slash.fill" : "tag.fill")
@@ -1537,6 +1581,14 @@ struct OperationsWorkbenchView: View {
     default:
       return .secondary
     }
+  }
+
+  private func gmailRefreshTaskWorkbenchColor(_ task: ReviewTask) -> Color {
+    if task.status == .blocked { return .red }
+    if task.priority == .urgent || task.priority == .high { return .orange }
+    if task.status == .inProgress { return .blue }
+    if task.reviewState != .accepted { return .orange }
+    return .purple
   }
 
   private var inboxParserQualityHandoff: some View {
