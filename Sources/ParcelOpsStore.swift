@@ -19457,6 +19457,107 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistSellerEvidenceReviewTask(_ item: WishlistItem) {
+    let missingBySeller = (item.comparisonOptions ?? []).compactMap { option -> String? in
+      let gaps = wishlistSellerEvidenceGaps(for: option)
+      guard !gaps.isEmpty else { return nil }
+      return "\(option.sellerName): \(gaps.joined(separator: ", "))"
+    }
+    let taskTitle = "Review Wishlist seller evidence: \(item.itemName)"
+    let taskSummary: String
+    if missingBySeller.isEmpty {
+      taskSummary = "Seller evidence appears complete for \(item.itemName). Reconfirm live price, stock, delivery time, returns, warranty, seller trust, account, delivery address, and payment readiness before purchase."
+    } else {
+      taskSummary = [
+        "Confirm missing seller evidence before purchase for \(item.itemName).",
+        "Missing evidence: \(missingBySeller.joined(separator: "; ")).",
+        "Keep checks local until the user explicitly opens seller pages or decides to buy."
+      ].joined(separator: " ")
+    }
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("seller evidence")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = missingBySeller.isEmpty ? .normal : .high
+      reviewTasks[existingIndex].dueDate = "Today"
+      reviewTasks[existingIndex].assignee = item.owner
+      reviewTasks[existingIndex].reviewState = missingBySeller.isEmpty ? .accepted : .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Wishlist seller evidence task refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from Wishlist seller comparison evidence. No duplicate task was created and no web search, retailer lookup, browser automation, purchase, payment, account, mailbox, or external verification action occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: taskSummary,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      priority: missingBySeller.isEmpty ? .normal : .high,
+      dueDate: "Today",
+      assignee: item.owner,
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: missingBySeller.isEmpty ? .accepted : .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from Wishlist seller evidence checklist."
+    )
+  }
+
+  private func wishlistSellerEvidenceGaps(for option: WishlistComparisonOption) -> [String] {
+    let searchable = [
+      option.productURL,
+      option.listedPrice,
+      option.currency,
+      option.estimatedAUDTotal,
+      option.postageCost,
+      option.postageTime,
+      option.sellerRegion,
+      option.trustRating,
+      option.trustNotes,
+      option.recommendation
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+
+    var gaps: [String] = []
+    if option.productURL.isPlaceholderValidationValue || !option.productURL.localizedCaseInsensitiveContains("http") {
+      gaps.append("product link")
+    }
+    if !option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud") || option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
+      gaps.append("AUD total")
+    }
+    if option.postageCost.localizedCaseInsensitiveContains("pending") || option.postageCost.isPlaceholderValidationValue {
+      gaps.append("postage cost")
+    }
+    if option.postageTime.localizedCaseInsensitiveContains("pending") || option.postageTime.isPlaceholderValidationValue {
+      gaps.append("postage time")
+    }
+    if option.trustRating.localizedCaseInsensitiveContains("unknown") || option.trustRating.localizedCaseInsensitiveContains("review") {
+      gaps.append("seller trust")
+    }
+    if !searchable.contains("return") && !searchable.contains("warranty") {
+      gaps.append("returns/warranty")
+    }
+    return gaps
+  }
+
   private func wishlistCheck(title: String, passed: Bool, failDetail: String, passDetail: String) -> WishlistPurchaseCheck {
     WishlistPurchaseCheck(
       title: title,

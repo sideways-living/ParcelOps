@@ -150,6 +150,8 @@ struct WishlistView: View {
                 store.addManualWishlistSellerOptionPlaceholder(item)
               } onScore: {
                 store.evaluateWishlistComparisonOptions(item)
+              } onEvidenceTask: {
+                store.createWishlistSellerEvidenceReviewTask(item)
               } onCheck: {
                 store.runWishlistPurchaseReadinessCheck(item)
               } onDecision: {
@@ -290,6 +292,8 @@ struct WishlistView: View {
               } onAddOption: {
                 store.restoreWishlistItem(item)
               } onScore: {
+                store.restoreWishlistItem(item)
+              } onEvidenceTask: {
                 store.restoreWishlistItem(item)
               } onCheck: {
                 store.restoreWishlistItem(item)
@@ -1209,6 +1213,7 @@ struct WishlistItemRow: View {
   var onCompare: () -> Void
   var onAddOption: () -> Void
   var onScore: () -> Void
+  var onEvidenceTask: () -> Void
   var onCheck: () -> Void
   var onDecision: () -> Void
   var onDecisionReviewed: () -> Void
@@ -1435,6 +1440,7 @@ struct WishlistItemRow: View {
   @ViewBuilder
   private var wishlistComparisonSummary: some View {
     let options = item.comparisonOptions ?? []
+    let missingEvidence = missingSellerEvidenceLabels
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Label("Comparison", systemImage: "magnifyingglass.circle.fill")
@@ -1482,10 +1488,74 @@ struct WishlistItemRow: View {
             }
           }
         }
+
+        if !missingEvidence.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Seller evidence still needs review", systemImage: "checklist")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.orange)
+            Text("Missing: \(missingEvidence.joined(separator: ", ")). Create one local task to confirm these before purchase.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            CompactActionRow {
+              Button("Evidence task", systemImage: "checklist") {
+                onEvidenceTask()
+                feedbackMessage = "Wishlist seller evidence task created locally. No web search, seller lookup, browser automation, purchase, payment, or external service ran."
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+          .padding(8)
+          .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
       }
     }
     .padding(10)
     .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var missingSellerEvidenceLabels: [String] {
+    let labels = (item.comparisonOptions ?? []).flatMap { wishlistSellerEvidenceGaps(for: $0) }
+    return Array(Set(labels)).sorted()
+  }
+
+  private func wishlistSellerEvidenceGaps(for option: WishlistComparisonOption) -> [String] {
+    let searchable = [
+      option.productURL,
+      option.listedPrice,
+      option.currency,
+      option.estimatedAUDTotal,
+      option.postageCost,
+      option.postageTime,
+      option.sellerRegion,
+      option.trustRating,
+      option.trustNotes,
+      option.recommendation
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+
+    var gaps: [String] = []
+    if option.productURL.isPlaceholderValidationValue || !option.productURL.localizedCaseInsensitiveContains("http") {
+      gaps.append("product link")
+    }
+    if !option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud") || option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
+      gaps.append("AUD total")
+    }
+    if option.postageCost.localizedCaseInsensitiveContains("pending") || option.postageCost.isPlaceholderValidationValue {
+      gaps.append("postage cost")
+    }
+    if option.postageTime.localizedCaseInsensitiveContains("pending") || option.postageTime.isPlaceholderValidationValue {
+      gaps.append("postage time")
+    }
+    if option.trustRating.localizedCaseInsensitiveContains("unknown") || option.trustRating.localizedCaseInsensitiveContains("review") {
+      gaps.append("seller trust")
+    }
+    if !searchable.contains("return") && !searchable.contains("warranty") {
+      gaps.append("returns/warranty")
+    }
+    return gaps
   }
 
   @ViewBuilder
