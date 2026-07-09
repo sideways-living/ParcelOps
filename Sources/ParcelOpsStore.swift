@@ -18489,6 +18489,113 @@ final class ParcelOpsStore {
     )
   }
 
+  func prepareWishlistPurchaseHandoff(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    let current = wishlistItems[index]
+    let preferredOption = (current.comparisonOptions ?? []).first { $0.id == current.preferredOptionID }
+    let sellerName = preferredOption?.sellerName ?? current.storefront
+    wishlistItems[index].purchaseHandoff = WishlistPurchaseHandoff(
+      sellerName: sellerName,
+      accountLabel: "\(current.owner) account to confirm",
+      purchaseStatus: "Ready for manual purchase decision",
+      expectedOrderSignals: [sellerName, current.itemName, preferredOption?.productURL ?? current.storefrontURL]
+        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        .joined(separator: " | "),
+      orderWatchStatus: "After purchase, watch Inbox and Orders for local confirmation email or order record.",
+      linkedOrderID: nil,
+      notes: "Manual handoff only. Confirm account, payment method, delivery address, returns, warranty, and final AUD total before buying outside ParcelOps.",
+      updatedAt: "Now"
+    )
+    wishlistItems[index].status = "Purchase handoff ready"
+    wishlistItems[index].purchaseReadiness = "Manual purchase handoff prepared"
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist purchase handoff prepared locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nHandoff only. No checkout, purchase, payment, account login, browser automation, mailbox monitoring, or retailer contact occurred."
+    )
+  }
+
+  func recordWishlistPurchasedExternally(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var handoff = wishlistItems[index].purchaseHandoff
+      ?? WishlistPurchaseHandoff(
+        sellerName: wishlistItems[index].storefront,
+        accountLabel: "\(wishlistItems[index].owner) account to confirm",
+        purchaseStatus: "Ready for manual purchase decision",
+        expectedOrderSignals: "\(wishlistItems[index].storefront) | \(wishlistItems[index].itemName)",
+        orderWatchStatus: "Not watching yet",
+        linkedOrderID: nil,
+        notes: "Manual handoff created when purchase was recorded.",
+        updatedAt: "Now"
+      )
+    handoff.purchaseStatus = "Purchased externally, awaiting order confirmation"
+    handoff.orderWatchStatus = "Check Inbox, Mailbox Monitor, and Orders for confirmation from \(handoff.sellerName)."
+    handoff.notes = "Operator recorded that this was purchased outside ParcelOps. No payment credentials, checkout session, or retailer account details were stored."
+    handoff.updatedAt = "Now"
+    wishlistItems[index].purchaseHandoff = handoff
+    wishlistItems[index].status = "Awaiting order confirmation"
+    wishlistItems[index].purchaseReadiness = "Purchased externally; watch for confirmation"
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist item marked purchased externally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nManual record only. ParcelOps did not purchase the item, store payment details, log in to a retailer, send email, or monitor a mailbox in the background."
+    )
+  }
+
+  func markWishlistOrderConfirmationSeen(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var handoff = wishlistItems[index].purchaseHandoff
+      ?? WishlistPurchaseHandoff(
+        sellerName: wishlistItems[index].storefront,
+        accountLabel: "\(wishlistItems[index].owner) account to confirm",
+        purchaseStatus: "Order confirmation review needed",
+        expectedOrderSignals: "\(wishlistItems[index].storefront) | \(wishlistItems[index].itemName)",
+        orderWatchStatus: "Order confirmation marked seen locally",
+        linkedOrderID: nil,
+        notes: "Manual confirmation marker created.",
+        updatedAt: "Now"
+      )
+    let matchingOrder = orders.first { order in
+      order.store.localizedCaseInsensitiveContains(handoff.sellerName)
+        || handoff.sellerName.localizedCaseInsensitiveContains(order.store)
+        || order.latestStatus.localizedCaseInsensitiveContains(wishlistItems[index].itemName)
+    }
+    handoff.purchaseStatus = matchingOrder == nil
+      ? "Order confirmation seen; link order manually"
+      : "Order confirmation linked locally"
+    handoff.orderWatchStatus = matchingOrder == nil
+      ? "Confirmation was seen, but no matching local order was linked automatically."
+      : "Linked to local order \(matchingOrder?.orderNumber ?? "")."
+    handoff.linkedOrderID = matchingOrder?.id
+    handoff.updatedAt = "Now"
+    wishlistItems[index].purchaseHandoff = handoff
+    wishlistItems[index].status = matchingOrder == nil ? "Order confirmation needs linking" : "Order confirmation linked"
+    wishlistItems[index].purchaseReadiness = "Order confirmation reviewed locally"
+    persistWishlist()
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: matchingOrder == nil ? "Wishlist order confirmation marked seen locally." : "Wishlist order confirmation linked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nLinked order: \(matchingOrder?.orderNumber ?? "none"). No mailbox was fetched, no retailer account was accessed, and no external monitoring ran."
+    )
+  }
+
   private func localWishlistOptionEvaluation(for option: WishlistComparisonOption) -> (score: Int, risk: String, recommendation: String, reasons: [String]) {
     let searchable = [
       option.sellerName,
@@ -20634,7 +20741,8 @@ private extension WishlistItem {
     let checkSummary = (purchaseChecks ?? [])
       .map { "\($0.title): \($0.status) (\($0.severity))" }
       .joined(separator: " | ")
-    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); captured detail: \(capturedDetail)."
+    let handoffSummary = purchaseHandoff.map { "seller \($0.sellerName); account \($0.accountLabel); status \($0.purchaseStatus); order watch \($0.orderWatchStatus); linked order \($0.linkedOrderID?.uuidString ?? "none")" } ?? "none"
+    return "Item: \(itemName); storefront: \(storefront); URL: \(storefrontURL); estimated cost: \(estimatedCost); owner: \(owner); pool: \(pool); source: \(source.rawValue); status: \(status); comparison: \(comparisonStatus ?? "Not compared"); purchase readiness: \(purchaseReadiness ?? "Not assessed"); comparison notes: \(comparisonNotes ?? "None"); options: \(optionSummary.isEmpty ? "none" : optionSummary); purchase checks: \(checkSummary.isEmpty ? "none" : checkSummary); purchase handoff: \(handoffSummary); captured detail: \(capturedDetail)."
   }
 }
 

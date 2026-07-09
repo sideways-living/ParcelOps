@@ -2705,6 +2705,7 @@ struct WishlistItem: Identifiable, Hashable, Codable {
   var preferredOptionID: UUID?
   var comparisonOptions: [WishlistComparisonOption]?
   var purchaseChecks: [WishlistPurchaseCheck]?
+  var purchaseHandoff: WishlistPurchaseHandoff?
 }
 
 struct WishlistComparisonOption: Identifiable, Hashable, Codable {
@@ -2732,6 +2733,18 @@ struct WishlistPurchaseCheck: Identifiable, Hashable, Codable {
   var status: String
   var detail: String
   var severity: String
+}
+
+struct WishlistPurchaseHandoff: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var sellerName: String
+  var accountLabel: String
+  var purchaseStatus: String
+  var expectedOrderSignals: String
+  var orderWatchStatus: String
+  var linkedOrderID: UUID?
+  var notes: String
+  var updatedAt: String
 }
 
 enum FulfillmentMethod: String, Hashable, Codable {

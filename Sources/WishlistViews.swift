@@ -127,6 +127,12 @@ struct WishlistView: View {
                 store.evaluateWishlistComparisonOptions(item)
               } onCheck: {
                 store.runWishlistPurchaseReadinessCheck(item)
+              } onHandoff: {
+                store.prepareWishlistPurchaseHandoff(item)
+              } onPurchased: {
+                store.recordWishlistPurchasedExternally(item)
+              } onOrderSeen: {
+                store.markWishlistOrderConfirmationSeen(item)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -172,6 +178,12 @@ struct WishlistView: View {
               } onScore: {
                 store.restoreWishlistItem(item)
               } onCheck: {
+                store.restoreWishlistItem(item)
+              } onHandoff: {
+                store.restoreWishlistItem(item)
+              } onPurchased: {
+                store.restoreWishlistItem(item)
+              } onOrderSeen: {
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -542,6 +554,9 @@ struct WishlistItemRow: View {
   var onCompare: () -> Void
   var onScore: () -> Void
   var onCheck: () -> Void
+  var onHandoff: () -> Void
+  var onPurchased: () -> Void
+  var onOrderSeen: () -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onTask: () -> Void
@@ -576,6 +591,7 @@ struct WishlistItemRow: View {
 
       wishlistComparisonSummary
       wishlistPurchaseChecksSummary
+      wishlistPurchaseHandoffSummary
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 8)], alignment: .leading, spacing: 8) {
         if isDeleted {
@@ -650,6 +666,27 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Run local purchase readiness check")
+          Button("Handoff", systemImage: "person.crop.circle.badge.checkmark") {
+            onHandoff()
+            feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelOps."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Prepare manual purchase handoff")
+          Button("Purchased", systemImage: "bag.fill") {
+            onPurchased()
+            feedbackMessage = "External purchase recorded locally. ParcelOps did not buy anything or store payment details."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Record external purchase")
+          Button("Order seen", systemImage: "envelope.badge.fill") {
+            onOrderSeen()
+            feedbackMessage = "Order confirmation marked seen locally. Link the real order if needed."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Mark order confirmation seen")
           Button("Task", systemImage: "checklist") {
             onTask()
             feedbackMessage = "Wishlist comparison review task created locally. Check Tasks for owner follow-up."
@@ -758,6 +795,37 @@ struct WishlistItemRow: View {
       .background(.indigo.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
     }
   }
+
+  @ViewBuilder
+  private var wishlistPurchaseHandoffSummary: some View {
+    if let handoff = item.purchaseHandoff {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label("Purchase handoff", systemImage: "person.crop.circle.badge.checkmark")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Spacer(minLength: 8)
+          Badge(handoff.purchaseStatus, color: handoff.purchaseStatus.localizedCaseInsensitiveContains("linked") ? .green : .purple)
+        }
+        CompactMetadataGrid(minimumWidth: 190) {
+          PurchaseHandoffFact(title: "Seller", value: handoff.sellerName, symbol: "storefront.fill")
+          PurchaseHandoffFact(title: "Account", value: handoff.accountLabel, symbol: "person.crop.circle.fill")
+          PurchaseHandoffFact(title: "Order watch", value: handoff.orderWatchStatus, symbol: "envelope.badge.fill")
+          PurchaseHandoffFact(title: "Updated", value: handoff.updatedAt, symbol: "clock.fill")
+        }
+        Text("Expected order signals: \(handoff.expectedOrderSignals)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(handoff.notes)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(.purple.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
 }
 
 private struct WishlistPreferredOptionSummary: View {
@@ -791,6 +859,31 @@ private struct WishlistPreferredOptionSummary: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct PurchaseHandoffFact: View {
+  var title: String
+  var value: String
+  var symbol: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: symbol)
+        .foregroundStyle(.purple)
+        .frame(width: 18)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(value)
+          .font(.caption)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
