@@ -132,7 +132,8 @@ struct WishlistView: View {
                 suggestedStorageLocations: store.suggestedStorageLocations(for: item),
                 suggestedCustodyRecords: store.suggestedCustodyRecords(for: item),
                 suggestedLabelReferences: store.suggestedLabelReferenceRecords(for: item),
-                suggestedScanSessions: store.suggestedScanSessionRecords(for: item)
+                suggestedScanSessions: store.suggestedScanSessionRecords(for: item),
+                suggestedShipmentManifests: store.suggestedShipmentManifestRecords(for: item)
               ) {
                 store.convertWishlistToOrder(item)
               } onLink: {
@@ -221,6 +222,12 @@ struct WishlistView: View {
                 store.createReviewTask(from: scan)
               } onScanSessionDraft: { scan in
                 store.createDraftMessage(from: scan)
+              } onAddShipmentManifest: {
+                store.createWishlistShipmentManifest(item)
+              } onShipmentManifestTask: { manifest in
+                store.createReviewTask(from: manifest)
+              } onShipmentManifestDraft: { manifest in
+                store.createDraftMessage(from: manifest)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -344,6 +351,12 @@ struct WishlistView: View {
               } onScanSessionTask: { _ in
                 store.restoreWishlistItem(item)
               } onScanSessionDraft: { _ in
+                store.restoreWishlistItem(item)
+              } onAddShipmentManifest: {
+                store.restoreWishlistItem(item)
+              } onShipmentManifestTask: { _ in
+                store.restoreWishlistItem(item)
+              } onShipmentManifestDraft: { _ in
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -1164,6 +1177,7 @@ struct WishlistItemRow: View {
   var suggestedCustodyRecords: [CustodyRecord] = []
   var suggestedLabelReferences: [LabelReferenceRecord] = []
   var suggestedScanSessions: [ScanSessionRecord] = []
+  var suggestedShipmentManifests: [ShipmentManifestRecord] = []
   var isDeleted = false
   var onConvert: () -> Void
   var onLink: () -> Void
@@ -1206,6 +1220,9 @@ struct WishlistItemRow: View {
   var onAddScanSession: () -> Void
   var onScanSessionTask: (ScanSessionRecord) -> Void
   var onScanSessionDraft: (ScanSessionRecord) -> Void
+  var onAddShipmentManifest: () -> Void
+  var onShipmentManifestTask: (ShipmentManifestRecord) -> Void
+  var onShipmentManifestDraft: (ShipmentManifestRecord) -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onDuplicateOption: (WishlistComparisonOption) -> Void
@@ -1875,6 +1892,42 @@ struct WishlistItemRow: View {
         .padding(8)
         .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Outbound handoff plan", systemImage: "paperplane.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+          Text("Create a local dispatch manifest only when the item needs an outbound transfer, courier handoff, internal delivery run, or final handoff after purchase and receipt. This does not book a carrier, print a label, or mark anything shipped.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          if suggestedShipmentManifests.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+              Text("No outbound handoff plan staged yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer(minLength: 8)
+              Button("Add manifest", systemImage: "paperplane") {
+                onAddShipmentManifest()
+                feedbackMessage = "Wishlist dispatch manifest created locally. No carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, or mailbox action occurred."
+              }
+              .buttonStyle(.bordered)
+            }
+          } else {
+            ForEach(suggestedShipmentManifests.prefix(3)) { manifest in
+              WishlistShipmentManifestRow(manifest: manifest) {
+                onShipmentManifestTask(manifest)
+                feedbackMessage = "Dispatch manifest review task created locally. No carrier, label, scanner, or warehouse integration was used."
+              } onDraft: {
+                onShipmentManifestDraft(manifest)
+                feedbackMessage = "Dispatch manifest follow-up draft created locally. No message was sent."
+              }
+            }
+          }
+        }
+        .padding(8)
+        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
         if !confirmationMatches.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Possible Inbox confirmations", systemImage: "envelope.badge.fill")
@@ -2284,6 +2337,45 @@ private struct WishlistScanSessionRow: View {
         .buttonStyle(.bordered)
         .labelStyle(.iconOnly)
         .help("Create manual verification follow-up draft")
+    }
+    .padding(8)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistShipmentManifestRow: View {
+  var manifest: ShipmentManifestRecord
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "paperplane.fill")
+        .foregroundStyle(manifest.reviewState.color)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(manifest.title)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(manifest.manifestType.rawValue) • \(manifest.carrierCourier) • \(manifest.plannedDispatchDate)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        HStack(spacing: 6) {
+          Badge(manifest.dispatchStatus.rawValue, color: manifest.dispatchStatus == .handedOff || manifest.dispatchStatus == .dispatched ? .green : manifest.dispatchStatus == .blockedNeedsReview ? .red : .blue)
+          Badge(manifest.assignedOwnerTeam, color: .blue)
+          Badge(manifest.reviewState.rawValue, color: manifest.reviewState.color)
+        }
+      }
+      Spacer(minLength: 8)
+      Button("Task", systemImage: "checklist", action: onTask)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create dispatch manifest review task")
+      Button("Draft", systemImage: "envelope.open.fill", action: onDraft)
+        .buttonStyle(.bordered)
+        .labelStyle(.iconOnly)
+        .help("Create dispatch manifest follow-up draft")
     }
     .padding(8)
     .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))

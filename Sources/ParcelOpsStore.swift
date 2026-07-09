@@ -14415,6 +14415,49 @@ final class ParcelOpsStore {
     suggestedShipmentManifestRecords(orderID: scan.orderID, shipmentGroupID: scan.shipmentGroupID, inventoryReceiptID: scan.inventoryReceiptID, packageContentID: scan.packageContentID, custodyRecordID: scan.custodyRecordID, labelReferenceID: scan.linkedLabelReferenceID, scanSessionID: scan.id, evidenceID: scan.evidenceAttachmentIDs.first, storageLocationID: scan.scanLocationStorageLocationID, carrierCourier: "", ownerTeam: scan.assignedOperatorTeam, locationText: scan.expectedLabelReferenceValue, context: "\(scan.title) \(scan.notes)", linkedEntityType: .scanSession, linkedEntityID: scan.id.uuidString)
   }
 
+  func suggestedShipmentManifestRecords(for item: WishlistItem) -> [ShipmentManifestRecord] {
+    let scan = suggestedScanSessionRecords(for: item).first
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let context = [
+      item.itemName,
+      item.storefront,
+      item.owner,
+      item.purchaseHandoff?.sellerName,
+      item.purchaseHandoff?.purchaseStatus,
+      scan?.title,
+      label?.labelValuePlaceholder,
+      location?.locationCode,
+      custody?.title,
+      receipt?.itemSummary,
+      inspection?.expectedItemSummary,
+      procurement?.requestedItemsSummary
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    return suggestedShipmentManifestRecords(
+      orderID: item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID,
+      shipmentGroupID: receipt?.shipmentGroupID ?? inspection?.shipmentGroupID,
+      inventoryReceiptID: receipt?.id,
+      packageContentID: receipt?.packageContentID ?? inspection?.packageContentID ?? procurement?.packageContentID,
+      custodyRecordID: custody?.id,
+      labelReferenceID: label?.id,
+      scanSessionID: scan?.id,
+      evidenceID: scan?.evidenceAttachmentIDs.first ?? label?.evidenceAttachmentIDs.first ?? receipt?.evidenceAttachmentIDs.first ?? inspection?.evidenceAttachmentIDs.first ?? procurement?.evidenceAttachmentIDs.first,
+      storageLocationID: location?.id,
+      carrierCourier: "",
+      ownerTeam: item.owner,
+      locationText: location.map { "\($0.locationCode) \($0.areaZone)" } ?? item.purchaseHandoff?.sellerName ?? item.storefront,
+      context: context,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString
+    )
+  }
+
   func suggestedShipmentManifestRecords(for label: LabelReferenceRecord) -> [ShipmentManifestRecord] {
     suggestedShipmentManifestRecords(orderID: label.orderID, shipmentGroupID: label.shipmentGroupID, inventoryReceiptID: label.inventoryReceiptID, packageContentID: label.packageContentID, custodyRecordID: label.custodyRecordID, labelReferenceID: label.id, scanSessionID: suggestedScanSessionRecords(for: label).first?.id, evidenceID: label.evidenceAttachmentIDs.first, storageLocationID: label.storageLocationID, carrierCourier: label.associatedCarrier, ownerTeam: label.assignedOwnerTeam, locationText: label.labelValuePlaceholder, context: "\(label.title) \(label.notes)", linkedEntityType: .labelReference, linkedEntityID: label.id.uuidString)
   }
@@ -19600,6 +19643,55 @@ final class ParcelOpsStore {
       entityLabel: record.title,
       summary: "Wishlist manual verification session staged locally.",
       afterDetail: "\(record.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local manual verification only; no scanner hardware, camera, barcode scan, QR generation, label printing, carrier, warehouse, supplier, retailer, or mailbox action occurred."
+    )
+  }
+
+  func createWishlistShipmentManifest(_ item: WishlistItem) {
+    guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    let scan = suggestedScanSessionRecords(for: item).first
+    let label = suggestedLabelReferenceRecords(for: item).first
+    let location = suggestedStorageLocations(for: item).first
+    let custody = suggestedCustodyRecords(for: item).first
+    let receipt = suggestedInventoryReceipts(for: item).first
+    let inspection = suggestedReceivingInspections(for: item).first
+    let procurement = suggestedProcurementRequests(for: item).first
+    let orderID = item.purchaseHandoff?.linkedOrderID ?? receipt?.orderID ?? inspection?.orderID
+    let manifest = ShipmentManifestRecord(
+      title: "Wishlist dispatch plan: \(item.itemName)",
+      manifestType: .outboundTransferGroup,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      carrierCourier: "Manual handoff / carrier to confirm",
+      destinationSummary: item.purchaseHandoff?.sellerName ?? item.storefront,
+      includedOrderIDs: orderID.map { [$0] } ?? [],
+      shipmentGroupIDs: [receipt?.shipmentGroupID, inspection?.shipmentGroupID].compactMap { $0 },
+      inventoryReceiptIDs: receipt.map { [$0.id] } ?? [],
+      packageContentIDs: [receipt?.packageContentID, inspection?.packageContentID, procurement?.packageContentID].compactMap { $0 },
+      custodyRecordIDs: custody.map { [$0.id] } ?? [],
+      labelReferenceIDs: label.map { [$0.id] } ?? [],
+      scanSessionIDs: scan.map { [$0.id] } ?? [],
+      evidenceAttachmentIDs: scan?.evidenceAttachmentIDs ?? label?.evidenceAttachmentIDs ?? receipt?.evidenceAttachmentIDs ?? inspection?.evidenceAttachmentIDs ?? procurement?.evidenceAttachmentIDs ?? [],
+      assignedOwnerTeam: item.owner,
+      dispatchStatus: .draft,
+      plannedDispatchDate: "To schedule if outbound handoff is needed",
+      actualDispatchDate: "Not dispatched",
+      handoffLocationStorageLocationID: location?.id,
+      manifestReferencePlaceholder: "WISHLIST-MNF-\(item.id.uuidString.prefix(8).uppercased())",
+      notes: "Local placeholder only. Use this only if the Wishlist item needs an outbound transfer, courier handoff, internal delivery run, or dispatch readiness check after purchase/receipt. No carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, or mailbox action occurred.",
+      riskLevel: scan?.riskLevel ?? label?.riskLevel ?? custody?.riskLevel ?? location?.riskLevel ?? receipt?.riskLevel ?? inspection?.riskLevel ?? procurement?.riskLevel ?? .medium,
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Never",
+      reviewState: .needsReview
+    )
+    shipmentManifestRecords.insert(manifest, at: 0)
+    persistShipmentManifestRecords()
+    logAudit(
+      action: .created,
+      entityType: .shipmentManifest,
+      entityID: manifest.id.uuidString,
+      entityLabel: manifest.title,
+      summary: "Wishlist dispatch manifest staged locally.",
+      afterDetail: "\(manifest.auditDetail)\nCreated from Wishlist item \(item.itemName). This is local dispatch planning only; no carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, mailbox, or background action occurred."
     )
   }
 
