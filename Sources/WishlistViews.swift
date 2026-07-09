@@ -123,6 +123,8 @@ struct WishlistView: View {
                 store.linkWishlistItemToOrder(item)
               } onCompare: {
                 store.createWishlistComparisonPlan(item)
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(item)
               } onReady: {
                 store.markWishlistReadyForPurchase(item)
               } onPreferredOption: { option in
@@ -164,6 +166,8 @@ struct WishlistView: View {
               } onLink: {
                 store.permanentlyDeleteWishlistItem(item)
               } onCompare: {
+                store.restoreWishlistItem(item)
+              } onScore: {
                 store.restoreWishlistItem(item)
               } onReady: {
                 store.restoreWishlistItem(item)
@@ -532,6 +536,7 @@ struct WishlistItemRow: View {
   var onConvert: () -> Void
   var onLink: () -> Void
   var onCompare: () -> Void
+  var onScore: () -> Void
   var onReady: () -> Void
   var onPreferredOption: (WishlistComparisonOption) -> Void
   var onTask: () -> Void
@@ -618,6 +623,13 @@ struct WishlistItemRow: View {
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Create local seller comparison plan")
+          Button("Score options", systemImage: "chart.bar.doc.horizontal") {
+            onScore()
+            feedbackMessage = "Seller options scored locally from existing comparison fields. Verify live price, postage, trust, returns, and account readiness before buying."
+          }
+            .buttonStyle(.bordered)
+            .labelStyle(.iconOnly)
+            .help("Score seller options locally")
           Button("Ready to buy", systemImage: "checkmark.seal") {
             onReady()
             feedbackMessage = "Wishlist item marked ready for purchase review locally. ParcelOps did not buy anything or store payment details."
@@ -685,6 +697,9 @@ struct WishlistItemRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
       } else {
+        if let preferred = options.first(where: { $0.id == item.preferredOptionID }) {
+          WishlistPreferredOptionSummary(option: preferred)
+        }
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], alignment: .leading, spacing: 8) {
           ForEach(options) { option in
             WishlistComparisonOptionCard(
@@ -700,6 +715,40 @@ struct WishlistItemRow: View {
     }
     .padding(10)
     .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPreferredOptionSummary: View {
+  var option: WishlistComparisonOption
+
+  private var color: Color {
+    guard let risk = option.riskLevel else { return .teal }
+    if risk.localizedCaseInsensitiveContains("lower") { return .green }
+    if risk.localizedCaseInsensitiveContains("high") { return .red }
+    return .orange
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "checkmark.seal.fill")
+        .foregroundStyle(color)
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Current best candidate: \(option.sellerName)")
+          .font(.caption.weight(.semibold))
+        Text("Local score \(option.localScore.map(String.init) ?? "not scored") • \(option.riskLevel ?? "risk not scored")")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(color)
+        if let reason = option.decisionReason, !reason.isEmpty {
+          Text(reason)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
@@ -730,6 +779,17 @@ private struct WishlistComparisonOptionCard: View {
       Text("\(option.sellerRegion) • trust: \(option.trustRating)")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(trustColor)
+      if let score = option.localScore, let risk = option.riskLevel {
+        Text("Local score \(score)/100 • \(risk)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(risk.localizedCaseInsensitiveContains("high") ? .red : trustColor)
+      }
+      if let reason = option.decisionReason, !reason.isEmpty {
+        Text(reason)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
       Text(option.trustNotes)
         .font(.caption2)
         .foregroundStyle(.secondary)

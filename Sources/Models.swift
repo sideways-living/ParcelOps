@@ -2720,6 +2720,9 @@ struct WishlistComparisonOption: Identifiable, Hashable, Codable {
   var trustNotes: String
   var recommendation: String
   var lastChecked: String
+  var localScore: Int?
+  var riskLevel: String?
+  var decisionReason: String?
 }
 
 enum FulfillmentMethod: String, Hashable, Codable {

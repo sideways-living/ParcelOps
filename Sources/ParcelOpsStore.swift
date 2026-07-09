@@ -18310,6 +18310,73 @@ final class ParcelOpsStore {
     )
   }
 
+  func evaluateWishlistComparisonOptions(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var options = wishlistItems[index].comparisonOptions ?? []
+
+    guard !options.isEmpty else {
+      wishlistItems[index].comparisonStatus = "Comparison needed"
+      wishlistItems[index].comparisonNotes = "No seller options are available to score. Add or generate comparison options before purchase review."
+      wishlistItems[index].purchaseReadiness = "Waiting for seller options"
+      persistWishlist()
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: wishlistItems[index].id.uuidString,
+        entityLabel: wishlistItems[index].itemName,
+        summary: "Wishlist comparison scoring found no seller options.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(wishlistItems[index].auditDetail)\nNo live retailer, currency, postage, trust, or browser lookup occurred."
+      )
+      return
+    }
+
+    options = options.map { option in
+      var evaluated = option
+      let result = localWishlistOptionEvaluation(for: option)
+      evaluated.localScore = result.score
+      evaluated.riskLevel = result.risk
+      evaluated.decisionReason = result.reasons.joined(separator: "; ")
+      evaluated.recommendation = result.recommendation
+      evaluated.lastChecked = "Scored locally"
+      return evaluated
+    }
+
+    let sortedOptions = options.sorted { first, second in
+      if (first.localScore ?? 0) == (second.localScore ?? 0) {
+        return first.sellerName.localizedCaseInsensitiveCompare(second.sellerName) == .orderedAscending
+      }
+      return (first.localScore ?? 0) > (second.localScore ?? 0)
+    }
+    let best = sortedOptions.first
+    let hasBlockedTrust = options.contains { option in
+      (option.riskLevel ?? "").localizedCaseInsensitiveContains("high")
+        || option.trustRating.localizedCaseInsensitiveContains("unknown")
+        || option.trustRating.localizedCaseInsensitiveContains("review")
+    }
+    wishlistItems[index].comparisonOptions = options
+    wishlistItems[index].preferredOptionID = best?.id
+    wishlistItems[index].comparisonStatus = "Options scored locally"
+    wishlistItems[index].purchaseReadiness = hasBlockedTrust
+      ? "Trust/postage review required before purchase"
+      : "Ready for purchase review"
+    wishlistItems[index].comparisonNotes = [
+      best.map { "Best local candidate: \($0.sellerName) with score \($0.localScore ?? 0)." },
+      "Local scoring only; verify live price, AUD conversion, postage, delivery ETA, seller trust, warranty, and returns before buying."
+    ].compactMap(\.self).joined(separator: " ")
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist seller options scored locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistItems[index].auditDetail)\nScoring basis: \(options.map { "\($0.sellerName)=\($0.localScore ?? 0) \($0.riskLevel ?? "Unscored")" }.joined(separator: "; ")). No live retailer, currency, postage, seller trust, browser, account, purchase, or payment action occurred."
+    )
+  }
+
   func markWishlistReadyForPurchase(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
@@ -18325,6 +18392,84 @@ final class ParcelOpsStore {
       beforeDetail: beforeDetail,
       afterDetail: "\(wishlistItems[index].auditDetail)\nReady means local operator readiness only. ParcelOps did not buy the item, open an account, save payment credentials, monitor checkout, or contact any retailer."
     )
+  }
+
+  private func localWishlistOptionEvaluation(for option: WishlistComparisonOption) -> (score: Int, risk: String, recommendation: String, reasons: [String]) {
+    let searchable = [
+      option.sellerName,
+      option.productURL,
+      option.listedPrice,
+      option.currency,
+      option.estimatedAUDTotal,
+      option.postageCost,
+      option.postageTime,
+      option.sellerRegion,
+      option.trustRating,
+      option.trustNotes,
+      option.recommendation
+    ].joined(separator: " ").localizedLowercase
+
+    var score = 50
+    var reasons: [String] = []
+
+    if searchable.contains("aud") {
+      score += 12
+      reasons.append("AUD total visible")
+    } else if searchable.contains("pending aud") || searchable.contains("foreign") {
+      score -= 8
+      reasons.append("AUD conversion pending")
+    }
+
+    if option.postageCost.localizedCaseInsensitiveContains("pending") || option.postageTime.localizedCaseInsensitiveContains("pending") {
+      score -= 14
+      reasons.append("postage detail pending")
+    } else {
+      score += 10
+      reasons.append("postage detail present")
+    }
+
+    if searchable.contains("australia") || searchable.contains(" au") || searchable.contains("local") {
+      score += 12
+      reasons.append("local seller signal")
+    }
+    if searchable.contains("overseas") || searchable.contains("international") || searchable.contains("global") {
+      score -= 6
+      reasons.append("overseas seller review")
+    }
+
+    if option.trustRating.localizedCaseInsensitiveContains("high") || option.trustRating.localizedCaseInsensitiveContains("trusted") {
+      score += 22
+      reasons.append("higher trust signal")
+    } else if option.trustRating.localizedCaseInsensitiveContains("unknown") {
+      score -= 24
+      reasons.append("unknown seller trust")
+    } else if option.trustRating.localizedCaseInsensitiveContains("review") {
+      score -= 16
+      reasons.append("trust review required")
+    }
+
+    if searchable.contains("returns") || searchable.contains("warranty") {
+      score += 6
+      reasons.append("returns/warranty noted")
+    } else {
+      score -= 4
+      reasons.append("returns/warranty not confirmed")
+    }
+
+    let clampedScore = min(max(score, 0), 100)
+    let risk: String
+    let recommendation: String
+    if clampedScore >= 78 {
+      risk = "Lower risk"
+      recommendation = "Best candidate"
+    } else if clampedScore >= 55 {
+      risk = "Review before purchase"
+      recommendation = "Viable with checks"
+    } else {
+      risk = "High risk"
+      recommendation = "Do not buy until reviewed"
+    }
+    return (clampedScore, risk, recommendation, reasons)
   }
 
   func createReviewTask(from item: WishlistItem) {
