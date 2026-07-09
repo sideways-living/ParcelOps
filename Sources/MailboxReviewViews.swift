@@ -345,7 +345,7 @@ struct MailboxView: View {
             GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-            MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
+            MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
             Text("Provider rows summarize the latest active mailbox outcomes, trend history, handoff status, and refresh status so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
