@@ -26,6 +26,22 @@ struct TasksView: View {
   private var draftFollowUpItems: [DraftMessage] {
     Array(store.draftMessagesNeedingReview.prefix(6))
   }
+  private var wishlistTaskContextItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("purchase blocked")
+        || item.status.localizedCaseInsensitiveContains("handoff")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+    }
+  }
+  private var wishlistLinkedQueueItems: [TaskQueueItem] {
+    queueItems.filter { $0.linkedEntityType == .wishlistItem }
+  }
+  private var wishlistDraftItems: [DraftMessage] {
+    store.draftMessagesNeedingReview.filter { $0.linkedEntityType == .wishlistItem }
+  }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
@@ -459,6 +475,7 @@ struct TasksView: View {
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel
+        wishlistTaskContextPanel
         mailboxIntakeTaskReadinessPanel
         inboxParserTaskContextPanel
         gmailTaskContextPanel
@@ -506,6 +523,58 @@ struct TasksView: View {
       else { return false }
       return order.isInboxCreatedLocalOrder
     }.count
+  }
+
+  private var wishlistTaskContextPanel: some View {
+    SettingsPanel(title: "Wishlist task boundary", symbol: "star.square.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Wishlist purchase planning stays in Wishlist until a named owner, blocker, draft, or handoff needs follow-up. Use this panel to avoid turning every wanted item into task backlog.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Wishlist follow-up", "\(wishlistTaskContextItems.count)", wishlistTaskContextItems.isEmpty ? .green : .purple),
+          ("Linked tasks", "\(wishlistLinkedQueueItems.count)", wishlistLinkedQueueItems.isEmpty ? .green : .orange),
+          ("Drafts", "\(wishlistDraftItems.count)", wishlistDraftItems.isEmpty ? .green : .blue),
+          ("Blocked", "\(wishlistTaskContextItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistTaskContextItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green)
+        ])
+
+        if wishlistTaskContextItems.isEmpty && wishlistLinkedQueueItems.isEmpty && wishlistDraftItems.isEmpty {
+          Label("No Wishlist work is currently promoted into Tasks. Keep purchase comparison and readiness review in Wishlist until ownership is needed.", systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          ForEach(wishlistTaskContextItems.prefix(3)) { item in
+            NavigationLink {
+              WishlistView(store: store)
+            } label: {
+              CompactRow(
+                title: item.itemName,
+                detail: "\(item.status) • \(item.purchaseReadiness ?? "readiness not checked")",
+                badge: item.purchaseHandoff == nil ? "Wishlist" : "Handoff",
+                color: item.status.localizedCaseInsensitiveContains("blocked") ? .red : .purple
+              )
+            }
+            .buttonStyle(.plain)
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
   }
 
   private var overdueActionCount: Int {

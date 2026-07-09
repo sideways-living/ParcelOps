@@ -573,8 +573,25 @@ struct DashboardView: View {
   private var operatorWorkbenchReviewItems: [WorkbenchItem] {
     operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
   }
+  private var wishlistAttentionItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("purchase blocked")
+        || item.status.localizedCaseInsensitiveContains("handoff")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+    }
+  }
+  private var wishlistReadyItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("ready to purchase")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
+    }
+  }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -586,6 +603,7 @@ struct DashboardView: View {
       dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
       dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened"),
       dashboardMatches("tasks", "task", "handoff", "draft", "follow-up", "overdue"),
+      dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy"),
       dashboardMatches("settings", "setup", "placeholder", "shopify", "folder", "login", "local-only"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
       dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "parser", "import", "acceptance"),
@@ -604,6 +622,7 @@ struct DashboardView: View {
     if highPriorityOperatorWorkbenchItems.count > 0 { return .purple }
     if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
+    if !wishlistAttentionItems.isEmpty { return .purple }
     if taskAttentionCount > 0 { return .orange }
     if setupAttentionCount > 0 { return .teal }
     return .green
@@ -620,6 +639,7 @@ struct DashboardView: View {
     if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
+    if !wishlistAttentionItems.isEmpty { return "Review Wishlist purchases" }
     if taskAttentionCount > 0 { return "Start with Tasks" }
     if setupAttentionCount > 0 { return "Review local setup placeholders" }
     return "Daily queue is clear"
@@ -656,6 +676,9 @@ struct DashboardView: View {
     if dispatchAttentionCount > 0 {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
     }
+    if !wishlistAttentionItems.isEmpty {
+      return "\(wishlistAttentionItems.count) wishlist item\(wishlistAttentionItems.count == 1 ? "" : "s") need purchase readiness, handoff, or order-confirmation follow-up."
+    }
     if taskAttentionCount > 0 {
       return "\(taskAttentionCount) task, handoff, or draft message needs ownership, completion, local send status, or review."
     }
@@ -676,6 +699,7 @@ struct DashboardView: View {
     if highPriorityOperatorWorkbenchItems.count > 0 { return .workbench }
     if reopenedInboxDispatchHandoffCount > 0 { return .dispatch }
     if dispatchAttentionCount > 0 { return .dispatch }
+    if !wishlistAttentionItems.isEmpty { return .wishlist }
     if taskAttentionCount > 0 { return .tasks }
     if setupAttentionCount > 0 { return .settings }
     return .audit
@@ -733,6 +757,14 @@ struct DashboardView: View {
         "Dispatch",
         "paperplane.fill",
         dispatchAttentionCount == 0 ? .green : .blue
+      ),
+      (
+        "Wishlist",
+        "Review purchase ideas, seller comparison, readiness checks, manual handoff, and order-confirmation follow-up.",
+        wishlistAttentionItems.count,
+        "Wishlist",
+        "star.square.fill",
+        wishlistAttentionItems.isEmpty ? .green : .purple
       ),
       (
         "Tasks",
@@ -1845,6 +1877,19 @@ struct DashboardView: View {
               tint: taskAttentionCount == 0 ? .green : .orange
             ) {
               TasksView(store: store)
+            }
+          }
+
+          if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy") {
+            OperatorDashboardCard(
+              title: "Wishlist",
+              count: wishlistAttentionItems.count,
+              detail: "Purchase ideas needing seller comparison, readiness checks, manual purchase handoff, or order-confirmation follow-up.",
+              nextAction: wishlistAttentionItems.isEmpty ? (wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items") : "Clear purchase handoff work",
+              symbol: "star.square.fill",
+              tint: wishlistAttentionItems.isEmpty ? (wishlistReadyItems.isEmpty ? .green : .teal) : .purple
+            ) {
+              WishlistView(store: store)
             }
           }
 

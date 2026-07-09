@@ -113,6 +113,16 @@ struct OperationsWorkbenchView: View {
   private var draftFollowUpItems: [DraftMessage] {
     Array(store.draftMessagesNeedingReview.prefix(5))
   }
+  private var wishlistWorkbenchItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("purchase blocked")
+        || item.status.localizedCaseInsensitiveContains("handoff")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+    }
+  }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
@@ -666,6 +676,7 @@ struct OperationsWorkbenchView: View {
         workbenchDiagnosticsBoundary
         inboxCreatedOrderFollowUp
         draftFollowUpPanel
+        wishlistPurchaseFollowUpPanel
         operatorQueue
         advancedFilters
       }
@@ -1810,6 +1821,36 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  @ViewBuilder
+  private var wishlistPurchaseFollowUpPanel: some View {
+    if !wishlistWorkbenchItems.isEmpty {
+      SettingsPanel(title: "Wishlist purchase follow-up", symbol: "star.square.fill") {
+        Text("Wishlist items become Workbench-visible when they are blocked before purchase, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, or mailbox monitoring runs here.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Follow-up", "\(wishlistWorkbenchItems.count)", .purple),
+          ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
+          ("Handoff", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff != nil }.count)", .teal),
+          ("Order link", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff?.linkedOrderID != nil }.count)", .green)
+        ])
+
+        ForEach(wishlistWorkbenchItems.prefix(4)) { item in
+          WishlistWorkbenchFollowUpRow(item: item, store: store)
+        }
+
+        NavigationLink {
+          WishlistView(store: store)
+        } label: {
+          Label("Open Wishlist", systemImage: "star.square.fill")
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
   private var operatorQueue: some View {
     Group {
       if queueItems.isEmpty {
@@ -2434,6 +2475,68 @@ private struct WorkbenchDraftFollowUpRow: View {
     .padding(12)
     .background(.thinMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistWorkbenchFollowUpRow: View {
+  var item: WishlistItem
+  var store: ParcelOpsStore
+
+  private var handoff: WishlistPurchaseHandoff? {
+    item.purchaseHandoff
+  }
+
+  private var tone: Color {
+    if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
+    if item.status.localizedCaseInsensitiveContains("confirmation") { return .orange }
+    if handoff != nil { return .purple }
+    return .teal
+  }
+
+  private var nextAction: String {
+    if item.status.localizedCaseInsensitiveContains("blocked") {
+      return "Resolve purchase readiness blockers before manual buying."
+    }
+    if item.status.localizedCaseInsensitiveContains("confirmation") {
+      return "Link the seen order confirmation to an order record."
+    }
+    if handoff != nil {
+      return "Confirm account, payment, seller, and order-watch context."
+    }
+    return "Review seller comparison and readiness."
+  }
+
+  var body: some View {
+    NavigationLink {
+      WishlistView(store: store)
+    } label: {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label(item.itemName, systemImage: "star.square.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+          Spacer(minLength: 8)
+          Badge(item.status, color: tone)
+        }
+        Text("\(item.storefront) • \(item.estimatedCost) • \(item.owner)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if let handoff {
+          Text("Handoff: \(handoff.sellerName) • \(handoff.purchaseStatus) • \(handoff.orderWatchStatus)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Label(nextAction, systemImage: "arrow.turn.down.right")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(tone)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
   }
 }
 
