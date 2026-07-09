@@ -1556,6 +1556,8 @@ struct TasksView: View {
             ("Tasks", "\(spaceMailAssignedFollowUpItems.filter { if case .task = $0.source { return true }; return false }.count)", .orange)
           ])
 
+          SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(spaceMailAssignedFollowUpItems.prefix(4)) { item in
               VStack(alignment: .leading, spacing: 6) {
