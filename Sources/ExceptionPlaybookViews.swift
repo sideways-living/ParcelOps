@@ -148,17 +148,19 @@ struct ExceptionPlaybooksView: View {
 
   private var inboxPlaybookCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedPlaybooks = playbooksLinkedToInboxOrders
     let actionPlaybooks = linkedPlaybooks.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
 
-    return SettingsPanel(title: "Inbox exception readiness", symbol: "book.closed.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist exception readiness", symbol: "book.closed.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local exception guidance for missing details, tracking, validation, reconciliation, or dispatch problems.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local exception guidance for missing details, tracking, validation, reconciliation, or dispatch problems.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedPlaybooks.count) matched playbooks", color: .teal)
           Badge("\(actionPlaybooks.count) need action", color: actionPlaybooks.isEmpty ? .green : .orange)
           Badge("\(store.playbooksNeedingReview.count) review", color: store.playbooksNeedingReview.isEmpty ? .green : .orange)
@@ -196,12 +198,12 @@ struct ExceptionPlaybooksView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking exception playbook coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking exception playbook coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedPlaybooks.isEmpty {
-          Text("No exception playbooks currently match Inbox-created order gaps, tracking issues, or dispatch context.")
+          Text("No exception playbooks currently match Inbox-created or Wishlist-linked order gaps, tracking issues, or dispatch context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionPlaybooks.isEmpty {
@@ -233,16 +235,34 @@ struct ExceptionPlaybooksView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var playbookSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var playbooksLinkedToInboxOrders: [ExceptionPlaybook] {
     store.exceptionPlaybooks.filter { playbook in
-      inboxCreatedOrders.contains { order in
+      playbookSourceOrders.contains { order in
         exceptionPlaybook(playbook, matches: order)
       }
     }
   }
 
   private func inboxOrders(for playbook: ExceptionPlaybook) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { exceptionPlaybook(playbook, matches: $0) }
+    playbookSourceOrders.filter { exceptionPlaybook(playbook, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func exceptionPlaybook(_ playbook: ExceptionPlaybook, matches order: TrackedOrder) -> Bool {
@@ -434,7 +454,7 @@ struct ExceptionPlaybookRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox exception source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist exception source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -525,7 +545,7 @@ struct ExceptionPlaybookRow: View {
   private var playbookWarnings: [String] {
     var warnings: [String] = []
     if !playbook.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This playbook matches Inbox-created order context but is disabled.")
+      warnings.append("This playbook matches Inbox-created or Wishlist-linked order context but is disabled.")
     }
     if playbook.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Playbook needs review before relying on it for operator guidance.")

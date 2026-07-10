@@ -140,17 +140,19 @@ struct SLAPoliciesView: View {
 
   private var inboxPolicyCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedPolicies = policiesLinkedToInboxOrders
     let actionPolicies = linkedPolicies.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
 
-    return SettingsPanel(title: "Inbox SLA readiness", symbol: "timer") {
+    return SettingsPanel(title: "Inbox and Wishlist SLA readiness", symbol: "timer") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local response, resolution, or escalation policy context. Policies remain manual guidance only.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local response, resolution, or escalation policy context. Policies remain manual guidance only.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedPolicies.count) matched policies", color: .teal)
           Badge("\(actionPolicies.count) need action", color: actionPolicies.isEmpty ? .green : .orange)
           Badge("\(store.policiesNeedingReview.count) review", color: store.policiesNeedingReview.isEmpty ? .green : .orange)
@@ -188,12 +190,12 @@ struct SLAPoliciesView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking SLA coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking SLA coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedPolicies.isEmpty {
-          Text("No SLA policies currently match Inbox-created orders by linked record type or condition wording.")
+          Text("No SLA policies currently match Inbox-created or Wishlist-linked orders by linked record type or condition wording.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionPolicies.isEmpty {
@@ -292,16 +294,34 @@ struct SLAPoliciesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var policySourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var policiesLinkedToInboxOrders: [SLAPolicy] {
     store.slaPolicies.filter { policy in
-      inboxCreatedOrders.contains { order in
+      policySourceOrders.contains { order in
         slaPolicy(policy, matches: order)
       }
     }
   }
 
   private func inboxOrders(for policy: SLAPolicy) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { slaPolicy(policy, matches: $0) }
+    policySourceOrders.filter { slaPolicy(policy, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func slaPolicy(_ policy: SLAPolicy, matches order: TrackedOrder) -> Bool {
@@ -422,7 +442,7 @@ struct SLAPolicyRow: View {
 
           if !inboxOrders.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-              Label("Inbox SLA source", systemImage: "tray.and.arrow.down.fill")
+              Label("Inbox/Wishlist SLA source", systemImage: "tray.and.arrow.down.fill")
                 .font(.caption.bold())
                 .foregroundStyle(.teal)
               ForEach(inboxOrders.prefix(2)) { order in
@@ -520,7 +540,7 @@ struct SLAPolicyRow: View {
   private var policyWarnings: [String] {
     var warnings: [String] = []
     if !policy.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This SLA policy matches Inbox-created order context but is disabled.")
+      warnings.append("This SLA policy matches Inbox-created or Wishlist-linked order context but is disabled.")
     }
     if policy.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Policy needs review before relying on it for local response or escalation guidance.")

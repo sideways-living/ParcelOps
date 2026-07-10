@@ -204,6 +204,7 @@ struct DeliveryInstructionsView: View {
 
   private var inboxInstructionCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedInstructions = deliveryInstructionsLinkedToInboxOrders
     let actionInstructions = linkedInstructions.filter { instruction in
       !instruction.isEnabled
@@ -214,14 +215,15 @@ struct DeliveryInstructionsView: View {
     }
     let missingCount = inboxOrdersMissingInstruction.count
 
-    return SettingsPanel(title: "Inbox delivery instruction readiness", symbol: "signpost.right.and.left.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist delivery instruction readiness", symbol: "signpost.right.and.left.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have reusable delivery windows, access constraints, and carrier notes before dispatch handoff.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have reusable delivery windows, access constraints, and carrier notes before dispatch handoff.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedInstructions.count) matched instructions", color: .teal)
           Badge("\(actionInstructions.count) need action", color: actionInstructions.isEmpty ? .green : .orange)
           Badge("\(missingCount) without instruction", color: missingCount == 0 ? .green : .orange)
@@ -259,16 +261,16 @@ struct DeliveryInstructionsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking instruction coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking instruction coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedInstructions.isEmpty {
-          Text("No delivery instructions currently match Inbox-created orders by order link, destination, customer profile, or carrier context.")
+          Text("No delivery instructions currently match Inbox-created or Wishlist-linked orders by order link, destination, customer profile, or carrier context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionInstructions.isEmpty {
-          Text("Matched delivery instructions are enabled, reviewed, and low-risk for current Inbox-created orders.")
+          Text("Matched delivery instructions are enabled, reviewed, and low-risk for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -335,16 +337,24 @@ struct DeliveryInstructionsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var instructionSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var deliveryInstructionsLinkedToInboxOrders: [DeliveryInstructionRecord] {
     store.deliveryInstructions.filter { instruction in
-      inboxCreatedOrders.contains { order in
+      instructionSourceOrders.contains { order in
         deliveryInstruction(instruction, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingInstruction: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    instructionSourceOrders.filter { order in
       !store.deliveryInstructions.contains { instruction in
         deliveryInstruction(instruction, matches: order)
       }
@@ -352,7 +362,17 @@ struct DeliveryInstructionsView: View {
   }
 
   private func inboxOrders(for instruction: DeliveryInstructionRecord) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { deliveryInstruction(instruction, matches: $0) }
+    instructionSourceOrders.filter { deliveryInstruction(instruction, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func deliveryInstruction(_ instruction: DeliveryInstructionRecord, matches order: TrackedOrder) -> Bool {
@@ -585,7 +605,7 @@ struct DeliveryInstructionRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox instruction source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist instruction source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -644,7 +664,7 @@ struct DeliveryInstructionRow: View {
   private var instructionWarnings: [String] {
     var warnings: [String] = []
     if !instruction.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This instruction matches an Inbox-created order but is disabled.")
+      warnings.append("This instruction matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if instruction.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Instruction needs review before relying on it for delivery or dispatch handoff.")

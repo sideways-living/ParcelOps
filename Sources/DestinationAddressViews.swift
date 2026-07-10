@@ -175,18 +175,20 @@ struct DestinationAddressesView: View {
 
   private var inboxAddressCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedAddresses = destinationAddressesLinkedToInboxOrders
     let actionAddresses = linkedAddresses.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.riskLevel == .high || $0.riskLevel == .critical }
     let missingCount = inboxOrdersMissingAddress.count
 
-    return SettingsPanel(title: "Inbox destination readiness", symbol: "mappin.and.ellipse") {
+    return SettingsPanel(title: "Inbox and Wishlist destination readiness", symbol: "mappin.and.ellipse") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have reusable destination records before delivery, storage, or dispatch handoff.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have reusable destination records before delivery, storage, or dispatch handoff.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedAddresses.count) matched addresses", color: .teal)
           Badge("\(actionAddresses.count) need action", color: actionAddresses.isEmpty ? .green : .orange)
           Badge("\(missingCount) without address", color: missingCount == 0 ? .green : .orange)
@@ -224,16 +226,16 @@ struct DestinationAddressesView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking destination coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking destination coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedAddresses.isEmpty {
-          Text("No destination addresses currently match Inbox-created orders by destination, city, carrier, or customer profile.")
+          Text("No destination addresses currently match Inbox-created or Wishlist-linked orders by destination, city, carrier, or customer profile.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionAddresses.isEmpty {
-          Text("Matched destination addresses are enabled, reviewed, and not high-risk for current Inbox-created orders.")
+          Text("Matched destination addresses are enabled, reviewed, and not high-risk for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -300,16 +302,24 @@ struct DestinationAddressesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var destinationSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var destinationAddressesLinkedToInboxOrders: [DestinationAddressRecord] {
     store.destinationAddresses.filter { address in
-      inboxCreatedOrders.contains { order in
+      destinationSourceOrders.contains { order in
         destinationAddress(address, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingAddress: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    destinationSourceOrders.filter { order in
       !store.destinationAddresses.contains { address in
         destinationAddress(address, matches: order)
       }
@@ -317,7 +327,17 @@ struct DestinationAddressesView: View {
   }
 
   private func inboxOrders(for address: DestinationAddressRecord) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { destinationAddress(address, matches: $0) }
+    destinationSourceOrders.filter { destinationAddress(address, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func destinationAddress(_ address: DestinationAddressRecord, matches order: TrackedOrder) -> Bool {
@@ -468,7 +488,7 @@ struct DestinationAddressRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox destination source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist destination source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -566,7 +586,7 @@ struct DestinationAddressRow: View {
   private var addressWarnings: [String] {
     var warnings: [String] = []
     if !address.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This address matches an Inbox-created order but is disabled.")
+      warnings.append("This address matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if address.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Address needs review before relying on it for dispatch or delivery handoff.")
