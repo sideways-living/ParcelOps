@@ -348,12 +348,80 @@ struct InboxView: View {
         InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
         mailboxHealthPanel
         missingOrderDiagnosticPanel
+        wishlistOrderWatchPanel
         triagePanel
         detailRoutes
       }
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var wishlistOrderWatchItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+      }
+      .sorted { first, second in
+        let firstMatches = store.suggestedWishlistOrderConfirmations(for: first).count
+        let secondMatches = store.suggestedWishlistOrderConfirmations(for: second).count
+        if firstMatches == secondMatches {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstMatches > secondMatches
+      }
+  }
+
+  private var wishlistOrderWatchMatchCount: Int {
+    wishlistOrderWatchItems.reduce(0) { partial, item in
+      partial + store.suggestedWishlistOrderConfirmations(for: item).count
+    }
+  }
+
+  @ViewBuilder
+  private var wishlistOrderWatchPanel: some View {
+    if !wishlistOrderWatchItems.isEmpty {
+      SettingsPanel(title: "Wishlist order watch", symbol: "star.square.on.square.fill") {
+        Text("Wishlist purchases with a local handoff but no linked order appear here. Match them to already-imported Inbox confirmations; ParcelOps does not monitor retailer accounts or fetch mail in the background.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Watching", "\(wishlistOrderWatchItems.count)", .orange),
+          ("Inbox matches", "\(wishlistOrderWatchMatchCount)", wishlistOrderWatchMatchCount > 0 ? .green : .secondary),
+          ("Source", "local intake", .blue)
+        ])
+
+        ForEach(wishlistOrderWatchItems.prefix(isCompact ? 3 : 5)) { item in
+          WishlistOrderWatchMatchRow(
+            item: item,
+            matches: Array(store.suggestedWishlistOrderConfirmations(for: item).prefix(3)),
+            onUseConfirmation: { email in
+              store.confirmWishlistOrderFromIntake(item, email: email)
+            },
+            onMarkSeen: {
+              store.markWishlistOrderConfirmationSeen(item)
+            }
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          .buttonStyle(.bordered)
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Mailbox Monitor", systemImage: "envelope.open.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
   }
 
   private var mailboxProviderNextStepPanel: some View {

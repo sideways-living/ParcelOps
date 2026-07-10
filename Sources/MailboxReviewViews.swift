@@ -60,6 +60,73 @@ struct MailboxView: View {
       + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
   }
 
+  private var wishlistOrderWatchItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+      }
+      .sorted { first, second in
+        let firstMatches = store.suggestedWishlistOrderConfirmations(for: first).count
+        let secondMatches = store.suggestedWishlistOrderConfirmations(for: second).count
+        if firstMatches == secondMatches {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstMatches > secondMatches
+      }
+  }
+
+  private var wishlistOrderWatchMatchCount: Int {
+    wishlistOrderWatchItems.reduce(0) { partial, item in
+      partial + store.suggestedWishlistOrderConfirmations(for: item).count
+    }
+  }
+
+  @ViewBuilder
+  private var wishlistOrderWatchPanel: some View {
+    if !wishlistOrderWatchItems.isEmpty {
+      SettingsPanel(title: "Wishlist order watch", symbol: "star.square.on.square.fill") {
+        Text("Use this after manual mailbox refreshes to connect Wishlist purchase handoffs to imported order confirmations. This is local matching only; ParcelOps does not watch retailer accounts, run checkout, or poll mail in the background.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Watching", "\(wishlistOrderWatchItems.count)", .orange),
+          ("Inbox matches", "\(wishlistOrderWatchMatchCount)", wishlistOrderWatchMatchCount > 0 ? .green : .secondary),
+          ("Action", wishlistOrderWatchMatchCount > 0 ? "link match" : "refresh mail", wishlistOrderWatchMatchCount > 0 ? .green : .blue)
+        ])
+
+        ForEach(wishlistOrderWatchItems.prefix(5)) { item in
+          WishlistOrderWatchMatchRow(
+            item: item,
+            matches: Array(store.suggestedWishlistOrderConfirmations(for: item).prefix(3)),
+            onUseConfirmation: { email in
+              store.confirmWishlistOrderFromIntake(item, email: email)
+            },
+            onMarkSeen: {
+              store.markWishlistOrderConfirmationSeen(item)
+            }
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          .buttonStyle(.bordered)
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
     let query = normalizedIntakeSearch
     guard !query.isEmpty else { return true }
@@ -110,6 +177,8 @@ struct MailboxView: View {
           showHandoffPacket: true,
           showMailboxLink: false
         )
+
+        wishlistOrderWatchPanel
 
         MailboxSpaceMailReadinessPanel(store: store)
 
@@ -566,6 +635,114 @@ struct MailboxView: View {
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
+  }
+}
+
+struct WishlistOrderWatchMatchRow: View {
+  var item: WishlistItem
+  var matches: [ForwardedEmailIntake]
+  var onUseConfirmation: (ForwardedEmailIntake) -> Void
+  var onMarkSeen: () -> Void
+
+  private var handoff: WishlistPurchaseHandoff? {
+    item.purchaseHandoff
+  }
+
+  private var expectedSignals: String {
+    let value = handoff?.expectedOrderSignals.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return value.isEmpty ? "\(item.storefront) | \(item.itemName)" : value
+  }
+
+  private var sellerLabel: String {
+    let seller = handoff?.sellerName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return seller.isEmpty || seller.isPlaceholderValidationValue ? item.storefront : seller
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: matches.isEmpty ? "clock.badge.exclamationmark" : "link.badge.plus")
+          .foregroundStyle(matches.isEmpty ? Color.orange : Color.green)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(item.itemName)
+            .font(.subheadline.weight(.semibold))
+          Text("\(sellerLabel) • \(handoff?.purchaseStatus ?? "Purchase handoff active")")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Expected signal: \(expectedSignals)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer()
+        Badge(matches.isEmpty ? "No match yet" : "\(matches.count) match\(matches.count == 1 ? "" : "es")", color: matches.isEmpty ? .orange : .green)
+      }
+
+      if matches.isEmpty {
+        Text("No imported Inbox confirmation currently matches this Wishlist handoff. Run a manual mailbox refresh, or use Mark seen if the purchase was checked outside ParcelOps.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(matches) { email in
+            HStack(alignment: .top, spacing: 10) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(email.subject.isPlaceholderValidationValue ? "Imported confirmation" : email.subject)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(email.sender)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                Text(wishlistOrderWatchEmailSummary(email))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+              Spacer()
+              Button("Use confirmation", systemImage: "link.badge.plus") {
+                onUseConfirmation(email)
+              }
+              .buttonStyle(.borderedProminent)
+              .controlSize(.small)
+            }
+            .padding(8)
+            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
+      CompactActionRow {
+        Button("Mark seen", systemImage: "envelope.badge.fill", action: onMarkSeen)
+          .buttonStyle(.bordered)
+        if let linkedOrderID = handoff?.linkedOrderID {
+          Badge("Linked order \(linkedOrderID.uuidString.prefix(8))", color: .green)
+        } else {
+          Badge("Order link pending", color: .orange)
+        }
+      }
+    }
+    .padding(12)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func wishlistOrderWatchEmailSummary(_ email: ForwardedEmailIntake) -> String {
+    var parts: [String] = []
+    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+      parts.append("Order \(email.detectedOrderNumber)")
+    }
+    if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+      parts.append("Tracking \(email.detectedTrackingNumber)")
+    }
+    if !email.detectedMerchant.isPlaceholderValidationValue {
+      parts.append("Merchant \(email.detectedMerchant)")
+    }
+    if parts.isEmpty {
+      parts.append("Imported \(email.receivedDate)")
+    }
+    return parts.joined(separator: " • ")
   }
 }
 
