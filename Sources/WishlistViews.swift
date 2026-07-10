@@ -125,6 +125,7 @@ struct WishlistView: View {
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
+        wishlistPurchaseAccountLedgerPanel
         wishlistAgentHandoffPacketPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
@@ -2353,6 +2354,174 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseAccountLedgerItems: [WishlistPurchaseAccountLedgerEntry] {
+    store.wishlistItems
+      .compactMap { item -> WishlistPurchaseAccountLedgerEntry? in
+        let decision = item.purchaseDecision
+        let handoff = item.purchaseHandoff
+        let isPurchaseRelated = handoff != nil
+          || decision?.reviewState == .accepted
+          || item.status.localizedCaseInsensitiveContains("purchase")
+          || item.status.localizedCaseInsensitiveContains("order confirmation")
+          || item.status.localizedCaseInsensitiveContains("purchased")
+        guard isPurchaseRelated else { return nil }
+
+        let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+          store.orders.first { $0.id == orderID }
+        }
+        let candidateCount = store.suggestedWishlistOrderConfirmations(for: item).count
+
+        if handoff == nil {
+          return WishlistPurchaseAccountLedgerEntry(
+            item: item,
+            handoff: nil,
+            linkedOrder: linkedOrder,
+            candidateCount: candidateCount,
+            stage: "Handoff needed",
+            detail: "Prepare the local account/order-watch handoff before buying externally.",
+            tone: .purple,
+            actionTitle: "Prepare handoff",
+            actionSymbol: "person.crop.circle.badge.checkmark",
+            sortPriority: 1
+          )
+        }
+
+        if linkedOrder == nil && candidateCount > 0 {
+          return WishlistPurchaseAccountLedgerEntry(
+            item: item,
+            handoff: handoff,
+            linkedOrder: nil,
+            candidateCount: candidateCount,
+            stage: "Confirmation candidates",
+            detail: "Inbox has possible order confirmations. Review and link one before closing purchase follow-up.",
+            tone: .teal,
+            actionTitle: "Order seen",
+            actionSymbol: "envelope.badge.fill",
+            sortPriority: 2
+          )
+        }
+
+        if linkedOrder == nil && (handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true || handoff?.orderWatchStatus.localizedCaseInsensitiveContains("watch") == true) {
+          return WishlistPurchaseAccountLedgerEntry(
+            item: item,
+            handoff: handoff,
+            linkedOrder: nil,
+            candidateCount: candidateCount,
+            stage: "Awaiting confirmation",
+            detail: "External purchase has been recorded. Watch Inbox for an order confirmation from the selected seller/account.",
+            tone: .orange,
+            actionTitle: "Order seen",
+            actionSymbol: "envelope.badge.fill",
+            sortPriority: 3
+          )
+        }
+
+        if linkedOrder == nil {
+          return WishlistPurchaseAccountLedgerEntry(
+            item: item,
+            handoff: handoff,
+            linkedOrder: nil,
+            candidateCount: candidateCount,
+            stage: "Ready for order watch",
+            detail: "Handoff is staged. Record the external purchase when it happens, then watch for confirmation.",
+            tone: .green,
+            actionTitle: "Purchased",
+            actionSymbol: "bag.fill",
+            sortPriority: 4
+          )
+        }
+
+        return WishlistPurchaseAccountLedgerEntry(
+          item: item,
+          handoff: handoff,
+          linkedOrder: linkedOrder,
+          candidateCount: candidateCount,
+          stage: "Linked order",
+          detail: "Wishlist purchase has a linked order trail. Keep the order open for dispatch and receipt follow-up.",
+          tone: .green,
+          actionTitle: "Focus item",
+          actionSymbol: "scope",
+          sortPriority: 5
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseAccountLedgerPanel: some View {
+    let entries = wishlistPurchaseAccountLedgerItems
+    let needHandoff = entries.filter { $0.handoff == nil }.count
+    let watching = entries.filter { $0.stage == "Awaiting confirmation" || $0.stage == "Ready for order watch" }.count
+    let candidates = entries.filter { $0.candidateCount > 0 && $0.linkedOrder == nil }.count
+    let linked = entries.filter { $0.linkedOrder != nil }.count
+
+    return SettingsPanel(title: "Purchase account and order-watch ledger", symbol: "person.crop.circle.badge.clock.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Track the local trail from selected seller to account label, external purchase, expected confirmation signals, and linked order. This ledger does not log in, buy, send email, store payment details, or monitor mail in the background.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Ledger items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Need handoff", "\(needHandoff)", needHandoff == 0 ? .green : .purple),
+          ("Watching", "\(watching)", watching == 0 ? .secondary : .orange),
+          ("Inbox candidates", "\(candidates)", candidates == 0 ? .secondary : .teal),
+          ("Linked orders", "\(linked)", linked == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No purchase account ledger yet",
+            detail: "Prepare a Wishlist purchase handoff or accept a purchase decision to start tracking account labels and order-confirmation watch locally.",
+            symbol: "person.crop.circle.badge.clock.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 252 : 385), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseAccountLedgerRow(entry: entry) {
+                runWishlistPurchaseAccountLedgerAction(for: entry)
+              } onPurchased: {
+                store.recordWishlistPurchasedExternally(entry.item)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more ledger item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private func runWishlistPurchaseAccountLedgerAction(for entry: WishlistPurchaseAccountLedgerEntry) {
+    if entry.handoff == nil {
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    } else if entry.linkedOrder == nil && entry.stage == "Ready for order watch" {
+      store.recordWishlistPurchasedExternally(entry.item)
+    } else if entry.linkedOrder == nil {
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    } else {
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistAgentHandoffPacketPanel: some View {
     let requests = store.wishlistResearchRequests
     let ready = requests.filter(\.isAgentBriefReady)
@@ -2822,6 +2991,109 @@ private struct WishlistPurchaseOperatorChecklistRow: View {
     }
     .padding(10)
     .background(checklist.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseAccountLedgerEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var handoff: WishlistPurchaseHandoff?
+  var linkedOrder: TrackedOrder?
+  var candidateCount: Int
+  var stage: String
+  var detail: String
+  var tone: Color
+  var actionTitle: String
+  var actionSymbol: String
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseAccountLedgerRow: View {
+  var entry: WishlistPurchaseAccountLedgerEntry
+  var onAction: () -> Void
+  var onPurchased: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var seller: String {
+    entry.handoff?.sellerName ?? entry.item.purchaseDecision?.selectedSellerName ?? entry.item.storefront
+  }
+
+  private var account: String {
+    entry.handoff?.accountLabel ?? "\(entry.item.owner) account to confirm"
+  }
+
+  private var orderSummary: String {
+    entry.linkedOrder?.orderNumber ?? "No linked order"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "person.crop.circle.badge.clock.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(seller) • \(account)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 126) {
+        WishlistMatrixMetric(title: "Seller", value: seller, symbol: "storefront.fill")
+        WishlistMatrixMetric(title: "Account", value: account, symbol: "person.crop.circle.badge.key.fill")
+        WishlistMatrixMetric(title: "Order", value: orderSummary, symbol: "link")
+        WishlistMatrixMetric(title: "Candidates", value: "\(entry.candidateCount) Inbox", symbol: "envelope.badge.fill")
+      }
+
+      if let handoff = entry.handoff {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Order-watch notes", systemImage: "eye.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Text(handoff.expectedOrderSignals)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+          Text(handoff.orderWatchStatus)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      } else {
+        Text("No purchase handoff exists yet. Prepare one before buying externally so the account label and expected confirmation text are captured locally.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.purple)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Local-only ledger: no account login, checkout, payment, mailbox mutation, carrier booking, or background monitoring occurs here.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.actionTitle, systemImage: entry.actionSymbol, action: onAction)
+        Button("Purchased", systemImage: "bag.fill", action: onPurchased)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
