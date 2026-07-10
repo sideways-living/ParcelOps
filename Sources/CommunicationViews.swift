@@ -110,6 +110,7 @@ struct CommunicationView: View {
         .buttonStyle(.bordered)
 
         draftSummaryPanel
+        wishlistDraftFocusPanel
         gmailDraftFocusPanel
         inboxDraftCoverage
         filterBar
@@ -255,6 +256,109 @@ struct CommunicationView: View {
         }
         return firstPriority > secondPriority
       }
+  }
+
+  private var wishlistDrafts: [DraftMessage] {
+    store.draftMessages
+      .filter { draft in
+        draft.linkedEntityType == .wishlistItem
+          || draft.linkedEntityID.localizedCaseInsensitiveContains("wishlist")
+          || draft.subject.localizedCaseInsensitiveContains("wishlist")
+          || draft.body.localizedCaseInsensitiveContains("wishlist")
+      }
+      .sorted { first, second in
+        let firstPriority = wishlistDraftSortPriority(first)
+        let secondPriority = wishlistDraftSortPriority(second)
+        if firstPriority == secondPriority {
+          return first.createdDate > second.createdDate
+        }
+        return firstPriority > secondPriority
+      }
+  }
+
+  private var openWishlistDrafts: [DraftMessage] {
+    wishlistDrafts.filter { $0.status != .sentLocally || $0.reviewState != .accepted }
+  }
+
+  private var wishlistBatchDrafts: [DraftMessage] {
+    wishlistDrafts.filter {
+      $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
+    }
+  }
+
+  @ViewBuilder
+  private var wishlistDraftFocusPanel: some View {
+    if !wishlistDrafts.isEmpty || !store.wishlistItems.isEmpty || !store.wishlistResearchRequests.isEmpty {
+      SettingsPanel(title: "Wishlist draft focus", symbol: "star.square.on.square.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Wishlist research briefs, purchase handoff packets, and seller follow-up drafts are grouped here. They stay local until an operator copies or sends them outside ParcelOps and marks them sent locally.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Wishlist drafts", "\(wishlistDrafts.count)", wishlistDrafts.isEmpty ? .secondary : .purple),
+            ("Open", "\(openWishlistDrafts.count)", openWishlistDrafts.isEmpty ? .green : .orange),
+            ("Batch briefs", "\(wishlistBatchDrafts.count)", wishlistBatchDrafts.isEmpty ? .secondary : .blue),
+            ("Ready", "\(wishlistDrafts.filter { $0.status == .ready }.count)", wishlistDrafts.contains { $0.status == .ready } ? .blue : .green),
+            ("Needs review", "\(wishlistDrafts.filter { $0.reviewState != .accepted }.count)", wishlistDrafts.contains { $0.reviewState != .accepted } ? .orange : .green)
+          ])
+
+          if openWishlistDrafts.isEmpty && !wishlistDrafts.isEmpty {
+            Label("Wishlist drafts are reviewed and marked sent locally. Reopen a draft only if seller comparison, purchase handoff, or order-watch work needs another pass.", systemImage: "checkmark.seal.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.green)
+          } else if wishlistDrafts.isEmpty {
+            Label("No Wishlist drafts yet. Create research briefs or purchase handoff packets from Wishlist when comparison work is ready to leave the item view.", systemImage: "doc.badge.plus")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+          } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 200 : 280), spacing: 10)], alignment: .leading, spacing: 10) {
+              ForEach(openWishlistDrafts.prefix(4)) { draft in
+                VStack(alignment: .leading, spacing: 8) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(wishlistDraftKind(for: draft), systemImage: wishlistDraftSymbol(for: draft))
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(draft.status.color)
+                    Spacer(minLength: 8)
+                    Badge(draft.status.rawValue, color: draft.status.color)
+                  }
+                  Text(draft.subject)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text(wishlistDraftActionSummary(for: draft))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  CompactMetadataGrid(minimumWidth: 115) {
+                    Badge(draft.reviewState.rawValue, color: draft.reviewState.color)
+                    Label(draft.createdDate, systemImage: "calendar")
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                  }
+                }
+                .padding(10)
+                .background(draft.status.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              WishlistView(store: store)
+            } label: {
+              Label("Open Wishlist", systemImage: "star.square.fill")
+            }
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
   }
 
   private var openGmailDrafts: [DraftMessage] {
@@ -534,6 +638,52 @@ struct CommunicationView: View {
     if draft.status == .draft { priority += 10 }
     if draft.status == .sentLocally { priority -= 20 }
     return priority
+  }
+
+  private func wishlistDraftSortPriority(_ draft: DraftMessage) -> Int {
+    var priority = 0
+    if draft.linkedEntityID == "wishlist-research-batch" { priority += 45 }
+    if draft.status == .ready { priority += 40 }
+    if draft.status == .reopened { priority += 30 }
+    if draft.reviewState != .accepted { priority += 20 }
+    if draft.status == .draft { priority += 10 }
+    if draft.status == .sentLocally { priority -= 20 }
+    return priority
+  }
+
+  private func wishlistDraftKind(for draft: DraftMessage) -> String {
+    if draft.linkedEntityID == "wishlist-research-batch" { return "Batch research" }
+    if draft.body.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
+    if draft.body.localizedCaseInsensitiveContains("seller") { return "Seller follow-up" }
+    return "Wishlist draft"
+  }
+
+  private func wishlistDraftSymbol(for draft: DraftMessage) -> String {
+    if draft.linkedEntityID == "wishlist-research-batch" { return "doc.text.magnifyingglass" }
+    if draft.body.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
+    if draft.body.localizedCaseInsensitiveContains("seller") { return "storefront.fill" }
+    return "star.square.fill"
+  }
+
+  private func wishlistDraftActionSummary(for draft: DraftMessage) -> String {
+    if draft.linkedEntityID == "wishlist-research-batch" {
+      switch draft.status {
+      case .draft:
+        return "Review the comparison packet before handing it to a future research agent or manual research workflow."
+      case .ready:
+        return "Use the packet outside ParcelOps, then mark it sent locally."
+      case .sentLocally:
+        return "Batch packet is closed locally. Reopen only if comparison research needs another pass."
+      case .reopened:
+        return "Update the research scope or packet before marking ready again."
+      }
+    }
+    var parts: [String] = []
+    if draft.status == .ready { parts.append("send or copy outside ParcelOps, then mark sent locally") }
+    if draft.status == .reopened { parts.append("finish reopened Wishlist follow-up") }
+    if draft.status == .draft { parts.append("finish local Wishlist draft") }
+    if draft.reviewState != .accepted { parts.append("mark reviewed after seller, price, trust, or handoff context is checked") }
+    return parts.isEmpty ? "Wishlist draft is reviewed and marked sent locally." : parts.joined(separator: ", ")
   }
 
   private func gmailDraftActionSummary(for draft: DraftMessage) -> String {
