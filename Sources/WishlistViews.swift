@@ -120,6 +120,7 @@ struct WishlistView: View {
         wishlistSellerSafetyRubricPanel
         wishlistComparisonMatrixPanel
         wishlistPurchaseDecisionQueuePanel
+        wishlistPurchaseDecisionSummaryPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
         wishlistAgentHandoffPacketPanel
@@ -1409,6 +1410,227 @@ struct WishlistView: View {
     case 7:
       store.markWishlistOrderConfirmationSeen(item)
     default:
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private var wishlistPurchaseDecisionSummaries: [WishlistPurchaseDecisionSummary] {
+    wishlistPurchaseDecisionQueueItems
+      .map(wishlistPurchaseDecisionSummary(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseDecisionSummaryPanel: some View {
+    let summaries = wishlistPurchaseDecisionSummaries
+    let draftedCount = summaries.filter { $0.item.purchaseDecision != nil }.count
+    let acceptedCount = summaries.filter { $0.item.purchaseDecision?.reviewState == .accepted }.count
+    let missingVerificationCount = summaries.filter { !$0.verificationGaps.isEmpty }.count
+    let handoffReadyCount = summaries.filter { $0.item.purchaseHandoff != nil }.count
+
+    return SettingsPanel(title: "Purchase decision summary", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Review the selected seller and the manual verification still required before buying. ParcelOps records the decision, evidence, and handoff path only; it does not check live retailer data or purchase anything.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Summaries", "\(summaries.count)", summaries.isEmpty ? .secondary : .blue),
+          ("Drafted", "\(draftedCount)", draftedCount == 0 ? .secondary : .brown),
+          ("Accepted", "\(acceptedCount)", acceptedCount == 0 ? .secondary : .green),
+          ("Need checks", "\(missingVerificationCount)", missingVerificationCount == 0 ? .green : .orange),
+          ("Handoff ready", "\(handoffReadyCount)", handoffReadyCount == 0 ? .secondary : .purple)
+        ])
+
+        if summaries.isEmpty {
+          MVPEmptyState(
+            title: "No purchase decisions to summarise",
+            detail: "Create seller options first. The decision summary appears once a Wishlist item enters comparison, purchase decision, or handoff flow.",
+            symbol: "checkmark.seal.text.page.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(summaries.prefix(8)) { summary in
+              WishlistPurchaseDecisionSummaryRow(summary: summary) {
+                runWishlistPurchaseDecisionSummaryAction(for: summary.item)
+              } onReviewTask: {
+                store.createWishlistPurchaseDecisionReviewTask(summary.item)
+              } onNeedsReview: {
+                store.markWishlistPurchaseDecisionNeedsReview(summary.item)
+              } onFocus: {
+                wishlistSearchText = summary.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(summaries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase decision summar\(remaining == 1 ? "y is" : "ies are") available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Required before buying: confirm live stock and price, AUD landed cost, postage cost/time, seller trust, account access, payment method, delivery address, returns, and warranty outside ParcelOps.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseDecisionSummary(for item: WishlistItem) -> WishlistPurchaseDecisionSummary {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let decision = item.purchaseDecision
+    let seller = decision?.selectedSellerName ?? preferred?.sellerName ?? item.storefront
+    let total = decision?.totalAUDSummary ?? preferred?.estimatedAUDTotal ?? item.estimatedCost
+    let postage = decision?.postageSummary ?? preferred.map { "\($0.postageCost), \($0.postageTime)" } ?? "Postage not recorded"
+    let trust = decision?.trustSummary ?? preferred.map { "\($0.trustRating): \($0.trustNotes)" } ?? "Seller trust not assessed"
+    let rejected = decision?.rejectedOptionsSummary ?? rejectedWishlistSellerSummary(for: item, selectedOption: preferred)
+    let gaps = wishlistPurchaseDecisionVerificationGaps(item: item, preferred: preferred)
+
+    let stage: String
+    let detail: String
+    let color: Color
+    let actionTitle: String
+    let actionSymbol: String
+    let sortPriority: Int
+
+    if decision == nil {
+      stage = "Decision needed"
+      detail = preferred == nil
+        ? "Choose or add a seller option before drafting the purchase decision."
+        : "Draft a local decision for \(seller), then review live price, stock, postage, trust, account, and payment readiness."
+      color = .brown
+      actionTitle = "Draft decision"
+      actionSymbol = "doc.text.magnifyingglass"
+      sortPriority = preferred == nil ? 0 : 10
+    } else if decision?.reviewState != .accepted {
+      stage = "Review decision"
+      detail = "Decision exists but still needs operator review before purchase handoff."
+      color = .orange
+      actionTitle = "Accept decision"
+      actionSymbol = "checkmark.seal"
+      sortPriority = 20
+    } else if item.purchaseHandoff == nil {
+      stage = "Prepare handoff"
+      detail = "Decision is accepted. Prepare account and order-watch handoff before buying externally."
+      color = .purple
+      actionTitle = "Prepare handoff"
+      actionSymbol = "person.crop.circle.badge.checkmark"
+      sortPriority = 30
+    } else if item.purchaseHandoff?.linkedOrderID == nil {
+      stage = "Watch for order"
+      detail = "Handoff is ready. After purchase, watch Inbox and Orders for confirmation and link the order."
+      color = .teal
+      actionTitle = "Order seen"
+      actionSymbol = "envelope.badge.fill"
+      sortPriority = 40
+    } else {
+      stage = "Linked order"
+      detail = "Decision and handoff are linked to an order. Continue through Orders, Dispatch, and Tasks."
+      color = .green
+      actionTitle = "Focus item"
+      actionSymbol = "line.3.horizontal.decrease.circle"
+      sortPriority = 50
+    }
+
+    return WishlistPurchaseDecisionSummary(
+      item: item,
+      selectedSeller: seller,
+      totalAUD: total,
+      postage: postage,
+      trust: trust,
+      rejectedOptions: rejected,
+      verificationGaps: gaps,
+      stage: stage,
+      detail: detail,
+      color: color,
+      actionTitle: actionTitle,
+      actionSymbol: actionSymbol,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func rejectedWishlistSellerSummary(for item: WishlistItem, selectedOption: WishlistComparisonOption?) -> String {
+    let rejected = (item.comparisonOptions ?? [])
+      .filter { $0.id != selectedOption?.id }
+      .map { "\($0.sellerName): \($0.estimatedAUDTotal), trust \($0.trustRating)" }
+    return rejected.isEmpty ? "No alternate seller options recorded." : rejected.joined(separator: " | ")
+  }
+
+  private func wishlistPurchaseDecisionVerificationGaps(item: WishlistItem, preferred: WishlistComparisonOption?) -> [String] {
+    var gaps: [String] = []
+    let decision = item.purchaseDecision
+
+    if preferred == nil {
+      gaps.append("seller option")
+    }
+    if item.preferredOptionID == nil {
+      gaps.append("preferred seller")
+    }
+    if item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") != true {
+      gaps.append("readiness check")
+    }
+    if decision == nil {
+      gaps.append("decision draft")
+    } else if decision?.reviewState != .accepted {
+      gaps.append("decision review")
+    }
+    if wishlistPurchaseDecisionValueNeedsReview(decision?.totalAUDSummary ?? preferred?.estimatedAUDTotal) {
+      gaps.append("AUD landed cost")
+    }
+    if wishlistPurchaseDecisionValueNeedsReview(decision?.postageSummary ?? preferred?.postageCost) {
+      gaps.append("postage cost/time")
+    }
+    if wishlistPurchaseDecisionValueNeedsReview(decision?.trustSummary ?? preferred?.trustRating) {
+      gaps.append("seller trust")
+    }
+    if !(preferred?.operatorSellerEvidenceGaps.isEmpty ?? true) {
+      gaps.append(contentsOf: preferred?.operatorSellerEvidenceGaps ?? [])
+    }
+    if item.purchaseHandoff == nil {
+      gaps.append("account/order-watch handoff")
+    }
+
+    return Array(Set(gaps)).sorted()
+  }
+
+  private func wishlistPurchaseDecisionValueNeedsReview(_ value: String?) -> Bool {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if trimmed.isEmpty { return true }
+    let lower = trimmed.localizedLowercase
+    return lower.contains("pending")
+      || lower.contains("unknown")
+      || lower.contains("not recorded")
+      || lower.contains("not assessed")
+      || lower.contains("to confirm")
+      || lower.contains("review")
+      || lower.contains("no seller")
+  }
+
+  private func runWishlistPurchaseDecisionSummaryAction(for item: WishlistItem) {
+    if item.purchaseDecision == nil {
+      store.createWishlistPurchaseDecision(item)
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      store.markWishlistPurchaseDecisionReviewed(item)
+    } else if item.purchaseHandoff == nil {
+      store.prepareWishlistPurchaseHandoff(item)
+    } else if item.purchaseHandoff?.linkedOrderID == nil {
+      store.markWishlistOrderConfirmationSeen(item)
+    } else {
       wishlistSearchText = item.itemName
       selectedSource = nil
       selectedStatus = nil
@@ -2845,6 +3067,124 @@ private struct WishlistMatrixMetric: View {
           .lineLimit(2)
       }
     }
+  }
+}
+
+private struct WishlistPurchaseDecisionSummary: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var selectedSeller: String
+  var totalAUD: String
+  var postage: String
+  var trust: String
+  var rejectedOptions: String
+  var verificationGaps: [String]
+  var stage: String
+  var detail: String
+  var color: Color
+  var actionTitle: String
+  var actionSymbol: String
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseDecisionSummaryRow: View {
+  var summary: WishlistPurchaseDecisionSummary
+  var onAction: () -> Void
+  var onReviewTask: () -> Void
+  var onNeedsReview: () -> Void
+  var onFocus: () -> Void
+
+  private var decision: WishlistPurchaseDecision? {
+    summary.item.purchaseDecision
+  }
+
+  private var reviewLabel: String {
+    decision?.reviewState.rawValue ?? "Not drafted"
+  }
+
+  private var notes: String {
+    let raw = decision?.decisionNotes ?? summary.detail
+    return raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? summary.detail : raw
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checkmark.seal.fill")
+          .foregroundStyle(summary.color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(summary.item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text(summary.selectedSeller)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+        Spacer(minLength: 8)
+        Badge(summary.stage, color: summary.color)
+      }
+
+      Text(summary.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 126) {
+        WishlistMatrixMetric(title: "AUD total", value: summary.totalAUD, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: summary.postage, symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: summary.trust, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Review", value: reviewLabel, symbol: "checkmark.seal")
+      }
+
+      if !summary.rejectedOptions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        VStack(alignment: .leading, spacing: 3) {
+          Label("Alternates rejected or left behind", systemImage: "arrow.triangle.branch")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Text(summary.rejectedOptions)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+        }
+      }
+
+      if !summary.verificationGaps.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Verify before buying", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(summary.verificationGaps.prefix(8), id: \.self) { gap in
+              Badge(gap, color: .orange)
+            }
+          }
+        }
+      } else {
+        Text("Local decision fields are complete. Still verify live price, stock, postage, account, payment, delivery address, returns, and warranty outside ParcelOps before buying.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text(notes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(summary.actionTitle, systemImage: summary.actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onReviewTask)
+        Button("Needs review", systemImage: "exclamationmark.triangle", action: onNeedsReview)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(summary.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
