@@ -71,6 +71,17 @@ struct WishlistView: View {
     }.count
   }
 
+  private var wishlistPurchaseBlockerQueueItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { !$0.operatorPurchaseBlockers.isEmpty }
+      .sorted { first, second in
+        if first.operatorPurchaseBlockers.count == second.operatorPurchaseBlockers.count {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return first.operatorPurchaseBlockers.count > second.operatorPurchaseBlockers.count
+      }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -90,6 +101,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistReadinessPanel
+        wishlistPurchaseBlockerQueuePanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
@@ -492,6 +504,110 @@ struct WishlistView: View {
           }
         }
       }
+    }
+  }
+
+  private var wishlistPurchaseBlockerQueuePanel: some View {
+    let blockerItems = wishlistPurchaseBlockerQueueItems
+
+    return SettingsPanel(title: "Purchase blocker queue", symbol: "exclamationmark.triangle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this queue to clear Wishlist purchase blockers without opening every item. Actions are local only and do not buy, scrape, log in, quote postage, or contact retailers.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Blocked items", "\(blockerItems.count)", blockerItems.isEmpty ? .green : .orange),
+          ("Seller evidence", "\(blockerItems.filter { $0.operatorPurchaseBlockers.contains { $0.localizedCaseInsensitiveContains("confirm") } }.count)", .orange),
+          ("Decision", "\(blockerItems.filter { $0.operatorPurchaseBlockers.contains { $0.localizedCaseInsensitiveContains("decision") } }.count)", .brown),
+          ("Handoff", "\(blockerItems.filter { $0.operatorPurchaseBlockers.contains { $0.localizedCaseInsensitiveContains("handoff") || $0.localizedCaseInsensitiveContains("link order") } }.count)", .purple)
+        ])
+
+        if blockerItems.isEmpty {
+          Label("No Wishlist purchase blockers are currently promoted. Use the detailed item rows for normal comparison and capture work.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          ForEach(blockerItems.prefix(5)) { item in
+            WishlistPurchaseBlockerQueueRow(
+              item: item,
+              actionTitle: wishlistBlockerActionTitle(for: item),
+              actionSymbol: wishlistBlockerActionSymbol(for: item)
+            ) {
+              wishlistSearchText = item.itemName
+              selectedSource = nil
+              selectedStatus = nil
+            } onAction: {
+              runWishlistBlockerAction(for: item)
+            }
+          }
+
+          let remaining = max(blockerItems.count - 5, 0)
+          if remaining > 0 {
+            Text("\(remaining) more blocked Wishlist item\(remaining == 1 ? "" : "s") are in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private func wishlistBlockerActionTitle(for item: WishlistItem) -> String {
+    guard let blocker = item.operatorPurchaseBlockers.first else { return "Review" }
+    if blocker.localizedCaseInsensitiveContains("add seller") { return "Compare" }
+    if blocker.localizedCaseInsensitiveContains("choose preferred") { return "Score" }
+    if blocker.localizedCaseInsensitiveContains("confirm") { return "Evidence task" }
+    if blocker.localizedCaseInsensitiveContains("readiness") { return "Readiness" }
+    if blocker.localizedCaseInsensitiveContains("draft purchase") { return "Decision" }
+    if blocker.localizedCaseInsensitiveContains("review purchase") { return "Decision task" }
+    if blocker.localizedCaseInsensitiveContains("prepare handoff") { return "Handoff" }
+    if blocker.localizedCaseInsensitiveContains("link order") { return "Order seen" }
+    return "Review"
+  }
+
+  private func wishlistBlockerActionSymbol(for item: WishlistItem) -> String {
+    guard let blocker = item.operatorPurchaseBlockers.first else { return "arrow.right.circle" }
+    if blocker.localizedCaseInsensitiveContains("add seller") { return "magnifyingglass.circle" }
+    if blocker.localizedCaseInsensitiveContains("choose preferred") { return "chart.bar.doc.horizontal" }
+    if blocker.localizedCaseInsensitiveContains("confirm") { return "checklist" }
+    if blocker.localizedCaseInsensitiveContains("readiness") { return "checklist.checked" }
+    if blocker.localizedCaseInsensitiveContains("decision") { return "doc.text.magnifyingglass" }
+    if blocker.localizedCaseInsensitiveContains("handoff") { return "person.crop.circle.badge.checkmark" }
+    if blocker.localizedCaseInsensitiveContains("link order") { return "envelope.badge.fill" }
+    return "arrow.right.circle"
+  }
+
+  private func runWishlistBlockerAction(for item: WishlistItem) {
+    guard let blocker = item.operatorPurchaseBlockers.first else {
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+      return
+    }
+
+    if blocker.localizedCaseInsensitiveContains("add seller") {
+      store.createWishlistComparisonPlan(item)
+      store.createWishlistResearchRequest(from: item)
+    } else if blocker.localizedCaseInsensitiveContains("choose preferred") {
+      store.evaluateWishlistComparisonOptions(item)
+    } else if blocker.localizedCaseInsensitiveContains("confirm") {
+      store.createWishlistSellerEvidenceReviewTask(item)
+    } else if blocker.localizedCaseInsensitiveContains("readiness") {
+      store.runWishlistPurchaseReadinessCheck(item)
+    } else if blocker.localizedCaseInsensitiveContains("draft purchase") {
+      store.createWishlistPurchaseDecision(item)
+    } else if blocker.localizedCaseInsensitiveContains("review purchase") {
+      store.createWishlistPurchaseDecisionReviewTask(item)
+    } else if blocker.localizedCaseInsensitiveContains("prepare handoff") {
+      store.prepareWishlistPurchaseHandoff(item)
+    } else if blocker.localizedCaseInsensitiveContains("link order") {
+      store.markWishlistOrderConfirmationSeen(item)
+    } else {
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
     }
   }
 
@@ -946,6 +1062,53 @@ private struct WishlistReadinessRow: View {
       return "Review status is still open. Confirm details before linking or converting."
     }
     return "Ready for local link or conversion when purchase intent is confirmed."
+  }
+}
+
+private struct WishlistPurchaseBlockerQueueRow: View {
+  var item: WishlistItem
+  var actionTitle: String
+  var actionSymbol: String
+  var onFocus: () -> Void
+  var onAction: () -> Void
+
+  private var blockerSummary: String {
+    item.operatorPurchaseBlockers.prefix(3).joined(separator: ", ")
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "star.square.fill")
+        .foregroundStyle(.orange)
+        .frame(width: 20)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.itemName)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(item.storefront) • \(item.owner)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        Text("Blockers: \(blockerSummary)")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: 8)
+      VStack(alignment: .trailing, spacing: 6) {
+        Badge("\(item.operatorPurchaseBlockers.count)", color: .orange)
+        Button("Focus", systemImage: "scope", action: onFocus)
+          .buttonStyle(.bordered)
+          .labelStyle(.iconOnly)
+          .help("Filter Wishlist to this item")
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+          .buttonStyle(.borderedProminent)
+          .labelStyle(.iconOnly)
+          .help(actionTitle)
+      }
+    }
+    .padding(8)
+    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
