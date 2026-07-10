@@ -183,13 +183,14 @@ struct ReturnsClaimsView: View {
   }
 
   private var inboxReturnClaimCoverage: some View {
-    SettingsPanel(title: "Inbox return and claim coverage", symbol: "arrow.uturn.backward.square.fill") {
-      Text("Checks whether orders created from Inbox intake have local return, refund, damage, or missing-item claim follow-up where needed.")
+    SettingsPanel(title: "Inbox and Wishlist return and claim coverage", symbol: "arrow.uturn.backward.square.fill") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local return, refund, damage, or missing-item claim follow-up where needed.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(claimsLinkedToInboxOrders.count) linked claims", color: .teal)
         Badge("\(claimsNeedingAction.count) need action", color: claimsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(claimsMissingEvidence.count) missing evidence", color: claimsMissingEvidence.isEmpty ? .green : .orange)
@@ -227,12 +228,12 @@ struct ReturnsClaimsView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need return or claim checks yet.")
+      if claimSourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need return or claim checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if claimsLinkedToInboxOrders.isEmpty {
-        Text("No return or claim records are linked to Inbox-created orders. Create one only when a refund, replacement, damage, missing-item, or carrier claim is actually needed.")
+        Text("No return or claim records are linked to Inbox-created or Wishlist-linked orders. Create one only when a refund, replacement, damage, missing-item, or carrier claim is actually needed.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if claimsNeedingAction.isEmpty && claimsMissingEvidence.isEmpty {
@@ -315,13 +316,33 @@ struct ReturnsClaimsView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !store.wishlistItemsLinked(to: order).isEmpty
+    }
+  }
+
+  private var claimSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var claimsLinkedToInboxOrders: [ReturnClaimRecord] {
     store.returnClaims.filter { claim in
       guard let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil) else {
         return false
       }
-      return inboxCreatedOrders.contains { $0.id == orderID }
+      return claimSourceOrders.contains { $0.id == orderID }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where !seen.contains(order.id) {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var claimsNeedingAction: [ReturnClaimRecord] {
@@ -477,6 +498,11 @@ struct ReturnClaimRow: View {
     }
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
+  }
+
   private var claimFollowUpWarnings: [String] {
     var warnings: [String] = []
     if claim.claimStatus == .disputed {
@@ -535,7 +561,7 @@ struct ReturnClaimRow: View {
         }
       }
 
-      if !linkedIntakeEmails.isEmpty || !claimFollowUpWarnings.isEmpty {
+      if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || !claimFollowUpWarnings.isEmpty {
         returnClaimInboxSourceTrail
       }
 
@@ -632,6 +658,9 @@ struct ReturnClaimRow: View {
         if let linkedOrder {
           Badge(linkedOrder.orderNumber, color: .blue)
         }
+        ForEach(linkedWishlistItems.prefix(2)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
+        }
         ForEach(linkedIntakeEmails.prefix(3)) { email in
           if let store {
             let source = store.intakeSourceSummary(for: email)
@@ -647,6 +676,12 @@ struct ReturnClaimRow: View {
   }
 
   private var sourceTrailDescription: String {
+    if !linkedWishlistItems.isEmpty && !claimFollowUpWarnings.isEmpty {
+      return "This return or claim is tied to a Wishlist-linked order and still needs local evidence, status, or review follow-up."
+    }
+    if !linkedWishlistItems.isEmpty {
+      return "Wishlist purchase context is linked to this return or claim. Confirm seller, outcome, evidence, and replacement/refund tracking before closing."
+    }
     if !claimFollowUpWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
       return "This claim is tied to an Inbox-created order and still needs local evidence, status, or review follow-up."
     }

@@ -186,13 +186,14 @@ struct ProcurementView: View {
   }
 
   private var inboxProcurementCoverage: some View {
-    SettingsPanel(title: "Inbox procurement readiness", symbol: "cart.badge.plus") {
-      Text("Checks whether orders created from Inbox intake have local procurement requests that still need approval, ordering, receiving, or budget follow-up.")
+    SettingsPanel(title: "Inbox and Wishlist procurement readiness", symbol: "cart.badge.plus") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local procurement requests that still need approval, ordering, receiving, or budget follow-up.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(requestsLinkedToInboxOrders.count) linked requests", color: .teal)
         Badge("\(requestsNeedingAction.count) need action", color: requestsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(requestsMissingBudget.count) missing budget", color: requestsMissingBudget.isEmpty ? .green : .orange)
@@ -230,12 +231,12 @@ struct ProcurementView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need procurement checks yet.")
+      if procurementSourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need procurement checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if requestsLinkedToInboxOrders.isEmpty {
-        Text("No procurement requests are linked to Inbox-created orders. Create one only when buying, replacement, or supplier follow-up is needed.")
+        Text("No procurement requests are linked to Inbox-created or Wishlist-linked orders. Create one only when buying, replacement, or supplier follow-up is needed.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if requestsNeedingAction.isEmpty && requestsMissingBudget.isEmpty {
@@ -318,12 +319,32 @@ struct ProcurementView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !store.wishlistItemsLinked(to: order).isEmpty
+    }
+  }
+
+  private var procurementSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var requestsLinkedToInboxOrders: [ProcurementRequest] {
     store.procurementRequests.filter { request in
       guard request.linkedEntityType == .order,
             let orderID = UUID(uuidString: request.linkedEntityID) else { return false }
-      return inboxCreatedOrders.contains { $0.id == orderID }
+      return procurementSourceOrders.contains { $0.id == orderID }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where !seen.contains(order.id) {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var requestsNeedingAction: [ProcurementRequest] {
@@ -478,6 +499,11 @@ struct ProcurementRequestRow: View {
     }
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
+  }
+
   private var procurementReadinessWarnings: [String] {
     var warnings: [String] = []
     if request.approvalStatus == .rejected {
@@ -537,7 +563,7 @@ struct ProcurementRequestRow: View {
         }
       }
 
-      if !linkedIntakeEmails.isEmpty || !procurementReadinessWarnings.isEmpty {
+      if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || !procurementReadinessWarnings.isEmpty {
         procurementInboxSourceTrail
       }
 
@@ -633,6 +659,9 @@ struct ProcurementRequestRow: View {
         if let linkedOrder {
           Badge(linkedOrder.orderNumber, color: .blue)
         }
+        ForEach(linkedWishlistItems.prefix(2)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
+        }
         ForEach(linkedIntakeEmails.prefix(3)) { email in
           if let store {
             let source = store.intakeSourceSummary(for: email)
@@ -648,6 +677,12 @@ struct ProcurementRequestRow: View {
   }
 
   private var sourceTrailDescription: String {
+    if !linkedWishlistItems.isEmpty && !procurementReadinessWarnings.isEmpty {
+      return "This procurement request is tied to a Wishlist-linked order and still needs local approval, ordering, receiving, budget, or review follow-up."
+    }
+    if !linkedWishlistItems.isEmpty {
+      return "Wishlist purchase context is linked to this procurement request. Confirm buyer, budget, seller, and receiving handoff before closing."
+    }
     if !procurementReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
       return "This procurement request is tied to an Inbox-created order and still needs local approval, ordering, receiving, budget, or review follow-up."
     }

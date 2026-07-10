@@ -188,13 +188,14 @@ struct CostsBudgetsView: View {
   }
 
   private var inboxCostCoverage: some View {
-    SettingsPanel(title: "Inbox cost readiness", symbol: "creditcard.and.123") {
-      Text("Checks whether orders created from Inbox intake have local cost, approval, reimbursement, and budget-code context.")
+    SettingsPanel(title: "Inbox and Wishlist cost readiness", symbol: "creditcard.and.123") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local cost, approval, reimbursement, and budget-code context.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(costsLinkedToInboxOrders.count) linked costs", color: .teal)
         Badge("\(costsNeedingAction.count) need action", color: costsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(inboxOrdersMissingCost.count) missing costs", color: inboxOrdersMissingCost.isEmpty ? .green : .orange)
@@ -232,18 +233,18 @@ struct CostsBudgetsView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need cost checks yet.")
+      if costSourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need cost checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingCost.isEmpty && costsNeedingAction.isEmpty {
-        Label("Inbox-created orders have cost and budget coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have cost and budget coverage for this local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
         VStack(alignment: .leading, spacing: 8) {
           if !inboxOrdersMissingCost.isEmpty {
-            Text("Inbox orders missing cost records")
+            Text("Inbox/Wishlist orders missing cost records")
               .font(.caption.weight(.semibold))
             CompactActionRow {
               ForEach(inboxOrdersMissingCost.prefix(4)) { order in
@@ -333,12 +334,22 @@ struct CostsBudgetsView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !store.wishlistItemsLinked(to: order).isEmpty
+    }
+  }
+
+  private var costSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var costsLinkedToInboxOrders: [CostRecord] {
     store.costRecords.filter { cost in
       guard let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil) else {
         return false
       }
-      return inboxCreatedOrders.contains { $0.id == orderID }
+      return costSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -352,11 +363,21 @@ struct CostsBudgetsView: View {
   }
 
   private var inboxOrdersMissingCost: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    costSourceOrders.filter { order in
       !store.costRecords.contains { cost in
         cost.orderID == order.id || (cost.linkedEntityType == .order && cost.linkedEntityID == order.id.uuidString)
       }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where !seen.contains(order.id) {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
@@ -477,6 +498,11 @@ struct CostRecordRow: View {
     }
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
+  }
+
   private var costReadinessWarnings: [String] {
     var warnings: [String] = []
     if cost.approvalStatus != .approved {
@@ -532,7 +558,7 @@ struct CostRecordRow: View {
         }
       }
 
-      if !linkedIntakeEmails.isEmpty || !costReadinessWarnings.isEmpty {
+      if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || !costReadinessWarnings.isEmpty {
         costInboxSourceTrail
       }
 
@@ -619,6 +645,9 @@ struct CostRecordRow: View {
         if let linkedOrder {
           Badge(linkedOrder.orderNumber, color: .blue)
         }
+        ForEach(linkedWishlistItems.prefix(2)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
+        }
         ForEach(linkedIntakeEmails.prefix(3)) { email in
           if let store {
             let source = store.intakeSourceSummary(for: email)
@@ -634,6 +663,12 @@ struct CostRecordRow: View {
   }
 
   private var sourceTrailDescription: String {
+    if !linkedWishlistItems.isEmpty && !costReadinessWarnings.isEmpty {
+      return "This cost is tied to a Wishlist-linked order and still needs local budget, approval, reimbursement, or review action."
+    }
+    if !linkedWishlistItems.isEmpty {
+      return "Wishlist purchase context is linked to this cost record. Confirm AUD landed cost, budget code, and reimbursement state before closing."
+    }
     if !costReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
       return "This cost is tied to an Inbox-created order and still needs local cost readiness checks."
     }
