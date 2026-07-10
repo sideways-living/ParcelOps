@@ -404,6 +404,7 @@ struct WishlistView: View {
         wishlistPurchaseOperationsHandoffPanel
         wishlistAgentHandoffPacketPanel
         wishlistAgentBatchBriefPanel
+        wishlistResearchResultIntakePanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -3678,6 +3679,166 @@ struct WishlistView: View {
     case .reopened:
       return "Update the batch brief or Wishlist request scope, then mark it ready again."
     }
+  }
+
+  private var wishlistResearchResultIntakeItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        let hasRequest = store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+        let hasBatchDraft = store.draftMessages.contains {
+          $0.linkedEntityType == .wishlistItem
+            && $0.linkedEntityID == "wishlist-research-batch"
+            && $0.body.localizedCaseInsensitiveContains(item.itemName)
+        }
+        let hasUsefulOptions = !(item.comparisonOptions ?? []).contains { option in
+          !option.operatorSellerEvidenceGaps.contains("product link")
+            && !option.operatorSellerEvidenceGaps.contains("AUD total")
+        }
+        return (hasRequest || hasBatchDraft)
+          && (!hasUsefulOptions || item.purchaseDecision == nil)
+          && item.purchaseHandoff == nil
+      }
+      .sorted { first, second in
+        let firstOptions = first.comparisonOptions?.count ?? 0
+        let secondOptions = second.comparisonOptions?.count ?? 0
+        if firstOptions == secondOptions {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstOptions < secondOptions
+      }
+  }
+
+  private var wishlistResearchResultsReadyCount: Int {
+    store.wishlistItems.filter { item in
+      (item.comparisonOptions ?? []).contains { option in
+        option.operatorSellerEvidenceGaps.isEmpty && option.operatorSellerMatrixScore >= 70
+      }
+    }.count
+  }
+
+  private var wishlistResearchResultIntakePanel: some View {
+    let intakeItems = wishlistResearchResultIntakeItems
+    let sellerOptionCount = store.wishlistItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
+    let batchDraftCount = store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
+    }.count
+
+    return SettingsPanel(title: "Research results intake", symbol: "square.and.pencil") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("After a human or future agent compares retailers, paste the useful result back into Wishlist as seller options. This keeps the app useful before live retailer search, currency conversion, postage quotes, or seller trust APIs exist.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Result candidates", "\(intakeItems.count)", intakeItems.isEmpty ? .green : .purple),
+          ("Seller options", "\(sellerOptionCount)", sellerOptionCount == 0 ? .secondary : .blue),
+          ("Ready-looking", "\(wishlistResearchResultsReadyCount)", wishlistResearchResultsReadyCount == 0 ? .secondary : .green),
+          ("Batch drafts", "\(batchDraftCount)", batchDraftCount == 0 ? .secondary : .teal)
+        ])
+
+        if intakeItems.isEmpty {
+          Label("No research-result intake is waiting. Create a research brief, or add seller options directly on a Wishlist item after manual comparison.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 320), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(intakeItems.prefix(6)) { item in
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: "square.and.pencil")
+                    .foregroundStyle(.purple)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(item.itemName)
+                      .font(.subheadline.weight(.semibold))
+                      .lineLimit(2)
+                    Text(wishlistResearchResultIntakeDetail(for: item))
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(wishlistResearchResultIntakeBadge(for: item), color: wishlistResearchResultIntakeColor(for: item))
+                }
+
+                CompactMetadataGrid(minimumWidth: 120) {
+                  Badge("\(item.comparisonOptions?.count ?? 0) option\(item.comparisonOptions?.count == 1 ? "" : "s")", color: item.comparisonOptions?.isEmpty == false ? .blue : .orange)
+                  Badge(item.comparisonStatus ?? "Comparison needed", color: .purple)
+                  Badge(item.purchaseReadiness ?? "Not ready", color: .orange)
+                }
+
+                CompactActionRow {
+                  Button("Add seller option", systemImage: "storefront.fill") {
+                    store.addManualWishlistSellerOptionPlaceholder(item)
+                  }
+                  Button("Score options", systemImage: "chart.bar.doc.horizontal") {
+                    store.evaluateWishlistComparisonOptions(item)
+                  }
+                  .disabled(item.comparisonOptions?.isEmpty != false)
+                  Button("Focus item", systemImage: "scope") {
+                    wishlistSearchText = item.itemName
+                    selectedSource = nil
+                    selectedStatus = nil
+                    selectedWorkflowFocus = .compare
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(10)
+              .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Still manual: the operator must verify live price, stock, AUD landed total, postage time, returns/warranty, seller trust, account fit, and payment readiness outside ParcelOps before buying.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistResearchResultIntakeDetail(for item: WishlistItem) -> String {
+    let request = store.wishlistResearchRequests.first { $0.wishlistItemID == item.id }
+    let optionCount = item.comparisonOptions?.count ?? 0
+    if optionCount == 0 {
+      return request?.isAgentBriefReady == true
+        ? "Research brief is ready. Add the first seller option from manual or future-agent comparison results."
+        : "Add seller options after checking product link, price, AUD landed total, postage, and seller trust."
+    }
+    let gapCount = (item.comparisonOptions ?? []).reduce(0) { $0 + $1.operatorSellerEvidenceGaps.count }
+    if gapCount > 0 {
+      return "\(optionCount) seller option\(optionCount == 1 ? "" : "s") recorded, but \(gapCount) evidence gap\(gapCount == 1 ? "" : "s") still need manual cleanup."
+    }
+    return "Seller options look complete enough for local scoring and purchase decision review."
+  }
+
+  private func wishlistResearchResultIntakeBadge(for item: WishlistItem) -> String {
+    if item.comparisonOptions?.isEmpty != false { return "Needs options" }
+    if (item.comparisonOptions ?? []).contains(where: { !$0.operatorSellerEvidenceGaps.isEmpty }) { return "Clean up" }
+    return "Score"
+  }
+
+  private func wishlistResearchResultIntakeColor(for item: WishlistItem) -> Color {
+    if item.comparisonOptions?.isEmpty != false { return .orange }
+    if (item.comparisonOptions ?? []).contains(where: { !$0.operatorSellerEvidenceGaps.isEmpty }) { return .purple }
+    return .green
   }
 
   private var wishlistCaptureCandidatesPanel: some View {
