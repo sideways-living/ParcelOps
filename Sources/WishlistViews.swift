@@ -82,6 +82,17 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistPipelineItems: [WishlistPipelineItem] {
+    store.wishlistItems
+      .map(wishlistPipelineItem(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -101,6 +112,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistReadinessPanel
+        wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
@@ -512,6 +524,161 @@ struct WishlistView: View {
           }
         }
       }
+    }
+  }
+
+  private var wishlistPipelineBoardPanel: some View {
+    let items = wishlistPipelineItems
+    let capture = items.filter { $0.stage == "Capture" }.count
+    let compare = items.filter { $0.stage == "Compare" }.count
+    let decide = items.filter { $0.stage == "Decide" }.count
+    let handoff = items.filter { $0.stage == "Handoff" }.count
+    let orderWatch = items.filter { $0.stage == "Order watch" }.count
+    let linked = items.filter { $0.stage == "Linked order" }.count
+
+    return SettingsPanel(title: "Wishlist purchase pipeline", symbol: "rectangle.stack.badge.person.crop.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This board shows the daily operator path from idea capture to seller comparison, purchase decision, handoff, order-confirmation watch, and linked order. It is local workflow tracking only; it does not search retailers, buy items, access accounts, or monitor mail in the background.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Capture", "\(capture)", capture == 0 ? .secondary : .blue),
+          ("Compare", "\(compare)", compare == 0 ? .secondary : .orange),
+          ("Decide", "\(decide)", decide == 0 ? .secondary : .brown),
+          ("Handoff", "\(handoff)", handoff == 0 ? .secondary : .purple),
+          ("Order watch", "\(orderWatch)", orderWatch == 0 ? .secondary : .green),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .teal)
+        ])
+
+        if items.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist pipeline items",
+            detail: "Add a manual item or capture placeholder to start the local Wishlist workflow.",
+            symbol: "star.square.fill",
+            actionTitle: "Manual item",
+            action: store.addManualWishlistItemPlaceholder
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(items.prefix(8)) { pipelineItem in
+              WishlistPipelineRow(pipelineItem: pipelineItem) {
+                runWishlistPipelineAction(for: pipelineItem.item)
+              } onFocus: {
+                wishlistSearchText = pipelineItem.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(items.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist pipeline item\(remaining == 1 ? "" : "s") are available in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
+  }
+
+  private func wishlistPipelineItem(for item: WishlistItem) -> WishlistPipelineItem {
+    let options = item.comparisonOptions ?? []
+    let blockers = item.operatorPurchaseBlockers
+    let linkedOrder = item.purchaseHandoff?.linkedOrderID != nil
+    let gate = wishlistPurchaseReleaseGate(for: item)
+
+    if linkedOrder {
+      return WishlistPipelineItem(
+        item: item,
+        stage: "Linked order",
+        detail: "A local order is linked. Continue work from Orders, Dispatch, Tasks, and Audit.",
+        nextAction: "Focus item",
+        symbol: "link.circle.fill",
+        tone: .teal,
+        sortPriority: 60
+      )
+    }
+
+    if item.purchaseHandoff != nil {
+      let matches = store.suggestedWishlistOrderConfirmations(for: item).count
+      return WishlistPipelineItem(
+        item: item,
+        stage: "Order watch",
+        detail: matches > 0 ? "\(matches) imported Inbox confirmation match\(matches == 1 ? "" : "es") need linking." : "Manual purchase handoff is ready; wait for or import the order confirmation.",
+        nextAction: matches > 0 ? "Use confirmation" : "Order seen",
+        symbol: "envelope.badge.fill",
+        tone: matches > 0 ? .green : .orange,
+        sortPriority: matches > 0 ? 10 : 50
+      )
+    }
+
+    if item.purchaseDecision?.reviewState == .accepted {
+      return WishlistPipelineItem(
+        item: item,
+        stage: "Handoff",
+        detail: "Purchase decision is accepted. Prepare account, seller, and expected order-confirmation handoff.",
+        nextAction: "Prepare handoff",
+        symbol: "person.crop.circle.badge.checkmark",
+        tone: .purple,
+        sortPriority: 20
+      )
+    }
+
+    if item.purchaseDecision != nil {
+      return WishlistPipelineItem(
+        item: item,
+        stage: "Decide",
+        detail: "Purchase decision exists but still needs local review before handoff.",
+        nextAction: "Review decision",
+        symbol: "checkmark.seal",
+        tone: .brown,
+        sortPriority: 30
+      )
+    }
+
+    if !options.isEmpty {
+      let firstBlocker = blockers.first ?? gate.detail
+      let needsDecision = blockers.contains { $0.localizedCaseInsensitiveContains("decision") }
+      return WishlistPipelineItem(
+        item: item,
+        stage: needsDecision ? "Decide" : "Compare",
+        detail: firstBlocker,
+        nextAction: gate.actionTitle,
+        symbol: needsDecision ? "doc.text.magnifyingglass" : "chart.bar.doc.horizontal",
+        tone: needsDecision ? .brown : .orange,
+        sortPriority: needsDecision ? 35 : 40
+      )
+    }
+
+    return WishlistPipelineItem(
+      item: item,
+      stage: "Capture",
+      detail: item.capturedDetail.isPlaceholderValidationValue ? "Confirm item details, seller link, owner, and purchase intent." : "Create seller options or a comparison research request before purchase review.",
+      nextAction: "Compare",
+      symbol: "square.and.arrow.down.fill",
+      tone: .blue,
+      sortPriority: 45
+    )
+  }
+
+  private func runWishlistPipelineAction(for item: WishlistItem) {
+    let pipelineItem = wishlistPipelineItem(for: item)
+    if pipelineItem.stage == "Capture" {
+      store.createWishlistComparisonPlan(item)
+      store.createWishlistResearchRequest(from: item)
+    } else if pipelineItem.stage == "Order watch", store.suggestedWishlistOrderConfirmations(for: item).first != nil {
+      if let email = store.suggestedWishlistOrderConfirmations(for: item).first {
+        store.confirmWishlistOrderFromIntake(item, email: email)
+      }
+    } else if pipelineItem.stage == "Linked order" {
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    } else {
+      runWishlistPurchaseReleaseAction(for: item)
     }
   }
 
@@ -1712,6 +1879,67 @@ private struct WishlistPurchaseReleaseGate: Identifiable {
 
   var isLinkedOrder: Bool {
     stage == "Linked order released"
+  }
+}
+
+private struct WishlistPipelineItem: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var symbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistPipelineRow: View {
+  var pipelineItem: WishlistPipelineItem
+  var onAction: () -> Void
+  var onFocus: () -> Void
+
+  private var blockerSummary: String {
+    let blockers = pipelineItem.item.operatorPurchaseBlockers
+    guard !blockers.isEmpty else { return "No local blocker promoted." }
+    return blockers.prefix(3).joined(separator: " • ")
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: pipelineItem.symbol)
+          .foregroundStyle(pipelineItem.tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(pipelineItem.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(pipelineItem.item.storefront) • \(pipelineItem.item.owner)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(pipelineItem.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(pipelineItem.stage, color: pipelineItem.tone)
+      }
+
+      Text(blockerSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+
+      CompactActionRow {
+        Button(pipelineItem.nextAction, systemImage: "arrow.forward.circle", action: onAction)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+    }
+    .padding(10)
+    .background(pipelineItem.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
