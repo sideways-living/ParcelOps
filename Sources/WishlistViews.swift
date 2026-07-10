@@ -127,6 +127,7 @@ struct WishlistView: View {
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
         wishlistPostPurchaseOrderWatchPanel
+        wishlistPurchaseOperationsHandoffPanel
         wishlistAgentHandoffPacketPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
@@ -2621,6 +2622,225 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseOperationsHandoffItems: [WishlistPurchaseOperationsHandoffEntry] {
+    store.wishlistItems
+      .compactMap { item -> WishlistPurchaseOperationsHandoffEntry? in
+        guard item.purchaseHandoff != nil
+          || item.status.localizedCaseInsensitiveContains("order confirmation")
+          || item.status.localizedCaseInsensitiveContains("awaiting order")
+          || item.status.localizedCaseInsensitiveContains("purchased")
+          || item.purchaseDecision?.reviewState == .accepted else { return nil }
+
+        let orderLinked = item.purchaseHandoff?.linkedOrderID != nil
+        let inspectionCount = store.suggestedReceivingInspections(for: item).count
+        let receiptCount = store.suggestedInventoryReceipts(for: item).count
+        let storageCount = store.suggestedStorageLocations(for: item).count
+        let custodyCount = store.suggestedCustodyRecords(for: item).count
+        let labelCount = store.suggestedLabelReferenceRecords(for: item).count
+        let scanCount = store.suggestedScanSessionRecords(for: item).count
+        let manifestCount = store.suggestedShipmentManifestRecords(for: item).count
+        let dispatchCount = store.suggestedDispatchReadinessChecklists(for: item).count
+
+        var gaps: [String] = []
+        if item.purchaseHandoff == nil { gaps.append("handoff") }
+        if !orderLinked { gaps.append("order") }
+        if inspectionCount == 0 { gaps.append("receiving") }
+        if receiptCount == 0 { gaps.append("inventory") }
+        if storageCount == 0 { gaps.append("storage") }
+        if custodyCount == 0 { gaps.append("custody") }
+        if labelCount == 0 { gaps.append("label") }
+        if scanCount == 0 { gaps.append("manual check") }
+        if manifestCount == 0 { gaps.append("manifest") }
+        if dispatchCount == 0 { gaps.append("dispatch") }
+
+        let stage: String
+        let detail: String
+        let tone: Color
+        let actionTitle: String
+        let actionSymbol: String
+        let priority: Int
+
+        if item.purchaseHandoff == nil {
+          stage = "Handoff first"
+          detail = "Prepare the purchase handoff before staging receiving, storage, custody, or dispatch records."
+          tone = .purple
+          actionTitle = "Prepare handoff"
+          actionSymbol = "person.crop.circle.badge.checkmark"
+          priority = 1
+        } else if !orderLinked {
+          stage = "Order link needed"
+          detail = "Link an order confirmation before this can become a clean receiving and dispatch trail."
+          tone = .orange
+          actionTitle = "Order seen"
+          actionSymbol = "envelope.badge.fill"
+          priority = 2
+        } else if !gaps.isEmpty {
+          stage = "Ops setup gaps"
+          detail = "Create the next local downstream record: \(gaps.prefix(3).joined(separator: ", "))."
+          tone = .teal
+          actionTitle = wishlistPurchaseOperationsActionTitle(for: gaps)
+          actionSymbol = wishlistPurchaseOperationsActionSymbol(for: gaps)
+          priority = 3
+        } else {
+          stage = "Ops trail ready"
+          detail = "Order, receiving, storage, custody, label, manual check, manifest, and dispatch records are all staged locally."
+          tone = .green
+          actionTitle = "Focus item"
+          actionSymbol = "scope"
+          priority = 4
+        }
+
+        return WishlistPurchaseOperationsHandoffEntry(
+          item: item,
+          linkedOrder: item.purchaseHandoff?.linkedOrderID.flatMap { orderID in store.orders.first { $0.id == orderID } },
+          stage: stage,
+          detail: detail,
+          gaps: gaps,
+          inspectionCount: inspectionCount,
+          receiptCount: receiptCount,
+          storageCount: storageCount,
+          custodyCount: custodyCount,
+          labelCount: labelCount,
+          scanCount: scanCount,
+          manifestCount: manifestCount,
+          dispatchCount: dispatchCount,
+          tone: tone,
+          actionTitle: actionTitle,
+          actionSymbol: actionSymbol,
+          sortPriority: priority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          if first.gaps.count == second.gaps.count {
+            return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+          }
+          return first.gaps.count > second.gaps.count
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseOperationsHandoffPanel: some View {
+    let entries = wishlistPurchaseOperationsHandoffItems
+    let orderGaps = entries.filter { $0.gaps.contains("order") }.count
+    let receivingGaps = entries.filter { $0.gaps.contains("receiving") || $0.gaps.contains("inventory") }.count
+    let custodyGaps = entries.filter { $0.gaps.contains("storage") || $0.gaps.contains("custody") || $0.gaps.contains("label") || $0.gaps.contains("manual check") }.count
+    let dispatchGaps = entries.filter { $0.gaps.contains("manifest") || $0.gaps.contains("dispatch") }.count
+
+    return SettingsPanel(title: "Purchase-to-operations handoff", symbol: "arrow.triangle.branch") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("After a Wishlist item is bought and confirmed, use this panel to stage the local receiving, inventory, storage, custody, label, manual verification, manifest, and dispatch readiness trail.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Handoff items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Order gaps", "\(orderGaps)", orderGaps == 0 ? .green : .orange),
+          ("Receiving gaps", "\(receivingGaps)", receivingGaps == 0 ? .green : .teal),
+          ("Custody gaps", "\(custodyGaps)", custodyGaps == 0 ? .green : .purple),
+          ("Dispatch gaps", "\(dispatchGaps)", dispatchGaps == 0 ? .green : .brown)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No purchase-to-operations handoff items yet",
+            detail: "Items appear here after a purchase decision, purchase handoff, or order-confirmation state exists.",
+            symbol: "arrow.triangle.branch"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 252 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseOperationsHandoffRow(entry: entry) {
+                runWishlistPurchaseOperationsHandoffAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more operations handoff item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local planning only. This panel does not book carriers, print labels, scan items, access warehouses, contact retailers, mutate mailboxes, or run background monitoring.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseOperationsActionTitle(for gaps: [String]) -> String {
+    if gaps.contains("handoff") { return "Handoff" }
+    if gaps.contains("order") { return "Order seen" }
+    if gaps.contains("receiving") { return "Receiving" }
+    if gaps.contains("inventory") { return "Inventory" }
+    if gaps.contains("storage") { return "Storage" }
+    if gaps.contains("custody") { return "Custody" }
+    if gaps.contains("label") { return "Label" }
+    if gaps.contains("manual check") { return "Manual check" }
+    if gaps.contains("manifest") { return "Manifest" }
+    if gaps.contains("dispatch") { return "Dispatch" }
+    return "Focus item"
+  }
+
+  private func wishlistPurchaseOperationsActionSymbol(for gaps: [String]) -> String {
+    if gaps.contains("handoff") { return "person.crop.circle.badge.checkmark" }
+    if gaps.contains("order") { return "envelope.badge.fill" }
+    if gaps.contains("receiving") { return "checkmark.seal.fill" }
+    if gaps.contains("inventory") { return "shippingbox.and.arrow.backward.fill" }
+    if gaps.contains("storage") { return "archivebox.fill" }
+    if gaps.contains("custody") { return "person.2.badge.gearshape.fill" }
+    if gaps.contains("label") { return "tag.square.fill" }
+    if gaps.contains("manual check") { return "checklist.checked" }
+    if gaps.contains("manifest") { return "paperplane.fill" }
+    if gaps.contains("dispatch") { return "checkmark.rectangle.stack.fill" }
+    return "scope"
+  }
+
+  private func runWishlistPurchaseOperationsHandoffAction(for entry: WishlistPurchaseOperationsHandoffEntry) {
+    let gaps = entry.gaps
+    if gaps.contains("handoff") {
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    } else if gaps.contains("order") {
+      if let email = store.suggestedWishlistOrderConfirmations(for: entry.item).first {
+        store.confirmWishlistOrderFromIntake(entry.item, email: email)
+      } else {
+        store.markWishlistOrderConfirmationSeen(entry.item)
+      }
+    } else if gaps.contains("receiving") {
+      store.createWishlistReceivingInspection(entry.item)
+    } else if gaps.contains("inventory") {
+      store.createWishlistInventoryReceipt(entry.item)
+    } else if gaps.contains("storage") {
+      store.createWishlistStorageLocation(entry.item)
+    } else if gaps.contains("custody") {
+      store.createWishlistCustodyRecord(entry.item)
+    } else if gaps.contains("label") {
+      store.createWishlistLabelReference(entry.item)
+    } else if gaps.contains("manual check") {
+      store.createWishlistScanSession(entry.item)
+    } else if gaps.contains("manifest") {
+      store.createWishlistShipmentManifest(entry.item)
+    } else if gaps.contains("dispatch") {
+      store.createWishlistDispatchReadinessChecklist(entry.item)
+    } else {
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistAgentHandoffPacketPanel: some View {
     let requests = store.wishlistResearchRequests
     let ready = requests.filter(\.isAgentBriefReady)
@@ -3205,6 +3425,98 @@ private struct WishlistPostPurchaseOrderWatchEntry: Identifiable {
   var detail: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistPurchaseOperationsHandoffEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var linkedOrder: TrackedOrder?
+  var stage: String
+  var detail: String
+  var gaps: [String]
+  var inspectionCount: Int
+  var receiptCount: Int
+  var storageCount: Int
+  var custodyCount: Int
+  var labelCount: Int
+  var scanCount: Int
+  var manifestCount: Int
+  var dispatchCount: Int
+  var tone: Color
+  var actionTitle: String
+  var actionSymbol: String
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseOperationsHandoffRow: View {
+  var entry: WishlistPurchaseOperationsHandoffEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var orderValue: String {
+    entry.linkedOrder?.orderNumber ?? "Not linked"
+  }
+
+  private var gapSummary: String {
+    entry.gaps.isEmpty ? "No downstream setup gaps detected." : "Next gaps: \(entry.gaps.prefix(5).joined(separator: ", "))."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "arrow.triangle.branch")
+          .foregroundStyle(entry.tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(entry.item.storefront) • \(entry.item.owner)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 118) {
+        WishlistMatrixMetric(title: "Order", value: orderValue, symbol: "link")
+        WishlistMatrixMetric(title: "Receiving", value: "\(entry.inspectionCount)", symbol: "checkmark.seal.fill")
+        WishlistMatrixMetric(title: "Inventory", value: "\(entry.receiptCount)", symbol: "shippingbox.and.arrow.backward.fill")
+        WishlistMatrixMetric(title: "Storage", value: "\(entry.storageCount)", symbol: "archivebox.fill")
+        WishlistMatrixMetric(title: "Custody", value: "\(entry.custodyCount)", symbol: "person.2.badge.gearshape.fill")
+        WishlistMatrixMetric(title: "Label", value: "\(entry.labelCount)", symbol: "tag.square.fill")
+        WishlistMatrixMetric(title: "Manual check", value: "\(entry.scanCount)", symbol: "checklist.checked")
+        WishlistMatrixMetric(title: "Dispatch", value: "\(entry.manifestCount)/\(entry.dispatchCount)", symbol: "paperplane.fill")
+      }
+
+      Text(gapSummary)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(entry.gaps.isEmpty ? Color.green : entry.tone)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text("Local downstream planning only. Use this to stage records, not to receive stock, scan labels, book carriers, or change mailbox/order systems.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.actionTitle, systemImage: entry.actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPipelineItem: Identifiable {
