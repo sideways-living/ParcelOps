@@ -403,6 +403,7 @@ struct WishlistView: View {
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
         wishlistAgentHandoffPacketPanel
+        wishlistAgentBatchBriefPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -3511,6 +3512,106 @@ struct WishlistView: View {
             }
           }
         }
+      }
+    }
+  }
+
+  private var wishlistAgentBatchBriefPanel: some View {
+    let requests = store.wishlistResearchRequests
+    let ready = requests.filter(\.isAgentBriefReady)
+    let usable = ready.isEmpty ? requests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") } : ready
+    let scopeGaps = requests.reduce(0) { $0 + $1.agentBriefGaps.count }
+    let lastBatchDraft = store.draftMessages.first { draft in
+      draft.linkedEntityType == .wishlistItem
+        && draft.linkedEntityID == "wishlist-research-batch"
+    }
+
+    return SettingsPanel(title: "Batch comparison brief", symbol: "doc.text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Create one local draft packet for future comparison work across Wishlist items. The packet is designed for later agent or human research: compare AU and overseas sellers, estimate AUD landed totals, include postage timing, and reject low-trust sellers.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Requests", "\(requests.count)", requests.isEmpty ? .secondary : .blue),
+          ("Ready", "\(ready.count)", ready.isEmpty ? .secondary : .green),
+          ("Included now", "\(min(usable.count, 12))", usable.isEmpty ? .secondary : .teal),
+          ("Scope gaps", "\(scopeGaps)", scopeGaps == 0 ? .green : .orange)
+        ])
+
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: usable.isEmpty ? "exclamationmark.triangle.fill" : "checklist.checked")
+            .foregroundStyle(usable.isEmpty ? .orange : .green)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(usable.isEmpty ? "No batch-ready research requests" : "Batch packet can be drafted")
+              .font(.subheadline.weight(.semibold))
+            Text(usable.isEmpty ? "Create or review Wishlist research requests first. Blocked requests are intentionally excluded." : "The draft includes up to 12 \(ready.isEmpty ? "unblocked" : "agent-ready") requests, required output fields, seller trust rules, postage expectations, and no-purchase boundaries.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(10)
+        .background((usable.isEmpty ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if let lastBatchDraft {
+          Label("Latest batch draft: \(lastBatchDraft.createdDate) • \(lastBatchDraft.status.rawValue)", systemImage: "doc.text.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+        }
+
+        if !usable.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Included examples")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(usable.prefix(4)) { request in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: request.isAgentBriefReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                  .foregroundStyle(request.isAgentBriefReady ? .green : .orange)
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(request.itemName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Text(request.isAgentBriefReady ? "Ready packet: AUD, postage, trust, region, and output boundaries present." : request.agentBriefNextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(request.agentBriefStatus, color: request.isAgentBriefReady ? .green : .orange)
+              }
+              .padding(8)
+              .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        CompactActionRow {
+          Button("Create batch brief draft", systemImage: "doc.badge.plus") {
+            store.createWishlistBatchResearchBriefDraft()
+          }
+          .disabled(usable.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Drafts/Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit trail", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Still not active: live retailer search, exchange-rate lookup, postage APIs, seller trust services, browser automation, account login, checkout, payment, order monitoring, or external agents.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }

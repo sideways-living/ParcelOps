@@ -18990,6 +18990,106 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistBatchResearchBriefDraft() {
+    let requests = wishlistResearchRequests
+    let readyRequests = requests.filter(\.isAgentBriefReady)
+    let scopedRequests = readyRequests.isEmpty ? requests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") } : readyRequests
+    let includedRequests = Array(scopedRequests.prefix(12))
+    guard !includedRequests.isEmpty else { return }
+
+    let requestPackets = includedRequests.enumerated().map { index, request in
+      let linkedItem = request.wishlistItemID.flatMap { id in wishlistItems.first { $0.id == id } }
+      let sellerOptions = (linkedItem?.comparisonOptions ?? [])
+        .prefix(5)
+        .map { option in
+          "- \(option.sellerName): \(option.listedPrice) \(option.currency), estimated AUD \(option.estimatedAUDTotal), postage \(option.postageCost) / \(option.postageTime), region \(option.sellerRegion), trust \(option.trustRating), URL \(option.productURL)"
+        }
+        .joined(separator: "\n")
+      let sellerContext = sellerOptions.isEmpty ? "- No local seller options recorded yet." : sellerOptions
+      let gaps = request.agentBriefGaps.isEmpty ? "None" : request.agentBriefGaps.joined(separator: ", ")
+
+      return """
+      \(index + 1). \(request.itemName)
+      Status: \(request.agentBriefStatus)
+      Scope gaps: \(gaps)
+      Source URL: \(request.sourceURL)
+      Budget: \(request.maxBudgetAUD)
+      Region scope: \(request.regionScope)
+      Seller criteria: \(request.sellerCriteria)
+      Postage requirements: \(request.postageRequirements)
+      Trust requirements: \(request.trustRequirements)
+      Existing local seller options:
+      \(sellerContext)
+      Agent instruction:
+      \(request.agentInstructionPacket)
+      """
+    }.joined(separator: "\n\n---\n\n")
+
+    let body = """
+    Wishlist batch comparison research brief.
+
+    Packet purpose:
+    Prepare a future comparison-agent handoff for Wishlist items. Compare Australian and overseas retailers, convert or estimate landed totals in AUD, include postage cost and delivery time, and reject unsafe sellers even when they are cheaper.
+
+    Included requests:
+    \(includedRequests.count) of \(requests.count)
+
+    Ready requests:
+    \(readyRequests.count)
+
+    Required output for each item:
+    - Product URL and seller name
+    - Listed price and source currency
+    - Estimated AUD landed total, including postage where possible
+    - Postage cost and delivery estimate
+    - Seller region
+    - Returns/warranty notes
+    - Trust evidence and delivery reliability notes
+    - Recommended seller, with reason
+    - Explicit blockers where a seller should not be used
+
+    Operator priorities:
+    - Prefer Australian retailers first when price, stock, postage, returns, and trust are reasonable.
+    - Use overseas sellers only when landed AUD cost, delivery reliability, and seller trust are acceptable.
+    - Do not recommend unknown or suspicious sellers only because they are cheap.
+    - Keep each recommendation traceable to a product URL and seller evidence.
+
+    Requests:
+    \(requestPackets)
+
+    Boundaries:
+    Do not buy anything, enter payment details, log in to retailer accounts, store credentials, mutate mailboxes, book carriers, run background monitoring, or contact sellers from this draft. This is a local research brief only.
+    """
+
+    let draft = DraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: "wishlist-research-batch",
+      templateID: nil,
+      recipient: "Wishlist review",
+      subject: "Wishlist batch research brief (\(includedRequests.count) item\(includedRequests.count == 1 ? "" : "s"))",
+      body: body,
+      channel: .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Wishlist batch research brief draft created locally.",
+      afterDetail: """
+      Included requests: \(includedRequests.count)
+      Ready requests available: \(readyRequests.count)
+      Scope-gap requests included: \(includedRequests.filter { !$0.isAgentBriefReady }.count)
+      Draft only. No web search, external agent, retailer access, currency lookup, postage quote, seller trust lookup, browser automation, login, checkout, payment, mailbox mutation, or background monitoring occurred.
+      """
+    )
+  }
+
   func removeWishlistResearchRequest(_ request: WishlistResearchRequest) {
     guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
     let removed = wishlistResearchRequests.remove(at: index)
