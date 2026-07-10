@@ -69,6 +69,14 @@ struct AuditView: View {
     Array(inboxDispatchHandoffEvents.prefix(8))
   }
 
+  private var wishlistPurchaseTrailEvents: [AuditEvent] {
+    searchMatchedEvents.filter(\.isWishlistPurchaseTrail)
+  }
+
+  private var visibleWishlistPurchaseTrailEvents: [AuditEvent] {
+    Array(wishlistPurchaseTrailEvents.prefix(8))
+  }
+
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
@@ -1087,6 +1095,10 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
+          AuditFeedSection(title: "Wishlist purchase trail", detail: "Local comparison, purchase packet, handoff, task, draft, and order-watch activity for Wishlist items.", events: visibleWishlistPurchaseTrailEvents, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
           AuditFeedSection(title: "Workflow actions", detail: "Reviews, links, completions, acknowledgements, task and draft work.", events: workflowEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
@@ -1191,6 +1203,26 @@ private struct AuditInboxOrderHandoffCallout: View {
   }
 }
 
+private struct AuditWishlistPurchaseTrailCallout: View {
+  var event: AuditEvent
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label(event.wishlistPurchaseTrailLabel, systemImage: event.wishlistPurchaseTrailSymbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(event.wishlistPurchaseTrailColor)
+      Text(event.wishlistPurchaseTrailGuidance)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(event.wishlistPurchaseTrailColor.opacity(0.10))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct AuditFeedSection: View {
   var title: String
   var detail: String
@@ -1269,6 +1301,8 @@ private struct AuditActivityRow: View {
             AuditDispatchHandoffTrailCallout(event: event)
           } else if event.isInboxOrderHandoff {
             AuditInboxOrderHandoffCallout(event: event)
+          } else if event.isWishlistPurchaseTrail {
+            AuditWishlistPurchaseTrailCallout(event: event)
           }
 
           CompactMetadataGrid {
@@ -1351,6 +1385,8 @@ struct AuditEventRow: View {
             AuditDispatchHandoffTrailCallout(event: event)
           } else if event.isInboxOrderHandoff {
             AuditInboxOrderHandoffCallout(event: event)
+          } else if event.isWishlistPurchaseTrail {
+            AuditWishlistPurchaseTrailCallout(event: event)
           }
 
           CompactMetadataGrid {
@@ -1680,6 +1716,90 @@ private extension AuditEvent {
     if summary.localizedCaseInsensitiveContains("blocked") || summary.localizedCaseInsensitiveContains("skipped") { return .orange }
     if isCompletedInboxDispatchHandoffTrail { return .green }
     return .teal
+  }
+
+  var isWishlistPurchaseTrail: Bool {
+    let searchableText = [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? "",
+      entityType.rawValue,
+      action.rawValue
+    ].joined(separator: " ")
+
+    let relevantEntity =
+      entityType == .wishlistItem
+        || (entityType == .reviewTask && searchableText.localizedCaseInsensitiveContains("wishlist"))
+        || (entityType == .draftMessage && searchableText.localizedCaseInsensitiveContains("wishlist"))
+        || (entityType == .costRecord && searchableText.localizedCaseInsensitiveContains("wishlist"))
+        || (entityType == .procurementRequest && searchableText.localizedCaseInsensitiveContains("wishlist"))
+
+    let mentionsPurchaseTrail =
+      searchableText.localizedCaseInsensitiveContains("wishlist purchase")
+        || searchableText.localizedCaseInsensitiveContains("purchase packet")
+        || searchableText.localizedCaseInsensitiveContains("purchase handoff")
+        || searchableText.localizedCaseInsensitiveContains("seller evidence")
+        || searchableText.localizedCaseInsensitiveContains("purchase decision")
+        || searchableText.localizedCaseInsensitiveContains("order confirmation")
+
+    return relevantEntity && mentionsPurchaseTrail
+  }
+
+  var wishlistPurchaseTrailLabel: String {
+    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "Purchase packet" }
+    if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
+    if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "Purchase decision" }
+    if searchableText.localizedCaseInsensitiveContains("seller evidence") { return "Seller evidence" }
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") { return "Order watch" }
+    if entityType == .draftMessage { return "Wishlist draft" }
+    if entityType == .reviewTask { return "Wishlist task" }
+    return "Wishlist purchase trail"
+  }
+
+  var wishlistPurchaseTrailGuidance: String {
+    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    if searchableText.localizedCaseInsensitiveContains("purchase packet") {
+      return "Use this event to verify the local buying packet: preferred seller, AUD total, postage, trust, blockers, handoff, and order-watch state. It is not evidence of checkout or payment."
+    }
+    if searchableText.localizedCaseInsensitiveContains("purchase handoff") {
+      return "The item has moved into manual handoff follow-up. Confirm account, payment method, delivery address, returns, warranty, and order confirmation outside ParcelOps."
+    }
+    if searchableText.localizedCaseInsensitiveContains("purchase decision") {
+      return "The seller decision changed locally. Check that live price, stock, postage, trust, returns, and AUD total are still current before handoff."
+    }
+    if searchableText.localizedCaseInsensitiveContains("seller evidence") {
+      return "Seller evidence needs a human check. Confirm product link, landed AUD cost, postage, trust, and returns/warranty before treating the option as ready."
+    }
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") {
+      return "Use Wishlist, Inbox, Mailbox Monitor, or Orders to link the external confirmation to a local order. No background mailbox or retailer monitoring is implied."
+    }
+    return "This is local Wishlist purchase-planning evidence. Continue in Wishlist unless a named task, draft, handoff, or linked order needs follow-up."
+  }
+
+  var wishlistPurchaseTrailSymbol: String {
+    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "doc.text.image.fill" }
+    if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
+    if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "doc.text.magnifyingglass" }
+    if searchableText.localizedCaseInsensitiveContains("seller evidence") { return "checklist" }
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") { return "envelope.badge.fill" }
+    return "star.square.fill"
+  }
+
+  var wishlistPurchaseTrailColor: Color {
+    let searchableText = [summary, afterDetail ?? "", action.rawValue].joined(separator: " ")
+    if searchableText.localizedCaseInsensitiveContains("blocked") || searchableText.localizedCaseInsensitiveContains("needs review") {
+      return .orange
+    }
+    if searchableText.localizedCaseInsensitiveContains("linked") || searchableText.localizedCaseInsensitiveContains("reviewed") {
+      return .green
+    }
+    if searchableText.localizedCaseInsensitiveContains("draft") {
+      return .blue
+    }
+    return .purple
   }
 
   var isWorkflowAction: Bool {
