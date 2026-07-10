@@ -107,6 +107,7 @@ struct WishlistView: View {
         wishlistSellerOptionReviewPanel
         wishlistComparisonMatrixPanel
         wishlistPurchaseDecisionQueuePanel
+        wishlistPurchaseHandoffPackPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -1111,6 +1112,123 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseHandoffPackItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        item.purchaseHandoff != nil
+          || item.purchaseDecision?.reviewState == .accepted
+          || item.status.localizedCaseInsensitiveContains("purchase")
+          || item.status.localizedCaseInsensitiveContains("order confirmation")
+      }
+      .sorted { first, second in
+        let firstGaps = wishlistPurchaseHandoffPackGaps(for: first).count
+        let secondGaps = wishlistPurchaseHandoffPackGaps(for: second).count
+        if firstGaps == secondGaps {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstGaps > secondGaps
+      }
+  }
+
+  private var wishlistPurchaseHandoffPackPanel: some View {
+    let items = wishlistPurchaseHandoffPackItems
+    let missingOrder = items.filter { $0.purchaseHandoff?.linkedOrderID == nil }.count
+    let missingCost = items.filter { store.suggestedCostRecords(for: $0).isEmpty }.count
+    let missingProcurement = items.filter { store.suggestedProcurementRequests(for: $0).isEmpty }.count
+    let missingReceiving = items.filter { store.suggestedReceivingInspections(for: $0).isEmpty }.count
+
+    return SettingsPanel(title: "Purchase handoff pack", symbol: "shippingbox.and.arrow.backward.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("After a Wishlist item is ready to buy or has been bought externally, use this pack to stage the local records ParcelOps needs: account context, cost/budget, procurement, receiving, and order-confirmation watch.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Handoff items", "\(items.count)", items.isEmpty ? .secondary : .blue),
+          ("No linked order", "\(missingOrder)", missingOrder == 0 ? .green : .teal),
+          ("Cost gaps", "\(missingCost)", missingCost == 0 ? .green : .orange),
+          ("Procurement gaps", "\(missingProcurement)", missingProcurement == 0 ? .green : .purple),
+          ("Receiving gaps", "\(missingReceiving)", missingReceiving == 0 ? .green : .brown)
+        ])
+
+        if items.isEmpty {
+          MVPEmptyState(
+            title: "No purchase handoffs yet",
+            detail: "Review a purchase decision or prepare a manual purchase handoff before staging cost, procurement, receiving, and order watch records.",
+            symbol: "shippingbox.and.arrow.backward.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(items.prefix(8)) { item in
+              WishlistPurchaseHandoffPackRow(
+                item: item,
+                linkedOrder: item.purchaseHandoff?.linkedOrderID.flatMap { orderID in
+                  store.orders.first { $0.id == orderID }
+                },
+                gaps: wishlistPurchaseHandoffPackGaps(for: item),
+                accountCount: store.suggestedAccounts(for: item).count,
+                costCount: store.suggestedCostRecords(for: item).count,
+                procurementCount: store.suggestedProcurementRequests(for: item).count,
+                receivingCount: store.suggestedReceivingInspections(for: item).count
+              ) {
+                runWishlistHandoffPackAction(for: item)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(item)
+              } onOrderSeen: {
+                store.markWishlistOrderConfirmationSeen(item)
+              } onFocus: {
+                wishlistSearchText = item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(items.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist handoff item\(remaining == 1 ? "" : "s") are available in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This pack creates local planning records only. It does not buy items, log in to retailers, store payment details, send email, mutate mailboxes, book carriers, or run background monitoring.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseHandoffPackGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
+  }
+
+  private func runWishlistHandoffPackAction(for item: WishlistItem) {
+    let gaps = wishlistPurchaseHandoffPackGaps(for: item)
+    if gaps.contains("handoff") {
+      store.prepareWishlistPurchaseHandoff(item)
+    } else if gaps.contains("cost") {
+      store.createWishlistPurchaseCostRecord(item)
+    } else if gaps.contains("procurement") {
+      store.createWishlistProcurementRequest(item)
+    } else if gaps.contains("receiving") {
+      store.createWishlistReceivingInspection(item)
+    } else if gaps.contains("order link") {
+      store.markWishlistOrderConfirmationSeen(item)
+    } else {
+      store.createWishlistPurchaseHandoffReviewTask(item)
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1902,6 +2020,102 @@ private struct WishlistPurchaseDecisionQueueRow: View {
 
       CompactActionRow {
         Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(stageColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseHandoffPackRow: View {
+  var item: WishlistItem
+  var linkedOrder: TrackedOrder?
+  var gaps: [String]
+  var accountCount: Int
+  var costCount: Int
+  var procurementCount: Int
+  var receivingCount: Int
+  var onNext: () -> Void
+  var onTask: () -> Void
+  var onOrderSeen: () -> Void
+  var onFocus: () -> Void
+
+  private var handoff: WishlistPurchaseHandoff? {
+    item.purchaseHandoff
+  }
+
+  private var stageColor: Color {
+    if gaps.isEmpty { return .green }
+    if gaps.contains("order link") { return .teal }
+    if gaps.contains("cost") || gaps.contains("procurement") || gaps.contains("receiving") { return .orange }
+    return .purple
+  }
+
+  private var nextActionTitle: String {
+    if gaps.contains("handoff") { return "Handoff" }
+    if gaps.contains("cost") { return "Cost" }
+    if gaps.contains("procurement") { return "Procurement" }
+    if gaps.contains("receiving") { return "Receiving" }
+    if gaps.contains("order link") { return "Order seen" }
+    return "Task"
+  }
+
+  private var nextActionSymbol: String {
+    if gaps.contains("handoff") { return "person.crop.circle.badge.checkmark" }
+    if gaps.contains("cost") { return "dollarsign.circle.fill" }
+    if gaps.contains("procurement") { return "cart.badge.plus" }
+    if gaps.contains("receiving") { return "shippingbox.and.arrow.down.fill" }
+    if gaps.contains("order link") { return "envelope.badge.fill" }
+    return "checklist"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "shippingbox.and.arrow.backward.fill")
+          .foregroundStyle(stageColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text(handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+        Spacer(minLength: 8)
+        Badge(gaps.isEmpty ? "Pack ready" : "\(gaps.count) gaps", color: stageColor)
+      }
+
+      Text(handoff?.purchaseStatus ?? item.purchaseReadiness ?? "Purchase handoff not prepared")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 120) {
+        WishlistMatrixMetric(title: "Account", value: accountCount == 0 ? handoff?.accountLabel ?? "To confirm" : "\(accountCount) matched", symbol: "person.crop.circle.badge.key.fill")
+        WishlistMatrixMetric(title: "Cost", value: costCount == 0 ? "Missing" : "\(costCount) linked", symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Procurement", value: procurementCount == 0 ? "Missing" : "\(procurementCount) linked", symbol: "cart.badge.plus")
+        WishlistMatrixMetric(title: "Receiving", value: receivingCount == 0 ? "Missing" : "\(receivingCount) linked", symbol: "shippingbox.and.arrow.down.fill")
+        WishlistMatrixMetric(title: "Order", value: linkedOrder?.orderNumber ?? "Not linked", symbol: "link")
+      }
+
+      if !gaps.isEmpty {
+        Text("Next setup: \(gaps.prefix(4).joined(separator: ", ")).")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(stageColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(nextActionTitle, systemImage: nextActionSymbol, action: onNext)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Order seen", systemImage: "envelope.badge.fill", action: onOrderSeen)
         Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
       }
       .buttonStyle(.bordered)
