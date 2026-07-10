@@ -107,6 +107,7 @@ struct WishlistView: View {
         wishlistSellerOptionReviewPanel
         wishlistComparisonMatrixPanel
         wishlistPurchaseDecisionQueuePanel
+        wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
@@ -1112,6 +1113,221 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseReleaseChecklistItems: [WishlistPurchaseReleaseGate] {
+    store.wishlistItems
+      .filter { item in
+        !(item.comparisonOptions ?? []).isEmpty
+          || item.purchaseDecision != nil
+          || item.purchaseHandoff != nil
+          || item.status.localizedCaseInsensitiveContains("purchase")
+          || item.status.localizedCaseInsensitiveContains("ready")
+      }
+      .map(wishlistPurchaseReleaseGate(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseReleaseChecklistPanel: some View {
+    let gates = wishlistPurchaseReleaseChecklistItems
+    let handoffReady = gates.filter(\.isReadyForManualPurchase).count
+    let linkedOrders = gates.filter(\.isLinkedOrder).count
+    let blocked = gates.filter { !$0.isReadyForManualPurchase && !$0.isLinkedOrder }.count
+    let highRisk = gates.filter { $0.tone == .red || $0.tone == .orange }.count
+
+    return SettingsPanel(title: "Purchase release checklist", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This is the final local gate before a human purchase or order-confirmation watch. It checks source details, preferred seller evidence, readiness checks, decision review, handoff setup, and linked order state without buying anything or contacting retailers.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Release items", "\(gates.count)", gates.isEmpty ? .secondary : .blue),
+          ("Ready handoff", "\(handoffReady)", handoffReady == 0 ? .secondary : .green),
+          ("Linked orders", "\(linkedOrders)", linkedOrders == 0 ? .secondary : .teal),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .orange),
+          ("Risk", "\(highRisk)", highRisk == 0 ? .green : .red)
+        ])
+
+        if gates.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist items are near purchase release",
+            detail: "Add seller options and run comparison before an item appears in this final purchase gate.",
+            symbol: "checkmark.seal.text.page.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(gates.prefix(8)) { gate in
+              WishlistPurchaseReleaseChecklistRow(gate: gate) {
+                runWishlistPurchaseReleaseAction(for: gate.item)
+              } onFocus: {
+                wishlistSearchText = gate.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(gates.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist release item\(remaining == 1 ? "" : "s") are available in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Release means local readiness only. ParcelOps has not verified live price, stock, postage, seller reputation, account login, payment, checkout, or delivery status.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseReleaseGate(for item: WishlistItem) -> WishlistPurchaseReleaseGate {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let checks = item.purchaseChecks ?? []
+    let sourceOK = !item.itemName.isPlaceholderValidationValue
+      && !item.storefrontURL.isPlaceholderValidationValue
+      && !item.owner.isPlaceholderValidationValue
+    let sellerOK = preferred != nil && preferred?.operatorSellerEvidenceGaps.isEmpty == true
+    let readinessOK = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
+    let decisionOK = item.purchaseDecision?.reviewState == .accepted
+    let handoffOK = item.purchaseHandoff != nil
+    let orderLinked = item.purchaseHandoff?.linkedOrderID != nil
+
+    var checksSummary: [(String, Bool)] = [
+      ("Source", sourceOK),
+      ("Seller", sellerOK),
+      ("Readiness", readinessOK),
+      ("Decision", decisionOK),
+      ("Handoff", handoffOK),
+      ("Order", orderLinked)
+    ]
+
+    let stage: String
+    let detail: String
+    let actionTitle: String
+    let actionSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if options.isEmpty {
+      stage = "Seller comparison needed"
+      detail = "Add seller options or a research request before this item can be released for purchase review."
+      actionTitle = "Compare"
+      actionSymbol = "magnifyingglass.circle"
+      tone = .orange
+      sortPriority = 1
+    } else if preferred == nil || item.preferredOptionID == nil {
+      stage = "Preferred seller needed"
+      detail = "Score or choose the preferred seller before release."
+      actionTitle = "Score"
+      actionSymbol = "chart.bar.doc.horizontal"
+      tone = .orange
+      sortPriority = 2
+    } else if !sellerOK {
+      let gaps = preferred?.operatorSellerEvidenceGaps ?? []
+      stage = "Seller evidence needed"
+      detail = "Confirm \(gaps.prefix(3).joined(separator: ", ")) before purchase handoff."
+      actionTitle = "Evidence task"
+      actionSymbol = "checklist"
+      tone = .orange
+      sortPriority = 3
+    } else if !readinessOK {
+      stage = "Readiness check needed"
+      detail = checks.isEmpty ? "Run the local purchase readiness check." : "Clear failed readiness checks before release."
+      actionTitle = "Readiness"
+      actionSymbol = "checklist.checked"
+      tone = .orange
+      sortPriority = 4
+    } else if item.purchaseDecision == nil {
+      stage = "Purchase decision needed"
+      detail = "Draft the selected seller, AUD total, postage, trust, and rejected alternatives."
+      actionTitle = "Decision"
+      actionSymbol = "doc.text.magnifyingglass"
+      tone = .brown
+      sortPriority = 5
+    } else if !decisionOK {
+      stage = "Decision review needed"
+      detail = "Review and accept the local decision before handoff."
+      actionTitle = "Review"
+      actionSymbol = "checkmark.seal"
+      tone = .brown
+      sortPriority = 6
+    } else if !handoffOK {
+      stage = "Handoff setup needed"
+      detail = "Prepare the manual purchase handoff and expected order-confirmation watch."
+      actionTitle = "Handoff"
+      actionSymbol = "person.crop.circle.badge.checkmark"
+      tone = .purple
+      sortPriority = 7
+    } else if !orderLinked {
+      stage = "Ready for manual purchase"
+      detail = "Handoff is ready. After external purchase, watch Inbox/Mailbox Monitor for confirmation and link the order."
+      actionTitle = "Order seen"
+      actionSymbol = "envelope.badge.fill"
+      tone = .green
+      sortPriority = 8
+    } else {
+      stage = "Linked order released"
+      detail = "A local order is linked. Continue through Orders, Dispatch, Tasks, and Audit."
+      actionTitle = "Open item"
+      actionSymbol = "scope"
+      tone = .teal
+      sortPriority = 9
+    }
+
+    if orderLinked {
+      checksSummary[5] = ("Order", true)
+    }
+
+    return WishlistPurchaseReleaseGate(
+      item: item,
+      stage: stage,
+      detail: detail,
+      actionTitle: actionTitle,
+      actionSymbol: actionSymbol,
+      checks: checksSummary,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistPurchaseReleaseAction(for item: WishlistItem) {
+    let gate = wishlistPurchaseReleaseGate(for: item)
+    switch gate.sortPriority {
+    case 1:
+      store.createWishlistComparisonPlan(item)
+      store.createWishlistResearchRequest(from: item)
+    case 2:
+      store.evaluateWishlistComparisonOptions(item)
+    case 3:
+      store.createWishlistSellerEvidenceReviewTask(item)
+    case 4:
+      store.runWishlistPurchaseReadinessCheck(item)
+    case 5:
+      store.createWishlistPurchaseDecision(item)
+    case 6:
+      store.markWishlistPurchaseDecisionReviewed(item)
+    case 7:
+      store.prepareWishlistPurchaseHandoff(item)
+    case 8:
+      store.markWishlistOrderConfirmationSeen(item)
+    default:
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistPurchaseHandoffPackItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
@@ -1476,6 +1692,74 @@ struct WishlistView: View {
       seen.insert(item.id)
       return true
     }
+  }
+}
+
+private struct WishlistPurchaseReleaseGate: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var stage: String
+  var detail: String
+  var actionTitle: String
+  var actionSymbol: String
+  var checks: [(String, Bool)]
+  var tone: Color
+  var sortPriority: Int
+
+  var isReadyForManualPurchase: Bool {
+    stage == "Ready for manual purchase"
+  }
+
+  var isLinkedOrder: Bool {
+    stage == "Linked order released"
+  }
+}
+
+private struct WishlistPurchaseReleaseChecklistRow: View {
+  var gate: WishlistPurchaseReleaseGate
+  var onAction: () -> Void
+  var onFocus: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checkmark.seal.text.page.fill")
+          .foregroundStyle(gate.tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gate.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(gate.item.storefront) • \(gate.item.owner)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(gate.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(gate.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(gate.stage, color: gate.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 92) {
+        ForEach(gate.checks, id: \.0) { check in
+          Label(check.0, systemImage: check.1 ? "checkmark.circle.fill" : "circle")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(check.1 ? Color.green : Color.secondary)
+            .lineLimit(1)
+        }
+      }
+
+      CompactActionRow {
+        Button(gate.actionTitle, systemImage: gate.actionSymbol, action: onAction)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+    }
+    .padding(10)
+    .background(gate.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
