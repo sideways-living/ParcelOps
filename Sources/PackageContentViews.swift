@@ -189,13 +189,17 @@ struct PackageContentsView: View {
   }
 
   private var inboxPackageContentCoverage: some View {
-    SettingsPanel(title: "Inbox package content coverage", symbol: "shippingbox.circle.fill") {
-      Text("Checks whether orders created from Inbox intake have local item verification records before cost, return, receiving, and dispatch work.")
+    let sourceOrders = packageContentSourceOrders
+    let wishlistOrders = wishlistLinkedOrders
+
+    return SettingsPanel(title: "Inbox and Wishlist package content coverage", symbol: "shippingbox.circle.fill") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local item verification records before cost, return, receiving, and dispatch work.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
         Badge("\(contentsLinkedToInboxOrders.count) linked contents", color: .teal)
         Badge("\(unverifiedInboxContents.count) unverified", color: unverifiedInboxContents.isEmpty ? .green : .orange)
         Badge("\(inboxOrdersMissingContent.count) missing content", color: inboxOrdersMissingContent.isEmpty ? .green : .orange)
@@ -233,12 +237,12 @@ struct PackageContentsView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need package content checks yet.")
+      if sourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need package content checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingContent.isEmpty && unverifiedInboxContents.isEmpty {
-        Label("Inbox-created orders have verified package content coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have verified package content coverage for this local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
@@ -278,12 +282,20 @@ struct PackageContentsView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var packageContentSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var contentsLinkedToInboxOrders: [PackageContentRecord] {
     store.packageContents.filter { content in
       guard let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil) else {
         return false
       }
-      return inboxCreatedOrders.contains { $0.id == orderID }
+      return packageContentSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -292,11 +304,21 @@ struct PackageContentsView: View {
   }
 
   private var inboxOrdersMissingContent: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    packageContentSourceOrders.filter { order in
       !store.packageContents.contains { content in
         content.orderID == order.id || (content.linkedEntityType == .order && content.linkedEntityID == order.id.uuidString)
       }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var packageContentProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
@@ -469,8 +491,13 @@ struct PackageContentRow: View {
     }
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
+  }
+
   private var needsInboxVerificationAttention: Bool {
-    !linkedIntakeEmails.isEmpty && content.verificationStatus != .verified
+    (!linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty) && content.verificationStatus != .verified
   }
 
   var body: some View {
@@ -513,7 +540,7 @@ struct PackageContentRow: View {
         }
       }
 
-      if !linkedIntakeEmails.isEmpty || needsInboxVerificationAttention {
+      if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || needsInboxVerificationAttention {
         packageContentInboxSourceTrail
       }
 
@@ -587,7 +614,7 @@ struct PackageContentRow: View {
 
   private var packageContentInboxSourceTrail: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label("Inbox item verification context", systemImage: "envelope.open.fill")
+      Label("Inbox/Wishlist item verification context", systemImage: "envelope.open.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
       Text(sourceTrailDescription)
@@ -601,6 +628,9 @@ struct PackageContentRow: View {
         }
         if let linkedOrder {
           Badge(linkedOrder.orderNumber, color: .blue)
+        }
+        ForEach(linkedWishlistItems.prefix(2)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
         }
         ForEach(linkedIntakeEmails.prefix(3)) { email in
           if let store {
@@ -618,9 +648,12 @@ struct PackageContentRow: View {
 
   private var sourceTrailDescription: String {
     if needsInboxVerificationAttention {
-      return "This item record came from an Inbox-created order and still needs local quantity/item verification before downstream work."
+      return "This item record came from an Inbox-created or Wishlist-linked order and still needs local quantity/item verification before downstream work."
     }
-    return "Inbox intake context is linked to this package content record. Provider IDs stay in Audit/details."
+    if !linkedWishlistItems.isEmpty && linkedIntakeEmails.isEmpty {
+      return "Wishlist purchase context is linked to this package content record. Confirm item and quantity before downstream work."
+    }
+    return "Inbox intake or Wishlist context is linked to this package content record. Provider IDs stay in Audit/details."
   }
 
   private func sourceColor(for tone: String) -> Color {

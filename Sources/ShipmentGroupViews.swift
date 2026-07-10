@@ -126,13 +126,17 @@ struct ShipmentGroupsView: View {
   }
 
   private var inboxShipmentGroupCoverage: some View {
-    SettingsPanel(title: "Inbox shipment group coverage", symbol: "shippingbox.and.arrow.backward.fill") {
-      Text("Checks whether orders created from Inbox intake have local shipment group context before dispatch work begins.")
+    let sourceOrders = shipmentGroupSourceOrders
+    let wishlistOrders = wishlistLinkedOrders
+
+    return SettingsPanel(title: "Inbox and Wishlist shipment group coverage", symbol: "shippingbox.and.arrow.backward.fill") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local shipment group context before dispatch work begins.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
         Badge("\(groupsLinkedToInboxOrders.count) linked groups", color: .teal)
         Badge("\(inboxOrdersMissingGroup.count) orders without groups", color: inboxOrdersMissingGroup.isEmpty ? .green : .orange)
         Badge("\(groupsMissingPrimaryOrder.count) groups missing primary", color: groupsMissingPrimaryOrder.isEmpty ? .green : .orange)
@@ -170,12 +174,12 @@ struct ShipmentGroupsView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need shipment group checks yet.")
+      if sourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need shipment group checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingGroup.isEmpty && groupsMissingPrimaryOrder.isEmpty {
-        Label("Inbox-created orders have shipment group coverage for the current local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have shipment group coverage for the current local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
@@ -215,20 +219,38 @@ struct ShipmentGroupsView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var shipmentGroupSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var groupsLinkedToInboxOrders: [ShipmentGroup] {
     store.shipmentGroups.filter { group in
       let groupOrderIDs = Set(([group.primaryOrderID].compactMap { $0 } + group.relatedOrderIDs))
       return !group.relatedIntakeEmailIDs.isEmpty
-        || inboxCreatedOrders.contains { groupOrderIDs.contains($0.id) }
+        || shipmentGroupSourceOrders.contains { groupOrderIDs.contains($0.id) }
     }
   }
 
   private var inboxOrdersMissingGroup: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    shipmentGroupSourceOrders.filter { order in
       !store.shipmentGroups.contains { group in
         group.primaryOrderID == order.id || group.relatedOrderIDs.contains(order.id)
       }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var groupsMissingPrimaryOrder: [ShipmentGroup] {
@@ -441,6 +463,17 @@ struct ShipmentGroupRow: View {
     (linkedIntakeEmails + linkedOrderIntakeEmails).uniquedByID()
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store else { return [] }
+    var seen: Set<UUID> = []
+    var unique: [WishlistItem] = []
+    for item in linkedOrders.flatMap({ store.wishlistItemsLinked(to: $0) }) where seen.contains(item.id) == false {
+      seen.insert(item.id)
+      unique.append(item)
+    }
+    return unique
+  }
+
   private var missingPrimaryOrder: Bool {
     guard let primaryOrderID = group.primaryOrderID else { return true }
     return !linkedOrders.contains { $0.id == primaryOrderID }
@@ -513,7 +546,7 @@ struct ShipmentGroupRow: View {
         Badge("\(group.relatedEvidenceIDs.count) evidence", color: .purple)
       }
 
-      if !sourceTrailEmails.isEmpty || missingPrimaryOrder {
+      if !sourceTrailEmails.isEmpty || !linkedWishlistItems.isEmpty || missingPrimaryOrder {
         shipmentGroupInboxSourceTrail
       }
 
@@ -607,7 +640,7 @@ struct ShipmentGroupRow: View {
 
   private var shipmentGroupInboxSourceTrail: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label("Inbox source trail", systemImage: "envelope.open.fill")
+      Label("Inbox/Wishlist source trail", systemImage: "envelope.open.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
       Text(sourceTrailDescription)
@@ -617,6 +650,9 @@ struct ShipmentGroupRow: View {
       CompactMetadataGrid(minimumWidth: 140) {
         if missingPrimaryOrder {
           Badge("Primary order missing", color: .orange)
+        }
+        ForEach(linkedWishlistItems.prefix(3)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
         }
         ForEach(sourceTrailEmails.prefix(4)) { email in
           if let store {
@@ -637,10 +673,13 @@ struct ShipmentGroupRow: View {
     if sourceTrailEmails.isEmpty && missingPrimaryOrder {
       return "This group needs a valid primary order before dispatch context is reliable."
     }
-    if missingPrimaryOrder {
-      return "Inbox source rows are linked, but this group still needs a valid primary order."
+    if !linkedWishlistItems.isEmpty && sourceTrailEmails.isEmpty {
+      return "Wishlist purchase context explains why this shipment group needs local dispatch setup."
     }
-    return "Inbox intake rows explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details."
+    if missingPrimaryOrder {
+      return "Inbox or Wishlist source rows are linked, but this group still needs a valid primary order."
+    }
+    return "Inbox intake rows or Wishlist purchase context explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details."
   }
 
   private func sourceColor(for tone: String) -> Color {

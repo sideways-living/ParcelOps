@@ -33,14 +33,22 @@ struct EvidenceView: View {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var evidenceSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var inboxCreatedOrdersWithEvidence: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    evidenceSourceOrders.filter { order in
       !evidenceForOrder(order).isEmpty
     }
   }
 
   private var inboxCreatedOrdersWithoutEvidence: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    evidenceSourceOrders.filter { order in
       evidenceForOrder(order).isEmpty
     }
   }
@@ -169,15 +177,16 @@ struct EvidenceView: View {
   }
 
   private var inboxEvidenceCoveragePanel: some View {
-    SettingsPanel(title: "Inbox evidence coverage", symbol: "envelope.open.fill") {
+    SettingsPanel(title: "Inbox and Wishlist evidence coverage", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Evidence should support the local source trail for orders created from Inbox, Import Queue, or Acceptance Review. Missing evidence is not a blocker by itself, but it should be visible before handoff closure.")
+        Text("Evidence should support orders created from Inbox, Import Queue, Acceptance Review, or Wishlist purchase handoff. Missing evidence is not a blocker by itself, but it should be visible before handoff closure.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("Wishlist orders", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
           ("With evidence", "\(inboxCreatedOrdersWithEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
           ("No evidence", "\(inboxCreatedOrdersWithoutEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
           ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
@@ -216,7 +225,7 @@ struct EvidenceView: View {
         }
 
         if inboxCreatedOrdersWithoutEvidence.isEmpty && inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "Inbox-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+          Label(evidenceSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "Inbox-created and Wishlist-linked orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {
@@ -231,7 +240,7 @@ struct EvidenceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                   Text("\(order.store) • \(order.orderNumber)")
                     .font(.subheadline.weight(.semibold))
-                  Text(evidenceForOrder(order).isEmpty ? "No local evidence attachment is linked to this Inbox-created order. Check source trail before closing handoff work." : "Source trail is missing even though evidence exists. Open order detail to link or review the source context.")
+                  Text(evidenceForOrder(order).isEmpty ? "No local evidence attachment is linked to this Inbox-created or Wishlist-linked order. Check source trail before closing handoff work." : "Source trail is missing even though evidence exists. Open order detail to link or review the source context.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -451,6 +460,16 @@ struct EvidenceView: View {
       + store.acceptanceRecords(for: order).count
   }
 
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
+  }
+
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
     return store.intakeEmails.filter { email in
@@ -517,7 +536,7 @@ struct EvidenceAttachmentRow: View {
             ShipmentGroupContextStrip(groups: shipmentGroups)
           }
 
-          if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder {
+          if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder || !linkedWishlistItems.isEmpty {
             EvidenceInboxSourceTrailCallout(
               evidenceCount: evidenceForLinkedOrder.count,
               sourceTrailCount: sourceTrailCount(for: linkedOrder)
@@ -539,11 +558,23 @@ struct EvidenceAttachmentRow: View {
 
           if let store, let linkedOrder {
             let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-            if !linkedEmails.isEmpty {
+            if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
-                Label("Inbox evidence source", systemImage: "tray.and.arrow.down.fill")
+                Label("Inbox/Wishlist evidence source", systemImage: "tray.and.arrow.down.fill")
                   .font(.caption.bold())
                   .foregroundStyle(.teal)
+                ForEach(linkedWishlistItems.prefix(2)) { item in
+                  HStack(spacing: 6) {
+                    Badge("Wishlist", color: .pink)
+                    if let handoff = item.purchaseHandoff {
+                      Badge(handoff.purchaseStatus, color: .secondary)
+                    }
+                    Text(item.itemName)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
                 ForEach(linkedEmails.prefix(2)) { email in
                   HStack(spacing: 6) {
                     let sourceSummary = store.intakeSourceSummary(for: email)
@@ -627,6 +658,11 @@ struct EvidenceAttachmentRow: View {
   private var evidenceForLinkedOrder: [EvidenceAttachment] {
     guard let store, let linkedOrder else { return [] }
     return evidenceAttachmentsForOrder(linkedOrder, in: store.evidenceAttachments, intakeEmails: store.intakeEmails)
+  }
+
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
   }
 
   private var evidenceWarnings: [String] {
