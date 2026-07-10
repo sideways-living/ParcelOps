@@ -20381,10 +20381,24 @@ final class ParcelOpsStore {
   }
 
   func createDraftMessage(from item: WishlistItem) {
-    let optionSummary = (item.comparisonOptions ?? [])
+    let options = item.comparisonOptions ?? []
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      options.first { $0.id == optionID }
+    }
+    let decision = item.purchaseDecision
+    let handoff = item.purchaseHandoff
+    let checks = item.purchaseChecks ?? []
+    let failedChecks = checks.filter { $0.status != "Passed" }
+    let optionSummary = options
       .prefix(4)
-      .map { "\($0.sellerName): \($0.estimatedAUDTotal), postage \($0.postageCost), \($0.postageTime), trust \($0.trustRating)" }
+      .map { option in
+        let marker = option.id == item.preferredOptionID ? "Preferred - " : ""
+        let gaps = option.operatorSellerEvidenceGaps
+        return "\(marker)\(option.sellerName): \(option.estimatedAUDTotal), postage \(option.postageCost), \(option.postageTime), trust \(option.trustRating), evidence \(gaps.isEmpty ? "complete" : "missing \(gaps.joined(separator: ", "))")"
+      }
       .joined(separator: "\n")
+    let packetBlockers = item.operatorPurchaseBlockers
+    let orderLink = handoff?.linkedOrderID?.uuidString ?? "No local order linked yet"
     createDraftMessage(
       linkedEntityType: .wishlistItem,
       linkedEntityID: item.id.uuidString,
@@ -20402,11 +20416,29 @@ final class ParcelOpsStore {
       Estimated cost: \(item.estimatedCost)
       Comparison status: \(item.comparisonStatus ?? "Not compared")
       Purchase readiness: \(item.purchaseReadiness ?? "Not assessed")
+      Preferred seller: \(preferredOption?.sellerName ?? decision?.selectedSellerName ?? "Not selected")
+      AUD total: \(decision?.totalAUDSummary ?? preferredOption?.estimatedAUDTotal ?? item.estimatedCost)
+      Postage: \(decision?.postageSummary ?? preferredOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "Not reviewed")
+      Trust: \(decision?.trustSummary ?? preferredOption?.trustRating ?? "Not reviewed")
+      Decision: \(decision?.decisionStatus ?? "Not drafted")
+      Handoff: \(handoff?.purchaseStatus ?? "Not prepared")
+      Account: \(handoff?.accountLabel ?? "\(item.owner) account to confirm")
+      Order watch: \(handoff?.orderWatchStatus ?? "Not watching yet")
+      Linked order: \(orderLink)
 
       Seller options:
       \(optionSummary.isEmpty ? "No seller options have been compared yet." : optionSummary)
 
-      Confirm total landed AUD cost, postage time, seller trust, returns/warranty, and which account should be used before buying. ParcelOps has not purchased anything or stored payment details.
+      Readiness checks:
+      \(checks.isEmpty ? "No local readiness check has been run yet." : checks.map { "- \($0.title): \($0.status) - \($0.detail)" }.joined(separator: "\n"))
+
+      Packet blockers:
+      \(packetBlockers.isEmpty ? "No local packet blockers are currently detected." : packetBlockers.map { "- \($0)" }.joined(separator: "\n"))
+
+      Failed or review checks:
+      \(failedChecks.isEmpty ? "No failed/review checks recorded." : failedChecks.map { "- \($0.title): \($0.detail)" }.joined(separator: "\n"))
+
+      Confirm live price, stock, total landed AUD cost, postage time, seller trust, returns/warranty, delivery address, account access, and payment method outside ParcelOps before buying. ParcelOps has not purchased anything, sent a message, accessed a retailer account, or stored payment details.
       """
       persistDraftMessages()
     }

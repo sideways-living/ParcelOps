@@ -1668,6 +1668,19 @@ struct WishlistItemRow: View {
         }
       }
 
+      CompactActionRow {
+        Button("Packet draft", systemImage: "envelope.open") {
+          onDraft()
+          feedbackMessage = "Wishlist purchase packet draft created locally. No message was sent and no seller, browser, mailbox, checkout, or payment action occurred."
+        }
+        .buttonStyle(.bordered)
+        Button("Handoff task", systemImage: "checklist") {
+          onHandoffTask()
+          feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelOps."
+        }
+        .buttonStyle(.bordered)
+      }
+
       Text("This packet is a local buying checklist only. ParcelOps does not verify live retailer pages, convert currency live, quote postage, assess seller reputation externally, buy items, or store payment details.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
