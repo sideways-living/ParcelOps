@@ -132,6 +132,30 @@ struct OperationsWorkbenchView: View {
     store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
   }
 
+  private var wishlistReleaseItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      !(item.comparisonOptions ?? []).isEmpty
+        || item.purchaseDecision != nil
+        || item.purchaseHandoff != nil
+        || item.status.localizedCaseInsensitiveContains("purchase")
+        || item.status.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var wishlistReleaseReadyItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil && wishlistReleaseBlockers(for: item).isEmpty
+    }
+  }
+
+  private var wishlistReleaseBlockedItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistReleaseBlockers(for: $0).isEmpty }
+  }
+
+  private var wishlistReleaseOrderWatchItems: [WishlistItem] {
+    wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+  }
+
   private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
     (item.comparisonOptions ?? []).reduce(0) { total, option in
       total + option.operatorSellerEvidenceGaps.count
@@ -161,6 +185,37 @@ struct OperationsWorkbenchView: View {
     if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
     if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
     return gaps
+  }
+
+  private func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let checks = item.purchaseChecks ?? []
+    var blockers: [String] = []
+    if item.itemName.isPlaceholderValidationValue || item.storefrontURL.isPlaceholderValidationValue || item.owner.isPlaceholderValidationValue {
+      blockers.append("source")
+    }
+    if options.isEmpty {
+      blockers.append("seller comparison")
+    } else if preferred == nil || item.preferredOptionID == nil {
+      blockers.append("preferred seller")
+    } else if preferred?.operatorSellerEvidenceGaps.isEmpty == false {
+      blockers.append("seller evidence")
+    }
+    if checks.isEmpty || checks.contains(where: { $0.status != "Passed" }) {
+      blockers.append("readiness")
+    }
+    if item.purchaseDecision == nil {
+      blockers.append("decision")
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      blockers.append("decision review")
+    }
+    if item.purchaseHandoff == nil {
+      blockers.append("handoff")
+    }
+    return blockers
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -1872,6 +1927,9 @@ struct OperationsWorkbenchView: View {
         MetricStrip(items: [
           ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count)", .purple),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
+          ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
+          ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
+          ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
           ("Decision", "\(wishlistWorkbenchItems.filter { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview }.count)", wishlistWorkbenchItems.contains { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview } ? .brown : .green),
@@ -2581,6 +2639,9 @@ private struct WishlistWorkbenchFollowUpRow: View {
     if !handoffGaps.isEmpty {
       return "Complete handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))."
     }
+    if handoff != nil && handoff?.linkedOrderID == nil {
+      return "Ready for manual purchase handoff; watch for the order confirmation and link it locally."
+    }
     if !item.operatorPurchaseBlockers.isEmpty {
       return item.operatorPurchaseNextAction
     }
@@ -2634,6 +2695,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Handoff pack gaps: \(handoffGaps.prefix(4).joined(separator: ", "))")
             .font(.caption2)
             .foregroundStyle(.purple)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if handoff != nil && handoff?.linkedOrderID == nil && handoffGaps.isEmpty {
+          Text("Release checklist: ready for manual purchase; waiting for order confirmation link.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
             .fixedSize(horizontal: false, vertical: true)
         }
         Label(nextAction, systemImage: "arrow.turn.down.right")
