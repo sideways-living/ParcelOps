@@ -105,6 +105,7 @@ struct WishlistView: View {
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
+        wishlistComparisonMatrixPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -810,6 +811,105 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistComparisonMatrixEntries: [WishlistComparisonMatrixEntry] {
+    store.wishlistItems.flatMap { item in
+      (item.comparisonOptions ?? []).map { option in
+        WishlistComparisonMatrixEntry(
+          item: item,
+          option: option,
+          isPreferred: item.preferredOptionID == option.id
+        )
+      }
+    }
+    .sorted { first, second in
+      if first.isPreferred != second.isPreferred {
+        return first.isPreferred
+      }
+      if first.option.operatorSellerMatrixScore == second.option.operatorSellerMatrixScore {
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.option.operatorSellerMatrixScore > second.option.operatorSellerMatrixScore
+    }
+  }
+
+  private var wishlistComparisonMatrixPanel: some View {
+    let entries = wishlistComparisonMatrixEntries
+    let readyCount = entries.filter { $0.option.operatorSellerEvidenceGaps.isEmpty && $0.option.operatorSellerMatrixScore >= 70 }.count
+    let highRiskCount = entries.filter { $0.option.operatorSellerMatrixScore < 55 || $0.option.operatorSellerMatrixRisk.localizedCaseInsensitiveContains("high") }.count
+    let gapCount = entries.filter { !$0.option.operatorSellerEvidenceGaps.isEmpty }.count
+
+    return SettingsPanel(title: "Seller comparison matrix", symbol: "tablecells.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Compare manual seller options in one place before purchase handoff. Scores are local guidance only and must be checked against live price, AUD landed cost, postage, delivery time, seller trust, returns, and account readiness before buying.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Options", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready-looking", "\(readyCount)", readyCount == 0 ? .secondary : .green),
+          ("Evidence gaps", "\(gapCount)", gapCount == 0 ? .green : .orange),
+          ("High risk", "\(highRiskCount)", highRiskCount == 0 ? .green : .red)
+        ])
+
+        CompactActionRow {
+          Button("Score all options", systemImage: "chart.bar.doc.horizontal") {
+            scoreAllWishlistOptions()
+          }
+          .disabled(entries.isEmpty)
+          Button("Show gaps", systemImage: "exclamationmark.triangle.fill") {
+            wishlistSearchText = ""
+            selectedSource = nil
+            selectedStatus = nil
+          }
+          .disabled(gapCount == 0)
+        }
+        .buttonStyle(.bordered)
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller options to compare",
+            detail: "Add seller options to Wishlist items before using the comparison matrix. Nothing here performs live retailer search, scraping, currency conversion, or postage lookup.",
+            symbol: "tablecells.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 340), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(12)) { entry in
+              WishlistComparisonMatrixRow(entry: entry) {
+                store.markWishlistPreferredOption(entry.item, option: entry.option)
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 12, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller option\(remaining == 1 ? "" : "s") are available in the detailed Wishlist item rows below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Matrix scoring is local only. ParcelOps has not checked stock, current price, exchange rates, postage quote, seller reviews, checkout, payment, or account login.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func scoreAllWishlistOptions() {
+    let itemsWithOptions = store.wishlistItems.filter { !($0.comparisonOptions ?? []).isEmpty }
+    for item in itemsWithOptions {
+      store.evaluateWishlistComparisonOptions(item)
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1411,6 +1511,121 @@ private struct WishlistPlanningStep: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistComparisonMatrixEntry: Identifiable {
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var isPreferred: Bool
+
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)"
+  }
+}
+
+private struct WishlistComparisonMatrixRow: View {
+  var entry: WishlistComparisonMatrixEntry
+  var onPreferred: () -> Void
+  var onScore: () -> Void
+  var onFocus: () -> Void
+
+  private var scoreColor: Color {
+    let score = entry.option.operatorSellerMatrixScore
+    if score >= 75 { return .green }
+    if score >= 55 { return .orange }
+    return .red
+  }
+
+  private var evidenceSummary: String {
+    let gaps = entry.option.operatorSellerEvidenceGaps
+    if gaps.isEmpty {
+      return entry.option.operatorSellerMatrixRecommendation
+    }
+    return "Needs \(gaps.prefix(3).joined(separator: ", "))"
+  }
+
+  private var evidenceColor: Color {
+    entry.option.operatorSellerEvidenceGaps.isEmpty ? .secondary : .orange
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.isPreferred ? "checkmark.seal.fill" : "storefront.fill")
+          .foregroundStyle(entry.isPreferred ? .green : .teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(entry.option.sellerName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+          Text(entry.item.itemName)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 4) {
+          Badge("\(entry.option.operatorSellerMatrixScore)", color: scoreColor)
+          if entry.isPreferred {
+            Badge("Preferred", color: .green)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 120) {
+        WishlistMatrixMetric(title: "AUD total", value: entry.option.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(entry.option.postageCost), \(entry.option.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: entry.option.trustRating, symbol: "shield.lefthalf.filled")
+        WishlistMatrixMetric(title: "Region", value: entry.option.sellerRegion, symbol: "globe.asia.australia.fill")
+      }
+
+      Text(evidenceSummary)
+        .font(.caption)
+        .foregroundStyle(evidenceColor)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let decisionReason = entry.option.decisionReason, !decisionReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(decisionReason)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(3)
+      }
+
+      CompactActionRow {
+        Button(entry.isPreferred ? "Preferred" : "Prefer", systemImage: "checkmark.seal", action: onPreferred)
+          .disabled(entry.isPreferred)
+        Button("Score", systemImage: "chart.bar.doc.horizontal", action: onScore)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistMatrixMetric: View {
+  var title: String
+  var value: String
+  var symbol: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 6) {
+      Image(systemName: symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 16)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not recorded" : value)
+          .font(.caption2)
+          .lineLimit(2)
+      }
+    }
   }
 }
 

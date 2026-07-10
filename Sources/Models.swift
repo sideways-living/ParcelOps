@@ -2863,6 +2863,91 @@ extension WishlistComparisonOption {
     }
     return gaps
   }
+
+  var operatorSellerMatrixScore: Int {
+    if let localScore {
+      return localScore
+    }
+
+    var score = 50
+    let searchable = [
+      sellerName,
+      productURL,
+      listedPrice,
+      currency,
+      estimatedAUDTotal,
+      postageCost,
+      postageTime,
+      sellerRegion,
+      trustRating,
+      trustNotes,
+      recommendation
+    ].joined(separator: " ").localizedLowercase
+
+    if estimatedAUDTotal.localizedCaseInsensitiveContains("aud") && !estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
+      score += 14
+    } else {
+      score -= 16
+    }
+
+    if !postageCost.localizedCaseInsensitiveContains("pending")
+      && !postageCost.isPlaceholderValidationValue
+      && !postageTime.localizedCaseInsensitiveContains("pending")
+      && !postageTime.isPlaceholderValidationValue {
+      score += 12
+    } else {
+      score -= 14
+    }
+
+    if trustRating.localizedCaseInsensitiveContains("trusted")
+      || trustRating.localizedCaseInsensitiveContains("high")
+      || trustRating.localizedCaseInsensitiveContains("accepted") {
+      score += 18
+    } else if trustRating.localizedCaseInsensitiveContains("unknown")
+      || trustRating.localizedCaseInsensitiveContains("needs")
+      || trustRating.localizedCaseInsensitiveContains("review")
+      || trustRating.localizedCaseInsensitiveContains("low") {
+      score -= 22
+    }
+
+    if sellerRegion.localizedCaseInsensitiveContains("australia")
+      || sellerRegion.localizedCaseInsensitiveContains("au") {
+      score += 6
+    } else if sellerRegion.localizedCaseInsensitiveContains("overseas")
+      || sellerRegion.localizedCaseInsensitiveContains("international")
+      || sellerRegion.localizedCaseInsensitiveContains("global") {
+      score -= 4
+    }
+
+    if searchable.contains("return") || searchable.contains("warranty") {
+      score += 6
+    } else {
+      score -= 6
+    }
+
+    return min(100, max(0, score))
+  }
+
+  var operatorSellerMatrixRisk: String {
+    if let riskLevel, !riskLevel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return riskLevel
+    }
+    let score = operatorSellerMatrixScore
+    if score >= 75 { return "Lower risk" }
+    if score >= 55 { return "Review recommended" }
+    return "High risk"
+  }
+
+  var operatorSellerMatrixRecommendation: String {
+    let gaps = operatorSellerEvidenceGaps
+    if gaps.isEmpty && operatorSellerMatrixScore >= 75 {
+      return "Good local candidate. Verify live price, stock, postage, returns, and account readiness before purchase."
+    }
+    if gaps.isEmpty {
+      return "Evidence fields are complete, but score still needs operator review before purchase."
+    }
+    return "Resolve: \(gaps.prefix(3).joined(separator: ", "))."
+  }
 }
 
 struct WishlistResearchRequest: Identifiable, Hashable, Codable {
