@@ -167,18 +167,20 @@ struct CustodyChainView: View {
 
   private var inboxCustodyCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedRecords = custodyLinkedToInboxOrders
     let actionRecords = custodyNeedingAction
     let missingCustodyCount = inboxOrdersMissingCustody.count
 
-    return SettingsPanel(title: "Inbox custody readiness", symbol: "person.badge.shield.checkmark.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist custody readiness", symbol: "person.badge.shield.checkmark.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have clear local possession, custodian, transfer, and return/close status.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have clear local possession, custodian, transfer, and return/close status.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedRecords.count) linked custody", color: .teal)
           Badge("\(actionRecords.count) need action", color: actionRecords.isEmpty ? .green : .orange)
           Badge("\(missingCustodyCount) missing custody", color: missingCustodyCount == 0 ? .green : .orange)
@@ -216,12 +218,12 @@ struct CustodyChainView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before tracking custody.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before tracking custody.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedRecords.isEmpty {
-          Text("Inbox-created orders do not have custody records yet. Add custody when responsibility or possession changes.")
+          Text("Inbox-created or Wishlist-linked orders do not have custody records yet. Add custody when responsibility or possession changes.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -242,7 +244,7 @@ struct CustodyChainView: View {
           }
 
           if actionRecords.isEmpty {
-            Text("Linked custody records look received/closed, assigned, located, and reviewed for current Inbox-created orders.")
+            Text("Linked custody records look received/closed, assigned, located, and reviewed for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionRecords.count > 3 {
@@ -332,8 +334,16 @@ struct CustodyChainView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var custodySourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var custodyLinkedToInboxOrders: [CustodyRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(custodySourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -361,7 +371,17 @@ struct CustodyChainView: View {
     let custodyOrderIDs = Set(custodyLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return inboxCreatedOrders.filter { !custodyOrderIDs.contains($0.id) }
+    return custodySourceOrders.filter { !custodyOrderIDs.contains($0.id) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var custodyNeedingAction: [CustodyRecord] {
@@ -562,11 +582,24 @@ struct CustodyRecordRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        if !linkedEmails.isEmpty {
+        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
-            Label("Inbox custody source", systemImage: "tray.and.arrow.down.fill")
+            Label("Inbox/Wishlist custody source", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.bold())
               .foregroundStyle(.teal)
+            ForEach(linkedWishlistItems.prefix(2)) { item in
+              HStack(spacing: 6) {
+                Badge("Wishlist", color: .pink)
+                if let handoff = item.purchaseHandoff {
+                  Badge(handoff.purchaseStatus, color: .secondary)
+                }
+                Text(item.itemName)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
             ForEach(linkedEmails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let sourceSummary = store.intakeSourceSummary(for: email)

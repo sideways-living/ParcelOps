@@ -153,18 +153,20 @@ struct LabelReferencesView: View {
 
   private var inboxLabelCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedLabels = labelsLinkedToInboxOrders
     let actionLabels = labelsNeedingAction
     let missingLabelCount = inboxOrdersMissingLabel.count
 
-    return SettingsPanel(title: "Inbox label readiness", symbol: "barcode.viewfinder") {
+    return SettingsPanel(title: "Inbox and Wishlist label readiness", symbol: "barcode.viewfinder") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local tracking, storage, custody, or inventory label references ready for verification.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local tracking, storage, custody, or inventory label references ready for verification.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedLabels.count) linked labels", color: .teal)
           Badge("\(actionLabels.count) need action", color: actionLabels.isEmpty ? .green : .orange)
           Badge("\(missingLabelCount) missing labels", color: missingLabelCount == 0 ? .green : .orange)
@@ -202,12 +204,12 @@ struct LabelReferencesView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking label readiness.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking label readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedLabels.isEmpty {
-          Text("Inbox-created orders do not have label references yet. Add or link labels before scan or dispatch checks.")
+          Text("Inbox-created or Wishlist-linked orders do not have label references yet. Add or link labels before scan or dispatch checks.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -228,7 +230,7 @@ struct LabelReferencesView: View {
           }
 
           if actionLabels.isEmpty {
-            Text("Linked labels look valued, verified, linked, and reviewed for current Inbox-created orders.")
+            Text("Linked labels look valued, verified, linked, and reviewed for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionLabels.count > 3 {
@@ -319,8 +321,16 @@ struct LabelReferencesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var labelSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var labelsLinkedToInboxOrders: [LabelReferenceRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(labelSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -352,7 +362,17 @@ struct LabelReferencesView: View {
     let labelOrderIDs = Set(labelsLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return inboxCreatedOrders.filter { !labelOrderIDs.contains($0.id) }
+    return labelSourceOrders.filter { !labelOrderIDs.contains($0.id) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var labelsNeedingAction: [LabelReferenceRecord] {
@@ -540,11 +560,24 @@ struct LabelReferenceRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        if !linkedEmails.isEmpty {
+        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
-            Label("Inbox label source", systemImage: "tray.and.arrow.down.fill")
+            Label("Inbox/Wishlist label source", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.bold())
               .foregroundStyle(.teal)
+            ForEach(linkedWishlistItems.prefix(2)) { item in
+              HStack(spacing: 6) {
+                Badge("Wishlist", color: .pink)
+                if let handoff = item.purchaseHandoff {
+                  Badge(handoff.purchaseStatus, color: .secondary)
+                }
+                Text(item.itemName)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
             ForEach(linkedEmails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let sourceSummary = store.intakeSourceSummary(for: email)

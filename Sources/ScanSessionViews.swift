@@ -151,18 +151,20 @@ struct ScanSessionsView: View {
 
   private var inboxScanCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedScans = scansLinkedToInboxOrders
     let actionScans = scansNeedingAction
     let missingScanCount = inboxOrdersMissingScan.count
 
-    return SettingsPanel(title: "Inbox scan readiness", symbol: "qrcode.viewfinder") {
+    return SettingsPanel(title: "Inbox and Wishlist scan readiness", symbol: "qrcode.viewfinder") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local manual label or order verification sessions before dispatch.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local manual label or order verification sessions before dispatch.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedScans.count) linked scans", color: .teal)
           Badge("\(actionScans.count) need action", color: actionScans.isEmpty ? .green : .orange)
           Badge("\(missingScanCount) missing scans", color: missingScanCount == 0 ? .green : .orange)
@@ -200,12 +202,12 @@ struct ScanSessionsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking scan readiness.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking scan readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedScans.isEmpty {
-          Text("Inbox-created orders do not have scan sessions yet. Add a session when label, order, custody, or inventory verification is needed.")
+          Text("Inbox-created or Wishlist-linked orders do not have scan sessions yet. Add a session when label, order, custody, or inventory verification is needed.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -226,7 +228,7 @@ struct ScanSessionsView: View {
           }
 
           if actionScans.isEmpty {
-            Text("Linked scan sessions look matched, completed, assigned, and reviewed for current Inbox-created orders.")
+            Text("Linked scan sessions look matched, completed, assigned, and reviewed for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionScans.count > 3 {
@@ -316,8 +318,16 @@ struct ScanSessionsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var scanSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var scansLinkedToInboxOrders: [ScanSessionRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(scanSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -356,7 +366,17 @@ struct ScanSessionsView: View {
     let scanOrderIDs = Set(scansLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return inboxCreatedOrders.filter { !scanOrderIDs.contains($0.id) }
+    return scanSourceOrders.filter { !scanOrderIDs.contains($0.id) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var scansNeedingAction: [ScanSessionRecord] {
@@ -539,11 +559,24 @@ struct ScanSessionRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        if !linkedEmails.isEmpty {
+        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
-            Label("Inbox scan source", systemImage: "tray.and.arrow.down.fill")
+            Label("Inbox/Wishlist scan source", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.bold())
               .foregroundStyle(.teal)
+            ForEach(linkedWishlistItems.prefix(2)) { item in
+              HStack(spacing: 6) {
+                Badge("Wishlist", color: .pink)
+                if let handoff = item.purchaseHandoff {
+                  Badge(handoff.purchaseStatus, color: .secondary)
+                }
+                Text(item.itemName)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
             ForEach(linkedEmails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let sourceSummary = store.intakeSourceSummary(for: email)

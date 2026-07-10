@@ -162,18 +162,20 @@ struct StorageLocationsView: View {
 
   private var inboxStorageCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedLocations = locationsLinkedToInboxOrders
     let actionLocations = locationsNeedingStorageAction
     let missingStorageCount = inboxOrdersMissingStorage.count
 
-    return SettingsPanel(title: "Inbox storage readiness", symbol: "cabinet.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist storage readiness", symbol: "cabinet.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have usable local storage, bin codes, capacity, and access context.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have usable local storage, bin codes, capacity, and access context.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedLocations.count) linked locations", color: .teal)
           Badge("\(actionLocations.count) need action", color: actionLocations.isEmpty ? .green : .orange)
           Badge("\(missingStorageCount) missing storage", color: missingStorageCount == 0 ? .green : .orange)
@@ -211,12 +213,12 @@ struct StorageLocationsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before assigning storage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before assigning storage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedLocations.isEmpty {
-          Text("Inbox-created orders do not have storage locations yet. Add or link a location after receiving stock.")
+          Text("Inbox-created or Wishlist-linked orders do not have storage locations yet. Add or link a location after receiving stock.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -237,7 +239,7 @@ struct StorageLocationsView: View {
           }
 
           if actionLocations.isEmpty {
-            Text("Linked storage locations look enabled, coded, reviewed, and ready for current Inbox-created orders.")
+            Text("Linked storage locations look enabled, coded, reviewed, and ready for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionLocations.count > 3 {
@@ -327,8 +329,16 @@ struct StorageLocationsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var storageSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var locationsLinkedToInboxOrders: [StorageLocationRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(storageSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -348,12 +358,22 @@ struct StorageLocationsView: View {
 
   private var inboxOrdersMissingStorage: [TrackedOrder] {
     let locationOrderIDs = Set(locationsLinkedToInboxOrders.flatMap(\.orderIDs))
-    return inboxCreatedOrders.filter { order in
+    return storageSourceOrders.filter { order in
       locationOrderIDs.contains(order.id) == false
         && locationsLinkedToInboxOrders.contains { location in
           location.linkedEntityType == .order && UUID(uuidString: location.linkedEntityID) == order.id
         } == false
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var locationsNeedingStorageAction: [StorageLocationRecord] {
@@ -545,11 +565,24 @@ struct StorageLocationRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        if !linkedEmails.isEmpty {
+        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
-            Label("Inbox storage source", systemImage: "tray.and.arrow.down.fill")
+            Label("Inbox/Wishlist storage source", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.bold())
               .foregroundStyle(.teal)
+            ForEach(linkedWishlistItems.prefix(2)) { item in
+              HStack(spacing: 6) {
+                Badge("Wishlist", color: .pink)
+                if let handoff = item.purchaseHandoff {
+                  Badge(handoff.purchaseStatus, color: .secondary)
+                }
+                Text(item.itemName)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
             ForEach(linkedEmails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let sourceSummary = store.intakeSourceSummary(for: email)
