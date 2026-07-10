@@ -613,6 +613,7 @@ struct IntegrationsView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
           GmailGoogleCloudSetupGuide()
+          SettingsGmailManualRunbookPanel(store: store)
           CompactActionRow {
             Button("Add Gmail setup", systemImage: "plus") {
               store.addGmailMailboxConnectionPlaceholder()
@@ -3250,6 +3251,207 @@ struct GmailGoogleCloudSetupGuide: View {
       Text("Recommended sequence: save the Gmail setup record, run Check readiness, test real Google sign-in, then run manual real Gmail refresh. Keep mock refresh available for local workflow testing.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct SettingsGmailManualRunbookPanel: View {
+  var store: ParcelOpsStore
+
+  private var primaryConnection: GmailMailboxConnection? {
+    store.gmailMailboxConnections.first
+  }
+
+  private var latestSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
+  private var readiness: GmailOAuthReadinessSummary? {
+    primaryConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var authState: GmailAuthSessionState? {
+    primaryConnection.map { store.gmailAuthSessionState(for: $0) }
+  }
+
+  private var hasSetup: Bool {
+    primaryConnection != nil
+  }
+
+  private var hasMailboxBasics: Bool {
+    guard let connection = primaryConnection else { return false }
+    return !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasOAuthValues: Bool {
+    guard let connection = primaryConnection else { return false }
+    return !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly")
+        || connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata"))
+  }
+
+  private var hasCompiledReadiness: Bool {
+    readiness?.isReady == true
+  }
+
+  private var hasConnectedAuth: Bool {
+    authState?.status == .connected
+  }
+
+  private var hasRefreshEvidence: Bool {
+    store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var pendingReviewCount: Int {
+    store.gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.uncertainMessages?.count ?? 0)
+        + (connection.filteredMessages?.count ?? 0)
+        + (connection.lastRefreshUncertainCount ?? 0)
+    }
+  }
+
+  private var importedCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var filteredCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  private var fetchedCount: Int {
+    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var headline: String {
+    if !hasSetup { return "Add Gmail setup only for Google-hosted mailboxes" }
+    if !hasMailboxBasics { return "Save Gmail address and label names" }
+    if !hasOAuthValues { return "Fill non-secret Google OAuth values" }
+    if !hasCompiledReadiness { return "Match Google values to compiled app config" }
+    if !hasConnectedAuth { return "Test Google sign-in before real refresh" }
+    if !hasRefreshEvidence { return "Run a manual read-only Gmail refresh" }
+    if pendingReviewCount > 0 { return "Review Gmail uncertain or filtered previews" }
+    return "Gmail setup path is clear"
+  }
+
+  private var headlineColor: Color {
+    if !hasSetup || !hasMailboxBasics || !hasOAuthValues || !hasCompiledReadiness || !hasConnectedAuth || pendingReviewCount > 0 {
+      return .orange
+    }
+    return hasRefreshEvidence ? .green : .teal
+  }
+
+  private var runbookItems: [(title: String, detail: String, status: String, symbol: String, color: Color)] {
+    [
+      (
+        "Setup record",
+        hasSetup ? "Saved for \(primaryConnection?.emailAddress ?? "Gmail mailbox")." : "Create one Gmail setup record for each Google-hosted mailbox.",
+        hasSetup ? "Ready" : "Needed",
+        "envelope.badge.shield.half.filled",
+        hasSetup ? .green : .orange
+      ),
+      (
+        "Labels",
+        hasMailboxBasics ? "Labels: \(primaryConnection?.monitoredLabelNames ?? "INBOX")." : "Save the mailbox address and labels, usually INBOX.",
+        hasMailboxBasics ? "Ready" : "Needed",
+        "tag.fill",
+        hasMailboxBasics ? .green : .orange
+      ),
+      (
+        "OAuth values",
+        hasOAuthValues ? "Client ID, callback scheme, and read-only scope are recorded as non-secret setup values." : "Add iOS client ID, reversed URL scheme, and gmail.readonly or gmail.metadata scope.",
+        hasOAuthValues ? "Ready" : "Needed",
+        "key.fill",
+        hasOAuthValues ? .green : .orange
+      ),
+      (
+        "Compiled app",
+        hasCompiledReadiness ? "Saved values match the compiled Info.plist callback configuration." : "Run readiness, then align saved values with the compiled app before sign-in.",
+        hasCompiledReadiness ? "Ready" : "Blocked",
+        "app.badge.checkmark",
+        hasCompiledReadiness ? .green : .orange
+      ),
+      (
+        "Sign-in",
+        hasConnectedAuth ? "Google sign-in is connected for this app session." : "Use explicit real Google sign-in. Mock auth remains available for local testing.",
+        hasConnectedAuth ? "Connected" : "Needed",
+        "person.crop.circle.badge.checkmark",
+        hasConnectedAuth ? .green : .orange
+      ),
+      (
+        "Manual refresh",
+        hasRefreshEvidence ? "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered in recent Gmail summaries." : "Run real Gmail refresh only after setup, callback, and sign-in are ready.",
+        hasRefreshEvidence ? "Seen" : "Waiting",
+        "arrow.triangle.2.circlepath",
+        hasRefreshEvidence ? .blue : .secondary
+      ),
+      (
+        "Review",
+        pendingReviewCount > 0 ? "\(pendingReviewCount) Gmail preview\(pendingReviewCount == 1 ? "" : "s") need optional local review." : "No Gmail uncertain or filtered preview rows are waiting.",
+        pendingReviewCount > 0 ? "Review" : "Clear",
+        "questionmark.folder.fill",
+        pendingReviewCount > 0 ? .orange : .green
+      )
+    ]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: headlineColor == .green ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+          .foregroundStyle(headlineColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(headline)
+            .font(.caption.weight(.semibold))
+          Text("Settings setup path for Gmail. This panel reads local state only; it does not sign in, fetch Gmail, store tokens, classify mail, or mutate messages.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(headlineColor == .green ? "Clear" : "Next", color: headlineColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 180) {
+        ForEach(runbookItems, id: \.title) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.symbol)
+              .foregroundStyle(item.color)
+              .frame(width: 20)
+            VStack(alignment: .leading, spacing: 3) {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                Badge(item.status, color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if let latestSummary {
+        Text("Latest Gmail result: \(latestSummary.lastRefreshDate). \(latestSummary.lastRefreshSummary)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Gmail remains opt-in, manual, read-only, and separate from SpaceMail. No background sync, mailbox mutation, token logging, password storage, outbound email, or external classification is added here.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
     }
     .padding(10)
