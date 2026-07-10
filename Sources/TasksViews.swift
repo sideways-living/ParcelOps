@@ -24,7 +24,23 @@ struct TasksView: View {
   }
 
   private var draftFollowUpItems: [DraftMessage] {
-    Array(store.draftMessagesNeedingReview.prefix(6))
+    let reviewDrafts = Array(store.draftMessagesNeedingReview.prefix(6))
+    let batchDrafts = wishlistBatchResearchDrafts.filter { draft in
+      draft.status != .sentLocally || draft.reviewState != .accepted
+    }
+    return (batchDrafts + reviewDrafts).reduce(into: [DraftMessage]()) { result, draft in
+      if !result.contains(where: { $0.id == draft.id }) {
+        result.append(draft)
+      }
+    }
+    .prefix(8)
+    .map { $0 }
+  }
+
+  private var wishlistBatchResearchDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
+    }
   }
   private var wishlistTaskContextItems: [WishlistItem] {
     store.wishlistItems.filter { item in
@@ -44,7 +60,10 @@ struct TasksView: View {
     queueItems.filter { $0.linkedEntityType == .wishlistItem }
   }
   private var wishlistDraftItems: [DraftMessage] {
-    store.draftMessagesNeedingReview.filter { $0.linkedEntityType == .wishlistItem }
+    store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && ($0.reviewState != .accepted || $0.status != .sentLocally || $0.linkedEntityID == "wishlist-research-batch")
+    }
   }
 
   private var wishlistReadyPacketItems: [WishlistItem] {
@@ -2371,6 +2390,43 @@ private struct TaskDraftFollowUpRow: View {
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
+  private var isWishlistBatchResearchDraft: Bool {
+    draft.linkedEntityType == .wishlistItem && draft.linkedEntityID == "wishlist-research-batch"
+  }
+
+  private var draftIcon: String {
+    isWishlistBatchResearchDraft ? "star.square.on.square.fill" : "envelope.open.fill"
+  }
+
+  private var sourceTitle: String {
+    isWishlistBatchResearchDraft ? "Wishlist batch research packet" : draft.channel.rawValue
+  }
+
+  private var nextActionDetail: String {
+    if isWishlistBatchResearchDraft {
+      switch draft.status {
+      case .draft:
+        return "Review the local batch brief, then mark it ready when it can be handed to an external research agent or copied into a manual research workflow."
+      case .ready:
+        return "Use the ready packet outside ParcelOps. After external research is handled, mark it sent locally so Tasks knows the handoff left the queue."
+      case .sentLocally:
+        return "The batch packet was marked sent locally. Reopen it only if the Wishlist comparison research needs another pass."
+      case .reopened:
+        return "The batch packet is reopened. Update the brief or Wishlist request details before marking it ready again."
+      }
+    }
+    switch draft.status {
+    case .draft:
+      return "Review the local draft and mark ready when the message can be sent outside ParcelOps."
+    case .ready:
+      return "Send this outside ParcelOps, then mark it sent locally."
+    case .sentLocally:
+      return "The draft is marked sent locally. Reopen only if more follow-up is needed."
+    case .reopened:
+      return "The draft was reopened. Update or mark ready when follow-up is clear."
+    }
+  }
+
   private var statusColor: Color {
     switch draft.status {
     case .draft:
@@ -2394,7 +2450,7 @@ private struct TaskDraftFollowUpRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: "envelope.open.fill")
+        Image(systemName: draftIcon)
           .foregroundStyle(statusColor)
           .frame(width: 30, height: 30)
 
@@ -2403,7 +2459,7 @@ private struct TaskDraftFollowUpRow: View {
             VStack(alignment: .leading, spacing: 3) {
               Text(draft.subject)
                 .font(.headline)
-              Text("\(draft.channel.rawValue) • \(draft.recipient)")
+              Text("\(sourceTitle) • \(draft.recipient)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -2416,6 +2472,11 @@ private struct TaskDraftFollowUpRow: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .lineLimit(3)
+
+          Text(nextActionDetail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(isWishlistBatchResearchDraft ? .purple : .secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
           if linkedOrder != nil {
             LinkedOrderContextPanel(
