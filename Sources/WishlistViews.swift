@@ -394,6 +394,7 @@ struct WishlistView: View {
         wishlistSellerSafetyRubricPanel
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
+        wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPrePurchaseOperatorChecklistPanel
@@ -1989,6 +1990,169 @@ struct WishlistView: View {
       return Int(String(match.output))
     }
     return nil
+  }
+
+  private var wishlistPurchaseRecommendationEntries: [WishlistPurchaseRecommendationEntry] {
+    store.wishlistItems.compactMap(wishlistPurchaseRecommendationEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseRecommendationPanel: some View {
+    let entries = wishlistPurchaseRecommendationEntries
+    let readyCount = entries.filter { $0.warningLabels.isEmpty }.count
+    let cheaperThanRecommendedCount = entries.filter { entry in
+      guard let cheapest = entry.cheapestOption else { return false }
+      return cheapest.id != entry.recommendedOption.id
+    }.count
+    let missingPreferredCount = entries.filter { $0.preferredOption == nil }.count
+    let evidenceGapCount = entries.filter { !$0.recommendedOption.operatorSellerEvidenceGaps.isEmpty }.count
+
+    return SettingsPanel(title: "Purchase recommendation summary", symbol: "sparkle.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the local operator summary before drafting a purchase decision. It compares manually recorded seller options for safest, cheapest, fastest, and preferred routes without checking live retailer pages.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Locally ready", "\(readyCount)", readyCount == 0 ? .secondary : .green),
+          ("Cheaper alt", "\(cheaperThanRecommendedCount)", cheaperThanRecommendedCount == 0 ? .green : .orange),
+          ("Need preferred", "\(missingPreferredCount)", missingPreferredCount == 0 ? .green : .purple),
+          ("Evidence gaps", "\(evidenceGapCount)", evidenceGapCount == 0 ? .green : .red)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller options to recommend from",
+            detail: "Add manual seller options or create a comparison plan. ParcelOps will then summarise safest, cheapest, fastest, and preferred choices locally.",
+            symbol: "sparkle.magnifyingglass"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseRecommendationRow(entry: entry) {
+                store.markWishlistPreferredOption(entry.item, option: entry.recommendedOption)
+              } onPreferCheapest: {
+                if let cheapest = entry.cheapestOption {
+                  store.markWishlistPreferredOption(entry.item, option: cheapest)
+                }
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more recommendation summar\(remaining == 1 ? "y is" : "ies are") available in the detailed Wishlist rows below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Recommendation summary is advisory only. Confirm live stock, final AUD total, postage, delivery time, seller trust, returns, warranty, account login, checkout, and payment outside ParcelOps before buying.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseRecommendationEntry(for item: WishlistItem) -> WishlistPurchaseRecommendationEntry? {
+    let options = item.comparisonOptions ?? []
+    guard !options.isEmpty else { return nil }
+
+    let safest = options.max { first, second in
+      first.operatorSellerMatrixScore < second.operatorSellerMatrixScore
+    } ?? options[0]
+    let cheapest = options
+      .compactMap { option -> (WishlistComparisonOption, Double)? in
+        guard let audValue = wishlistAUDValue(option.estimatedAUDTotal) else { return nil }
+        return (option, audValue)
+      }
+      .min { $0.1 < $1.1 }?.0
+    let fastest = options
+      .compactMap { option -> (WishlistComparisonOption, Int)? in
+        guard let days = wishlistPostageDays(option.postageTime) else { return nil }
+        return (option, days)
+      }
+      .min { $0.1 < $1.1 }?.0
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    }
+
+    let evidenceReadyOptions = options.filter { option in
+      option.operatorSellerEvidenceGaps.isEmpty && option.operatorSellerMatrixScore >= 65
+    }
+    let recommended = evidenceReadyOptions.max { first, second in
+      first.operatorSellerMatrixScore < second.operatorSellerMatrixScore
+    } ?? safest
+
+    var warnings: [String] = []
+    if preferred == nil {
+      warnings.append("preferred seller missing")
+    } else if preferred?.id != recommended.id {
+      warnings.append("preferred differs from safest")
+    }
+    if let cheapest, cheapest.id != recommended.id {
+      warnings.append("cheapest differs from safest")
+    }
+    if let fastest, fastest.id != recommended.id {
+      warnings.append("fastest differs from safest")
+    }
+    if !recommended.operatorSellerEvidenceGaps.isEmpty {
+      warnings.append("recommended has evidence gaps")
+    }
+    if wishlistAUDValue(recommended.estimatedAUDTotal) == nil {
+      warnings.append("AUD total missing")
+    }
+    if recommended.trustRating.localizedCaseInsensitiveContains("unknown") || recommended.trustRating.localizedCaseInsensitiveContains("review") {
+      warnings.append("trust needs review")
+    }
+
+    let rationale: String
+    let tone: Color
+    let sortPriority: Int
+    if recommended.operatorSellerEvidenceGaps.isEmpty && warnings.isEmpty {
+      rationale = "\(recommended.sellerName) is the strongest local candidate. Still manually confirm live stock, final price, postage, returns, warranty, and checkout before buying."
+      tone = .green
+      sortPriority = 40
+    } else if recommended.operatorSellerMatrixScore < 55 || warnings.contains("trust needs review") {
+      rationale = "\(recommended.sellerName) is currently only a provisional candidate. Resolve trust and evidence gaps before purchase handoff."
+      tone = .red
+      sortPriority = 5
+    } else if warnings.contains("cheapest differs from safest") {
+      rationale = "\(recommended.sellerName) is safer locally, but a cheaper option exists. Review whether the price saving justifies trust, postage, and warranty risk."
+      tone = .orange
+      sortPriority = 15
+    } else {
+      rationale = "\(recommended.sellerName) is the current local recommendation. Complete the highlighted checks before drafting the purchase decision."
+      tone = .teal
+      sortPriority = 25
+    }
+
+    return WishlistPurchaseRecommendationEntry(
+      item: item,
+      recommendedOption: recommended,
+      cheapestOption: cheapest,
+      safestOption: safest,
+      fastestOption: fastest,
+      preferredOption: preferred,
+      warningLabels: Array(Set(warnings)).sorted(),
+      rationale: rationale,
+      tone: tone,
+      sortPriority: sortPriority
+    )
   }
 
   private var wishlistPurchaseDecisionQueueItems: [WishlistItem] {
@@ -5064,6 +5228,125 @@ private struct WishlistLandedCostReviewEntry: Identifiable {
 
   var isSafest: Bool {
     badges.contains("Safest")
+  }
+}
+
+private struct WishlistPurchaseRecommendationEntry: Identifiable {
+  var item: WishlistItem
+  var recommendedOption: WishlistComparisonOption
+  var cheapestOption: WishlistComparisonOption?
+  var safestOption: WishlistComparisonOption
+  var fastestOption: WishlistComparisonOption?
+  var preferredOption: WishlistComparisonOption?
+  var warningLabels: [String]
+  var rationale: String
+  var tone: Color
+  var sortPriority: Int
+
+  var id: String {
+    "\(item.id.uuidString)-purchase-recommendation"
+  }
+}
+
+private struct WishlistPurchaseRecommendationRow: View {
+  var entry: WishlistPurchaseRecommendationEntry
+  var onPreferRecommended: () -> Void
+  var onPreferCheapest: () -> Void
+  var onScore: () -> Void
+  var onFocus: () -> Void
+
+  private var cheapestSummary: String {
+    guard let cheapest = entry.cheapestOption else { return "No AUD total recorded" }
+    return "\(cheapest.sellerName) • \(cheapest.estimatedAUDTotal)"
+  }
+
+  private var fastestSummary: String {
+    guard let fastest = entry.fastestOption else { return "No delivery time recorded" }
+    return "\(fastest.sellerName) • \(fastest.postageTime)"
+  }
+
+  private var preferredSummary: String {
+    guard let preferred = entry.preferredOption else { return "No preferred seller selected" }
+    return "\(preferred.sellerName) • \(preferred.estimatedAUDTotal)"
+  }
+
+  private var cheapestIsRecommended: Bool {
+    entry.cheapestOption?.id == entry.recommendedOption.id
+  }
+
+  private var recommendedIsPreferred: Bool {
+    entry.preferredOption?.id == entry.recommendedOption.id
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "sparkle.magnifyingglass")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("Recommended: \(entry.recommendedOption.sellerName)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .lineLimit(2)
+          Text(entry.rationale)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge("\(entry.recommendedOption.operatorSellerMatrixScore)/100", color: entry.tone)
+          if recommendedIsPreferred {
+            Badge("Preferred", color: .purple)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Recommended total", value: entry.recommendedOption.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Recommended postage", value: "\(entry.recommendedOption.postageCost), \(entry.recommendedOption.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: entry.recommendedOption.trustRating, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Preferred now", value: preferredSummary, symbol: "checkmark.seal")
+        WishlistMatrixMetric(title: "Cheapest recorded", value: cheapestSummary, symbol: "tag.fill")
+        WishlistMatrixMetric(title: "Fastest recorded", value: fastestSummary, symbol: "timer")
+      }
+
+      if !entry.warningLabels.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Decision warnings", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(entry.warningLabels.prefix(8), id: \.self) { warning in
+              Badge(warning, color: .orange)
+            }
+          }
+        }
+      }
+
+      Text("Local-only summary. ParcelOps has not checked live stock, retailer pages, exchange rates, postage quotes, seller reviews, login, checkout, payment, or delivery guarantees.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(recommendedIsPreferred ? "Recommended" : "Prefer safest", systemImage: "checkmark.seal", action: onPreferRecommended)
+          .disabled(recommendedIsPreferred)
+        Button(cheapestIsRecommended ? "Cheapest is safest" : "Prefer cheapest", systemImage: "tag.fill", action: onPreferCheapest)
+          .disabled(entry.cheapestOption == nil || cheapestIsRecommended)
+        Button("Score", systemImage: "chart.bar.doc.horizontal", action: onScore)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
