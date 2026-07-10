@@ -69,6 +69,105 @@ private enum WishlistWorkflowFocus: String, CaseIterable, Identifiable {
   }
 }
 
+private struct WishlistLocalActivityRow: View {
+  var event: AuditEvent
+  var onCreateTask: () -> Void
+  @State private var showDetails = false
+  @State private var feedbackMessage: String?
+
+  private var outcomeLines: [String] {
+    guard let detail = event.afterDetail else { return [] }
+    let wantedPrefixes = [
+      "Status:",
+      "Readiness result:",
+      "Scoring basis:",
+      "Linked order:",
+      "Created order:",
+      "Manual record only.",
+      "Review only."
+    ]
+    return detail
+      .components(separatedBy: .newlines)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { line in wantedPrefixes.contains { line.hasPrefix($0) } }
+      .prefix(4)
+      .map { $0 }
+  }
+
+  private var shortDetail: String {
+    let detail = event.afterDetail ?? event.beforeDetail ?? ""
+    let clean = detail
+      .components(separatedBy: .newlines)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .prefix(3)
+      .joined(separator: " ")
+    return clean.isEmpty ? "No detail recorded." : clean
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: event.entityType.symbol)
+          .foregroundStyle(event.action.color)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(event.entityLabel)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(event.action.rawValue) • \(event.timestamp)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(event.summary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(event.entityType.rawValue, color: event.action.color)
+      }
+
+      if !outcomeLines.isEmpty {
+        CompactMetadataGrid(minimumWidth: 135) {
+          ForEach(outcomeLines, id: \.self) { line in
+            Badge(line, color: event.action.color)
+          }
+        }
+      }
+
+      if showDetails {
+        Text(shortDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if let feedbackMessage {
+        Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+      }
+
+      CompactActionRow {
+        Button(showDetails ? "Hide detail" : "Show detail", systemImage: "text.alignleft") {
+          showDetails.toggle()
+        }
+        Button("Task", systemImage: "checklist") {
+          onCreateTask()
+          feedbackMessage = "Wishlist follow-up task created locally. Check Tasks."
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(event.action.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct WishlistView: View {
   var store: ParcelOpsStore
   @State private var showDeletedItems = false
@@ -184,6 +283,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistWorkflowFocusPanel
+        wishlistLocalActivityPanel
         wishlistReadinessPanel
         wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
@@ -601,6 +701,73 @@ struct WishlistView: View {
         }
 
         Text("This is a view filter only. It does not search retailers, buy anything, log in, store payment details, fetch mail, or modify downstream records.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistLocalActivityEvents: [AuditEvent] {
+    store.auditEvents
+      .filter { event in
+        let searchable = [
+          event.entityLabel,
+          event.summary,
+          event.beforeDetail ?? "",
+          event.afterDetail ?? "",
+          event.entityType.rawValue
+        ].joined(separator: " ")
+        return event.entityType == .wishlistItem
+          || searchable.localizedCaseInsensitiveContains("wishlist")
+          || searchable.localizedCaseInsensitiveContains("purchase handoff")
+          || searchable.localizedCaseInsensitiveContains("purchase decision")
+          || searchable.localizedCaseInsensitiveContains("seller option")
+          || searchable.localizedCaseInsensitiveContains("order confirmation")
+      }
+      .prefix(8)
+      .map { $0 }
+  }
+
+  private var wishlistLocalActivityPanel: some View {
+    let events = wishlistLocalActivityEvents
+    let purchaseEvents = events.filter { event in
+      [event.summary, event.afterDetail ?? ""].joined(separator: " ").localizedCaseInsensitiveContains("purchase")
+    }.count
+    let orderEvents = events.filter { event in
+      [event.summary, event.afterDetail ?? ""].joined(separator: " ").localizedCaseInsensitiveContains("order")
+    }.count
+
+    return SettingsPanel(title: "Recent Wishlist activity", symbol: "clock.arrow.circlepath") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Recent local Wishlist actions are shown here so purchase, comparison, handoff, and order-watch changes can be checked without leaving this screen.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Recent", "\(events.count)", events.isEmpty ? .secondary : .blue),
+          ("Purchase", "\(purchaseEvents)", purchaseEvents == 0 ? .secondary : .purple),
+          ("Order trail", "\(orderEvents)", orderEvents == 0 ? .secondary : .teal)
+        ])
+
+        if events.isEmpty {
+          MVPEmptyState(
+            title: "No recent Wishlist activity",
+            detail: "Wishlist creates, edits, comparison plans, purchase checks, handoffs, and order-watch actions will appear here after local actions are taken.",
+            symbol: "clock.arrow.circlepath"
+          )
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(events) { event in
+              WishlistLocalActivityRow(event: event) {
+                store.createReviewTask(from: event)
+              }
+            }
+          }
+        }
+
+        Text("This is a read-only activity summary except for creating a local follow-up task. It does not contact retailers, fetch mail, access accounts, or change orders.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
