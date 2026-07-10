@@ -1,11 +1,81 @@
 import SwiftUI
 
+private enum WishlistWorkflowFocus: String, CaseIterable, Identifiable {
+  case all = "All"
+  case capture = "Capture"
+  case compare = "Compare"
+  case buy = "Buy"
+  case watch = "Watch"
+  case operations = "Operations"
+
+  var id: String { rawValue }
+  var title: String { rawValue }
+
+  var detail: String {
+    switch self {
+    case .all:
+      return "Show every active Wishlist item."
+    case .capture:
+      return "Items still need basic item, seller, source, or capture details before comparison."
+    case .compare:
+      return "Items need seller options, landed cost, postage, trust, or recommendation review."
+    case .buy:
+      return "Items are in purchase decision, checklist, or manual handoff preparation."
+    case .watch:
+      return "Items have purchase handoff/order-watch state and need order confirmation linking."
+    case .operations:
+      return "Items are linked or confirmed enough to stage receiving, storage, custody, and dispatch records."
+    }
+  }
+
+  var color: Color {
+    switch self {
+    case .all: return .blue
+    case .capture: return .blue
+    case .compare: return .orange
+    case .buy: return .purple
+    case .watch: return .green
+    case .operations: return .teal
+    }
+  }
+
+  func matches(item: WishlistItem, in store: ParcelOpsStore) -> Bool {
+    switch self {
+    case .all:
+      return true
+    case .capture:
+      return item.comparisonOptions?.isEmpty != false
+        && item.purchaseDecision == nil
+        && item.purchaseHandoff == nil
+    case .compare:
+      return item.comparisonOptions?.isEmpty == false
+        && (item.purchaseDecision == nil || item.purchaseDecision?.reviewState == .needsReview)
+        && item.purchaseHandoff == nil
+    case .buy:
+      return item.purchaseDecision != nil
+        && item.purchaseHandoff == nil
+        || item.purchaseReadiness?.localizedCaseInsensitiveContains("purchase") == true
+          && item.purchaseHandoff == nil
+    case .watch:
+      return item.purchaseHandoff != nil
+        && item.purchaseHandoff?.linkedOrderID == nil
+    case .operations:
+      return item.purchaseHandoff?.linkedOrderID != nil
+        || !store.suggestedReceivingInspections(for: item).isEmpty
+        || !store.suggestedInventoryReceipts(for: item).isEmpty
+        || !store.suggestedShipmentManifestRecords(for: item).isEmpty
+        || !store.suggestedDispatchReadinessChecklists(for: item).isEmpty
+    }
+  }
+}
+
 struct WishlistView: View {
   var store: ParcelOpsStore
   @State private var showDeletedItems = false
   @State private var wishlistSearchText = ""
   @State private var selectedSource: WishlistSource?
   @State private var selectedStatus: String?
+  @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var statuses: [String] {
@@ -18,7 +88,8 @@ struct WishlistView: View {
     store.wishlistItems.filter { item in
       let matchesSource = selectedSource == nil || item.source == selectedSource
       let matchesStatus = selectedStatus == nil || item.status == selectedStatus
-      return matchesSource && matchesStatus
+      let matchesWorkflow = selectedWorkflowFocus.matches(item: item, in: store)
+      return matchesSource && matchesStatus && matchesWorkflow
     }
   }
 
@@ -44,6 +115,7 @@ struct WishlistView: View {
   private var hasActiveFilters: Bool {
     selectedSource != nil
       || selectedStatus != nil
+      || selectedWorkflowFocus != .all
       || !wishlistSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -111,6 +183,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
+        wishlistWorkflowFocusPanel
         wishlistReadinessPanel
         wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
@@ -476,6 +549,63 @@ struct WishlistView: View {
     wishlistSearchText = ""
     selectedSource = nil
     selectedStatus = nil
+    selectedWorkflowFocus = .all
+  }
+
+  private var wishlistWorkflowFocusPanel: some View {
+    let all = store.wishlistItems
+    let capture = all.filter { WishlistWorkflowFocus.capture.matches(item: $0, in: store) }.count
+    let compare = all.filter { WishlistWorkflowFocus.compare.matches(item: $0, in: store) }.count
+    let buy = all.filter { WishlistWorkflowFocus.buy.matches(item: $0, in: store) }.count
+    let watch = all.filter { WishlistWorkflowFocus.watch.matches(item: $0, in: store) }.count
+    let operations = all.filter { WishlistWorkflowFocus.operations.matches(item: $0, in: store) }.count
+    let selectedCount = all.filter { selectedWorkflowFocus.matches(item: $0, in: store) }.count
+
+    return SettingsPanel(title: "Workflow focus", symbol: "point.3.connected.trianglepath.dotted") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the daily Wishlist map: capture the item, compare seller options, decide whether to buy, watch for order confirmation, then stage receiving and dispatch records.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("All", "\(all.count)", selectedWorkflowFocus == .all ? .blue : .secondary),
+          ("Capture", "\(capture)", capture == 0 ? .secondary : .blue),
+          ("Compare", "\(compare)", compare == 0 ? .secondary : .orange),
+          ("Buy", "\(buy)", buy == 0 ? .secondary : .purple),
+          ("Watch", "\(watch)", watch == 0 ? .secondary : .green),
+          ("Ops", "\(operations)", operations == 0 ? .secondary : .teal)
+        ])
+
+        Picker("Wishlist workflow focus", selection: $selectedWorkflowFocus) {
+          ForEach(WishlistWorkflowFocus.allCases) { focus in
+            Text(focus.title).tag(focus)
+          }
+        }
+        .pickerStyle(.segmented)
+
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Badge("\(selectedCount) in \(selectedWorkflowFocus.title)", color: selectedWorkflowFocus == .all ? .blue : selectedWorkflowFocus.color)
+          Text(selectedWorkflowFocus.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Spacer(minLength: 8)
+          if selectedWorkflowFocus != .all {
+            Button("Show all", systemImage: "line.3.horizontal.decrease.circle") {
+              selectedWorkflowFocus = .all
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+          }
+        }
+
+        Text("This is a view filter only. It does not search retailers, buy anything, log in, store payment details, fetch mail, or modify downstream records.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   private var wishlistReadinessPanel: some View {
