@@ -119,6 +119,7 @@ struct WishlistView: View {
         wishlistSellerOptionReviewPanel
         wishlistSellerSafetyRubricPanel
         wishlistComparisonMatrixPanel
+        wishlistLandedCostReviewPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPrePurchaseOperatorChecklistPanel
@@ -1215,6 +1216,202 @@ struct WishlistView: View {
     for item in itemsWithOptions {
       store.evaluateWishlistComparisonOptions(item)
     }
+  }
+
+  private var wishlistLandedCostReviewEntries: [WishlistLandedCostReviewEntry] {
+    store.wishlistItems.flatMap { item in
+      let options = item.comparisonOptions ?? []
+      let cheapestID = options
+        .compactMap { option -> (UUID, Double)? in
+          guard let audValue = wishlistAUDValue(option.estimatedAUDTotal) else { return nil }
+          return (option.id, audValue)
+        }
+        .min { $0.1 < $1.1 }?.0
+      let safestID = options
+        .max { first, second in
+          first.operatorSellerMatrixScore < second.operatorSellerMatrixScore
+        }?.id
+      let fastestID = options
+        .compactMap { option -> (UUID, Int)? in
+          guard let days = wishlistPostageDays(option.postageTime) else { return nil }
+          return (option.id, days)
+        }
+        .min { $0.1 < $1.1 }?.0
+
+      return options.map { option in
+        wishlistLandedCostReviewEntry(
+          item: item,
+          option: option,
+          isPreferred: item.preferredOptionID == option.id,
+          isCheapest: cheapestID == option.id,
+          isSafest: safestID == option.id,
+          isFastest: fastestID == option.id
+        )
+      }
+    }
+    .sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        if first.item.itemName == second.item.itemName {
+          return first.option.sellerName.localizedCaseInsensitiveCompare(second.option.sellerName) == .orderedAscending
+        }
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
+  private var wishlistLandedCostReviewPanel: some View {
+    let entries = wishlistLandedCostReviewEntries
+    let preferred = entries.filter(\.isPreferred).count
+    let cheapest = entries.filter(\.isCheapest).count
+    let safest = entries.filter(\.isSafest).count
+    let blocked = entries.filter { !$0.blockers.isEmpty || $0.tone == .red }.count
+
+    return SettingsPanel(title: "Landed-cost option review", symbol: "dollarsign.arrow.circlepath") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Review seller options as purchase candidates, not just rows of data. This highlights cheapest, safest, fastest-looking, preferred, and blocked options using local fields only.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Options", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Preferred", "\(preferred)", preferred == 0 ? .secondary : .purple),
+          ("Cheapest", "\(cheapest)", cheapest == 0 ? .secondary : .green),
+          ("Safest", "\(safest)", safest == 0 ? .secondary : .teal),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red)
+        ])
+
+        CompactActionRow {
+          Button("Score all", systemImage: "chart.bar.doc.horizontal") {
+            scoreAllWishlistOptions()
+          }
+          .disabled(entries.isEmpty)
+          Button("Show risky", systemImage: "exclamationmark.triangle.fill") {
+            wishlistSearchText = ""
+            selectedSource = nil
+            selectedStatus = nil
+          }
+          .disabled(blocked == 0)
+        }
+        .buttonStyle(.bordered)
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No landed-cost options to review",
+            detail: "Add manual seller options or create a comparison plan before reviewing landed cost, postage, and trust tradeoffs.",
+            symbol: "dollarsign.arrow.circlepath"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(10)) { entry in
+              WishlistLandedCostReviewRow(entry: entry) {
+                store.markWishlistPreferredOption(entry.item, option: entry.option)
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(entry.item)
+              } onEvidenceTask: {
+                store.createWishlistSellerEvidenceReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more landed-cost option\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This review does not perform live retailer search, exchange-rate conversion, postage quote lookup, review scraping, account login, checkout, or payment.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistLandedCostReviewEntry(
+    item: WishlistItem,
+    option: WishlistComparisonOption,
+    isPreferred: Bool,
+    isCheapest: Bool,
+    isSafest: Bool,
+    isFastest: Bool
+  ) -> WishlistLandedCostReviewEntry {
+    var badges: [String] = []
+    if isPreferred { badges.append("Preferred") }
+    if isCheapest { badges.append("Cheapest") }
+    if isSafest { badges.append("Safest") }
+    if isFastest { badges.append("Fastest") }
+
+    let gaps = option.operatorSellerEvidenceGaps
+    var blockers: [String] = gaps
+    if wishlistAUDValue(option.estimatedAUDTotal) == nil {
+      blockers.append("AUD total")
+    }
+    if wishlistPostageDays(option.postageTime) == nil && option.postageTime.localizedCaseInsensitiveContains("pending") {
+      blockers.append("postage time")
+    }
+    if option.trustRating.localizedCaseInsensitiveContains("unknown") || option.trustRating.localizedCaseInsensitiveContains("review") {
+      blockers.append("seller trust")
+    }
+
+    let tone: Color
+    let recommendation: String
+    let sortPriority: Int
+    if isPreferred && blockers.isEmpty {
+      tone = .green
+      recommendation = "Preferred option looks locally complete. Reconfirm live stock, price, postage, returns, and account/payment readiness before buying."
+      sortPriority = 5
+    } else if blockers.contains("seller trust") || option.operatorSellerMatrixScore < 55 {
+      tone = .red
+      recommendation = "Do not buy from this seller until trust, returns, warranty, and delivery reliability are manually confirmed."
+      sortPriority = isPreferred ? 1 : 20
+    } else if !blockers.isEmpty {
+      tone = .orange
+      recommendation = "Fill \(Array(Set(blockers)).prefix(3).joined(separator: ", ")) before this can become a preferred purchase option."
+      sortPriority = isPreferred ? 2 : 30
+    } else if isCheapest && !isSafest {
+      tone = .orange
+      recommendation = "Cheapest is not automatically best. Compare trust, postage time, returns, and warranty before preferring it."
+      sortPriority = 35
+    } else {
+      tone = .teal
+      recommendation = "Candidate is usable for decision review once live seller details are manually checked."
+      sortPriority = isSafest ? 10 : 40
+    }
+
+    return WishlistLandedCostReviewEntry(
+      item: item,
+      option: option,
+      badges: badges,
+      blockers: Array(Set(blockers)).sorted(),
+      recommendation: recommendation,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func wishlistAUDValue(_ value: String) -> Double? {
+    let filtered = value.replacingOccurrences(of: ",", with: "")
+    let match = filtered.firstMatch(of: /[0-9]+(\.[0-9]+)?/)
+    guard let text = match.map({ String($0.output.0) }) else { return nil }
+    return Double(text)
+  }
+
+  private func wishlistPostageDays(_ value: String) -> Int? {
+    let lower = value.localizedLowercase
+    if lower.contains("same day") { return 0 }
+    if lower.contains("overnight") { return 1 }
+    if let match = lower.firstMatch(of: /[0-9]+/) {
+      return Int(String(match.output))
+    }
+    return nil
   }
 
   private var wishlistPurchaseDecisionQueueItems: [WishlistItem] {
@@ -3249,6 +3446,139 @@ private struct WishlistComparisonMatrixEntry: Identifiable {
 
   var id: String {
     "\(item.id.uuidString)-\(option.id.uuidString)"
+  }
+}
+
+private struct WishlistLandedCostReviewEntry: Identifiable {
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var badges: [String]
+  var blockers: [String]
+  var recommendation: String
+  var tone: Color
+  var sortPriority: Int
+
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)-landed-cost"
+  }
+
+  var isPreferred: Bool {
+    badges.contains("Preferred")
+  }
+
+  var isCheapest: Bool {
+    badges.contains("Cheapest")
+  }
+
+  var isSafest: Bool {
+    badges.contains("Safest")
+  }
+}
+
+private struct WishlistLandedCostReviewRow: View {
+  var entry: WishlistLandedCostReviewEntry
+  var onPrefer: () -> Void
+  var onScore: () -> Void
+  var onEvidenceTask: () -> Void
+  var onFocus: () -> Void
+
+  private var actionTitle: String {
+    if entry.blockers.contains("seller trust") || entry.tone == .red { return "Evidence task" }
+    if !entry.blockers.isEmpty { return "Re-score" }
+    return entry.isPreferred ? "Preferred" : "Prefer"
+  }
+
+  private var actionSymbol: String {
+    if entry.blockers.contains("seller trust") || entry.tone == .red { return "checklist" }
+    if !entry.blockers.isEmpty { return "chart.bar.doc.horizontal" }
+    return "checkmark.seal"
+  }
+
+  private func runPrimaryAction() {
+    if entry.blockers.contains("seller trust") || entry.tone == .red {
+      onEvidenceTask()
+    } else if !entry.blockers.isEmpty {
+      onScore()
+    } else {
+      onPrefer()
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.isCheapest ? "dollarsign.circle.fill" : "storefront.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.option.sellerName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.item.itemName)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(entry.recommendation)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(entry.option.recommendation, color: entry.tone)
+          ForEach(entry.badges.prefix(2), id: \.self) { badge in
+            Badge(badge, color: badge == "Preferred" ? .purple : .teal)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 125) {
+        WishlistMatrixMetric(title: "AUD total", value: entry.option.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(entry.option.postageCost), \(entry.option.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: entry.option.trustRating, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Score", value: "\(entry.option.operatorSellerMatrixScore)/100", symbol: "chart.bar.fill")
+      }
+
+      if !entry.blockers.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Blocks preference", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(entry.blockers.prefix(6), id: \.self) { blocker in
+              Badge(blocker, color: .orange)
+            }
+          }
+        }
+      }
+
+      if !entry.option.productURL.isPlaceholderValidationValue {
+        Text(entry.option.productURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      Text(entry.option.trustNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: runPrimaryAction)
+          .disabled(entry.isPreferred && entry.blockers.isEmpty)
+        Button("Prefer", systemImage: "checkmark.seal", action: onPrefer)
+          .disabled(entry.isPreferred)
+        Button("Score", systemImage: "chart.bar.doc.horizontal", action: onScore)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
