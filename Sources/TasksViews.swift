@@ -33,6 +33,10 @@ struct TasksView: View {
         || item.status.localizedCaseInsensitiveContains("awaiting order")
         || item.status.localizedCaseInsensitiveContains("confirmation")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || wishlistSellerEvidenceGapCount(for: item) > 0
+        || wishlistNeedsPurchaseDecision(item)
+        || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
     }
   }
@@ -61,6 +65,53 @@ struct TasksView: View {
     store.wishlistItems.filter { item in
       item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
     }
+  }
+
+  private var wishlistEvidenceGapCount: Int {
+    wishlistTaskContextItems.reduce(0) { total, item in
+      total + wishlistSellerEvidenceGapCount(for: item)
+    }
+  }
+
+  private var wishlistDecisionGapCount: Int {
+    wishlistTaskContextItems.filter(wishlistNeedsPurchaseDecision).count
+  }
+
+  private var wishlistHandoffGapCount: Int {
+    wishlistTaskContextItems.reduce(0) { total, item in
+      total + wishlistHandoffPackGaps(for: item).count
+    }
+  }
+
+  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
+    (item.comparisonOptions ?? []).reduce(0) { total, option in
+      total + option.operatorSellerEvidenceGaps.count
+    }
+  }
+
+  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
+    let options = item.comparisonOptions ?? []
+    guard !options.isEmpty else { return false }
+    let checks = item.purchaseChecks ?? []
+    let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
+    return checksClear && item.purchaseDecision == nil
+  }
+
+  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return gaps
+    }
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -557,6 +608,9 @@ struct TasksView: View {
           ("Wishlist follow-up", "\(wishlistTaskContextItems.count)", wishlistTaskContextItems.isEmpty ? .green : .purple),
           ("Linked tasks", "\(wishlistLinkedQueueItems.count)", wishlistLinkedQueueItems.isEmpty ? .green : .orange),
           ("Drafts", "\(wishlistDraftItems.count)", wishlistDraftItems.isEmpty ? .green : .blue),
+          ("Evidence gaps", "\(wishlistEvidenceGapCount)", wishlistEvidenceGapCount == 0 ? .green : .orange),
+          ("Decision gaps", "\(wishlistDecisionGapCount)", wishlistDecisionGapCount == 0 ? .green : .purple),
+          ("Handoff gaps", "\(wishlistHandoffGapCount)", wishlistHandoffGapCount == 0 ? .green : .orange),
           ("Ready packets", "\(wishlistReadyPacketItems.count)", wishlistReadyPacketItems.isEmpty ? .secondary : .green),
           ("Need handoff", "\(wishlistNeedsHandoffItems.count)", wishlistNeedsHandoffItems.isEmpty ? .green : .purple),
           ("Awaiting order", "\(wishlistAwaitingOrderItems.count)", wishlistAwaitingOrderItems.isEmpty ? .green : .orange),
@@ -574,9 +628,9 @@ struct TasksView: View {
             } label: {
               CompactRow(
                 title: item.itemName,
-                detail: "\(item.status) • \(item.operatorPurchaseNextAction)",
-                badge: item.purchaseHandoff == nil ? "Wishlist" : "Handoff",
-                color: item.operatorPurchaseBlockers.isEmpty ? .green : item.status.localizedCaseInsensitiveContains("blocked") ? .red : .purple
+                detail: wishlistTaskContextDetail(for: item),
+                badge: wishlistTaskContextBadge(for: item),
+                color: wishlistTaskContextColor(for: item)
               )
             }
             .buttonStyle(.plain)
@@ -630,6 +684,9 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskBadge(for item: WishlistItem) -> String {
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff gaps" }
+    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if wishlistSellerEvidenceGapCount(for: item) > 0 { return "Evidence" }
     if item.purchaseHandoff?.linkedOrderID != nil { return "Linked order" }
     if item.purchaseHandoff != nil { return "Order watch" }
     if item.purchaseDecision?.reviewState == .accepted { return "Handoff" }
@@ -638,6 +695,9 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskColor(for item: WishlistItem) -> Color {
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
+    if wishlistNeedsPurchaseDecision(item) { return .purple }
+    if wishlistSellerEvidenceGapCount(for: item) > 0 { return .orange }
     if item.purchaseHandoff?.linkedOrderID != nil { return .green }
     if item.purchaseHandoff != nil { return .orange }
     if item.purchaseDecision?.reviewState == .accepted { return .purple }
@@ -646,6 +706,17 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
+    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    if !handoffGaps.isEmpty {
+      return "Complete handoff pack: \(handoffGaps.prefix(4).joined(separator: ", "))"
+    }
+    if wishlistNeedsPurchaseDecision(item) {
+      return "Ready for a local purchase decision before handoff."
+    }
+    let evidenceGaps = wishlistSellerEvidenceGaps(for: item)
+    if !evidenceGaps.isEmpty {
+      return "Seller evidence to check: \(evidenceGaps.prefix(4).joined(separator: ", "))"
+    }
     let seller = item.purchaseHandoff?.sellerName
       ?? item.purchaseDecision?.selectedSellerName
       ?? item.preferredOptionID.flatMap { preferredID in
@@ -658,6 +729,42 @@ struct TasksView: View {
       }
       ?? item.estimatedCost
     return "\(seller) • \(total) • \(item.operatorPurchaseNextAction)"
+  }
+
+  private func wishlistTaskContextDetail(for item: WishlistItem) -> String {
+    let evidenceGaps = wishlistSellerEvidenceGaps(for: item)
+    if !evidenceGaps.isEmpty {
+      return "\(item.status) • Seller evidence: \(evidenceGaps.prefix(3).joined(separator: ", "))"
+    }
+    if wishlistNeedsPurchaseDecision(item) {
+      return "\(item.status) • Draft the local purchase decision before handoff."
+    }
+    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    if !handoffGaps.isEmpty {
+      return "\(item.status) • Handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))"
+    }
+    return "\(item.status) • \(item.operatorPurchaseNextAction)"
+  }
+
+  private func wishlistTaskContextBadge(for item: WishlistItem) -> String {
+    if !wishlistSellerEvidenceGaps(for: item).isEmpty { return "Evidence" }
+    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff pack" }
+    if item.purchaseHandoff != nil { return "Order watch" }
+    return "Wishlist"
+  }
+
+  private func wishlistTaskContextColor(for item: WishlistItem) -> Color {
+    if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
+    if !wishlistSellerEvidenceGaps(for: item).isEmpty { return .orange }
+    if wishlistNeedsPurchaseDecision(item) { return .purple }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
+    if item.purchaseHandoff != nil { return .teal }
+    return item.operatorPurchaseBlockers.isEmpty ? .green : .purple
+  }
+
+  private func wishlistSellerEvidenceGaps(for item: WishlistItem) -> [String] {
+    Array(Set((item.comparisonOptions ?? []).flatMap(\.operatorSellerEvidenceGaps))).sorted()
   }
 
   private var overdueActionCount: Int {

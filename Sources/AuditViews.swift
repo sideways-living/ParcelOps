@@ -1734,34 +1734,47 @@ private extension AuditEvent {
         || (entityType == .draftMessage && searchableText.localizedCaseInsensitiveContains("wishlist"))
         || (entityType == .costRecord && searchableText.localizedCaseInsensitiveContains("wishlist"))
         || (entityType == .procurementRequest && searchableText.localizedCaseInsensitiveContains("wishlist"))
+        || (entityType == .receivingInspection && searchableText.localizedCaseInsensitiveContains("wishlist"))
 
     let mentionsPurchaseTrail =
       searchableText.localizedCaseInsensitiveContains("wishlist purchase")
         || searchableText.localizedCaseInsensitiveContains("purchase packet")
         || searchableText.localizedCaseInsensitiveContains("purchase handoff")
+        || searchableText.localizedCaseInsensitiveContains("handoff pack")
         || searchableText.localizedCaseInsensitiveContains("seller evidence")
         || searchableText.localizedCaseInsensitiveContains("purchase decision")
         || searchableText.localizedCaseInsensitiveContains("order confirmation")
+        || searchableText.localizedCaseInsensitiveContains("order watch")
+        || searchableText.localizedCaseInsensitiveContains("wishlist purchase cost")
+        || searchableText.localizedCaseInsensitiveContains("wishlist procurement")
+        || searchableText.localizedCaseInsensitiveContains("wishlist receiving")
 
     return relevantEntity && mentionsPurchaseTrail
   }
 
   var wishlistPurchaseTrailLabel: String {
-    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "Purchase packet" }
+    if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "Handoff pack" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
     if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "Purchase decision" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist purchase cost") || entityType == .costRecord { return "Wishlist cost" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist procurement") || entityType == .procurementRequest { return "Wishlist procurement" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist receiving") || entityType == .receivingInspection { return "Wishlist receiving" }
     if searchableText.localizedCaseInsensitiveContains("seller evidence") { return "Seller evidence" }
-    if searchableText.localizedCaseInsensitiveContains("order confirmation") { return "Order watch" }
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") || searchableText.localizedCaseInsensitiveContains("order watch") { return "Order watch" }
     if entityType == .draftMessage { return "Wishlist draft" }
     if entityType == .reviewTask { return "Wishlist task" }
     return "Wishlist purchase trail"
   }
 
   var wishlistPurchaseTrailGuidance: String {
-    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
     if searchableText.localizedCaseInsensitiveContains("purchase packet") {
       return "Use this event to verify the local buying packet: preferred seller, AUD total, postage, trust, blockers, handoff, and order-watch state. It is not evidence of checkout or payment."
+    }
+    if searchableText.localizedCaseInsensitiveContains("handoff pack") {
+      return "Use this event to confirm account, cost, procurement, receiving, and linked-order context before a human purchase or order-confirmation handoff."
     }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") {
       return "The item has moved into manual handoff follow-up. Confirm account, payment method, delivery address, returns, warranty, and order confirmation outside ParcelOps."
@@ -1769,22 +1782,35 @@ private extension AuditEvent {
     if searchableText.localizedCaseInsensitiveContains("purchase decision") {
       return "The seller decision changed locally. Check that live price, stock, postage, trust, returns, and AUD total are still current before handoff."
     }
+    if searchableText.localizedCaseInsensitiveContains("wishlist purchase cost") || entityType == .costRecord {
+      return "A local cost placeholder was created for Wishlist purchase planning. Confirm price, postage, currency, tax, and reimbursement before purchase."
+    }
+    if searchableText.localizedCaseInsensitiveContains("wishlist procurement") || entityType == .procurementRequest {
+      return "A local procurement request is linked to Wishlist planning. Use it to track approval and buyer ownership; no supplier or payment API is active."
+    }
+    if searchableText.localizedCaseInsensitiveContains("wishlist receiving") || entityType == .receivingInspection {
+      return "A local receiving inspection placeholder is ready for the future delivered item. It does not imply warehouse, scanner, or carrier integration."
+    }
     if searchableText.localizedCaseInsensitiveContains("seller evidence") {
       return "Seller evidence needs a human check. Confirm product link, landed AUD cost, postage, trust, and returns/warranty before treating the option as ready."
     }
-    if searchableText.localizedCaseInsensitiveContains("order confirmation") {
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") || searchableText.localizedCaseInsensitiveContains("order watch") {
       return "Use Wishlist, Inbox, Mailbox Monitor, or Orders to link the external confirmation to a local order. No background mailbox or retailer monitoring is implied."
     }
     return "This is local Wishlist purchase-planning evidence. Continue in Wishlist unless a named task, draft, handoff, or linked order needs follow-up."
   }
 
   var wishlistPurchaseTrailSymbol: String {
-    let searchableText = [summary, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "doc.text.image.fill" }
+    if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "shippingbox.and.arrow.backward.fill" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
     if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "doc.text.magnifyingglass" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist purchase cost") || entityType == .costRecord { return "dollarsign.circle.fill" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist procurement") || entityType == .procurementRequest { return "cart.badge.plus" }
+    if searchableText.localizedCaseInsensitiveContains("wishlist receiving") || entityType == .receivingInspection { return "shippingbox.and.arrow.down.fill" }
     if searchableText.localizedCaseInsensitiveContains("seller evidence") { return "checklist" }
-    if searchableText.localizedCaseInsensitiveContains("order confirmation") { return "envelope.badge.fill" }
+    if searchableText.localizedCaseInsensitiveContains("order confirmation") || searchableText.localizedCaseInsensitiveContains("order watch") { return "envelope.badge.fill" }
     return "star.square.fill"
   }
 
