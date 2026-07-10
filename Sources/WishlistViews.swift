@@ -168,6 +168,77 @@ private struct WishlistLocalActivityRow: View {
   }
 }
 
+private struct WishlistDataQualityIssue: Identifiable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+  var priority: Int
+}
+
+private struct WishlistDataQualityEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var issues: [WishlistDataQualityIssue]
+  var stage: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistDataQualityRow: View {
+  var entry: WishlistDataQualityEntry
+  var onFocus: () -> Void
+  var onAction: () -> Void
+  var onTask: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.issues.first?.symbol ?? "checklist")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24, height: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(entry.stage) • \(entry.item.storefront)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.issues.first?.detail ?? entry.item.operatorPurchaseNextAction)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge("\(entry.issues.count) gap\(entry.issues.count == 1 ? "" : "s")", color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(entry.issues.prefix(4)) { issue in
+          Label(issue.title, systemImage: issue.symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(issue.color)
+            .lineLimit(1)
+        }
+      }
+
+      CompactActionRow {
+        Button("Focus", systemImage: "scope", action: onFocus)
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct WishlistView: View {
   var store: ParcelOpsStore
   @State private var showDeletedItems = false
@@ -264,6 +335,35 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistDataQualityEntries: [WishlistDataQualityEntry] {
+    store.wishlistItems
+      .compactMap { item in
+        let issues = wishlistDataQualityIssues(for: item)
+        guard !issues.isEmpty else { return nil }
+        let firstIssue = issues.sorted { $0.priority < $1.priority }.first
+        return WishlistDataQualityEntry(
+          item: item,
+          issues: issues.sorted { first, second in
+            if first.priority == second.priority {
+              return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
+            }
+            return first.priority < second.priority
+          },
+          stage: wishlistDataQualityStage(for: item),
+          nextAction: wishlistDataQualityActionTitle(for: item, firstIssue: firstIssue),
+          nextSymbol: wishlistDataQualityActionSymbol(for: item, firstIssue: firstIssue),
+          tone: firstIssue?.color ?? .blue,
+          sortPriority: firstIssue?.priority ?? 100
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -284,6 +384,7 @@ struct WishlistView: View {
 
         wishlistWorkflowFocusPanel
         wishlistLocalActivityPanel
+        wishlistDataQualityPanel
         wishlistReadinessPanel
         wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
@@ -772,6 +873,180 @@ struct WishlistView: View {
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var wishlistDataQualityPanel: some View {
+    let entries = wishlistDataQualityEntries
+    let captureGaps = entries.filter { $0.stage == "Capture quality" }.count
+    let comparisonGaps = entries.filter { $0.stage == "Comparison quality" }.count
+    let purchaseGaps = entries.filter { $0.stage == "Purchase handoff" }.count
+
+    return SettingsPanel(title: "Wishlist data quality", symbol: "checkmark.shield.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Fix weak item, seller, link, cost, comparison, and handoff fields before a Wishlist item becomes an order. Actions here are local checks, tasks, and planning records only.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items with gaps", "\(entries.count)", entries.isEmpty ? .green : .orange),
+          ("Capture", "\(captureGaps)", captureGaps == 0 ? .green : .blue),
+          ("Compare", "\(comparisonGaps)", comparisonGaps == 0 ? .green : .orange),
+          ("Handoff", "\(purchaseGaps)", purchaseGaps == 0 ? .green : .purple)
+        ])
+
+        if entries.isEmpty {
+          Label("No prominent Wishlist data-quality gaps are currently flagged. Continue with comparison, decision, or order-watch work below.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(6)) { entry in
+              WishlistDataQualityRow(entry: entry) {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              } onAction: {
+                runWishlistDataQualityAction(for: entry)
+              } onTask: {
+                runWishlistDataQualityTask(for: entry)
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 6, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist item\(remaining == 1 ? "" : "s") have quality gaps in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This panel does not verify live seller data, scrape pages, quote postage, log in, store payment details, or purchase items.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistDataQualityIssues(for item: WishlistItem) -> [WishlistDataQualityIssue] {
+    let options = item.comparisonOptions ?? []
+    var issues: [WishlistDataQualityIssue] = []
+
+    func add(_ title: String, detail: String, symbol: String, color: Color, priority: Int) {
+      issues.append(WishlistDataQualityIssue(title: title, detail: detail, symbol: symbol, color: color, priority: priority))
+    }
+
+    if item.itemName.isPlaceholderValidationValue || item.itemName.localizedCaseInsensitiveContains("placeholder") {
+      add("Item name", detail: "Replace the placeholder item name before comparison or purchase handoff.", symbol: "text.cursor", color: .orange, priority: 10)
+    }
+    if item.storefront.isPlaceholderValidationValue || item.storefront.localizedCaseInsensitiveContains("placeholder") {
+      add("Seller/source", detail: "Confirm the retailer, direct product source, or expected purchase channel.", symbol: "storefront", color: .orange, priority: 12)
+    }
+    if item.storefrontURL.isPlaceholderValidationValue || !item.storefrontURL.localizedCaseInsensitiveContains("http") {
+      add("Product link", detail: "Add a usable product or retailer URL before seller comparison.", symbol: "link", color: .orange, priority: 14)
+    }
+    if item.estimatedCost.isPlaceholderValidationValue || item.estimatedCost.localizedCaseInsensitiveContains("pending") {
+      add("Cost note", detail: "Record an estimated price, AUD total, or cost note before purchase review.", symbol: "dollarsign.circle", color: .orange, priority: 16)
+    }
+    if item.owner.isPlaceholderValidationValue || item.pool.isPlaceholderValidationValue {
+      add("Owner/pool", detail: "Confirm who wants the item and which local pool/team owns follow-up.", symbol: "person.crop.circle", color: .blue, priority: 18)
+    }
+    if item.capturedDetail.isPlaceholderValidationValue || item.capturedDetail.localizedCaseInsensitiveContains("placeholder") {
+      add("Capture detail", detail: "Add the reason, product notes, or source context for the item.", symbol: "doc.text", color: .blue, priority: 20)
+    }
+    if options.isEmpty {
+      add("Seller options", detail: "Create a local comparison plan or manual seller option before choosing where to buy.", symbol: "chart.bar.doc.horizontal", color: .purple, priority: 30)
+    } else if item.preferredOptionID == nil {
+      add("Preferred seller", detail: "Score or choose the preferred seller option after checking cost, postage, and trust.", symbol: "checkmark.seal", color: .purple, priority: 32)
+    }
+    if item.purchaseChecks?.isEmpty != false {
+      add("Readiness check", detail: "Run the local purchase readiness check before drafting a purchase decision.", symbol: "checklist.checked", color: .brown, priority: 40)
+    }
+    if !options.isEmpty && item.purchaseDecision == nil {
+      add("Purchase decision", detail: "Draft a local purchase decision once options and readiness are clear.", symbol: "doc.text.magnifyingglass", color: .brown, priority: 42)
+    } else if item.purchaseDecision?.reviewState != nil && item.purchaseDecision?.reviewState != .accepted {
+      add("Decision review", detail: "Review the local purchase decision before handoff.", symbol: "person.badge.clock", color: .brown, priority: 44)
+    }
+    if item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil {
+      add("Handoff", detail: "Prepare seller/account/order-watch handoff after the decision is accepted.", symbol: "person.crop.circle.badge.checkmark", color: .teal, priority: 50)
+    }
+    if item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil {
+      add("Order link", detail: "Watch for the confirmation email and link the created order once available.", symbol: "envelope.badge.fill", color: .teal, priority: 52)
+    }
+
+    return issues
+  }
+
+  private func wishlistDataQualityStage(for item: WishlistItem) -> String {
+    if item.purchaseHandoff != nil || item.purchaseDecision?.reviewState == .accepted {
+      return "Purchase handoff"
+    }
+    if item.comparisonOptions?.isEmpty == false {
+      return "Comparison quality"
+    }
+    return "Capture quality"
+  }
+
+  private func wishlistDataQualityActionTitle(for item: WishlistItem, firstIssue: WishlistDataQualityIssue?) -> String {
+    guard let title = firstIssue?.title else { return "Focus" }
+    if ["Item name", "Seller/source", "Product link", "Cost note", "Owner/pool", "Capture detail"].contains(title) { return "Readiness" }
+    if title == "Seller options" { return "Compare" }
+    if title == "Preferred seller" { return "Score" }
+    if title == "Readiness check" { return "Readiness" }
+    if title == "Purchase decision" { return "Decision" }
+    if title == "Decision review" { return "Decision task" }
+    if title == "Handoff" { return "Handoff" }
+    if title == "Order link" { return "Order seen" }
+    return item.operatorPurchaseBlockers.isEmpty ? "Focus" : "Review"
+  }
+
+  private func wishlistDataQualityActionSymbol(for item: WishlistItem, firstIssue: WishlistDataQualityIssue?) -> String {
+    guard let title = firstIssue?.title else { return "scope" }
+    if ["Item name", "Seller/source", "Product link", "Cost note", "Owner/pool", "Capture detail", "Readiness check"].contains(title) { return "checklist.checked" }
+    if title == "Seller options" { return "magnifyingglass.circle" }
+    if title == "Preferred seller" { return "chart.bar.doc.horizontal" }
+    if title == "Purchase decision" { return "doc.text.magnifyingglass" }
+    if title == "Decision review" { return "checklist" }
+    if title == "Handoff" { return "person.crop.circle.badge.checkmark" }
+    if title == "Order link" { return "envelope.badge.fill" }
+    return item.operatorPurchaseBlockers.isEmpty ? "scope" : "arrow.right.circle"
+  }
+
+  private func runWishlistDataQualityAction(for entry: WishlistDataQualityEntry) {
+    guard let firstIssue = entry.issues.first else { return }
+    switch firstIssue.title {
+    case "Seller options":
+      store.createWishlistComparisonPlan(entry.item)
+      store.createWishlistResearchRequest(from: entry.item)
+    case "Preferred seller":
+      store.evaluateWishlistComparisonOptions(entry.item)
+    case "Readiness check", "Item name", "Seller/source", "Product link", "Cost note", "Owner/pool", "Capture detail":
+      store.runWishlistPurchaseReadinessCheck(entry.item)
+    case "Purchase decision":
+      store.createWishlistPurchaseDecision(entry.item)
+    case "Decision review":
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    case "Handoff":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Order link":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private func runWishlistDataQualityTask(for entry: WishlistDataQualityEntry) {
+    if entry.issues.contains(where: { $0.title == "Handoff" || $0.title == "Order link" }) {
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    } else if entry.issues.contains(where: { $0.title == "Decision review" || $0.title == "Purchase decision" }) {
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    } else {
+      store.createReviewTask(from: entry.item)
     }
   }
 
