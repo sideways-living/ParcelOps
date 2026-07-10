@@ -182,18 +182,20 @@ struct ContactsView: View {
 
   private var inboxContactCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedContacts = contactsLinkedToInboxOrders
     let actionContacts = linkedContacts.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.email.isPlaceholderValidationValue }
     let missingCount = inboxOrdersMissingContact.count
 
-    return SettingsPanel(title: "Inbox contact readiness", symbol: "person.crop.circle.badge.checkmark") {
+    return SettingsPanel(title: "Inbox and Wishlist contact readiness", symbol: "person.crop.circle.badge.checkmark") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have usable local contact context for store, carrier, customer, or internal follow-up.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have usable local contact context for store, carrier, customer, or internal follow-up.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedContacts.count) matched contacts", color: .teal)
           Badge("\(actionContacts.count) need action", color: actionContacts.isEmpty ? .green : .orange)
           Badge("\(missingCount) without contact", color: missingCount == 0 ? .green : .orange)
@@ -231,16 +233,16 @@ struct ContactsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking contact coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking contact coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedContacts.isEmpty {
-          Text("No contacts currently match Inbox-created orders by store, carrier, customer/team, or recipient email.")
+          Text("No contacts currently match Inbox-created or Wishlist-linked orders by store, carrier, customer/team, or recipient email.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionContacts.isEmpty {
-          Text("Matched contacts are enabled, reviewed, and have contact details for current Inbox-created orders.")
+          Text("Matched contacts are enabled, reviewed, and have contact details for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -340,16 +342,24 @@ struct ContactsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var contactSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var contactsLinkedToInboxOrders: [ContactDirectoryEntry] {
     store.contactDirectoryEntries.filter { contact in
-      inboxCreatedOrders.contains { order in
+      contactSourceOrders.contains { order in
         contactMatches(contact, order: order)
       }
     }
   }
 
   private var inboxOrdersMissingContact: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    contactSourceOrders.filter { order in
       !store.contactDirectoryEntries.contains { contact in
         contactMatches(contact, order: order)
       }
@@ -357,7 +367,17 @@ struct ContactsView: View {
   }
 
   private func inboxOrders(for contact: ContactDirectoryEntry) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { contactMatches(contact, order: $0) }
+    contactSourceOrders.filter { contactMatches(contact, order: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func contactMatches(_ contact: ContactDirectoryEntry, order: TrackedOrder) -> Bool {
@@ -530,7 +550,7 @@ struct ContactDirectoryRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox contact source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist contact source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -629,7 +649,7 @@ struct ContactDirectoryRow: View {
   private var contactWarnings: [String] {
     var warnings: [String] = []
     if !contact.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This contact matches an Inbox-created order but is disabled.")
+      warnings.append("This contact matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if contact.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Contact needs review before relying on it for local follow-up.")

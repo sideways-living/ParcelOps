@@ -191,6 +191,7 @@ struct AccountsView: View {
 
   private var inboxAccountCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedAccounts = accountsLinkedToInboxOrders
     let actionAccounts = linkedAccounts.filter { account in
       !account.isEnabled
@@ -202,14 +203,15 @@ struct AccountsView: View {
     }
     let missingCount = inboxOrdersMissingAccount.count
 
-    return SettingsPanel(title: "Inbox account readiness", symbol: "key.horizontal.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist account readiness", symbol: "key.horizontal.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local account placeholders when manual supplier, store, carrier, or portal follow-up may be needed. No secrets are stored here.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local account placeholders when manual supplier, store, carrier, or portal follow-up may be needed. No secrets are stored here.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedAccounts.count) matched accounts", color: .teal)
           Badge("\(actionAccounts.count) need action", color: actionAccounts.isEmpty ? .green : .orange)
           Badge("\(missingCount) without account", color: missingCount == 0 ? .green : .orange)
@@ -247,12 +249,12 @@ struct AccountsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking account placeholder coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking account placeholder coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedAccounts.isEmpty {
-          Text("No account placeholders currently match Inbox-created orders by store, carrier, linked contact, or linked order.")
+          Text("No account placeholders currently match Inbox-created or Wishlist-linked orders by store, carrier, linked contact, or linked order.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionAccounts.isEmpty {
@@ -356,16 +358,24 @@ struct AccountsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var accountSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var accountsLinkedToInboxOrders: [AccountCredentialRecord] {
     store.accountCredentialRecords.filter { account in
-      inboxCreatedOrders.contains { order in
+      accountSourceOrders.contains { order in
         accountMatches(account, order: order)
       }
     }
   }
 
   private var inboxOrdersMissingAccount: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    accountSourceOrders.filter { order in
       !store.accountCredentialRecords.contains { account in
         accountMatches(account, order: order)
       }
@@ -373,7 +383,17 @@ struct AccountsView: View {
   }
 
   private func inboxOrders(for account: AccountCredentialRecord) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { accountMatches(account, order: $0) }
+    accountSourceOrders.filter { accountMatches(account, order: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func accountMatches(_ account: AccountCredentialRecord, order: TrackedOrder) -> Bool {
@@ -564,7 +584,7 @@ struct AccountCredentialRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox account source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist account source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -646,7 +666,7 @@ struct AccountCredentialRow: View {
   private var accountWarnings: [String] {
     var warnings: [String] = []
     if !account.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This account placeholder matches an Inbox-created order but is disabled.")
+      warnings.append("This account placeholder matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if account.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Account placeholder needs review before relying on it for local follow-up.")

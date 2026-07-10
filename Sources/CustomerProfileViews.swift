@@ -178,18 +178,20 @@ struct CustomerProfilesView: View {
 
   private var inboxProfileCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedProfiles = customerProfilesLinkedToInboxOrders
     let actionProfiles = linkedProfiles.filter { !$0.isEnabled || $0.reviewState != .accepted }
     let missingCount = inboxOrdersMissingProfile.count
 
-    return SettingsPanel(title: "Inbox customer profile readiness", symbol: "person.text.rectangle.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist customer profile readiness", symbol: "person.text.rectangle.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have reusable customer, recipient, or team context before downstream handoff.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have reusable customer, recipient, or team context before downstream handoff.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedProfiles.count) matched profiles", color: .teal)
           Badge("\(actionProfiles.count) need action", color: actionProfiles.isEmpty ? .green : .orange)
           Badge("\(missingCount) without profile", color: missingCount == 0 ? .green : .orange)
@@ -227,16 +229,16 @@ struct CustomerProfilesView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before using profile coverage checks.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before using profile coverage checks.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedProfiles.isEmpty {
-          Text("No customer profiles currently match Inbox-created orders by email, customer/team, or destination text.")
+          Text("No customer profiles currently match Inbox-created or Wishlist-linked orders by email, customer/team, or destination text.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionProfiles.isEmpty {
-          Text("Matched customer profiles are enabled and reviewed for current Inbox-created orders.")
+          Text("Matched customer profiles are enabled and reviewed for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -303,16 +305,24 @@ struct CustomerProfilesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var profileSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var customerProfilesLinkedToInboxOrders: [CustomerRecipientProfile] {
     store.customerRecipientProfiles.filter { profile in
-      inboxCreatedOrders.contains { order in
+      profileSourceOrders.contains { order in
         customerProfile(profile, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingProfile: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    profileSourceOrders.filter { order in
       !store.customerRecipientProfiles.contains { profile in
         customerProfile(profile, matches: order)
       }
@@ -320,7 +330,17 @@ struct CustomerProfilesView: View {
   }
 
   private func inboxOrders(for profile: CustomerRecipientProfile) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { customerProfile(profile, matches: $0) }
+    profileSourceOrders.filter { customerProfile(profile, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func customerProfile(_ profile: CustomerRecipientProfile, matches order: TrackedOrder) -> Bool {
@@ -461,7 +481,7 @@ struct CustomerProfileRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox profile source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist profile source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -552,10 +572,10 @@ struct CustomerProfileRow: View {
   private var profileWarnings: [String] {
     var warnings: [String] = []
     if !profile.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This profile matches an Inbox-created order but is disabled.")
+      warnings.append("This profile matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if profile.reviewState != .accepted && !inboxOrders.isEmpty {
-      warnings.append("Profile needs review before relying on it for Inbox-created order handoff.")
+      warnings.append("Profile needs review before relying on it for Inbox-created or Wishlist-linked order handoff.")
     }
     if profile.primaryEmail.isPlaceholderValidationValue && !inboxOrders.isEmpty {
       warnings.append("Primary email is missing or placeholder.")

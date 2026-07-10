@@ -168,6 +168,7 @@ struct VendorProfilesView: View {
 
   private var inboxVendorCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let wishlistOrders = wishlistLinkedOrders
     let linkedProfiles = vendorProfilesLinkedToInboxOrders
     let actionProfiles = linkedProfiles.filter { profile in
       !profile.isEnabled
@@ -179,14 +180,15 @@ struct VendorProfilesView: View {
     }
     let missingCount = inboxOrdersMissingVendor.count
 
-    return SettingsPanel(title: "Inbox vendor readiness", symbol: "building.2.crop.circle.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist vendor readiness", symbol: "building.2.crop.circle.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local vendor, carrier, store, or supplier context for manual follow-up.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local vendor, carrier, store, or supplier context for manual follow-up.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedProfiles.count) matched vendors", color: .teal)
           Badge("\(actionProfiles.count) need action", color: actionProfiles.isEmpty ? .green : .orange)
           Badge("\(missingCount) without vendor", color: missingCount == 0 ? .green : .orange)
@@ -224,12 +226,12 @@ struct VendorProfilesView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking vendor profile coverage.")
+        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking vendor profile coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedProfiles.isEmpty {
-          Text("No vendor profiles currently match Inbox-created orders by store, carrier, default contact, or default account.")
+          Text("No vendor profiles currently match Inbox-created or Wishlist-linked orders by store, carrier, default contact, or default account.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionProfiles.isEmpty {
@@ -328,16 +330,24 @@ struct VendorProfilesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var vendorSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var vendorProfilesLinkedToInboxOrders: [VendorProfile] {
     store.vendorProfiles.filter { profile in
-      inboxCreatedOrders.contains { order in
+      vendorSourceOrders.contains { order in
         vendorProfile(profile, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingVendor: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    vendorSourceOrders.filter { order in
       !store.vendorProfiles.contains { profile in
         vendorProfile(profile, matches: order)
       }
@@ -345,7 +355,17 @@ struct VendorProfilesView: View {
   }
 
   private func inboxOrders(for profile: VendorProfile) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { vendorProfile(profile, matches: $0) }
+    vendorSourceOrders.filter { vendorProfile(profile, matches: $0) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where seen.contains(order.id) == false {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func vendorProfile(_ profile: VendorProfile, matches order: TrackedOrder) -> Bool {
@@ -540,7 +560,7 @@ struct VendorProfileRow: View {
 
       if !inboxOrders.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
-          Label("Inbox vendor source", systemImage: "tray.and.arrow.down.fill")
+          Label("Inbox/Wishlist vendor source", systemImage: "tray.and.arrow.down.fill")
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(inboxOrders.prefix(2)) { order in
@@ -595,7 +615,7 @@ struct VendorProfileRow: View {
   private var vendorWarnings: [String] {
     var warnings: [String] = []
     if !profile.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This vendor profile matches an Inbox-created order but is disabled.")
+      warnings.append("This vendor profile matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if profile.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Vendor profile needs review before relying on it for local follow-up.")
