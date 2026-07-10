@@ -581,6 +581,9 @@ struct DashboardView: View {
         || item.status.localizedCaseInsensitiveContains("confirmation")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || wishlistSellerEvidenceGapCount(for: item) > 0
+        || wishlistNeedsPurchaseDecision(item)
+        || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
     }
   }
@@ -593,8 +596,46 @@ struct DashboardView: View {
   private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
     store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
   }
+  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
+    (item.comparisonOptions ?? []).reduce(0) { total, option in
+      total + option.operatorSellerEvidenceGaps.count
+    }
+  }
+  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
+    let options = item.comparisonOptions ?? []
+    guard !options.isEmpty else { return false }
+    let checks = item.purchaseChecks ?? []
+    let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
+    return checksClear && item.purchaseDecision == nil
+  }
+  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return gaps
+    }
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
+  }
   private var wishlistAttentionBlockerSummary: String {
-    let blockers = wishlistAttentionItems.flatMap(\.operatorPurchaseBlockers)
+    let blockers = wishlistAttentionItems.flatMap { item -> [String] in
+      var labels = item.operatorPurchaseBlockers
+      if wishlistSellerEvidenceGapCount(for: item) > 0 {
+        labels.append("seller evidence")
+      }
+      if wishlistNeedsPurchaseDecision(item) {
+        labels.append("purchase decision")
+      }
+      labels.append(contentsOf: wishlistHandoffPackGaps(for: item).map { "handoff \($0)" })
+      return labels
+    }
     if !wishlistResearchAttentionRequests.isEmpty {
       let gaps = wishlistResearchAttentionRequests.flatMap(\.agentBriefGaps)
       let grouped = Dictionary(grouping: gaps, by: { $0 })

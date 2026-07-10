@@ -120,12 +120,47 @@ struct OperationsWorkbenchView: View {
         || item.status.localizedCaseInsensitiveContains("awaiting order")
         || item.status.localizedCaseInsensitiveContains("confirmation")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || wishlistSellerEvidenceGapCount(for: item) > 0
+        || wishlistNeedsPurchaseDecision(item)
+        || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
     }
   }
 
   private var wishlistResearchWorkbenchRequests: [WishlistResearchRequest] {
     store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+  }
+
+  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
+    (item.comparisonOptions ?? []).reduce(0) { total, option in
+      total + option.operatorSellerEvidenceGaps.count
+    }
+  }
+
+  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
+    let options = item.comparisonOptions ?? []
+    guard !options.isEmpty else { return false }
+    let checks = item.purchaseChecks ?? []
+    let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
+    return checksClear && item.purchaseDecision == nil
+  }
+
+  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return gaps
+    }
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -1838,8 +1873,9 @@ struct OperationsWorkbenchView: View {
           ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count)", .purple),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
-          ("Handoff", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff != nil }.count)", .teal),
-          ("Order link", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff?.linkedOrderID != nil }.count)", .green)
+          ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
+          ("Decision", "\(wishlistWorkbenchItems.filter { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview }.count)", wishlistWorkbenchItems.contains { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview } ? .brown : .green),
+          ("Handoff gaps", "\(wishlistWorkbenchItems.filter { !wishlistHandoffPackGaps(for: $0).isEmpty }.count)", wishlistWorkbenchItems.contains { !wishlistHandoffPackGaps(for: $0).isEmpty } ? .purple : .green)
         ])
 
         ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in
@@ -2503,7 +2539,48 @@ private struct WishlistWorkbenchFollowUpRow: View {
     return .teal
   }
 
+  private var sellerEvidenceGaps: [String] {
+    Array(Set((item.comparisonOptions ?? []).flatMap(\.operatorSellerEvidenceGaps))).sorted()
+  }
+
+  private var needsDecision: Bool {
+    let checks = item.purchaseChecks ?? []
+    return !(item.comparisonOptions ?? []).isEmpty
+      && !checks.isEmpty
+      && !checks.contains { $0.status != "Passed" }
+      && item.purchaseDecision == nil
+  }
+
+  private var handoffGaps: [String] {
+    var gaps: [String] = []
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return gaps
+    }
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
+  }
+
   private var nextAction: String {
+    if !sellerEvidenceGaps.isEmpty {
+      return "Confirm seller evidence: \(sellerEvidenceGaps.prefix(3).joined(separator: ", "))."
+    }
+    if needsDecision {
+      return "Draft the local purchase decision before handoff."
+    }
+    if item.purchaseDecision?.reviewState == .needsReview {
+      return "Review and accept the local purchase decision."
+    }
+    if !handoffGaps.isEmpty {
+      return "Complete handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))."
+    }
     if !item.operatorPurchaseBlockers.isEmpty {
       return item.operatorPurchaseNextAction
     }
@@ -2545,6 +2622,18 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Handoff: \(handoff.sellerName) • \(handoff.purchaseStatus) • \(handoff.orderWatchStatus)")
             .font(.caption2)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !sellerEvidenceGaps.isEmpty {
+          Text("Seller evidence gaps: \(sellerEvidenceGaps.prefix(4).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !handoffGaps.isEmpty {
+          Text("Handoff pack gaps: \(handoffGaps.prefix(4).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.purple)
             .fixedSize(horizontal: false, vertical: true)
         }
         Label(nextAction, systemImage: "arrow.turn.down.right")
