@@ -163,18 +163,20 @@ struct InventoryReceiptsView: View {
 
   private var inboxInventoryReceiptCoverage: some View {
     let inboxOrders = inboxCreatedOrders
+    let sourceOrders = inventorySourceOrders
     let linkedReceipts = receiptsLinkedToInboxOrders
     let actionReceipts = receiptsNeedingInventoryAction
     let missingReceiptCount = inboxOrdersMissingReceipt.count
 
-    return SettingsPanel(title: "Inbox inventory handoff", symbol: "tray.and.arrow.down.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist inventory handoff", symbol: "tray.and.arrow.down.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Shows whether orders created from Inbox intake have a local receipt, storage, acceptance, and handoff path.")
+        Text("Shows whether orders created from Inbox intake or Wishlist purchase handoff have a local receipt, storage, acceptance, and handoff path.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedReceipts.count) linked receipts", color: .teal)
           Badge("\(actionReceipts.count) need action", color: actionReceipts.isEmpty ? .green : .orange)
           Badge("\(missingReceiptCount) missing receipt", color: missingReceiptCount == 0 ? .green : .orange)
@@ -212,12 +214,12 @@ struct InventoryReceiptsView: View {
           }
         }
 
-        if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox to track receiving and stock handoff here.")
+        if sourceOrders.isEmpty {
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create or link an order from Inbox/Wishlist to track receiving and stock handoff here.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedReceipts.isEmpty {
-          Text("Inbox-created orders do not have inventory receipts yet. Add a receipt when stock is received or handed to a team.")
+          Text("Inbox-created or Wishlist-linked orders do not have inventory receipts yet. Add a receipt when stock is received or handed to a team.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -238,7 +240,7 @@ struct InventoryReceiptsView: View {
           }
 
           if actionReceipts.isEmpty {
-            Text("Linked inventory receipts look stocked, assigned, and reviewed for the current Inbox-created orders.")
+            Text("Linked inventory receipts look stocked, assigned, and reviewed for the current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionReceipts.count > 3 {
@@ -327,8 +329,16 @@ struct InventoryReceiptsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var inventorySourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var receiptsLinkedToInboxOrders: [InventoryReceiptRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(inventorySourceOrders.map(\.id))
     return store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -344,7 +354,17 @@ struct InventoryReceiptsView: View {
     let receiptOrderIDs = Set(receiptsLinkedToInboxOrders.compactMap { receipt -> UUID? in
       receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
     })
-    return inboxCreatedOrders.filter { !receiptOrderIDs.contains($0.id) }
+    return inventorySourceOrders.filter { !receiptOrderIDs.contains($0.id) }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where !seen.contains(order.id) {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private var receiptsNeedingInventoryAction: [InventoryReceiptRecord] {
@@ -550,6 +570,7 @@ struct InventoryReceiptRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox inventory handoff", systemImage: "tray.and.arrow.down.fill")
@@ -572,6 +593,26 @@ struct InventoryReceiptRow: View {
               }
             }
           }
+        }
+        if !linkedWishlistItems.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Wishlist inventory handoff", systemImage: "star.square.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.pink)
+            CompactMetadataGrid(minimumWidth: 150) {
+              ForEach(linkedWishlistItems.prefix(3)) { item in
+                Badge(item.itemName, color: .pink)
+                Badge(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status, color: .secondary)
+              }
+            }
+            Text("Confirm the received item, accepted quantity, storage, and owner against the Wishlist purchase handoff before closing this receipt.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
       }
 

@@ -183,13 +183,14 @@ struct ReceivingInspectionsView: View {
   }
 
   private var inboxInspectionCoverage: some View {
-    SettingsPanel(title: "Inbox receiving inspection coverage", symbol: "checklist.checked") {
-      Text("Checks whether orders created from Inbox intake have local inspection coverage for condition, quantity, and discrepancy follow-up.")
+    SettingsPanel(title: "Inbox and Wishlist receiving inspection coverage", symbol: "checklist.checked") {
+      Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local inspection coverage for condition, quantity, and discrepancy follow-up.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(inspectionsLinkedToInboxOrders.count) linked inspections", color: .teal)
         Badge("\(inspectionsNeedingAction.count) need action", color: inspectionsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(inboxOrdersMissingInspection.count) missing inspections", color: inboxOrdersMissingInspection.isEmpty ? .green : .orange)
@@ -227,18 +228,18 @@ struct ReceivingInspectionsView: View {
         }
       }
 
-      if inboxCreatedOrders.isEmpty {
-        Text("No Inbox-created orders need receiving inspection checks yet.")
+      if receivingSourceOrders.isEmpty {
+        Text("No Inbox-created or Wishlist-linked orders need receiving inspection checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingInspection.isEmpty && inspectionsNeedingAction.isEmpty {
-        Label("Inbox-created orders have receiving inspection coverage with no open local inspection warnings.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have receiving inspection coverage with no open local inspection warnings.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
         VStack(alignment: .leading, spacing: 8) {
           if !inboxOrdersMissingInspection.isEmpty {
-            Text("Inbox orders missing receiving inspection records")
+            Text("Inbox/Wishlist orders missing receiving inspection records")
               .font(.caption.weight(.semibold))
             CompactActionRow {
               ForEach(inboxOrdersMissingInspection.prefix(4)) { order in
@@ -328,12 +329,22 @@ struct ReceivingInspectionsView: View {
     }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { order in
+      !store.wishlistItemsLinked(to: order).isEmpty
+    }
+  }
+
+  private var receivingSourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var inspectionsLinkedToInboxOrders: [ReceivingInspectionRecord] {
     store.receivingInspections.filter { inspection in
       guard let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil) else {
         return false
       }
-      return inboxCreatedOrders.contains { $0.id == orderID }
+      return receivingSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -349,11 +360,21 @@ struct ReceivingInspectionsView: View {
   }
 
   private var inboxOrdersMissingInspection: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    receivingSourceOrders.filter { order in
       !store.receivingInspections.contains { inspection in
         inspection.orderID == order.id || (inspection.linkedEntityType == .order && inspection.linkedEntityID == order.id.uuidString)
       }
     }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen: Set<UUID> = []
+    var unique: [TrackedOrder] = []
+    for order in orders where !seen.contains(order.id) {
+      seen.insert(order.id)
+      unique.append(order)
+    }
+    return unique
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
@@ -493,6 +514,11 @@ struct ReceivingInspectionRow: View {
     }
   }
 
+  private var linkedWishlistItems: [WishlistItem] {
+    guard let store, let linkedOrder else { return [] }
+    return store.wishlistItemsLinked(to: linkedOrder)
+  }
+
   private var inspectionReadinessWarnings: [String] {
     var warnings: [String] = []
     if inspection.inspectionStatus == .blocked {
@@ -555,7 +581,7 @@ struct ReceivingInspectionRow: View {
         }
       }
 
-      if !linkedIntakeEmails.isEmpty || !inspectionReadinessWarnings.isEmpty {
+      if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || !inspectionReadinessWarnings.isEmpty {
         receivingInspectionInboxSourceTrail
       }
 
@@ -650,6 +676,9 @@ struct ReceivingInspectionRow: View {
         if let linkedOrder {
           Badge(linkedOrder.orderNumber, color: .blue)
         }
+        ForEach(linkedWishlistItems.prefix(2)) { item in
+          Badge("Wishlist \(item.itemName)", color: .pink)
+        }
         ForEach(linkedIntakeEmails.prefix(3)) { email in
           if let store {
             let source = store.intakeSourceSummary(for: email)
@@ -665,6 +694,12 @@ struct ReceivingInspectionRow: View {
   }
 
   private var sourceTrailDescription: String {
+    if !linkedWishlistItems.isEmpty && !inspectionReadinessWarnings.isEmpty {
+      return "This inspection is tied to a Wishlist-linked order and still needs local condition, quantity, discrepancy, or review follow-up."
+    }
+    if !linkedWishlistItems.isEmpty {
+      return "Wishlist purchase context is linked to this receiving inspection. Confirm the item physically matches the purchase handoff before closing."
+    }
     if !inspectionReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
       return "This inspection is tied to an Inbox-created order and still needs local condition, quantity, discrepancy, or review follow-up."
     }
