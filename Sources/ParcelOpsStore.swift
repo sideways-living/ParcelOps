@@ -19459,7 +19459,7 @@ final class ParcelOpsStore {
 
   func createWishlistSellerEvidenceReviewTask(_ item: WishlistItem) {
     let missingBySeller = (item.comparisonOptions ?? []).compactMap { option -> String? in
-      let gaps = wishlistSellerEvidenceGaps(for: option)
+      let gaps = option.operatorSellerEvidenceGaps
       guard !gaps.isEmpty else { return nil }
       return "\(option.sellerName): \(gaps.joined(separator: ", "))"
     }
@@ -19518,44 +19518,6 @@ final class ParcelOpsStore {
       task,
       summary: "Review task created from Wishlist seller evidence checklist."
     )
-  }
-
-  private func wishlistSellerEvidenceGaps(for option: WishlistComparisonOption) -> [String] {
-    let searchable = [
-      option.productURL,
-      option.listedPrice,
-      option.currency,
-      option.estimatedAUDTotal,
-      option.postageCost,
-      option.postageTime,
-      option.sellerRegion,
-      option.trustRating,
-      option.trustNotes,
-      option.recommendation
-    ]
-      .joined(separator: " ")
-      .localizedLowercase
-
-    var gaps: [String] = []
-    if option.productURL.isPlaceholderValidationValue || !option.productURL.localizedCaseInsensitiveContains("http") {
-      gaps.append("product link")
-    }
-    if !option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud") || option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
-      gaps.append("AUD total")
-    }
-    if option.postageCost.localizedCaseInsensitiveContains("pending") || option.postageCost.isPlaceholderValidationValue {
-      gaps.append("postage cost")
-    }
-    if option.postageTime.localizedCaseInsensitiveContains("pending") || option.postageTime.isPlaceholderValidationValue {
-      gaps.append("postage time")
-    }
-    if option.trustRating.localizedCaseInsensitiveContains("unknown") || option.trustRating.localizedCaseInsensitiveContains("review") {
-      gaps.append("seller trust")
-    }
-    if !searchable.contains("return") && !searchable.contains("warranty") {
-      gaps.append("returns/warranty")
-    }
-    return gaps
   }
 
   private func wishlistCheck(title: String, passed: Bool, failDetail: String, passDetail: String) -> WishlistPurchaseCheck {

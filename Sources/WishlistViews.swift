@@ -1687,7 +1687,7 @@ struct WishlistItemRow: View {
       blockers.append("Select a preferred seller option.")
     }
     if let preferred {
-      let gaps = wishlistSellerEvidenceGaps(for: preferred)
+      let gaps = preferred.operatorSellerEvidenceGaps
       if !gaps.isEmpty {
         blockers.append("Complete preferred seller evidence: \(gaps.joined(separator: ", ")).")
       }
@@ -1808,46 +1808,8 @@ struct WishlistItemRow: View {
   }
 
   private var missingSellerEvidenceLabels: [String] {
-    let labels = (item.comparisonOptions ?? []).flatMap { wishlistSellerEvidenceGaps(for: $0) }
+    let labels = (item.comparisonOptions ?? []).flatMap(\.operatorSellerEvidenceGaps)
     return Array(Set(labels)).sorted()
-  }
-
-  private func wishlistSellerEvidenceGaps(for option: WishlistComparisonOption) -> [String] {
-    let searchable = [
-      option.productURL,
-      option.listedPrice,
-      option.currency,
-      option.estimatedAUDTotal,
-      option.postageCost,
-      option.postageTime,
-      option.sellerRegion,
-      option.trustRating,
-      option.trustNotes,
-      option.recommendation
-    ]
-      .joined(separator: " ")
-      .localizedLowercase
-
-    var gaps: [String] = []
-    if option.productURL.isPlaceholderValidationValue || !option.productURL.localizedCaseInsensitiveContains("http") {
-      gaps.append("product link")
-    }
-    if !option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud") || option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending") {
-      gaps.append("AUD total")
-    }
-    if option.postageCost.localizedCaseInsensitiveContains("pending") || option.postageCost.isPlaceholderValidationValue {
-      gaps.append("postage cost")
-    }
-    if option.postageTime.localizedCaseInsensitiveContains("pending") || option.postageTime.isPlaceholderValidationValue {
-      gaps.append("postage time")
-    }
-    if option.trustRating.localizedCaseInsensitiveContains("unknown") || option.trustRating.localizedCaseInsensitiveContains("review") {
-      gaps.append("seller trust")
-    }
-    if !searchable.contains("return") && !searchable.contains("warranty") {
-      gaps.append("returns/warranty")
-    }
-    return gaps
   }
 
   @ViewBuilder
