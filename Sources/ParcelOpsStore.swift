@@ -20033,6 +20033,74 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistPurchaseHandoffReviewTask(_ item: WishlistItem) {
+    let handoff = item.purchaseHandoff
+    let decision = item.purchaseDecision
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    }
+    let seller = handoff?.sellerName ?? decision?.selectedSellerName ?? preferredOption?.sellerName ?? item.storefront
+    let account = handoff?.accountLabel ?? "\(item.owner) account to confirm"
+    let expectedSignals = handoff?.expectedOrderSignals ?? [seller, item.itemName, preferredOption?.productURL ?? item.storefrontURL]
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      .joined(separator: " | ")
+    let taskTitle = "Prepare Wishlist purchase handoff: \(item.itemName)"
+    let taskSummary = [
+      "Confirm the manual purchase handoff before buying outside ParcelOps.",
+      "Seller: \(seller).",
+      "Account: \(account).",
+      "AUD total: \(decision?.totalAUDSummary ?? preferredOption?.estimatedAUDTotal ?? item.estimatedCost).",
+      "Postage: \(decision?.postageSummary ?? preferredOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "Not recorded").",
+      "Trust: \(decision?.trustSummary ?? preferredOption?.trustRating ?? "Not recorded").",
+      "Expected order signals: \(expectedSignals).",
+      "Confirm live price, stock, delivery address, returns, warranty, payment method, and account access outside ParcelOps. No purchase should be marked complete until a confirmation is visible in Inbox, Mailbox Monitor, or Orders."
+    ].joined(separator: " ")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("purchase handoff")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = handoff == nil || handoff?.linkedOrderID == nil ? .high : .normal
+      reviewTasks[existingIndex].dueDate = "Today"
+      reviewTasks[existingIndex].assignee = item.owner
+      reviewTasks[existingIndex].reviewState = handoff == nil ? .needsReview : .accepted
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Wishlist purchase handoff task refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from Wishlist purchase handoff packet. No duplicate task was created and no checkout, purchase, payment, retailer, browser, account, or mailbox action occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: taskSummary,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      priority: handoff == nil || handoff?.linkedOrderID == nil ? .high : .normal,
+      dueDate: "Today",
+      assignee: item.owner,
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: handoff == nil ? .needsReview : .accepted
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from Wishlist purchase handoff."
+    )
+  }
+
   func recordWishlistPurchasedExternally(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

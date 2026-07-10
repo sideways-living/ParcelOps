@@ -176,6 +176,8 @@ struct WishlistView: View {
                 store.createWishlistPurchaseDecisionReviewTask(item)
               } onHandoff: {
                 store.prepareWishlistPurchaseHandoff(item)
+              } onHandoffTask: {
+                store.createWishlistPurchaseHandoffReviewTask(item)
               } onPurchased: {
                 store.recordWishlistPurchasedExternally(item)
               } onOrderSeen: {
@@ -318,6 +320,8 @@ struct WishlistView: View {
               } onDecisionTask: {
                 store.restoreWishlistItem(item)
               } onHandoff: {
+                store.restoreWishlistItem(item)
+              } onHandoffTask: {
                 store.restoreWishlistItem(item)
               } onPurchased: {
                 store.restoreWishlistItem(item)
@@ -1383,6 +1387,7 @@ struct WishlistItemRow: View {
   var onDecisionNeedsReview: () -> Void
   var onDecisionTask: () -> Void
   var onHandoff: () -> Void
+  var onHandoffTask: () -> Void
   var onPurchased: () -> Void
   var onOrderSeen: () -> Void
   var onUseConfirmation: (ForwardedEmailIntake) -> Void
@@ -2086,6 +2091,14 @@ struct WishlistItemRow: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          Button("Handoff task", systemImage: "checklist") {
+            onHandoffTask()
+            feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelOps."
+          }
+          .buttonStyle(.bordered)
+        }
 
         if let linkedOrder, let store {
           VStack(alignment: .leading, spacing: 6) {
