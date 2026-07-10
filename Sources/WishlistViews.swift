@@ -121,6 +121,7 @@ struct WishlistView: View {
         wishlistComparisonMatrixPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
+        wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
         wishlistAgentHandoffPacketPanel
@@ -1637,6 +1638,192 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPrePurchaseOperatorChecklistItems: [WishlistPurchaseOperatorChecklist] {
+    wishlistPurchaseReleaseChecklistItems
+      .map { gate in
+        let item = gate.item
+        let decision = item.purchaseDecision
+        let handoff = item.purchaseHandoff
+        let preferred = item.preferredOptionID.flatMap { optionID in
+          item.comparisonOptions?.first { $0.id == optionID }
+        } ?? item.comparisonOptions?.first
+        let checks = item.purchaseChecks ?? []
+        let failedChecks = checks.filter { $0.status != "Passed" }
+        let hasReadyDecision = decision?.reviewState == .accepted
+        let hasHandoff = handoff != nil
+        let hasOrder = handoff?.linkedOrderID != nil
+
+        let manualChecks: [(String, Bool)] = [
+          ("Seller chosen", preferred != nil && item.preferredOptionID != nil),
+          ("Decision accepted", hasReadyDecision),
+          ("AUD/postage/trust checked", !checks.isEmpty && failedChecks.isEmpty),
+          ("Account/payment/delivery noted", hasHandoff),
+          ("Order watch ready", hasHandoff),
+          ("Order linked", hasOrder)
+        ]
+
+        let blockers = manualChecks.filter { !$0.1 }.map(\.0)
+        let liveVerification = [
+          "live stock",
+          "current price",
+          "AUD landed total",
+          "postage cost/time",
+          "seller trust",
+          "returns/warranty",
+          "account access",
+          "payment method",
+          "delivery address"
+        ]
+
+        let stage: String
+        let detail: String
+        let tone: Color
+        let actionTitle: String
+        let actionSymbol: String
+        let sortPriority: Int
+
+        if !hasReadyDecision {
+          stage = "Decision not accepted"
+          detail = decision == nil
+            ? "Draft and review the selected seller decision before handoff."
+            : "Accept or reopen the purchase decision after confirming seller and cost details."
+          tone = .orange
+          actionTitle = decision == nil ? "Draft decision" : "Accept decision"
+          actionSymbol = decision == nil ? "doc.text.magnifyingglass" : "checkmark.seal"
+          sortPriority = 10
+        } else if failedChecks.isEmpty == false || checks.isEmpty {
+          stage = "Checks need review"
+          detail = checks.isEmpty ? "Run the local readiness check before handoff." : "Clear failed readiness checks before buying externally."
+          tone = .orange
+          actionTitle = "Run checks"
+          actionSymbol = "checklist.checked"
+          sortPriority = 20
+        } else if !hasHandoff {
+          stage = "Handoff needed"
+          detail = "Prepare account, payment, delivery, and order-watch notes before the external purchase."
+          tone = .purple
+          actionTitle = "Prepare handoff"
+          actionSymbol = "person.crop.circle.badge.checkmark"
+          sortPriority = 30
+        } else if !hasOrder {
+          stage = "Ready to buy externally"
+          detail = "Handoff is ready. Buy outside ParcelOps only after final live checks, then watch Inbox/Orders for confirmation."
+          tone = .green
+          actionTitle = "Order seen"
+          actionSymbol = "envelope.badge.fill"
+          sortPriority = 40
+        } else {
+          stage = "Order linked"
+          detail = "Order confirmation has been linked. Continue operational tracking in Orders, Dispatch, and Tasks."
+          tone = .teal
+          actionTitle = "Focus item"
+          actionSymbol = "scope"
+          sortPriority = 50
+        }
+
+        return WishlistPurchaseOperatorChecklist(
+          item: item,
+          stage: stage,
+          detail: detail,
+          selectedSeller: decision?.selectedSellerName ?? preferred?.sellerName ?? item.storefront,
+          totalAUD: decision?.totalAUDSummary ?? preferred?.estimatedAUDTotal ?? item.estimatedCost,
+          postage: decision?.postageSummary ?? preferred.map { "\($0.postageCost), \($0.postageTime)" } ?? "Postage not recorded",
+          trust: decision?.trustSummary ?? preferred?.trustRating ?? "Seller trust not assessed",
+          handoff: handoff?.accountLabel ?? "Account/payment/delivery not prepared",
+          manualChecks: manualChecks,
+          blockers: blockers,
+          liveVerification: liveVerification,
+          tone: tone,
+          actionTitle: actionTitle,
+          actionSymbol: actionSymbol,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPrePurchaseOperatorChecklistPanel: some View {
+    let items = wishlistPrePurchaseOperatorChecklistItems
+    let ready = items.filter { $0.stage == "Ready to buy externally" }.count
+    let linked = items.filter { $0.stage == "Order linked" }.count
+    let blocked = items.filter { $0.sortPriority < 40 }.count
+    let handoffMissing = items.filter { $0.blockers.contains("Account/payment/delivery noted") }.count
+
+    return SettingsPanel(title: "Operator pre-purchase checklist", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the human buying checklist. It separates local readiness from real-world verification: ParcelOps can stage the decision and order watch, but a person must still confirm live seller, account, payment, and delivery details outside the app.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Checklist items", "\(items.count)", items.isEmpty ? .secondary : .blue),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .teal),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .orange),
+          ("Need handoff", "\(handoffMissing)", handoffMissing == 0 ? .green : .purple)
+        ])
+
+        if items.isEmpty {
+          MVPEmptyState(
+            title: "No pre-purchase checklist items",
+            detail: "Wishlist items appear here once they have seller options, purchase decisions, handoff setup, or release readiness.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(items.prefix(8)) { item in
+              WishlistPurchaseOperatorChecklistRow(checklist: item) {
+                runWishlistPrePurchaseChecklistAction(for: item.item)
+              } onTask: {
+                store.createWishlistPurchaseDecisionReviewTask(item.item)
+              } onFocus: {
+                wishlistSearchText = item.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(items.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more pre-purchase checklist item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("No checkout, payment, account login, seller trust lookup, currency conversion, postage quote, browser automation, or retailer contact runs from this checklist.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistPrePurchaseChecklistAction(for item: WishlistItem) {
+    if item.purchaseDecision == nil {
+      store.createWishlistPurchaseDecision(item)
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      store.markWishlistPurchaseDecisionReviewed(item)
+    } else if item.purchaseChecks?.isEmpty != false || item.purchaseChecks?.contains(where: { $0.status != "Passed" }) == true {
+      store.runWishlistPurchaseReadinessCheck(item)
+    } else if item.purchaseHandoff == nil {
+      store.prepareWishlistPurchaseHandoff(item)
+    } else if item.purchaseHandoff?.linkedOrderID == nil {
+      store.markWishlistOrderConfirmationSeen(item)
+    } else {
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistPurchaseReleaseChecklistItems: [WishlistPurchaseReleaseGate] {
     store.wishlistItems
       .filter { item in
@@ -2338,6 +2525,106 @@ private struct WishlistPurchaseReleaseGate: Identifiable {
 
   var isLinkedOrder: Bool {
     stage == "Linked order released"
+  }
+}
+
+private struct WishlistPurchaseOperatorChecklist: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var stage: String
+  var detail: String
+  var selectedSeller: String
+  var totalAUD: String
+  var postage: String
+  var trust: String
+  var handoff: String
+  var manualChecks: [(String, Bool)]
+  var blockers: [String]
+  var liveVerification: [String]
+  var tone: Color
+  var actionTitle: String
+  var actionSymbol: String
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseOperatorChecklistRow: View {
+  var checklist: WishlistPurchaseOperatorChecklist
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(checklist.tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(checklist.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(checklist.selectedSeller)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(checklist.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(checklist.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(checklist.stage, color: checklist.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 126) {
+        WishlistMatrixMetric(title: "AUD", value: checklist.totalAUD, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: checklist.postage, symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: checklist.trust, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Handoff", value: checklist.handoff, symbol: "person.crop.circle.badge.checkmark")
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Local checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        CompactMetadataGrid(minimumWidth: 118) {
+          ForEach(checklist.manualChecks, id: \.0) { check in
+            Label(check.0, systemImage: check.1 ? "checkmark.circle.fill" : "circle")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(check.1 ? Color.green : Color.secondary)
+              .lineLimit(1)
+          }
+        }
+      }
+
+      if !checklist.blockers.isEmpty {
+        Text("Before buying: \(checklist.blockers.prefix(4).joined(separator: ", ")).")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      VStack(alignment: .leading, spacing: 5) {
+        Label("Manual live verification", systemImage: "hand.raised.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 6)], alignment: .leading, spacing: 6) {
+          ForEach(checklist.liveVerification, id: \.self) { label in
+            Badge(label, color: .orange)
+          }
+        }
+      }
+
+      CompactActionRow {
+        Button(checklist.actionTitle, systemImage: checklist.actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(checklist.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
