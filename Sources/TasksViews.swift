@@ -43,6 +43,26 @@ struct TasksView: View {
     store.draftMessagesNeedingReview.filter { $0.linkedEntityType == .wishlistItem }
   }
 
+  private var wishlistReadyPacketItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.operatorPurchaseBlockers.isEmpty
+        || item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") == true
+        || item.purchaseDecision?.reviewState == .accepted
+    }
+  }
+
+  private var wishlistNeedsHandoffItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
+    }
+  }
+
+  private var wishlistAwaitingOrderItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+    }
+  }
+
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
   }
@@ -537,6 +557,9 @@ struct TasksView: View {
           ("Wishlist follow-up", "\(wishlistTaskContextItems.count)", wishlistTaskContextItems.isEmpty ? .green : .purple),
           ("Linked tasks", "\(wishlistLinkedQueueItems.count)", wishlistLinkedQueueItems.isEmpty ? .green : .orange),
           ("Drafts", "\(wishlistDraftItems.count)", wishlistDraftItems.isEmpty ? .green : .blue),
+          ("Ready packets", "\(wishlistReadyPacketItems.count)", wishlistReadyPacketItems.isEmpty ? .secondary : .green),
+          ("Need handoff", "\(wishlistNeedsHandoffItems.count)", wishlistNeedsHandoffItems.isEmpty ? .green : .purple),
+          ("Awaiting order", "\(wishlistAwaitingOrderItems.count)", wishlistAwaitingOrderItems.isEmpty ? .green : .orange),
           ("Blocked", "\(wishlistTaskContextItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistTaskContextItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green)
         ])
 
@@ -558,6 +581,35 @@ struct TasksView: View {
             }
             .buttonStyle(.plain)
           }
+
+          let packetRows = (wishlistNeedsHandoffItems + wishlistAwaitingOrderItems + wishlistReadyPacketItems)
+            .reduce(into: [WishlistItem]()) { result, item in
+              if !result.contains(where: { $0.id == item.id }) {
+                result.append(item)
+              }
+            }
+          if !packetRows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Label("Purchase packet follow-up", systemImage: "doc.text.image.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.purple)
+              ForEach(packetRows.prefix(3)) { item in
+                NavigationLink {
+                  WishlistView(store: store)
+                } label: {
+                  CompactRow(
+                    title: item.itemName,
+                    detail: wishlistPacketTaskDetail(for: item),
+                    badge: wishlistPacketTaskBadge(for: item),
+                    color: wishlistPacketTaskColor(for: item)
+                  )
+                }
+                .buttonStyle(.plain)
+              }
+            }
+            .padding(8)
+            .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
         }
 
         CompactActionRow {
@@ -575,6 +627,37 @@ struct TasksView: View {
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private func wishlistPacketTaskBadge(for item: WishlistItem) -> String {
+    if item.purchaseHandoff?.linkedOrderID != nil { return "Linked order" }
+    if item.purchaseHandoff != nil { return "Order watch" }
+    if item.purchaseDecision?.reviewState == .accepted { return "Handoff" }
+    if item.operatorPurchaseBlockers.isEmpty { return "Ready" }
+    return "Wishlist"
+  }
+
+  private func wishlistPacketTaskColor(for item: WishlistItem) -> Color {
+    if item.purchaseHandoff?.linkedOrderID != nil { return .green }
+    if item.purchaseHandoff != nil { return .orange }
+    if item.purchaseDecision?.reviewState == .accepted { return .purple }
+    if item.operatorPurchaseBlockers.isEmpty { return .green }
+    return .orange
+  }
+
+  private func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
+    let seller = item.purchaseHandoff?.sellerName
+      ?? item.purchaseDecision?.selectedSellerName
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.sellerName
+      }
+      ?? item.storefront
+    let total = item.purchaseDecision?.totalAUDSummary
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.estimatedAUDTotal
+      }
+      ?? item.estimatedCost
+    return "\(seller) • \(total) • \(item.operatorPurchaseNextAction)"
   }
 
   private var overdueActionCount: Int {
