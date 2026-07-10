@@ -124,6 +124,10 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  private var wishlistResearchWorkbenchRequests: [WishlistResearchRequest] {
+    store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+  }
+
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
   }
@@ -1823,19 +1827,24 @@ struct OperationsWorkbenchView: View {
 
   @ViewBuilder
   private var wishlistPurchaseFollowUpPanel: some View {
-    if !wishlistWorkbenchItems.isEmpty {
+    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty {
       SettingsPanel(title: "Wishlist purchase follow-up", symbol: "star.square.fill") {
-        Text("Wishlist items become Workbench-visible when they are blocked before purchase, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, or mailbox monitoring runs here.")
+        Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Follow-up", "\(wishlistWorkbenchItems.count)", .purple),
+          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count)", .purple),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
+          ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Handoff", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff != nil }.count)", .teal),
           ("Order link", "\(wishlistWorkbenchItems.filter { $0.purchaseHandoff?.linkedOrderID != nil }.count)", .green)
         ])
+
+        ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in
+          WishlistResearchWorkbenchRow(request: request, store: store)
+        }
 
         ForEach(wishlistWorkbenchItems.prefix(4)) { item in
           WishlistWorkbenchFollowUpRow(item: item, store: store)
@@ -2541,6 +2550,50 @@ private struct WishlistWorkbenchFollowUpRow: View {
         Label(nextAction, systemImage: "arrow.turn.down.right")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(tone)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+  }
+}
+
+private struct WishlistResearchWorkbenchRow: View {
+  var request: WishlistResearchRequest
+  var store: ParcelOpsStore
+
+  private var tone: Color {
+    if request.requestStatus.localizedCaseInsensitiveContains("blocked") { return .red }
+    return request.isAgentBriefReady ? .green : .orange
+  }
+
+  var body: some View {
+    NavigationLink {
+      WishlistView(store: store)
+    } label: {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Label(request.itemName, systemImage: "doc.text.magnifyingglass")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+          Spacer(minLength: 8)
+          Badge(request.agentBriefStatus, color: tone)
+        }
+        Text(request.agentBriefNextAction)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if !request.agentBriefGaps.isEmpty {
+          Text("Scope gaps: \(request.agentBriefGaps.prefix(4).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text("Future agent boundary: compare AU/overseas sellers, AUD landed cost, postage, delivery time, returns/warranty, and trust. No live browsing or purchase automation runs here.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
       .padding(10)
       .frame(maxWidth: .infinity, alignment: .leading)

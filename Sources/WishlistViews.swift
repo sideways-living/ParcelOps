@@ -857,11 +857,12 @@ struct WishlistView: View {
   private var wishlistResearchRequestsPanel: some View {
     let openRequests = store.wishlistResearchRequests.filter { $0.reviewState != .accepted }
     let blockedRequests = store.wishlistResearchRequests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
-    let readyRequests = store.wishlistResearchRequests.filter { $0.requestStatus.localizedCaseInsensitiveContains("ready") || $0.requestStatus.localizedCaseInsensitiveContains("reviewed") }
+    let readyRequests = store.wishlistResearchRequests.filter(\.isAgentBriefReady)
+    let scopeGapRequests = store.wishlistResearchRequests.filter { !$0.isAgentBriefReady }
 
     return SettingsPanel(title: "Future agent research queue", symbol: "list.bullet.clipboard.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("These are local briefs for a future comparison agent. Each request defines what to compare across Australian and overseas retailers, which postage details to capture, and what seller trust evidence is required before buying.")
+        Text("These are local briefs for a future comparison agent. Each request defines what to compare across Australian and overseas retailers, which postage details to capture, what seller trust evidence is required, and what the agent must not do before buying.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -869,9 +870,38 @@ struct WishlistView: View {
         MetricStrip(items: [
           ("Research briefs", "\(store.wishlistResearchRequests.count)", store.wishlistResearchRequests.isEmpty ? .secondary : .blue),
           ("Open", "\(openRequests.count)", openRequests.isEmpty ? .green : .orange),
-          ("Ready/reviewed", "\(readyRequests.count)", readyRequests.isEmpty ? .secondary : .green),
+          ("Agent-ready", "\(readyRequests.count)", readyRequests.isEmpty ? .secondary : .green),
+          ("Scope gaps", "\(scopeGapRequests.count)", scopeGapRequests.isEmpty ? .green : .orange),
           ("Blocked", "\(blockedRequests.count)", blockedRequests.isEmpty ? .green : .red)
         ])
+
+        if !scopeGapRequests.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Briefs needing scope")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(scopeGapRequests.prefix(4)) { request in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                  .foregroundStyle(.orange)
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(request.itemName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Text(request.agentBriefNextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(request.agentBriefStatus, color: request.isAgentBriefReady ? .green : .orange)
+              }
+              .padding(8)
+              .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
 
         if store.wishlistResearchRequests.isEmpty {
           MVPEmptyState(
@@ -1270,13 +1300,17 @@ private struct WishlistResearchRequestRow: View {
             .foregroundStyle(.secondary)
         }
         Spacer(minLength: 8)
-        Badge(request.reviewState.rawValue, color: request.reviewState == .needsReview ? .orange : .green)
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(request.agentBriefStatus, color: request.isAgentBriefReady ? .green : (request.requestStatus.localizedCaseInsensitiveContains("blocked") ? .red : .orange))
+          Badge(request.reviewState.rawValue, color: request.reviewState == .needsReview ? .orange : .green)
+        }
       }
 
       CompactMetadataGrid(minimumWidth: 145) {
         Label(request.maxBudgetAUD, systemImage: "dollarsign.circle.fill")
         Label(request.createdDate, systemImage: "clock.fill")
         Label(request.lastReviewedDate, systemImage: "checkmark.seal.fill")
+        Label(request.agentBriefGaps.isEmpty ? "No scope gaps" : "\(request.agentBriefGaps.count) scope gaps", systemImage: request.agentBriefGaps.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
       }
       .font(.caption)
       .foregroundStyle(.secondary)
@@ -1295,6 +1329,28 @@ private struct WishlistResearchRequestRow: View {
           .lineLimit(1)
           .truncationMode(.middle)
       }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Agent packet preview", systemImage: "doc.text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(request.isAgentBriefReady ? .green : .orange)
+        Text(request.agentBriefNextAction)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(request.isAgentBriefReady ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
+        if !request.agentBriefGaps.isEmpty {
+          Text("Missing: \(request.agentBriefGaps.joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text("Output expected: seller/product link, listed currency, AUD landed total, postage cost/time, seller region, returns/warranty, trust evidence, safest recommendation.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(8)
+      .background((request.isAgentBriefReady ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       CompactActionRow {
         Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)

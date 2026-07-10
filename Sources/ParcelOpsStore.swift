@@ -18875,7 +18875,9 @@ final class ParcelOpsStore {
   func markWishlistResearchRequestReviewed(_ request: WishlistResearchRequest) {
     guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
     let beforeDetail = wishlistResearchRequests[index].auditDetail
-    wishlistResearchRequests[index].requestStatus = "Reviewed for future agent"
+    wishlistResearchRequests[index].requestStatus = wishlistResearchRequests[index].agentBriefGaps.filter { $0 != "operator review" }.isEmpty
+      ? "Agent-ready for future comparison"
+      : "Reviewed with scope gaps"
     wishlistResearchRequests[index].lastReviewedDate = "Now"
     wishlistResearchRequests[index].reviewState = .accepted
     persistWishlist()
@@ -18922,6 +18924,12 @@ final class ParcelOpsStore {
     let body = """
     Wishlist comparison research brief.
 
+    Agent packet status:
+    \(request.agentBriefStatus)
+
+    Agent packet next action:
+    \(request.agentBriefNextAction)
+
     Item:
     \(request.itemName)
 
@@ -18945,6 +18953,9 @@ final class ParcelOpsStore {
 
     Existing local seller options:
     \(existingContext)
+
+    Agent instruction packet:
+    \(request.agentInstructionPacket)
 
     Required output:
     - Compare Australian retailers first, then overseas retailers only where landed AUD cost, postage time, returns, warranty, and seller trust are acceptable.

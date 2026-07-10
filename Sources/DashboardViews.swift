@@ -590,8 +590,24 @@ struct DashboardView: View {
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
     }
   }
+  private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
+    store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+  }
   private var wishlistAttentionBlockerSummary: String {
     let blockers = wishlistAttentionItems.flatMap(\.operatorPurchaseBlockers)
+    if !wishlistResearchAttentionRequests.isEmpty {
+      let gaps = wishlistResearchAttentionRequests.flatMap(\.agentBriefGaps)
+      let grouped = Dictionary(grouping: gaps, by: { $0 })
+        .map { (label: $0.key, count: $0.value.count) }
+        .sorted {
+          if $0.count == $1.count { return $0.label < $1.label }
+          return $0.count > $1.count
+        }
+        .prefix(2)
+        .map { "\($0.label) (\($0.count))" }
+        .joined(separator: ", ")
+      return grouped.isEmpty ? "review agent research briefs" : "research scope: \(grouped)"
+    }
     guard !blockers.isEmpty else {
       return "review purchase readiness, handoff, or order confirmation"
     }
@@ -607,13 +623,13 @@ struct DashboardView: View {
     return grouped.isEmpty ? "review purchase readiness, handoff, or order confirmation" : grouped
   }
   private var wishlistDashboardNextAction: String {
-    if wishlistAttentionItems.isEmpty {
+    if wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty {
       return wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
     }
     return "Clear: \(wishlistAttentionBlockerSummary)"
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count + wishlistResearchAttentionRequests.count
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -783,10 +799,10 @@ struct DashboardView: View {
       (
         "Wishlist",
         "Review purchase ideas, seller comparison, readiness checks, manual handoff, and order-confirmation follow-up.",
-        wishlistAttentionItems.count,
+        wishlistAttentionItems.count + wishlistResearchAttentionRequests.count,
         "Wishlist",
         "star.square.fill",
-        wishlistAttentionItems.isEmpty ? .green : .purple
+        wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty ? .green : .purple
       ),
       (
         "Tasks",
@@ -1905,11 +1921,11 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistAttentionItems.count,
-              detail: wishlistAttentionItems.isEmpty ? "Purchase ideas needing seller comparison, readiness checks, manual purchase handoff, or order-confirmation follow-up." : "Top blockers: \(wishlistAttentionBlockerSummary).",
+              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count,
+              detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty ? "Purchase ideas needing seller comparison, readiness checks, manual purchase handoff, agent research scope, or order-confirmation follow-up." : "Top blockers: \(wishlistAttentionBlockerSummary).",
               nextAction: wishlistDashboardNextAction,
               symbol: "star.square.fill",
-              tint: wishlistAttentionItems.isEmpty ? (wishlistReadyItems.isEmpty ? .green : .teal) : .purple
+              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty ? (wishlistReadyItems.isEmpty ? .green : .teal) : .purple
             ) {
               WishlistView(store: store)
             }

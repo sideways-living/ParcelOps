@@ -2882,6 +2882,75 @@ struct WishlistResearchRequest: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+extension WishlistResearchRequest {
+  var agentBriefGaps: [String] {
+    var gaps: [String] = []
+    if itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || itemName.isPlaceholderValidationValue {
+      gaps.append("item name")
+    }
+    if sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sourceURL.isPlaceholderValidationValue {
+      gaps.append("source URL")
+    }
+    if maxBudgetAUD.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || maxBudgetAUD.localizedCaseInsensitiveContains("confirm")
+      || maxBudgetAUD.localizedCaseInsensitiveContains("pending") {
+      gaps.append("AUD budget")
+    }
+    if regionScope.trimmingCharacters(in: .whitespacesAndNewlines).count < 12 {
+      gaps.append("region scope")
+    }
+    if sellerCriteria.trimmingCharacters(in: .whitespacesAndNewlines).count < 20 {
+      gaps.append("seller criteria")
+    }
+    if postageRequirements.trimmingCharacters(in: .whitespacesAndNewlines).count < 16 {
+      gaps.append("postage requirements")
+    }
+    if trustRequirements.trimmingCharacters(in: .whitespacesAndNewlines).count < 16 {
+      gaps.append("seller trust requirements")
+    }
+    if reviewState != .accepted {
+      gaps.append("operator review")
+    }
+    return gaps
+  }
+
+  var isAgentBriefReady: Bool {
+    agentBriefGaps.isEmpty
+  }
+
+  var agentBriefStatus: String {
+    if requestStatus.localizedCaseInsensitiveContains("blocked") {
+      return "Blocked"
+    }
+    if isAgentBriefReady {
+      return "Agent-ready"
+    }
+    return "Needs scope"
+  }
+
+  var agentBriefNextAction: String {
+    let gaps = agentBriefGaps
+    if gaps.isEmpty {
+      return "Ready for future comparison agent handoff after live integration exists."
+    }
+    return "Clarify: \(gaps.prefix(3).joined(separator: ", "))."
+  }
+
+  var agentInstructionPacket: String {
+    """
+    Compare item: \(itemName)
+    Source URL: \(sourceURL)
+    Region scope: \(regionScope)
+    Budget: \(maxBudgetAUD)
+    Seller criteria: \(sellerCriteria)
+    Postage requirements: \(postageRequirements)
+    Trust requirements: \(trustRequirements)
+    Required output: product URL, seller, listed price/currency, estimated AUD landed total, postage cost/time, seller region, returns/warranty notes, trust evidence, recommendation.
+    Boundaries: do not buy, log in, store credentials, enter payment details, mutate mailboxes, book carriers, or run background monitoring.
+    """
+  }
+}
+
 enum FulfillmentMethod: String, Hashable, Codable {
   case delivery = "Delivery"
   case clickAndCollect = "Click and collect"
