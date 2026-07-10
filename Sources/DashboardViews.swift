@@ -590,6 +590,28 @@ struct DashboardView: View {
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
     }
   }
+  private var wishlistAttentionBlockerSummary: String {
+    let blockers = wishlistAttentionItems.flatMap(\.operatorPurchaseBlockers)
+    guard !blockers.isEmpty else {
+      return "review purchase readiness, handoff, or order confirmation"
+    }
+    let grouped = Dictionary(grouping: blockers, by: { $0 })
+      .map { (label: $0.key, count: $0.value.count) }
+      .sorted {
+        if $0.count == $1.count { return $0.label < $1.label }
+        return $0.count > $1.count
+      }
+      .prefix(3)
+      .map { "\($0.label) (\($0.count))" }
+      .joined(separator: ", ")
+    return grouped.isEmpty ? "review purchase readiness, handoff, or order confirmation" : grouped
+  }
+  private var wishlistDashboardNextAction: String {
+    if wishlistAttentionItems.isEmpty {
+      return wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
+    }
+    return "Clear: \(wishlistAttentionBlockerSummary)"
+  }
   private var attentionNowCount: Int {
     incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count
   }
@@ -677,7 +699,7 @@ struct DashboardView: View {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
     }
     if !wishlistAttentionItems.isEmpty {
-      return "\(wishlistAttentionItems.count) wishlist item\(wishlistAttentionItems.count == 1 ? "" : "s") need purchase readiness, handoff, or order-confirmation follow-up."
+      return "\(wishlistAttentionItems.count) wishlist item\(wishlistAttentionItems.count == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
     }
     if taskAttentionCount > 0 {
       return "\(taskAttentionCount) task, handoff, or draft message needs ownership, completion, local send status, or review."
@@ -1884,8 +1906,8 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Wishlist",
               count: wishlistAttentionItems.count,
-              detail: "Purchase ideas needing seller comparison, readiness checks, manual purchase handoff, or order-confirmation follow-up.",
-              nextAction: wishlistAttentionItems.isEmpty ? (wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items") : "Clear purchase handoff work",
+              detail: wishlistAttentionItems.isEmpty ? "Purchase ideas needing seller comparison, readiness checks, manual purchase handoff, or order-confirmation follow-up." : "Top blockers: \(wishlistAttentionBlockerSummary).",
+              nextAction: wishlistDashboardNextAction,
               symbol: "star.square.fill",
               tint: wishlistAttentionItems.isEmpty ? (wishlistReadyItems.isEmpty ? .green : .teal) : .purple
             ) {
