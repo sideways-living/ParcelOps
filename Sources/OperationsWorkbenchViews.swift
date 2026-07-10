@@ -132,6 +132,21 @@ struct OperationsWorkbenchView: View {
     store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
   }
 
+  private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
+    store.wishlistResearchRequests.filter(\.isAgentBriefReady)
+  }
+
+  private var wishlistBatchResearchDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == "wishlist-research-batch"
+    }
+  }
+
+  private var wishlistBatchBriefNeeded: Bool {
+    !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
+  }
+
   private var wishlistReleaseItems: [WishlistItem] {
     store.wishlistItems.filter { item in
       !(item.comparisonOptions ?? []).isEmpty
@@ -1917,24 +1932,55 @@ struct OperationsWorkbenchView: View {
 
   @ViewBuilder
   private var wishlistPurchaseFollowUpPanel: some View {
-    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty {
+    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty || wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
       SettingsPanel(title: "Wishlist purchase follow-up", symbol: "star.square.fill") {
-        Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
+        Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, ready for a batch research packet, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count)", .purple),
+          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count + (wishlistBatchBriefNeeded ? 1 : 0))", .purple),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
           ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
           ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
+          ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
           ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
           ("Decision", "\(wishlistWorkbenchItems.filter { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview }.count)", wishlistWorkbenchItems.contains { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview } ? .brown : .green),
           ("Handoff gaps", "\(wishlistWorkbenchItems.filter { !wishlistHandoffPackGaps(for: $0).isEmpty }.count)", wishlistWorkbenchItems.contains { !wishlistHandoffPackGaps(for: $0).isEmpty } ? .purple : .green)
         ])
+
+        if wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: wishlistBatchBriefNeeded ? "doc.badge.plus" : "doc.text.fill")
+              .foregroundStyle(wishlistBatchBriefNeeded ? .orange : .green)
+              .frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(wishlistBatchBriefNeeded ? "Batch comparison packet needed" : "Batch comparison packet drafted")
+                .font(.subheadline.weight(.semibold))
+              Text(wishlistBatchBriefNeeded
+                ? "\(wishlistAgentReadyResearchRequests.count) agent-ready Wishlist research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") can be combined into one local packet before future comparison work."
+                : "Latest batch draft is ready for review in Drafts/Tasks. It remains local and does not run an external agent or retailer search.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if wishlistBatchBriefNeeded {
+              Button("Create packet", systemImage: "doc.badge.plus") {
+                store.createWishlistBatchResearchBriefDraft()
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            } else if let latest = wishlistBatchResearchDrafts.first {
+              Badge(latest.createdDate, color: .green)
+            }
+          }
+          .padding(10)
+          .background((wishlistBatchBriefNeeded ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in
           WishlistResearchWorkbenchRow(request: request, store: store)
