@@ -2489,7 +2489,7 @@ struct DispatchView: View {
     Array(
       store.orders
         .filter { order in
-          guard order.isInboxCreatedLocalOrder else { return false }
+          guard order.isInboxCreatedLocalOrder || orderHasWishlistSource(order) else { return false }
           return orderNeedsPreDispatchVerification(order) || orderNeedsDispatchSetup(order)
         }
         .sorted { first, second in
@@ -2506,8 +2506,12 @@ struct DispatchView: View {
 
   private var partialInboxDispatchBlockerCount: Int {
     store.orders.filter { order in
-      order.isInboxCreatedLocalOrder && orderNeedsPreDispatchVerification(order)
+      (order.isInboxCreatedLocalOrder || orderHasWishlistSource(order)) && orderNeedsPreDispatchVerification(order)
     }.count
+  }
+
+  private var wishlistDispatchSetupOrderCount: Int {
+    inboxDispatchSetupOrders.filter(orderHasWishlistSource).count
   }
 
   private var blockedDispatchCount: Int {
@@ -2648,13 +2652,13 @@ struct DispatchView: View {
       return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open the linked order, confirm the dispatch setup, then complete or block the handoff."
     }
     if partialInboxDispatchBlockerCount > 0 {
-      return "\(partialInboxDispatchBlockerCount) Inbox-created order has missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
+      return "\(partialInboxDispatchBlockerCount) Inbox-created or Wishlist-linked order has missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
     }
     if readyDispatchCount > 0 {
       return "Prepared manifests or ready checklists can move to dispatch, completion, handoff, or review."
     }
     if !inboxDispatchSetupOrders.isEmpty {
-      return "Create or link manifest/readiness context for Inbox-created orders before treating them as dispatch-ready."
+      return "Create or link manifest/readiness context for Inbox-created and Wishlist-linked orders before treating them as dispatch-ready."
     }
     if !dispatchItems.isEmpty {
       return "Work the highest-risk queue rows first, then open detailed views only when you need the full record."
@@ -2691,7 +2695,7 @@ struct DispatchView: View {
     return [
       (
         "Verify first",
-        "Inbox-created orders with missing intake details or open verification tasks should not move to manifest/readiness setup yet.",
+        "Inbox-created or Wishlist-linked orders with missing intake details or open verification tasks should not move to manifest/readiness setup yet.",
         verifyFirstCount,
         "Orders",
         "checkmark.shield.fill",
@@ -2699,7 +2703,7 @@ struct DispatchView: View {
       ),
       (
         "Create setup",
-        "Inbox-created shipped, in-transit, or exception orders need manifest or readiness context before dispatch is ready.",
+        "Inbox-created or Wishlist-linked shipped, in-transit, or exception orders need manifest or readiness context before dispatch is ready.",
         setupMissingCount,
         "Dispatch setup",
         "tray.and.arrow.down.fill",
@@ -2820,6 +2824,7 @@ struct DispatchView: View {
           ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
           ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
+          ("Wishlist", "\(wishlistDispatchSetupOrderCount)", wishlistDispatchSetupOrderCount == 0 ? .green : .pink),
           ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
         ])
 
@@ -2916,7 +2921,7 @@ struct DispatchView: View {
   private var dispatchQueuePanel: some View {
     SettingsPanel(title: "Unified dispatch queue", symbol: "shippingbox.and.arrow.backward.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Work blocked, high-risk, incomplete, upcoming outbound records, and Inbox-created orders that still need dispatch setup.")
+        Text("Work blocked, high-risk, incomplete, upcoming outbound records, and Inbox/Wishlist orders that still need dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -2941,8 +2946,8 @@ struct DispatchView: View {
         } else if visibleDispatchItems.isEmpty {
           Label(
             dispatchItems.isEmpty
-              ? "No manifest or readiness rows need action yet. Inbox-created orders needing dispatch setup are shown above."
-              : "No manifest or readiness rows match this search. Inbox-created order setup results are shown above when they match.",
+              ? "No manifest or readiness rows need action yet. Inbox-created or Wishlist-linked orders needing dispatch setup are shown above."
+              : "No manifest or readiness rows match this search. Inbox/Wishlist order setup results are shown above when they match.",
             systemImage: "tray.and.arrow.down.fill"
           )
           .font(.caption)
@@ -2960,9 +2965,9 @@ struct DispatchView: View {
   @ViewBuilder
   private var inboxDispatchSetupPanel: some View {
     if !visibleInboxDispatchSetupOrders.isEmpty {
-      SettingsPanel(title: "Inbox-created orders needing dispatch setup", symbol: "tray.and.arrow.down.fill") {
+      SettingsPanel(title: "Inbox and Wishlist orders needing dispatch setup", symbol: "tray.and.arrow.down.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("These orders came from Inbox intake. Verify partial order details first; then add manifest or readiness context when the order is dispatch-ready.")
+          Text("These orders came from Inbox intake or a Wishlist purchase handoff. Verify partial details first; then add manifest or readiness context when the order is dispatch-ready.")
             .font(.callout)
             .foregroundStyle(.secondary)
 
@@ -3000,6 +3005,7 @@ struct DispatchView: View {
         ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
         ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
         ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
+        ("Wishlist", "\(wishlistDispatchSetupOrderCount)", wishlistDispatchSetupOrderCount == 0 ? .green : .pink),
         ("Undispatched", "\(store.undispatchedShipmentManifests.count)", store.undispatchedShipmentManifests.isEmpty ? .green : .purple),
         ("Blocked", "\(store.blockedShipmentManifests.count)", store.blockedShipmentManifests.isEmpty ? .green : .red),
         ("Incomplete", "\(store.incompleteDispatchChecklists.count)", store.incompleteDispatchChecklists.isEmpty ? .green : .orange),
@@ -3049,6 +3055,10 @@ struct DispatchView: View {
     }
     return hasPartialTask || order.missingInboxOrderFieldCount > 0
   }
+
+  private func orderHasWishlistSource(_ order: TrackedOrder) -> Bool {
+    !store.wishlistItemsLinked(to: order).isEmpty
+  }
 }
 
 private struct DispatchInboxOrderRow: View {
@@ -3065,7 +3075,10 @@ private struct DispatchInboxOrderRow: View {
     !partialFollowUpTasks.isEmpty || order.missingInboxOrderFieldCount > 0
   }
   private var sourceTrailCount: Int {
-    linkedIntakeEmails.count + store.importQueueItems(for: order).count + store.acceptanceRecords(for: order).count
+    linkedIntakeEmails.count + store.importQueueItems(for: order).count + store.acceptanceRecords(for: order).count + linkedWishlistItems.count
+  }
+  private var linkedWishlistItems: [WishlistItem] {
+    store.wishlistItemsLinked(to: order)
   }
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3095,14 +3108,10 @@ private struct DispatchInboxOrderRow: View {
                 .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Badge(needsPreDispatchVerification ? "Verify before dispatch" : "Inbox order", color: needsPreDispatchVerification ? .orange : .teal)
+            Badge(rowBadgeLabel, color: needsPreDispatchVerification ? .orange : rowColor)
           }
 
-          Text(needsPreDispatchVerification
-            ? "Next: open the order and confirm missing intake details before manifest or readiness setup."
-            : sourceTrailCount == 0
-              ? "Next: confirm the Inbox, Import Queue, or Acceptance source trail before creating dispatch setup."
-              : "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist.")
+          Text(nextActionText)
             .font(.caption.weight(.semibold))
             .foregroundStyle(needsPreDispatchVerification || sourceTrailCount == 0 ? .orange : .teal)
 
@@ -3110,6 +3119,9 @@ private struct DispatchInboxOrderRow: View {
             Badge(order.status.rawValue, color: rowColor)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
             Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
+            if !linkedWishlistItems.isEmpty {
+              Badge("\(linkedWishlistItems.count) Wishlist", color: .pink)
+            }
             if !partialFollowUpTasks.isEmpty {
               Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
             }
@@ -3134,6 +3146,22 @@ private struct DispatchInboxOrderRow: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !linkedWishlistItems.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Wishlist purchase context", systemImage: "star.square.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.pink)
+          ForEach(linkedWishlistItems.prefix(2)) { item in
+            Text("\(item.itemName) • \(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(8)
+        .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
       CompactActionRow {
@@ -3188,7 +3216,27 @@ private struct DispatchInboxOrderRow: View {
 
   private var rowColor: Color {
     if needsPreDispatchVerification { return .orange }
+    if !linkedWishlistItems.isEmpty { return .pink }
     return order.status == .exception ? .orange : .teal
+  }
+
+  private var rowBadgeLabel: String {
+    if needsPreDispatchVerification { return "Verify before dispatch" }
+    if !linkedWishlistItems.isEmpty { return "Wishlist order" }
+    return "Inbox order"
+  }
+
+  private var nextActionText: String {
+    if needsPreDispatchVerification {
+      return "Next: open the order and confirm missing details before manifest or readiness setup."
+    }
+    if sourceTrailCount == 0 {
+      return "Next: confirm the Inbox, Import Queue, Acceptance, or Wishlist source trail before creating dispatch setup."
+    }
+    if !linkedWishlistItems.isEmpty {
+      return "Next: confirm the Wishlist purchase handoff, then decide whether this order needs manifest or readiness setup."
+    }
+    return "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist."
   }
 }
 
