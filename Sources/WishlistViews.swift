@@ -106,6 +106,7 @@ struct WishlistView: View {
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
         wishlistComparisonMatrixPanel
+        wishlistPurchaseDecisionQueuePanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -910,6 +911,206 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseDecisionQueueItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        !(item.comparisonOptions ?? []).isEmpty
+          || item.purchaseDecision != nil
+          || item.purchaseHandoff != nil
+          || item.status.localizedCaseInsensitiveContains("purchase")
+      }
+      .sorted { first, second in
+        let firstPriority = wishlistPurchaseDecisionPriority(for: first)
+        let secondPriority = wishlistPurchaseDecisionPriority(for: second)
+        if firstPriority == secondPriority {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstPriority < secondPriority
+      }
+  }
+
+  private var wishlistPurchaseDecisionQueuePanel: some View {
+    let queueItems = wishlistPurchaseDecisionQueueItems
+    let decisionNeeded = queueItems.filter { $0.purchaseDecision == nil }.count
+    let reviewNeeded = queueItems.filter { $0.purchaseDecision?.reviewState == .needsReview }.count
+    let handoffNeeded = queueItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }.count
+    let orderWatch = queueItems.filter { $0.purchaseHandoff?.linkedOrderID == nil && $0.purchaseHandoff != nil }.count
+
+    return SettingsPanel(title: "Purchase decision queue", symbol: "bag.badge.questionmark.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this queue after seller options exist. It keeps the local path explicit: score sellers, run readiness, draft/review a purchase decision, prepare handoff, then watch for the order confirmation.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("In queue", "\(queueItems.count)", queueItems.isEmpty ? .secondary : .blue),
+          ("Need decision", "\(decisionNeeded)", decisionNeeded == 0 ? .green : .orange),
+          ("Need review", "\(reviewNeeded)", reviewNeeded == 0 ? .green : .brown),
+          ("Need handoff", "\(handoffNeeded)", handoffNeeded == 0 ? .green : .purple),
+          ("Order watch", "\(orderWatch)", orderWatch == 0 ? .secondary : .teal)
+        ])
+
+        if queueItems.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist purchases are in decision flow",
+            detail: "Add seller options to a Wishlist item before purchase readiness, decision, and handoff work appears here.",
+            symbol: "bag.badge.questionmark.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(queueItems.prefix(8)) { item in
+              WishlistPurchaseDecisionQueueRow(
+                item: item,
+                stageTitle: wishlistPurchaseDecisionStageTitle(for: item),
+                stageDetail: wishlistPurchaseDecisionStageDetail(for: item),
+                stageColor: wishlistPurchaseDecisionStageColor(for: item),
+                actionTitle: wishlistPurchaseDecisionActionTitle(for: item),
+                actionSymbol: wishlistPurchaseDecisionActionSymbol(for: item)
+              ) {
+                runWishlistPurchaseDecisionAction(for: item)
+              } onFocus: {
+                wishlistSearchText = item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(queueItems.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist purchase item\(remaining == 1 ? "" : "s") are in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This queue does not buy anything. It only records local review, handoff, account, budget, and order-watch readiness before a human purchases externally.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseDecisionPriority(for item: WishlistItem) -> Int {
+    if (item.comparisonOptions ?? []).isEmpty { return 0 }
+    if item.preferredOptionID == nil { return 1 }
+    if (item.comparisonOptions ?? []).contains(where: { !$0.operatorSellerEvidenceGaps.isEmpty }) { return 2 }
+    let checks = item.purchaseChecks ?? []
+    if checks.isEmpty || checks.contains(where: { $0.status != "Passed" }) { return 3 }
+    if item.purchaseDecision == nil { return 4 }
+    if item.purchaseDecision?.reviewState != .accepted { return 5 }
+    if item.purchaseHandoff == nil { return 6 }
+    if item.purchaseHandoff?.linkedOrderID == nil { return 7 }
+    return 8
+  }
+
+  private func wishlistPurchaseDecisionStageTitle(for item: WishlistItem) -> String {
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0: return "Seller options needed"
+    case 1: return "Preferred seller needed"
+    case 2: return "Seller evidence gaps"
+    case 3: return "Readiness check needed"
+    case 4: return "Purchase decision needed"
+    case 5: return "Decision review needed"
+    case 6: return "Purchase handoff needed"
+    case 7: return "Order confirmation watch"
+    default: return "Linked order ready"
+    }
+  }
+
+  private func wishlistPurchaseDecisionStageDetail(for item: WishlistItem) -> String {
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      item.comparisonOptions?.first { $0.id == preferredID }
+    }
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0:
+      return "Create local seller options or a research brief before comparing purchase routes."
+    case 1:
+      return "Run local scoring or choose the preferred seller option."
+    case 2:
+      let gaps = (item.comparisonOptions ?? []).flatMap(\.operatorSellerEvidenceGaps)
+      return "Confirm \(Array(Set(gaps)).prefix(3).joined(separator: ", ")) before buying."
+    case 3:
+      return "Run the local readiness checklist for \(preferred?.sellerName ?? "the preferred seller")."
+    case 4:
+      return "Draft the purchase decision with seller, AUD total, postage, trust, and rejected options."
+    case 5:
+      return "Review and accept the local decision before preparing handoff."
+    case 6:
+      return "Prepare account/order-watch handoff for \(item.purchaseDecision?.selectedSellerName ?? preferred?.sellerName ?? item.storefront)."
+    case 7:
+      return "Watch mailbox/order intake for the confirmation, then link the order."
+    default:
+      return "Order is linked. Continue tracking through Orders, Dispatch, and Tasks."
+    }
+  }
+
+  private func wishlistPurchaseDecisionStageColor(for item: WishlistItem) -> Color {
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0...3: return .orange
+    case 4...5: return .brown
+    case 6: return .purple
+    case 7: return .teal
+    default: return .green
+    }
+  }
+
+  private func wishlistPurchaseDecisionActionTitle(for item: WishlistItem) -> String {
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0: return "Compare"
+    case 1: return "Score"
+    case 2: return "Evidence task"
+    case 3: return "Readiness"
+    case 4: return "Decision"
+    case 5: return "Review"
+    case 6: return "Handoff"
+    case 7: return "Order seen"
+    default: return "Open item"
+    }
+  }
+
+  private func wishlistPurchaseDecisionActionSymbol(for item: WishlistItem) -> String {
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0: return "magnifyingglass.circle"
+    case 1: return "chart.bar.doc.horizontal"
+    case 2: return "checklist"
+    case 3: return "checklist.checked"
+    case 4: return "doc.text.magnifyingglass"
+    case 5: return "checkmark.seal"
+    case 6: return "person.crop.circle.badge.checkmark"
+    case 7: return "envelope.badge.fill"
+    default: return "line.3.horizontal.decrease.circle"
+    }
+  }
+
+  private func runWishlistPurchaseDecisionAction(for item: WishlistItem) {
+    switch wishlistPurchaseDecisionPriority(for: item) {
+    case 0:
+      store.createWishlistComparisonPlan(item)
+      store.createWishlistResearchRequest(from: item)
+    case 1:
+      store.evaluateWishlistComparisonOptions(item)
+    case 2:
+      store.createWishlistSellerEvidenceReviewTask(item)
+    case 3:
+      store.runWishlistPurchaseReadinessCheck(item)
+    case 4:
+      store.createWishlistPurchaseDecision(item)
+    case 5:
+      store.markWishlistPurchaseDecisionReviewed(item)
+    case 6:
+      store.prepareWishlistPurchaseHandoff(item)
+    case 7:
+      store.markWishlistOrderConfirmationSeen(item)
+    default:
+      wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1626,6 +1827,89 @@ private struct WishlistMatrixMetric: View {
           .lineLimit(2)
       }
     }
+  }
+}
+
+private struct WishlistPurchaseDecisionQueueRow: View {
+  var item: WishlistItem
+  var stageTitle: String
+  var stageDetail: String
+  var stageColor: Color
+  var actionTitle: String
+  var actionSymbol: String
+  var onAction: () -> Void
+  var onFocus: () -> Void
+
+  private var preferredSeller: WishlistComparisonOption? {
+    guard let preferredOptionID = item.preferredOptionID else { return nil }
+    return item.comparisonOptions?.first { $0.id == preferredOptionID }
+  }
+
+  private var sellerSummary: String {
+    if let preferredSeller {
+      return "\(preferredSeller.sellerName) • \(preferredSeller.estimatedAUDTotal) • \(preferredSeller.postageTime)"
+    }
+    if let first = item.comparisonOptions?.first {
+      return "\(first.sellerName) • preferred seller not selected"
+    }
+    return "No seller option selected"
+  }
+
+  private var reviewSummary: String {
+    [
+      item.purchaseReadiness,
+      item.purchaseDecision?.decisionStatus,
+      item.purchaseHandoff?.purchaseStatus
+    ]
+      .compactMap { value in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+      }
+      .prefix(2)
+      .joined(separator: " • ")
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "bag.badge.questionmark.fill")
+          .foregroundStyle(stageColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text(sellerSummary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        Badge(stageTitle, color: stageColor)
+      }
+
+      Text(stageDetail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !reviewSummary.isEmpty {
+        Text(reviewSummary)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(stageColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(stageColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
