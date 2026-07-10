@@ -126,6 +126,7 @@ struct WishlistView: View {
         wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
+        wishlistPostPurchaseOrderWatchPanel
         wishlistAgentHandoffPacketPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
@@ -2522,6 +2523,104 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPostPurchaseOrderWatchEntries: [WishlistPostPurchaseOrderWatchEntry] {
+    store.wishlistItems
+      .compactMap { item -> WishlistPostPurchaseOrderWatchEntry? in
+        guard let handoff = item.purchaseHandoff,
+              handoff.linkedOrderID == nil else { return nil }
+        let matches = store.suggestedWishlistOrderConfirmations(for: item)
+        let isPurchased = handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased")
+          || item.status.localizedCaseInsensitiveContains("awaiting order")
+          || item.status.localizedCaseInsensitiveContains("confirmation")
+        let stage = matches.isEmpty
+          ? (isPurchased ? "Awaiting confirmation" : "Ready to watch")
+          : "Match review"
+        let tone: Color = matches.isEmpty ? (isPurchased ? .orange : .blue) : .green
+        let detail = matches.isEmpty
+          ? "No imported Inbox confirmation currently matches this purchase handoff."
+          : "\(matches.count) imported Inbox row\(matches.count == 1 ? "" : "s") may confirm this purchase."
+        let priority = matches.isEmpty ? (isPurchased ? 2 : 3) : 1
+        return WishlistPostPurchaseOrderWatchEntry(
+          item: item,
+          handoff: handoff,
+          matches: matches,
+          stage: stage,
+          detail: detail,
+          tone: tone,
+          sortPriority: priority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          if first.matches.count == second.matches.count {
+            return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+          }
+          return first.matches.count > second.matches.count
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPostPurchaseOrderWatchPanel: some View {
+    let entries = wishlistPostPurchaseOrderWatchEntries
+    let matched = entries.filter { !$0.matches.isEmpty }.count
+    let purchased = entries.filter { $0.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased") }.count
+    let ready = entries.filter { $0.matches.isEmpty && !$0.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased") }.count
+
+    return SettingsPanel(title: "Post-purchase order watch", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this queue after a Wishlist item is bought outside ParcelOps. It keeps order-confirmation follow-up visible until a local Inbox confirmation or order is linked.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Watching", "\(entries.count)", entries.isEmpty ? .secondary : .orange),
+          ("Inbox matches", "\(matched)", matched == 0 ? .secondary : .green),
+          ("Purchased", "\(purchased)", purchased == 0 ? .secondary : .orange),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .blue)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist purchases waiting for order confirmation",
+            detail: "When an external purchase is recorded, it will appear here until an Inbox confirmation or local order is linked.",
+            symbol: "envelope.badge.shield.half.filled"
+          )
+        } else {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(entries.prefix(6)) { entry in
+              WishlistOrderWatchMatchRow(
+                item: entry.item,
+                matches: Array(entry.matches.prefix(3))
+              ) { email in
+                store.confirmWishlistOrderFromIntake(entry.item, email: email)
+              } onMarkSeen: {
+                if let email = entry.matches.first {
+                  store.confirmWishlistOrderFromIntake(entry.item, email: email)
+                } else {
+                  store.markWishlistOrderConfirmationSeen(entry.item)
+                }
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 6, 0)
+          if remaining > 0 {
+            Text("\(remaining) more post-purchase watch item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Manual and local only. This queue does not monitor mailboxes in the background, contact retailers, log in to accounts, store payment data, or mutate mailbox messages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistAgentHandoffPacketPanel: some View {
     let requests = store.wishlistResearchRequests
     let ready = requests.filter(\.isAgentBriefReady)
@@ -3095,6 +3194,17 @@ private struct WishlistPurchaseAccountLedgerRow: View {
     .padding(10)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
+}
+
+private struct WishlistPostPurchaseOrderWatchEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var handoff: WishlistPurchaseHandoff
+  var matches: [ForwardedEmailIntake]
+  var stage: String
+  var detail: String
+  var tone: Color
+  var sortPriority: Int
 }
 
 private struct WishlistPipelineItem: Identifiable {
