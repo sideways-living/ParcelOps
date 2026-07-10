@@ -3557,9 +3557,55 @@ struct WishlistView: View {
         .background((usable.isEmpty ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         if let lastBatchDraft {
-          Label("Latest batch draft: \(lastBatchDraft.createdDate) • \(lastBatchDraft.status.rawValue)", systemImage: "doc.text.fill")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.teal)
+          VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: "star.square.on.square.fill")
+                .foregroundStyle(lastBatchDraft.status.color)
+                .frame(width: 24, height: 24)
+              VStack(alignment: .leading, spacing: 4) {
+                Text("Latest batch draft")
+                  .font(.subheadline.weight(.semibold))
+                Text(lastBatchDraft.subject)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(2)
+                Text(wishlistBatchDraftNextAction(lastBatchDraft))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer(minLength: 8)
+              Badge(lastBatchDraft.status.rawValue, color: lastBatchDraft.status.color)
+            }
+
+            CompactMetadataGrid(minimumWidth: 145) {
+              Badge(lastBatchDraft.reviewState.rawValue, color: lastBatchDraft.reviewState.color)
+              Label(lastBatchDraft.createdDate, systemImage: "calendar")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Label("Local draft only", systemImage: "lock.doc.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            CompactActionRow {
+              Button("Ready", systemImage: "checkmark.seal.fill") {
+                store.markDraftMessageReady(lastBatchDraft)
+              }
+              .disabled(lastBatchDraft.status == .ready)
+              Button("Sent locally", systemImage: "paperplane.fill") {
+                store.markDraftMessageSentLocally(lastBatchDraft)
+              }
+              .disabled(lastBatchDraft.status == .sentLocally)
+              Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+                store.reopenDraftMessage(lastBatchDraft)
+              }
+              .disabled(lastBatchDraft.status == .reopened)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+          }
+          .padding(10)
+          .background(lastBatchDraft.status.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         if !usable.isEmpty {
@@ -3596,9 +3642,14 @@ struct WishlistView: View {
           }
           .disabled(usable.isEmpty)
           NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+          NavigationLink {
             TasksView(store: store)
           } label: {
-            Label("Open Drafts/Tasks", systemImage: "checklist")
+            Label("Open Tasks", systemImage: "checklist")
           }
           NavigationLink {
             AuditView(store: store)
@@ -3613,6 +3664,19 @@ struct WishlistView: View {
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private func wishlistBatchDraftNextAction(_ draft: DraftMessage) -> String {
+    switch draft.status {
+    case .draft:
+      return "Review the packet before handing it to a future research agent or copying it into a manual comparison workflow."
+    case .ready:
+      return "Use the packet outside ParcelOps, then mark it sent locally once the handoff is complete."
+    case .sentLocally:
+      return "The packet is no longer active in Tasks. Reopen it only if the comparison research needs another pass."
+    case .reopened:
+      return "Update the batch brief or Wishlist request scope, then mark it ready again."
     }
   }
 
