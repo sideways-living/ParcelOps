@@ -121,6 +121,7 @@ struct WishlistView: View {
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistPurchaseHandoffPackPanel
+        wishlistAgentHandoffPacketPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -1612,6 +1613,108 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistAgentHandoffPacketPanel: some View {
+    let requests = store.wishlistResearchRequests
+    let ready = requests.filter(\.isAgentBriefReady)
+    let needsScope = requests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let blocked = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let missingResearchItems = store.wishlistItems.filter { item in
+      (item.comparisonOptions ?? []).isEmpty
+        && !requests.contains { $0.wishlistItemID == item.id }
+    }
+
+    return SettingsPanel(title: "Future comparison agent packet", symbol: "sparkles.rectangle.stack.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This is the local contract for a future shopping comparison agent. It defines what can be handed off later: product/source context, AU and overseas retailer scope, AUD landed cost, postage timing, seller trust evidence, and strict no-purchase boundaries.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Ready briefs", "\(ready.count)", ready.isEmpty ? .secondary : .green),
+          ("Need scope", "\(needsScope.count)", needsScope.isEmpty ? .green : .orange),
+          ("Blocked", "\(blocked.count)", blocked.isEmpty ? .green : .red),
+          ("No brief", "\(missingResearchItems.count)", missingResearchItems.isEmpty ? .green : .blue)
+        ])
+
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Future agent output contract", systemImage: "doc.text.magnifyingglass")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Text("Required output: product URL, seller, listed price/currency, estimated AUD landed total, postage cost/time, seller region, returns/warranty notes, trust evidence, and recommendation.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Boundaries: no checkout, no payment, no account login, no credential capture, no mailbox mutation, no carrier booking, and no background monitoring.")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(Color.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
+        if requests.isEmpty {
+          MVPEmptyState(
+            title: "No agent research briefs staged",
+            detail: "Use Compare on Wishlist items to stage local research briefs. Later, a real agent can consume these briefs without changing the operator workflow.",
+            symbol: "list.bullet.clipboard.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 245 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(Array((ready + needsScope + blocked).prefix(6))) { request in
+              WishlistAgentHandoffPacketRow(request: request) {
+                store.markWishlistResearchRequestReviewed(request)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: request.wishlistItemID?.uuidString ?? request.id.uuidString,
+                  label: request.itemName,
+                  summary: "Prepare future comparison-agent brief: confirm AUD budget, seller criteria, postage timing, trust evidence, and no-purchase boundaries before live research.",
+                  priority: request.isAgentBriefReady ? .normal : .high,
+                  assignee: "Wishlist review"
+                )
+              } onDraft: {
+                store.createWishlistResearchBriefDraft(request)
+              }
+            }
+          }
+        }
+
+        if !missingResearchItems.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Items without a research brief")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(missingResearchItems.prefix(3)) { item in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "star.square.fill")
+                  .foregroundStyle(.blue)
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(item.itemName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Text("Create a comparison plan before this can be handed to a future agent.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Create brief", systemImage: "list.bullet.clipboard") {
+                  store.createWishlistComparisonPlan(item)
+                  store.createWishlistResearchRequest(from: item)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(8)
+              .background(Color.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -2299,6 +2402,69 @@ private struct WishlistResearchRequestRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistAgentHandoffPacketRow: View {
+  var request: WishlistResearchRequest
+  var onReviewed: () -> Void
+  var onTask: () -> Void
+  var onDraft: () -> Void
+
+  private var tone: Color {
+    if request.requestStatus.localizedCaseInsensitiveContains("blocked") { return .red }
+    return request.isAgentBriefReady ? .green : .orange
+  }
+
+  private var packetSummary: String {
+    if request.isAgentBriefReady {
+      return "Ready later for a live comparison agent once integration exists."
+    }
+    return request.agentBriefNextAction
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: request.isAgentBriefReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(tone)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(request.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(packetSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(request.agentBriefStatus, color: tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 118) {
+        Label(request.maxBudgetAUD, systemImage: "dollarsign.circle.fill")
+        Label(request.reviewState.rawValue, systemImage: "checkmark.seal.fill")
+        Label(request.agentBriefGaps.isEmpty ? "No gaps" : "\(request.agentBriefGaps.count) gaps", systemImage: request.agentBriefGaps.isEmpty ? "checkmark.circle.fill" : "circle")
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      Text("Scope: \(request.regionScope)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+
+      CompactActionRow {
+        Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Brief draft", systemImage: "doc.text", action: onDraft)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
