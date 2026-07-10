@@ -46,12 +46,20 @@ struct TimelineView: View {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
 
-  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
   }
 
-  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  private var sourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
+  private var sourceOrdersWithSourceTrail: [TrackedOrder] {
+    sourceOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
+    sourceOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
   private var inboxSourceTimelineActivities: [TimelineActivity] {
@@ -65,6 +73,8 @@ struct TimelineView: View {
       ].joined(separator: " ")
       return text.localizedCaseInsensitiveContains("Inbox source")
         || text.localizedCaseInsensitiveContains("Inbox-created")
+        || text.localizedCaseInsensitiveContains("Wishlist")
+        || text.localizedCaseInsensitiveContains("purchase handoff")
         || text.localizedCaseInsensitiveContains("forwarded email")
         || text.localizedCaseInsensitiveContains("Import Queue")
         || text.localizedCaseInsensitiveContains("Acceptance Review")
@@ -215,27 +225,28 @@ struct TimelineView: View {
 
   @ViewBuilder
   private var inboxSourceTrailTimelinePanel: some View {
-    if !inboxCreatedOrders.isEmpty || !inboxSourceTimelineActivities.isEmpty {
-      SettingsPanel(title: "Inbox source trail timeline", symbol: "link.badge.plus") {
+    if !sourceOrders.isEmpty || !inboxSourceTimelineActivities.isEmpty {
+      SettingsPanel(title: "Inbox/Wishlist source trail timeline", symbol: "link.badge.plus") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Use this before closing handoff work: Inbox-created orders should remain traceable to forwarded intake, Import Queue, or Acceptance Review context.")
+          Text("Use this before closing handoff work: Inbox-created and Wishlist-linked orders should remain traceable to intake, import, acceptance, or purchase handoff context.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
           MetricStrip(items: [
             ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
-            ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
-            ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+            ("Wishlist orders", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+            ("With source", "\(sourceOrdersWithSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+            ("Missing source", "\(sourceOrdersMissingSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
             ("Timeline events", "\(inboxSourceTimelineActivities.count)", inboxSourceTimelineActivities.isEmpty ? .secondary : .blue)
           ])
 
-          if inboxCreatedOrdersMissingSourceTrail.isEmpty {
-            Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+          if sourceOrdersMissingSourceTrail.isEmpty {
+            Label(sourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
           } else {
-            ForEach(inboxCreatedOrdersMissingSourceTrail.prefix(4)) { order in
+            ForEach(sourceOrdersMissingSourceTrail.prefix(4)) { order in
               NavigationLink {
                 OrderDetailView(order: order, store: store)
               } label: {
@@ -246,7 +257,7 @@ struct TimelineView: View {
                   VStack(alignment: .leading, spacing: 4) {
                     Text("\(order.store) • \(order.orderNumber)")
                       .font(.subheadline.weight(.semibold))
-                    Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before relying on timeline history.")
+                    Text("No linked intake, import, acceptance, or Wishlist purchase source currently matches this order. Open the order source trail before relying on timeline history.")
                       .font(.caption)
                       .foregroundStyle(.secondary)
                       .fixedSize(horizontal: false, vertical: true)
@@ -497,6 +508,15 @@ struct TimelineView: View {
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen = Set<UUID>()
+    return orders.filter { order in
+      guard !seen.contains(order.id) else { return false }
+      seen.insert(order.id)
+      return true
     }
   }
 }

@@ -42,18 +42,27 @@ struct ReconciliationView: View {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
 
-  private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
   }
 
-  private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+  private var sourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
+  private var sourceOrdersWithSourceTrail: [TrackedOrder] {
+    sourceOrders.filter { sourceTrailCount(for: $0) > 0 }
+  }
+
+  private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
+    sourceOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
   private var inboxLinkedReconciliationIssues: [ReconciliationIssue] {
-    store.reconciliationIssues.filter { issue in
+    let sourceOrderIDs = Set(sourceOrders.map(\.id))
+    return store.reconciliationIssues.filter { issue in
       guard let order = linkedOrder(for: issue) else { return false }
-      return order.isInboxCreatedLocalOrder
+      return sourceOrderIDs.contains(order.id)
     }
   }
 
@@ -61,7 +70,7 @@ struct ReconciliationView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in inboxCreatedOrders {
+    for order in sourceOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -263,17 +272,18 @@ struct ReconciliationView: View {
   }
 
   private var inboxSourceReconciliationPanel: some View {
-    SettingsPanel(title: "Inbox source reconciliation", symbol: "link.badge.plus") {
+    SettingsPanel(title: "Inbox/Wishlist source reconciliation", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this before resolving mismatches for Inbox-created orders. Missing source context can make order/import/acceptance conflicts look resolved when the handoff trail is incomplete.")
+        Text("Use this before resolving mismatches for Inbox-created or Wishlist-linked orders. Missing source context can make order, import, acceptance, or Wishlist purchase conflicts look resolved when the handoff trail is incomplete.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
           ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
-          ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
-          ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+          ("Wishlist orders", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+          ("With source", "\(sourceOrdersWithSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+          ("Missing source", "\(sourceOrdersMissingSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
           ("Related issues", "\(inboxLinkedReconciliationIssues.count)", inboxLinkedReconciliationIssues.isEmpty ? .secondary : .orange)
         ])
 
@@ -309,12 +319,12 @@ struct ReconciliationView: View {
           }
         }
 
-        if inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+        if sourceOrdersMissingSourceTrail.isEmpty {
+          Label(sourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {
-          ForEach(inboxCreatedOrdersMissingSourceTrail.prefix(4)) { order in
+          ForEach(sourceOrdersMissingSourceTrail.prefix(4)) { order in
             NavigationLink {
               OrderDetailView(order: order, store: store)
             } label: {
@@ -325,7 +335,7 @@ struct ReconciliationView: View {
                 VStack(alignment: .leading, spacing: 4) {
                   Text("\(order.store) • \(order.orderNumber)")
                     .font(.subheadline.weight(.semibold))
-                  Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before marking reconciliation follow-up reviewed.")
+                  Text("No linked intake, import, acceptance, or Wishlist purchase source currently matches this order. Open the order source trail before marking reconciliation follow-up reviewed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -443,6 +453,15 @@ struct ReconciliationView: View {
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen = Set<UUID>()
+    return orders.filter { order in
+      guard !seen.contains(order.id) else { return false }
+      seen.insert(order.id)
+      return true
     }
   }
 }

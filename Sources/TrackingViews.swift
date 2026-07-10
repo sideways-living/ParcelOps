@@ -164,19 +164,20 @@ struct TrackingView: View {
   }
 
   private var inboxTrackingCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = sourceOrders
     let linkedEvents = trackingEventsLinkedToInboxOrders
     let actionEvents = trackingEventsNeedingAction
     let missingTrackingCount = inboxOrdersMissingTracking.count
 
-    return SettingsPanel(title: "Inbox tracking readiness", symbol: "location.fill.viewfinder") {
+    return SettingsPanel(title: "Inbox/Wishlist tracking readiness", symbol: "location.fill.viewfinder") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have local carrier updates, warning state, and review follow-up.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local carrier updates, warning state, and review follow-up.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedEvents.count) linked events", color: .teal)
           Badge("\(actionEvents.count) need action", color: actionEvents.isEmpty ? .green : .orange)
           Badge("\(missingTrackingCount) missing tracking", color: missingTrackingCount == 0 ? .green : .orange)
@@ -214,11 +215,11 @@ struct TrackingView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking tracking coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking tracking coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedEvents.isEmpty {
-          Text("Inbox-created orders do not have tracking events yet. Add a local tracking note from the order when carrier status needs monitoring.")
+          Text("Inbox-created and Wishlist-linked orders do not have tracking events yet. Add a local tracking note from the order when carrier status needs monitoring.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -239,7 +240,7 @@ struct TrackingView: View {
           }
 
           if actionEvents.isEmpty {
-            Text("Linked tracking events are informational and reviewed for current Inbox-created orders.")
+            Text("Linked tracking events are informational and reviewed for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionEvents.count > 3 {
@@ -256,21 +257,29 @@ struct TrackingView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var sourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var trackingEventsLinkedToInboxOrders: [CarrierTrackingEvent] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(sourceOrders.map(\.id))
     return store.carrierTrackingEvents.filter { orderIDs.contains($0.orderID) }
   }
 
   private var inboxOrdersMissingTracking: [TrackedOrder] {
     let trackingOrderIDs = Set(trackingEventsLinkedToInboxOrders.map(\.orderID))
-    return inboxCreatedOrders.filter { !trackingOrderIDs.contains($0.id) }
+    return sourceOrders.filter { !trackingOrderIDs.contains($0.id) }
   }
 
   private var inboxTrackingProviderRows: [(label: String, count: Int, detail: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in inboxCreatedOrders {
+    for order in sourceOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -343,6 +352,15 @@ struct TrackingView: View {
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen = Set<UUID>()
+    return orders.filter { order in
+      guard !seen.contains(order.id) else { return false }
+      seen.insert(order.id)
+      return true
     }
   }
 
@@ -461,6 +479,7 @@ struct TrackingEventRow: View {
 
           if let store, let order {
             let linkedEmails = linkedIntakeEmails(for: order, store: store)
+            let wishlistItems = store.wishlistItemsLinked(to: order)
             if !linkedEmails.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
                 Label("Inbox tracking source", systemImage: "tray.and.arrow.down.fill")
@@ -477,6 +496,23 @@ struct TrackingEventRow: View {
                       Badge("Order \(email.detectedOrderNumber)", color: .blue)
                     }
                     Text(email.subject)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                }
+              }
+            }
+            if !wishlistItems.isEmpty {
+              VStack(alignment: .leading, spacing: 6) {
+                Label("Wishlist tracking source", systemImage: "heart.text.square.fill")
+                  .font(.caption.bold())
+                  .foregroundStyle(.pink)
+                ForEach(wishlistItems.prefix(2)) { item in
+                  HStack(spacing: 6) {
+                    Badge("Wishlist", color: .pink)
+                    Badge(item.status, color: item.status.localizedCaseInsensitiveContains("review") ? .orange : .blue)
+                    Text(item.itemName)
                       .font(.caption)
                       .foregroundStyle(.secondary)
                       .lineLimit(1)

@@ -411,19 +411,20 @@ struct HandoffNotesView: View {
   }
 
   private var inboxHandoffCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = sourceOrders
     let linkedNotes = handoffNotesLinkedToInboxOrders
     let actionNotes = handoffNotesNeedingSourceAction
     let missingCount = inboxOrdersMissingHandoff.count
 
-    return SettingsPanel(title: "Inbox handoff readiness", symbol: "arrow.left.arrow.right.square.fill") {
+    return SettingsPanel(title: "Inbox/Wishlist handoff readiness", symbol: "arrow.left.arrow.right.square.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have a local shift/team note when continuity is needed.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have a local shift/team note when continuity is needed.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+          Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedNotes.count) linked notes", color: .teal)
           Badge("\(actionNotes.count) need action", color: actionNotes.isEmpty ? .green : .orange)
           Badge("\(missingCount) without handoff", color: missingCount == 0 ? .green : .orange)
@@ -462,11 +463,11 @@ struct HandoffNotesView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before tracking handoff coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before tracking handoff coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedNotes.isEmpty {
-          Text("Inbox-created orders do not have handoff notes yet. Add a note when another team or shift needs context.")
+          Text("Inbox-created and Wishlist-linked orders do not have handoff notes yet. Add a note when another team or shift needs context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -487,7 +488,7 @@ struct HandoffNotesView: View {
           }
 
           if actionNotes.isEmpty {
-            Text("Linked handoff notes look assigned, current, reviewed, and closed or actively monitored for Inbox-created orders.")
+            Text("Linked handoff notes look assigned, current, reviewed, and closed or actively monitored for Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionNotes.count > 3 {
@@ -509,9 +510,17 @@ struct HandoffNotesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  private var sourceOrders: [TrackedOrder] {
+    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
   private var handoffNotesLinkedToInboxOrders: [HandoffNote] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
-    let orderNumbers = Set(inboxCreatedOrders.map(\.orderNumber).filter { !$0.isPlaceholderValidationValue })
+    let orderIDs = Set(sourceOrders.map(\.id))
+    let orderNumbers = Set(sourceOrders.map(\.orderNumber).filter { !$0.isPlaceholderValidationValue })
     return store.handoffNotes.filter { note in
       if note.linkedEntityType == .order, let linkedID = UUID(uuidString: note.linkedEntityID), orderIDs.contains(linkedID) {
         return true
@@ -529,7 +538,7 @@ struct HandoffNotesView: View {
       return UUID(uuidString: note.linkedEntityID)
     })
     let linkedText = handoffNotesLinkedToInboxOrders.map { [$0.title, $0.summary, $0.linkedEntityID, $0.notes].joined(separator: " ") }
-    return inboxCreatedOrders.filter { order in
+    return sourceOrders.filter { order in
       if linkedOrderIDs.contains(order.id) { return false }
       let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !orderNumber.isEmpty, !orderNumber.isPlaceholderValidationValue else { return true }
@@ -573,10 +582,19 @@ struct HandoffNotesView: View {
     }
   }
 
+  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen = Set<UUID>()
+    return orders.filter { order in
+      guard !seen.contains(order.id) else { return false }
+      seen.insert(order.id)
+      return true
+    }
+  }
+
   private var handoffProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in sourceOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -589,9 +607,9 @@ struct HandoffNotesView: View {
       let detail: String
       switch tone {
       case "spacemail":
-        detail = "SpaceMail intake can create handoff context when an Inbox-created order needs shift, dispatch, or exception continuity."
+        detail = "SpaceMail intake can create handoff context when an Inbox-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
       case "gmail":
-        detail = "Gmail intake can create handoff context when an Inbox-created order needs shift, dispatch, or exception continuity."
+        detail = "Gmail intake can create handoff context when an Inbox-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
       case "mock":
         detail = "Mock mailbox intake supports local handoff testing without contacting a mailbox provider."
       default:
@@ -770,6 +788,7 @@ struct HandoffNoteRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        let wishlistItems = store.wishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox handoff source", systemImage: "tray.and.arrow.down.fill")
@@ -786,6 +805,23 @@ struct HandoffNoteRow: View {
                   Badge("Tracking \(email.detectedTrackingNumber)", color: .teal)
                 }
                 Text(email.subject)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+            }
+          }
+        }
+        if !wishlistItems.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Wishlist handoff source", systemImage: "heart.text.square.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.pink)
+            ForEach(wishlistItems.prefix(2)) { item in
+              HStack(spacing: 6) {
+                Badge("Wishlist", color: .pink)
+                Badge(item.status, color: item.status.localizedCaseInsensitiveContains("review") ? .orange : .blue)
+                Text(item.itemName)
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
