@@ -117,6 +117,7 @@ struct WishlistView: View {
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
+        wishlistSellerSafetyRubricPanel
         wishlistComparisonMatrixPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseReleaseChecklistPanel
@@ -979,6 +980,139 @@ struct WishlistView: View {
           color: .green
         )
       }
+    }
+  }
+
+  private var wishlistSellerSafetyRubricEntries: [WishlistSellerSafetyRubricEntry] {
+    store.wishlistItems.flatMap { item in
+      (item.comparisonOptions ?? []).map { option in
+        wishlistSellerSafetyRubricEntry(item: item, option: option)
+      }
+    }
+    .sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
+  private var wishlistSellerSafetyRubricPanel: some View {
+    let entries = wishlistSellerSafetyRubricEntries
+    let ready = entries.filter { $0.decision == "Acceptable local candidate" }.count
+    let caution = entries.filter { $0.decision == "Caution" }.count
+    let reject = entries.filter { $0.decision == "Reject or manual review" }.count
+    let preferredNeedsReview = entries.filter { $0.isPreferred && $0.decision != "Acceptable local candidate" }.count
+
+    return SettingsPanel(title: "Seller trust and landed-cost rubric", symbol: "shield.lefthalf.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this local rubric before purchase handoff. Cheap sellers are not considered safe until total AUD cost, postage time, returns/warranty, and seller trust evidence are explicit.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Acceptable", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Caution", "\(caution)", caution == 0 ? .green : .orange),
+          ("Reject/review", "\(reject)", reject == 0 ? .green : .red),
+          ("Preferred review", "\(preferredNeedsReview)", preferredNeedsReview == 0 ? .green : .purple)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller options to score",
+            detail: "Create a comparison plan or add manual seller options before using the trust and landed-cost rubric.",
+            symbol: "shield.lefthalf.filled"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistSellerSafetyRubricRow(entry: entry) {
+                runWishlistSellerSafetyAction(for: entry)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller option\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Rubric scoring is local only. ParcelOps does not verify live stock, real-time prices, exchange rates, postage quotes, independent reviews, or seller identity.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistSellerSafetyRubricEntry(item: WishlistItem, option: WishlistComparisonOption) -> WishlistSellerSafetyRubricEntry {
+    let gaps = option.operatorSellerEvidenceGaps
+    let score = option.operatorSellerMatrixScore
+    let trust = option.trustRating.localizedLowercase
+    let recommendation = option.recommendation.localizedLowercase
+    let hasAUD = option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud")
+      && !option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending")
+    let hasPostage = !option.postageCost.localizedCaseInsensitiveContains("pending")
+      && !option.postageTime.localizedCaseInsensitiveContains("pending")
+    let trustLooksGood = trust.contains("trusted")
+      || trust.contains("high")
+      || trust.contains("accepted")
+    let trustLooksWeak = trust.contains("unknown")
+      || trust.contains("review")
+      || trust.contains("needs")
+      || recommendation.contains("avoid")
+      || recommendation.contains("reject")
+    let isPreferred = item.preferredOptionID == option.id
+
+    let decision: String
+    let detail: String
+    let tone: Color
+    let sortPriority: Int
+
+    if gaps.isEmpty && score >= 70 && trustLooksGood && hasAUD && hasPostage {
+      decision = "Acceptable local candidate"
+      detail = "Local fields are complete enough for manual live verification before purchase."
+      tone = .green
+      sortPriority = isPreferred ? 20 : 40
+    } else if score < 55 || trustLooksWeak || gaps.contains("seller trust") {
+      decision = "Reject or manual review"
+      detail = "Do not prefer this seller until trust evidence, delivery reliability, and returns/warranty are manually confirmed."
+      tone = .red
+      sortPriority = isPreferred ? 1 : 10
+    } else {
+      decision = "Caution"
+      detail = gaps.isEmpty ? "Local score is moderate. Reconfirm live price, postage, and seller trust before purchase." : "Missing \(gaps.prefix(3).joined(separator: ", "))."
+      tone = .orange
+      sortPriority = isPreferred ? 5 : 30
+    }
+
+    return WishlistSellerSafetyRubricEntry(
+      item: item,
+      option: option,
+      isPreferred: isPreferred,
+      decision: decision,
+      detail: detail,
+      gaps: gaps,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistSellerSafetyAction(for entry: WishlistSellerSafetyRubricEntry) {
+    if entry.gaps.isEmpty && entry.decision == "Acceptable local candidate" {
+      store.runWishlistPurchaseReadinessCheck(entry.item)
+    } else if entry.gaps.contains("seller trust") || entry.decision == "Reject or manual review" {
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    } else {
+      store.evaluateWishlistComparisonOptions(entry.item)
     }
   }
 
@@ -2216,6 +2350,94 @@ private struct WishlistSellerOptionIssue: Identifiable {
   var detail: String
   var symbol: String
   var color: Color
+}
+
+private struct WishlistSellerSafetyRubricEntry: Identifiable {
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)-safety"
+  }
+
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var isPreferred: Bool
+  var decision: String
+  var detail: String
+  var gaps: [String]
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistSellerSafetyRubricRow: View {
+  var entry: WishlistSellerSafetyRubricEntry
+  var onAction: () -> Void
+  var onFocus: () -> Void
+
+  private var actionTitle: String {
+    if entry.decision == "Acceptable local candidate" { return "Readiness" }
+    if entry.decision == "Reject or manual review" { return "Evidence task" }
+    return "Re-score"
+  }
+
+  private var actionSymbol: String {
+    if entry.decision == "Acceptable local candidate" { return "checklist.checked" }
+    if entry.decision == "Reject or manual review" { return "checklist" }
+    return "chart.bar.doc.horizontal"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.decision == "Acceptable local candidate" ? "shield.checkered" : "exclamationmark.shield.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.option.sellerName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.item.itemName)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(entry.decision, color: entry.tone)
+          if entry.isPreferred {
+            Badge("Preferred", color: .purple)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 120) {
+        Label(entry.option.estimatedAUDTotal, systemImage: "dollarsign.circle.fill")
+        Label("\(entry.option.postageCost), \(entry.option.postageTime)", systemImage: "shippingbox.fill")
+        Label(entry.option.trustRating, systemImage: "shield.lefthalf.filled")
+        Label("Score \(entry.option.operatorSellerMatrixScore)", systemImage: "gauge.with.dots.needle.50percent")
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      if !entry.gaps.isEmpty {
+        Text("Missing: \(entry.gaps.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistSellerOptionIssueRow: View {
