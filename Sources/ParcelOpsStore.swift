@@ -29,6 +29,7 @@ final class ParcelOpsStore {
   var wishlistPriceSnapshots: [WishlistPriceSnapshot]
   var wishlistSellerQuotes: [WishlistSellerQuote]
   var wishlistPriceWatchRules: [WishlistPriceWatchRule]
+  var wishlistSellerTrustRecords: [WishlistSellerTrustRecord]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -247,6 +248,7 @@ final class ParcelOpsStore {
     self.wishlistPriceSnapshots = repository.loadWishlistPriceSnapshots()
     self.wishlistSellerQuotes = repository.loadWishlistSellerQuotes()
     self.wishlistPriceWatchRules = repository.loadWishlistPriceWatchRules()
+    self.wishlistSellerTrustRecords = repository.loadWishlistSellerTrustRecords()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -20889,6 +20891,116 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistSellerTrustRecords(for item: WishlistItem) -> [WishlistSellerTrustRecord] {
+    wishlistSellerTrustRecords
+      .filter { check in
+        check.wishlistItemID == item.id
+          || check.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(check.itemName)
+      }
+      .sorted { first, second in
+        if first.reviewState == second.reviewState {
+          return first.checkedDate > second.checkedDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func createWishlistSellerTrustRecords(from quote: WishlistSellerQuote) {
+    let timestamp = Self.auditTimestamp()
+    let checkTypes = [
+      ("Business identity", "Confirm seller identity, ABN/company details where relevant, contact path, and whether the storefront looks legitimate."),
+      ("Returns and warranty", quote.returnsWarrantySummary),
+      ("Delivery reliability", "Confirm postage method, delivery timeframe, dispatch origin, and whether buyer protection is available."),
+      ("Price realism", "Confirm the offer is plausible after AUD landed cost, postage, stock, and seller reputation are considered.")
+    ]
+    let newChecks = checkTypes.map { type, detail in
+      WishlistSellerTrustRecord(
+        wishlistItemID: quote.wishlistItemID,
+        sellerQuoteID: quote.id,
+        itemName: quote.itemName,
+        sellerName: quote.sellerName,
+        checkType: type,
+        evidenceSummary: detail,
+        resultStatus: "Needs operator check",
+        riskLevel: quote.trustSummary.localizedCaseInsensitiveContains("unknown")
+          || quote.trustSummary.localizedCaseInsensitiveContains("missing")
+          || quote.trustSummary.localizedCaseInsensitiveContains("unclear")
+          ? "High"
+          : "Medium",
+        sourceURL: quote.productURL,
+        checkedDate: timestamp,
+        reviewState: .needsReview,
+        notes: "Generated from local seller quote intake. No seller site was fetched, no external trust service was called, and no purchase occurred."
+      )
+    }
+    wishlistSellerTrustRecords.insert(contentsOf: newChecks, at: 0)
+    if let quoteIndex = wishlistSellerQuotes.firstIndex(where: { $0.id == quote.id }) {
+      wishlistSellerQuotes[quoteIndex].quoteStatus = "Trust checks created"
+    }
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: quote.wishlistItemID?.uuidString ?? quote.id.uuidString,
+      entityLabel: quote.itemName,
+      summary: "Wishlist seller trust checks created locally.",
+      afterDetail: "\(newChecks.map(\.auditDetail).joined(separator: "\n"))\nSource quote: \(quote.auditDetail)\nNo seller lookup, rating service, account login, checkout, purchase, payment, or network call occurred."
+    )
+  }
+
+  func markWishlistSellerTrustRecordAccepted(_ check: WishlistSellerTrustRecord) {
+    guard let index = wishlistSellerTrustRecords.firstIndex(where: { $0.id == check.id }) else { return }
+    let beforeDetail = wishlistSellerTrustRecords[index].auditDetail
+    wishlistSellerTrustRecords[index].resultStatus = "Accepted locally"
+    wishlistSellerTrustRecords[index].riskLevel = wishlistSellerTrustRecords[index].riskLevel.localizedCaseInsensitiveContains("high") ? "Medium" : "Low"
+    wishlistSellerTrustRecords[index].reviewState = .accepted
+    wishlistSellerTrustRecords[index].checkedDate = Self.auditTimestamp()
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistSellerTrustRecords[index].wishlistItemID?.uuidString ?? wishlistSellerTrustRecords[index].id.uuidString,
+      entityLabel: wishlistSellerTrustRecords[index].itemName,
+      summary: "Wishlist seller trust check accepted locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistSellerTrustRecords[index].auditDetail)\nAcceptance is local evidence only. The operator must still verify live seller details before buying."
+    )
+  }
+
+  func blockWishlistSellerTrustRecord(_ check: WishlistSellerTrustRecord) {
+    guard let index = wishlistSellerTrustRecords.firstIndex(where: { $0.id == check.id }) else { return }
+    let beforeDetail = wishlistSellerTrustRecords[index].auditDetail
+    wishlistSellerTrustRecords[index].resultStatus = "Blocked locally"
+    wishlistSellerTrustRecords[index].riskLevel = "High"
+    wishlistSellerTrustRecords[index].reviewState = .needsReview
+    wishlistSellerTrustRecords[index].checkedDate = Self.auditTimestamp()
+    if let itemIndex = wishlistSellerTrustRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Blocked by seller trust check"
+    }
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistSellerTrustRecords[index].wishlistItemID?.uuidString ?? wishlistSellerTrustRecords[index].id.uuidString,
+      entityLabel: wishlistSellerTrustRecords[index].itemName,
+      summary: "Wishlist seller trust check blocked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistSellerTrustRecords[index].auditDetail)\nBlocked only in local review state. No seller, account, checkout, purchase, payment, or external service was changed."
+    )
+  }
+
+  func createWishlistSellerTrustRecordReviewTask(_ check: WishlistSellerTrustRecord) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: check.wishlistItemID?.uuidString ?? check.id.uuidString,
+      label: "Review seller trust: \(check.sellerName)",
+      summary: "Review Wishlist seller trust check for \(check.itemName): \(check.checkType). Evidence: \(check.evidenceSummary). Current result \(check.resultStatus), risk \(check.riskLevel). No live seller lookup or purchase occurs.",
+      priority: check.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -22089,6 +22201,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistPriceSnapshots(wishlistPriceSnapshots)
     wishlistRepository.saveWishlistSellerQuotes(wishlistSellerQuotes)
     wishlistRepository.saveWishlistPriceWatchRules(wishlistPriceWatchRules)
+    wishlistRepository.saveWishlistSellerTrustRecords(wishlistSellerTrustRecords)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -23051,6 +23164,12 @@ private extension WishlistSellerQuote {
 private extension WishlistPriceWatchRule {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); target AUD total: \(targetAUDTotal); max postage: \(maxPostageCost); delivery threshold: \(maximumDeliveryTime); required trust: \(requiredTrustLevel); allowed regions: \(allowedRegions); status: \(ruleStatus); created: \(createdDate); last evaluated: \(lastEvaluatedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistSellerTrustRecord {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller quote: \(sellerQuoteID?.uuidString ?? "none"); seller: \(sellerName); check: \(checkType); evidence: \(evidenceSummary); result: \(resultStatus); risk: \(riskLevel); source URL: \(sourceURL); checked: \(checkedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

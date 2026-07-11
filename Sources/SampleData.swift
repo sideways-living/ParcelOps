@@ -459,6 +459,37 @@ enum SampleData {
     )
   ]
 
+  static var wishlistSellerTrustRecords: [WishlistSellerTrustRecord] = [
+    WishlistSellerTrustRecord(
+      wishlistItemID: nil,
+      sellerQuoteID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      checkType: "Business identity",
+      evidenceSummary: "Local supplier placeholder with visible business details.",
+      resultStatus: "Needs operator confirmation",
+      riskLevel: "Medium",
+      sourceURL: "https://safetypro.example/scanner-compact",
+      checkedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Local checklist sample only. No seller page was fetched and no trust service was called."
+    ),
+    WishlistSellerTrustRecord(
+      wishlistItemID: nil,
+      sellerQuoteID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "Global Warehouse Placeholder",
+      checkType: "Returns and warranty",
+      evidenceSummary: "Return terms and warranty evidence missing.",
+      resultStatus: "Blocked until checked",
+      riskLevel: "High",
+      sourceURL: "https://global.example/label-rolls",
+      checkedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Shows why cheap overseas options need trust checks before purchase."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

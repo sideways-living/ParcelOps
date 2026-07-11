@@ -510,6 +510,7 @@ struct WishlistView: View {
         wishlistSellerOptionReviewPanel
         wishlistSellerSafetyRubricPanel
         wishlistSellerTrustDiligencePanel
+        wishlistSellerTrustChecklistPanel
         wishlistSellerTrustEvidenceLedgerPanel
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
@@ -2192,16 +2193,16 @@ struct WishlistView: View {
       || trustText.contains("accepted")
       || trustText.contains("known")
 
-    var checks: [WishlistSellerTrustCheck] = [
-      WishlistSellerTrustCheck(label: "Product link", status: hasProductLink ? "Recorded" : "Missing", tone: hasProductLink ? .green : .orange),
-      WishlistSellerTrustCheck(label: "AUD landed total", status: hasAUDTotal ? "Recorded" : "Missing", tone: hasAUDTotal ? .green : .orange),
-      WishlistSellerTrustCheck(label: "Postage time/cost", status: hasPostage ? "Recorded" : "Missing", tone: hasPostage ? .green : .orange),
-      WishlistSellerTrustCheck(label: "Returns/warranty", status: hasReturns ? "Recorded" : "Missing", tone: hasReturns ? .green : .orange),
-      WishlistSellerTrustCheck(label: "Trust evidence", status: trustLooksGood ? "Acceptable" : "Review", tone: trustLooksGood ? .green : .red)
+    var checks: [WishlistSellerTrustDiligenceCheck] = [
+      WishlistSellerTrustDiligenceCheck(label: "Product link", status: hasProductLink ? "Recorded" : "Missing", tone: hasProductLink ? .green : .orange),
+      WishlistSellerTrustDiligenceCheck(label: "AUD landed total", status: hasAUDTotal ? "Recorded" : "Missing", tone: hasAUDTotal ? .green : .orange),
+      WishlistSellerTrustDiligenceCheck(label: "Postage time/cost", status: hasPostage ? "Recorded" : "Missing", tone: hasPostage ? .green : .orange),
+      WishlistSellerTrustDiligenceCheck(label: "Returns/warranty", status: hasReturns ? "Recorded" : "Missing", tone: hasReturns ? .green : .orange),
+      WishlistSellerTrustDiligenceCheck(label: "Trust evidence", status: trustLooksGood ? "Acceptable" : "Review", tone: trustLooksGood ? .green : .red)
     ]
 
     if isOverseas {
-      checks.append(WishlistSellerTrustCheck(label: "Overseas risk", status: "Manual import check", tone: .purple))
+      checks.append(WishlistSellerTrustDiligenceCheck(label: "Overseas risk", status: "Manual import check", tone: .purple))
     }
 
     let verdict: String
@@ -7523,6 +7524,8 @@ struct WishlistView: View {
                 store.promoteWishlistSellerQuoteToOption(quote)
               } onReject: {
                 store.rejectWishlistSellerQuote(quote)
+              } onTrustChecks: {
+                store.createWishlistSellerTrustRecords(from: quote)
               } onTask: {
                 store.createWishlistSellerQuoteReviewTask(quote)
               } onFocus: {
@@ -7628,6 +7631,73 @@ struct WishlistView: View {
         }
 
         Text("Operator boundary: rule matches are prompts to review. They are not live price alerts and do not buy, pay, log into retailers, send notifications, or mutate mailbox/order data.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistSellerTrustChecklistPanel: some View {
+    let checks = store.wishlistSellerTrustRecords.sorted { first, second in
+      if first.reviewState == second.reviewState {
+        return first.checkedDate > second.checkedDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let accepted = checks.filter { $0.reviewState == .accepted }.count
+    let blocked = checks.filter { $0.resultStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let highRisk = checks.filter { $0.riskLevel.localizedCaseInsensitiveContains("high") }.count
+    let needsReview = checks.filter { $0.reviewState != .accepted }.count
+
+    return SettingsPanel(title: "Seller trust checklist", symbol: "shield.lefthalf.filled.badge.checkmark") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Track seller trust evidence before purchase: business identity, returns/warranty, delivery reliability, and price realism. These are local operator checks only.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Checks", "\(checks.count)", checks.isEmpty ? .secondary : .blue),
+          ("Need review", "\(needsReview)", needsReview == 0 ? .green : .orange),
+          ("Accepted", "\(accepted)", accepted == 0 ? .secondary : .green),
+          ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
+          ("High risk", "\(highRisk)", highRisk == 0 ? .green : .red)
+        ])
+
+        if checks.isEmpty {
+          MVPEmptyState(
+            title: "No seller trust checks yet",
+            detail: "Create trust checks from a seller quote. Checks stay local and give operators a concrete review list before buying.",
+            symbol: "shield.lefthalf.filled.badge.checkmark"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(checks.prefix(8)) { check in
+              WishlistSellerTrustRecordRow(check: check) {
+                store.markWishlistSellerTrustRecordAccepted(check)
+              } onBlock: {
+                store.blockWishlistSellerTrustRecord(check)
+              } onTask: {
+                store.createWishlistSellerTrustRecordReviewTask(check)
+              } onFocus: {
+                wishlistSearchText = check.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .compare
+              }
+            }
+          }
+
+          let remaining = max(checks.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller trust check\(remaining == 1 ? "" : "s") are available in the local checklist.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("No external trust service, seller lookup, account login, checkout, purchase, payment, or network call runs from these checks.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -10129,7 +10199,7 @@ private struct WishlistSellerSafetyRubricRow: View {
   }
 }
 
-private struct WishlistSellerTrustCheck: Identifiable {
+private struct WishlistSellerTrustDiligenceCheck: Identifiable {
   var id: String { label }
   var label: String
   var status: String
@@ -10147,7 +10217,7 @@ private struct WishlistSellerTrustDiligenceEntry: Identifiable {
   var isOverseas: Bool
   var verdict: String
   var rationale: String
-  var checks: [WishlistSellerTrustCheck]
+  var checks: [WishlistSellerTrustDiligenceCheck]
   var gaps: [String]
   var tone: Color
   var sortPriority: Int
@@ -11027,6 +11097,7 @@ private struct WishlistSellerQuoteRow: View {
   var linkedItem: WishlistItem?
   var onPromote: () -> Void
   var onReject: () -> Void
+  var onTrustChecks: () -> Void
   var onTask: () -> Void
   var onFocus: () -> Void
 
@@ -11103,6 +11174,82 @@ private struct WishlistSellerQuoteRow: View {
           .disabled(isPromoted || isRejected || linkedItem == nil)
         Button("Reject", systemImage: "xmark.circle", action: onReject)
           .disabled(isRejected)
+        Button("Trust checks", systemImage: "shield.lefthalf.filled.badge.checkmark", action: onTrustChecks)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistSellerTrustRecordRow: View {
+  var check: WishlistSellerTrustRecord
+  var onAccept: () -> Void
+  var onBlock: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isAccepted: Bool {
+    check.reviewState == .accepted
+  }
+
+  private var isBlocked: Bool {
+    check.resultStatus.localizedCaseInsensitiveContains("blocked")
+  }
+
+  private var tone: Color {
+    if isBlocked || check.riskLevel.localizedCaseInsensitiveContains("high") { return .red }
+    if isAccepted { return .green }
+    return .orange
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isAccepted ? "shield.checkered" : "shield.lefthalf.filled.badge.checkmark")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(check.sellerName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(check.checkType) • \(check.itemName)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(check.evidenceSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(check.resultStatus, color: tone)
+          Badge(check.riskLevel, color: tone)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Review", value: check.reviewState.rawValue, symbol: "checkmark.seal")
+        WishlistMatrixMetric(title: "Checked", value: check.checkedDate, symbol: "calendar")
+        WishlistMatrixMetric(title: "Source", value: check.sourceURL.isPlaceholderValidationValue ? "No URL" : "URL recorded", symbol: "link")
+        WishlistMatrixMetric(title: "Quote", value: check.sellerQuoteID == nil ? "Unlinked" : "Linked", symbol: "cart")
+      }
+
+      Text(check.notes)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Accept", systemImage: "checkmark.seal", action: onAccept)
+          .disabled(isAccepted)
+        Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
       }
