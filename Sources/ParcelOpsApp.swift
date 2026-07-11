@@ -64,11 +64,14 @@ private struct ParcelRouteCommands: Commands {
       Button("Tasks") { selection = .tasks }
         .keyboardShortcut("6", modifiers: .command)
         .disabled(selection == nil)
-      Button("Audit") { selection = .audit }
+      Button("Wishlist") { selection = .wishlist }
         .keyboardShortcut("7", modifiers: .command)
         .disabled(selection == nil)
-      Button("Settings") { selection = .settings }
+      Button("Audit") { selection = .audit }
         .keyboardShortcut("8", modifiers: .command)
+        .disabled(selection == nil)
+      Button("Settings") { selection = .settings }
+        .keyboardShortcut("9", modifiers: .command)
         .disabled(selection == nil)
     }
   }
@@ -113,6 +116,7 @@ struct ParcelOpsRootView: View {
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
       + store.draftMessagesNeedingReview.count
+      + wishlistAttentionCount
   }
 
   private var advancedBacklogCount: Int {
@@ -215,7 +219,40 @@ struct ParcelOpsRootView: View {
   }
 
   private var dailyFocusSections: [ParcelSection] {
-    [.inbox, .orders, .workbench, .dispatch, .tasks]
+    [.inbox, .orders, .workbench, .dispatch, .tasks, .wishlist]
+  }
+
+  private var wishlistAttentionCount: Int {
+    store.wishlistItems.filter { item in
+      let options = item.comparisonOptions ?? []
+      let snapshots = store.wishlistPriceSnapshots(for: item)
+      let preferred = item.preferredOptionID.flatMap { preferredID in
+        options.first { $0.id == preferredID }
+      }
+      let hasSnapshotGaps = snapshots.contains { snapshot in
+        let searchable = [
+          snapshot.estimatedAUDTotal,
+          snapshot.postageCost,
+          snapshot.postageTime,
+          snapshot.availabilityStatus,
+          snapshot.trustSignal
+        ].joined(separator: " ").localizedLowercase
+        return snapshot.reviewState != .accepted
+          || searchable.contains("pending")
+          || searchable.contains("confirm")
+          || searchable.contains("unknown")
+          || searchable.contains("missing")
+          || searchable.contains("review")
+      }
+      return options.isEmpty
+        || snapshots.isEmpty
+        || hasSnapshotGaps
+        || preferred == nil
+        || preferred?.operatorSellerEvidenceGaps.isEmpty == false
+        || (preferred?.operatorSellerMatrixScore ?? 0) < 65
+        || item.purchaseDecision?.reviewState == .needsReview
+        || item.purchaseHandoff?.linkedOrderID == nil && item.purchaseHandoff != nil
+    }.count
   }
 
   private func routeShortcut(for section: ParcelSection) -> ParcelRouteShortcut? {
@@ -226,8 +263,9 @@ struct ParcelOpsRootView: View {
     case .workbench: ParcelRouteShortcut(key: "4", label: "⌘4")
     case .dispatch: ParcelRouteShortcut(key: "5", label: "⌘5")
     case .tasks: ParcelRouteShortcut(key: "6", label: "⌘6")
-    case .audit: ParcelRouteShortcut(key: "7", label: "⌘7")
-    case .settings: ParcelRouteShortcut(key: "8", label: "⌘8")
+    case .wishlist: ParcelRouteShortcut(key: "7", label: "⌘7")
+    case .audit: ParcelRouteShortcut(key: "8", label: "⌘8")
+    case .settings: ParcelRouteShortcut(key: "9", label: "⌘9")
     default: nil
     }
   }
@@ -544,6 +582,8 @@ struct ParcelOpsRootView: View {
       return store.reviewTasksNeedingAttention.count
         + store.handoffNotesNeedingAttention.count
         + store.draftMessagesNeedingReview.count
+    case .wishlist:
+      return wishlistAttentionCount
     case .communication:
       return store.draftMessagesNeedingReview.count
     case .review:
@@ -747,7 +787,7 @@ struct ExpandableBottomMenu: View {
           .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           .padding(.horizontal, 4)
 
-          Text("Dispatch, Audit, Settings, and detailed records live here. Workbench stays in the primary bar for daily exception work.")
+          Text("Dispatch, Tasks, Audit, Settings, and detailed records live here. Wishlist stays in the primary bar for purchase planning.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -800,14 +840,14 @@ struct ParcelNavigationGroup: Identifiable {
   var sections: [ParcelSection]
   var id: String { title }
 
-  static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .audit, .settings])
+  static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .wishlist, .audit, .settings])
 
-  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .workbench, .tasks]
+  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .workbench, .wishlist]
 
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
     ParcelNavigationGroup(title: "Operational Records", sections: [.evidence, .shipmentGroups, .packageContents, .costsBudgets, .returnsClaims, .procurement, .receivingInspections, .inventoryReceipts, .storageLocations, .custodyChain, .labelReferences, .scanSessions]),
-    ParcelNavigationGroup(title: "Setup & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .accounts, .vendorProfiles, .wishlist])
+    ParcelNavigationGroup(title: "Setup & Reference", sections: [.integrations, .automation, .slaPolicies, .exceptionPlaybooks, .communication, .contacts, .customerProfiles, .destinationAddresses, .deliveryInstructions, .accounts, .vendorProfiles])
   ]
 
   static let desktopGroups: [ParcelNavigationGroup] = [
