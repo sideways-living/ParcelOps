@@ -400,6 +400,7 @@ struct WishlistView: View {
         wishlistPurchaseDecisionSummaryPanel
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
+        wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
         wishlistPostPurchaseOrderWatchPanel
@@ -3115,6 +3116,181 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistManualPurchaseDayPlanEntries: [WishlistManualPurchaseDayPlanEntry] {
+    wishlistPurchaseReleaseChecklistItems
+      .filter { gate in
+        gate.stage == "Ready for manual purchase"
+          || gate.stage == "Linked order released"
+          || gate.stage == "Handoff setup needed"
+          || gate.item.purchaseHandoff != nil
+          || gate.item.purchaseDecision?.reviewState == .accepted
+      }
+      .map(wishlistManualPurchaseDayPlanEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistManualPurchaseDayPlanPanel: some View {
+    let entries = wishlistManualPurchaseDayPlanEntries
+    let buyReady = entries.filter { $0.stage == "Ready to buy externally" }.count
+    let needsHandoff = entries.filter { $0.stage == "Prepare handoff" }.count
+    let watching = entries.filter { $0.stage == "Watch confirmation" }.count
+    let linked = entries.filter { $0.stage == "Order linked" }.count
+
+    return SettingsPanel(title: "Manual purchase day plan", symbol: "calendar.badge.clock") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this when a Wishlist item is close to buying. It keeps the real-world sequence explicit: final seller checks, external purchase, local purchase marker, Inbox/order watch, then linked order follow-up.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Plan items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(buyReady)", buyReady == 0 ? .secondary : .green),
+          ("Need handoff", "\(needsHandoff)", needsHandoff == 0 ? .green : .purple),
+          ("Watching", "\(watching)", watching == 0 ? .secondary : .orange),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .teal)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No manual purchase plans yet",
+            detail: "A plan appears after a Wishlist item has an accepted decision, purchase handoff, or release gate ready for external buying.",
+            symbol: "calendar.badge.clock"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 410), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistManualPurchaseDayPlanRow(entry: entry) {
+                runWishlistManualPurchaseDayPlanAction(for: entry)
+              } onPurchased: {
+                store.recordWishlistPurchasedExternally(entry.item)
+              } onConfirmation: {
+                store.markWishlistOrderConfirmationSeen(entry.item)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more manual purchase plan item\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("The plan does not open seller pages, log in, place orders, pay, send email, mutate mailboxes, or monitor in the background. It records local readiness and follow-up only.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistManualPurchaseDayPlanEntry(for gate: WishlistPurchaseReleaseGate) -> WishlistManualPurchaseDayPlanEntry {
+    let item = gate.item
+    let handoff = item.purchaseHandoff
+    let decision = item.purchaseDecision
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    let confirmationCandidates = store.suggestedWishlistOrderConfirmations(for: item).count
+    let seller = handoff?.sellerName ?? decision?.selectedSellerName ?? item.storefront
+    let account = handoff?.accountLabel ?? "\(item.owner) account to confirm"
+
+    let stage: String
+    let nextAction: String
+    let nextSymbol: String
+    let detail: String
+    let tone: Color
+    let sortPriority: Int
+
+    if linkedOrder != nil {
+      stage = "Order linked"
+      nextAction = "Focus"
+      nextSymbol = "scope"
+      detail = "Order is linked. Continue normal Orders, Dispatch, Tasks, and receiving follow-up."
+      tone = .teal
+      sortPriority = 50
+    } else if confirmationCandidates > 0 {
+      stage = "Confirmation candidates"
+      nextAction = "Link seen"
+      nextSymbol = "envelope.badge.fill"
+      detail = "Inbox has possible order confirmations. Review and link the correct local order before closing purchase follow-up."
+      tone = .teal
+      sortPriority = 10
+    } else if handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      stage = "Watch confirmation"
+      nextAction = "Confirmation seen"
+      nextSymbol = "envelope.badge.fill"
+      detail = "External purchase was recorded. Watch Inbox/Mailbox Monitor and Orders for confirmation from \(seller)."
+      tone = .orange
+      sortPriority = 20
+    } else if handoff == nil {
+      stage = "Prepare handoff"
+      nextAction = "Handoff task"
+      nextSymbol = "checklist"
+      detail = "Prepare account, payment-method reminder, delivery address, seller, and expected order signals before buying externally."
+      tone = .purple
+      sortPriority = 30
+    } else {
+      stage = "Ready to buy externally"
+      nextAction = "Mark purchased"
+      nextSymbol = "bag.fill"
+      detail = "Do final live checks outside ParcelOps, buy manually if appropriate, then mark purchased so the order-watch trail starts."
+      tone = .green
+      sortPriority = 40
+    }
+
+    let steps = [
+      "Confirm live stock and final AUD total",
+      "Confirm postage cost/time, returns, warranty, and seller trust",
+      "Use external seller site/account manually",
+      "Record purchased locally after checkout",
+      "Watch Inbox and Orders for confirmation"
+    ]
+
+    return WishlistManualPurchaseDayPlanEntry(
+      item: item,
+      seller: seller,
+      account: account,
+      linkedOrder: linkedOrder,
+      confirmationCandidates: confirmationCandidates,
+      stage: stage,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      detail: detail,
+      steps: steps,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistManualPurchaseDayPlanAction(for entry: WishlistManualPurchaseDayPlanEntry) {
+    switch entry.stage {
+    case "Confirmation candidates", "Watch confirmation":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    case "Prepare handoff":
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    case "Ready to buy externally":
+      store.recordWishlistPurchasedExternally(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistPurchaseHandoffPackItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
@@ -4413,6 +4589,22 @@ private struct WishlistPurchaseReleaseGate: Identifiable {
   }
 }
 
+private struct WishlistManualPurchaseDayPlanEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var seller: String
+  var account: String
+  var linkedOrder: TrackedOrder?
+  var confirmationCandidates: Int
+  var stage: String
+  var nextAction: String
+  var nextSymbol: String
+  var detail: String
+  var steps: [String]
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistPurchaseOperatorChecklist: Identifiable {
   var id: UUID { item.id }
   var item: WishlistItem
@@ -4825,6 +5017,88 @@ private struct WishlistPurchaseReleaseChecklistRow: View {
     }
     .padding(10)
     .background(gate.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistManualPurchaseDayPlanRow: View {
+  var entry: WishlistManualPurchaseDayPlanEntry
+  var onPrimary: () -> Void
+  var onPurchased: () -> Void
+  var onConfirmation: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var orderSummary: String {
+    if let linkedOrder = entry.linkedOrder {
+      return "\(linkedOrder.orderNumber) • \(linkedOrder.latestStatus)"
+    }
+    if entry.confirmationCandidates > 0 {
+      return "\(entry.confirmationCandidates) Inbox candidate\(entry.confirmationCandidates == 1 ? "" : "s")"
+    }
+    return "No linked order yet"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "calendar.badge.clock")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(entry.seller) • \(entry.account)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Seller", value: entry.seller, symbol: "storefront.fill")
+        WishlistMatrixMetric(title: "Account", value: entry.account, symbol: "person.crop.circle")
+        WishlistMatrixMetric(title: "Order trail", value: orderSummary, symbol: "envelope.badge.fill")
+        WishlistMatrixMetric(title: "Purchase state", value: entry.item.purchaseHandoff?.purchaseStatus ?? "Not purchased", symbol: "bag.fill")
+      }
+
+      VStack(alignment: .leading, spacing: 5) {
+        Label("Manual sequence", systemImage: "list.number")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        ForEach(Array(entry.steps.prefix(5).enumerated()), id: \.offset) { index, step in
+          HStack(alignment: .top, spacing: 6) {
+            Text("\(index + 1).")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(entry.tone)
+              .frame(width: 18, alignment: .trailing)
+            Text(step)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onPrimary)
+        Button("Purchased", systemImage: "bag.fill", action: onPurchased)
+        Button("Confirmation", systemImage: "envelope.badge.fill", action: onConfirmation)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
