@@ -405,6 +405,7 @@ struct WishlistView: View {
         wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
+        wishlistPostPurchaseMonitorPanel
         wishlistOrderConfirmationMatchingPanel
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
@@ -3746,6 +3747,173 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPostPurchaseMonitorEntries: [WishlistPostPurchaseMonitorEntry] {
+    store.wishlistItems
+      .compactMap(wishlistPostPurchaseMonitorEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPostPurchaseMonitorPanel: some View {
+    let entries = wishlistPostPurchaseMonitorEntries
+    let needsHandoff = entries.filter { $0.stage == "Prepare handoff" }.count
+    let awaitingConfirmation = entries.filter { $0.stage == "Awaiting confirmation" }.count
+    let matchReview = entries.filter { $0.stage == "Review confirmation" }.count
+    let linked = entries.filter { $0.stage == "Linked order" }.count
+
+    return SettingsPanel(title: "Post-purchase monitor", symbol: "bag.badge.clock.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this monitor after a Wishlist item is ready to buy or has been bought externally. It keeps the local path visible: handoff, purchase recorded, Inbox confirmation, linked order, and operations follow-up.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Monitoring", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Need handoff", "\(needsHandoff)", needsHandoff == 0 ? .green : .purple),
+          ("Awaiting", "\(awaitingConfirmation)", awaitingConfirmation == 0 ? .green : .orange),
+          ("Review match", "\(matchReview)", matchReview == 0 ? .secondary : .teal),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist purchases to monitor",
+            detail: "Accepted purchase decisions, prepared handoffs, externally purchased items, and linked orders will appear here.",
+            symbol: "bag.badge.clock.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPostPurchaseMonitorRow(entry: entry) {
+                runWishlistPostPurchaseMonitorAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more monitored Wishlist purchase\(remaining == 1 ? "" : "s") are available in detailed rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This monitor is local only. It does not run background mailbox checks, contact sellers, log in, purchase, send mail, mutate mailbox messages, or update retailer/order systems.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPostPurchaseMonitorEntry(for item: WishlistItem) -> WishlistPostPurchaseMonitorEntry? {
+    let decision = item.purchaseDecision
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    let matches = store.suggestedWishlistOrderConfirmations(for: item)
+    let isPurchaseRelated = decision?.reviewState == .accepted
+      || handoff != nil
+      || linkedOrder != nil
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation")
+      || !matches.isEmpty
+
+    guard isPurchaseRelated else { return nil }
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if handoff == nil {
+      stage = "Prepare handoff"
+      detail = "Purchase decision is ready enough for account, cost, and order-watch handoff."
+      nextAction = "Prepare handoff"
+      nextSymbol = "person.crop.circle.badge.checkmark"
+      tone = .purple
+      sortPriority = 10
+    } else if linkedOrder != nil {
+      stage = "Linked order"
+      detail = "Wishlist purchase is linked to \(linkedOrder?.orderNumber ?? "an order"). Continue in Orders, Dispatch, and Tasks."
+      nextAction = "Focus item"
+      nextSymbol = "scope"
+      tone = .green
+      sortPriority = 50
+    } else if !matches.isEmpty {
+      stage = "Review confirmation"
+      detail = "\(matches.count) Inbox confirmation candidate\(matches.count == 1 ? "" : "s") may link this purchase to an order."
+      nextAction = "Use match"
+      nextSymbol = "link.badge.plus"
+      tone = .teal
+      sortPriority = 20
+    } else if handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+                || item.status.localizedCaseInsensitiveContains("awaiting order")
+                || item.status.localizedCaseInsensitiveContains("confirmation") {
+      stage = "Awaiting confirmation"
+      detail = "External purchase is recorded, but no matching Inbox confirmation is linked yet."
+      nextAction = "Mark seen"
+      nextSymbol = "envelope.badge.fill"
+      tone = .orange
+      sortPriority = 30
+    } else {
+      stage = "Ready to purchase"
+      detail = "Handoff exists. Record the external purchase when done, then watch Inbox for confirmation."
+      nextAction = "Purchased"
+      nextSymbol = "bag.fill"
+      tone = .blue
+      sortPriority = 40
+    }
+
+    return WishlistPostPurchaseMonitorEntry(
+      item: item,
+      handoff: handoff,
+      linkedOrder: linkedOrder,
+      matches: matches,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistPostPurchaseMonitorAction(for entry: WishlistPostPurchaseMonitorEntry) {
+    switch entry.stage {
+    case "Prepare handoff":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Review confirmation":
+      if let email = entry.matches.first {
+        store.confirmWishlistOrderFromIntake(entry.item, email: email)
+      } else {
+        store.markWishlistOrderConfirmationSeen(entry.item)
+      }
+    case "Awaiting confirmation":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    case "Ready to purchase":
+      store.recordWishlistPurchasedExternally(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistPurchaseAccountLedgerItems: [WishlistPurchaseAccountLedgerEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPurchaseAccountLedgerEntry? in
@@ -5328,6 +5496,100 @@ private struct WishlistPurchaseAccountLedgerEntry: Identifiable {
   var actionTitle: String
   var actionSymbol: String
   var sortPriority: Int
+}
+
+private struct WishlistPostPurchaseMonitorEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var handoff: WishlistPurchaseHandoff?
+  var linkedOrder: TrackedOrder?
+  var matches: [ForwardedEmailIntake]
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistPostPurchaseMonitorRow: View {
+  var entry: WishlistPostPurchaseMonitorEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var orderSummary: String {
+    if let linkedOrder = entry.linkedOrder {
+      return "\(linkedOrder.store) \(linkedOrder.orderNumber) • \(linkedOrder.status)"
+    }
+    if let handoff = entry.handoff {
+      return "\(handoff.sellerName) • \(handoff.accountLabel) • \(handoff.purchaseStatus)"
+    }
+    return "No purchase handoff yet"
+  }
+
+  private var confirmationSummary: String {
+    if entry.matches.isEmpty {
+      return "No Inbox confirmation candidates"
+    }
+    let first = entry.matches[0]
+    let order = first.detectedOrderNumber.isPlaceholderValidationValue ? "order pending" : first.detectedOrderNumber
+    let tracking = first.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking pending" : first.detectedTrackingNumber
+    return "\(entry.matches.count) candidate\(entry.matches.count == 1 ? "" : "s") • \(order) • \(tracking)"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.linkedOrder == nil ? "bag.badge.clock.fill" : "bag.badge.checkmark.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(orderSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          if !entry.matches.isEmpty {
+            Badge("\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es")", color: .teal)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 135) {
+        WishlistMatrixMetric(title: "Confirmation", value: confirmationSummary, symbol: "envelope.badge.fill")
+        WishlistMatrixMetric(title: "Order link", value: entry.linkedOrder?.orderNumber ?? "Not linked", symbol: "link")
+        WishlistMatrixMetric(title: "Watch status", value: entry.handoff?.orderWatchStatus ?? "No handoff", symbol: "eye.fill")
+        WishlistMatrixMetric(title: "Purchase status", value: entry.handoff?.purchaseStatus ?? entry.item.status, symbol: "bag.fill")
+      }
+
+      Text("Manual follow-up only. Use Inbox confirmation or local order link as the source of truth after buying externally.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPurchaseAccountLedgerRow: View {
