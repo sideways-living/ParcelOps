@@ -19357,6 +19357,127 @@ final class ParcelOpsStore {
     )
   }
 
+  var wishlistAgentReadinessSummary: WishlistAgentReadinessSummary {
+    let activeItems = wishlistItems
+    let researchRequests = wishlistResearchRequests
+    let readyBriefs = researchRequests.filter(\.isAgentBriefReady)
+    let scopeGapRequests = researchRequests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let sellerOptions = activeItems.flatMap { $0.comparisonOptions ?? [] }
+    let sellerOptionGaps = sellerOptions.reduce(0) { total, option in
+      total + option.operatorSellerEvidenceGaps.count
+    }
+    let trustReviewCount = sellerOptions.filter { option in
+      option.trustRating.localizedCaseInsensitiveContains("unknown")
+        || option.trustRating.localizedCaseInsensitiveContains("review")
+        || option.trustRating.localizedCaseInsensitiveContains("low")
+        || (option.riskLevel ?? "").localizedCaseInsensitiveContains("high")
+    }.count + wishlistSellerTrustRecords.filter { $0.reviewState != .accepted }.count
+    let itemsWithoutComparison = activeItems.filter { ($0.comparisonOptions ?? []).isEmpty }.count
+    let purchaseHandoffGaps = activeItems.reduce(0) { total, item in
+      total + item.operatorPurchaseBlockers.filter { blocker in
+        blocker.localizedCaseInsensitiveContains("purchase")
+          || blocker.localizedCaseInsensitiveContains("handoff")
+          || blocker.localizedCaseInsensitiveContains("decision")
+      }.count
+    }
+    let orderWatchGaps = activeItems.filter { item in
+      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+    }.count + wishlistOrderWatchRecords.filter {
+      $0.linkedOrderID == nil && $0.reviewState != .accepted
+    }.count
+    let readyPurchaseLinks = wishlistPurchaseLinkRecords.filter {
+      $0.selectedForPurchase
+        && $0.reviewState == .accepted
+        && !$0.productURL.isPlaceholderValidationValue
+        && !$0.estimatedAUDTotal.isPlaceholderValidationValue
+    }.count
+    let readyApprovals = wishlistPurchaseApprovalRecords.filter {
+      $0.reviewState == .accepted
+        && ($0.approvalStatus.localizedCaseInsensitiveContains("approved")
+          || $0.approvalStatus.localizedCaseInsensitiveContains("accepted"))
+    }.count
+
+    let items: [WishlistAgentReadinessItem] = [
+      WishlistAgentReadinessItem(
+        title: "Research brief scope",
+        status: readyBriefs.isEmpty ? "No ready briefs" : "\(readyBriefs.count) ready",
+        detail: scopeGapRequests.isEmpty ? "Ready briefs include item, source, AUD budget, region, postage, trust, and no-purchase boundaries." : "\(scopeGapRequests.count) brief\(scopeGapRequests.count == 1 ? "" : "s") need scope cleanup before future agent handoff.",
+        tone: scopeGapRequests.isEmpty && !readyBriefs.isEmpty ? "success" : "attention",
+        nextAction: scopeGapRequests.isEmpty ? "Create a batch brief when you want to hand off research." : "Open Wishlist research requests and fill missing scope fields."
+      ),
+      WishlistAgentReadinessItem(
+        title: "Seller comparison evidence",
+        status: sellerOptions.isEmpty ? "No options" : "\(sellerOptions.count) options",
+        detail: sellerOptionGaps == 0 && !sellerOptions.isEmpty ? "Seller options have local product link, AUD total, postage, trust, and recommendation fields." : "\(sellerOptionGaps) seller option evidence gap\(sellerOptionGaps == 1 ? "" : "s") remain across \(max(sellerOptions.count, itemsWithoutComparison)) item\(max(sellerOptions.count, itemsWithoutComparison) == 1 ? "" : "s").",
+        tone: sellerOptionGaps == 0 && !sellerOptions.isEmpty ? "success" : "warning",
+        nextAction: sellerOptionGaps == 0 ? "Review the best option before purchase approval." : "Clean product links, AUD totals, postage, and recommendation notes."
+      ),
+      WishlistAgentReadinessItem(
+        title: "Seller trust gate",
+        status: trustReviewCount == 0 ? "Clear locally" : "\(trustReviewCount) review",
+        detail: trustReviewCount == 0 ? "No current seller option or trust record is flagged as low, unknown, high risk, or unreviewed." : "Price should not beat trust. Review low/unknown/high-risk sellers before purchase handoff.",
+        tone: trustReviewCount == 0 ? "success" : "warning",
+        nextAction: trustReviewCount == 0 ? "Keep trust evidence with the selected purchase link." : "Open seller trust panels and record evidence or block the seller."
+      ),
+      WishlistAgentReadinessItem(
+        title: "Purchase approval and links",
+        status: "\(readyPurchaseLinks) links / \(readyApprovals) approvals",
+        detail: readyPurchaseLinks > 0 && readyApprovals > 0 ? "At least one purchase route has an accepted link and approval record." : "Accepted purchase links and approvals are still local prerequisites before buying outside ParcelOps.",
+        tone: readyPurchaseLinks > 0 && readyApprovals > 0 ? "success" : "attention",
+        nextAction: "Confirm the selected product link, account context, approved limit, payment method summary, and no-checkout boundary."
+      ),
+      WishlistAgentReadinessItem(
+        title: "Post-purchase order watch",
+        status: orderWatchGaps == 0 ? "No open watch gaps" : "\(orderWatchGaps) open",
+        detail: orderWatchGaps == 0 ? "No current Wishlist handoff is waiting for local order confirmation linking." : "After buying externally, the order confirmation still needs to be found in Inbox/Orders and linked locally.",
+        tone: orderWatchGaps == 0 ? "success" : "attention",
+        nextAction: orderWatchGaps == 0 ? "Keep monitoring manually only when purchases occur." : "Use order-watch records and Inbox linked-order shortcuts after mailbox refresh."
+      )
+    ]
+
+    let warningCount = items.filter { $0.tone == "warning" }.count
+    let attentionCount = items.filter { $0.tone == "attention" }.count
+    let title: String
+    let verdict: String
+    let detail: String
+    let tone: String
+    if activeItems.isEmpty {
+      title = "Wishlist agent path not started"
+      verdict = "Add Wishlist items before agent readiness matters"
+      detail = "No active Wishlist items exist. Manual capture is the first step."
+      tone = "neutral"
+    } else if warningCount > 0 {
+      title = "Wishlist agent path has blockers"
+      verdict = "\(warningCount) blocker area\(warningCount == 1 ? "" : "s") before live research or purchase handoff"
+      detail = "Do not treat Wishlist as purchase-ready until seller comparison and trust evidence are complete."
+      tone = "warning"
+    } else if attentionCount > 0 {
+      title = "Wishlist agent path needs operator review"
+      verdict = "\(attentionCount) area\(attentionCount == 1 ? "" : "s") need review before release"
+      detail = "The workflow is usable locally, but agent/live research remains a manual-review boundary."
+      tone = "attention"
+    } else {
+      title = "Wishlist agent path is locally prepared"
+      verdict = "Local records are ready for controlled manual research"
+      detail = "This does not mean live web research, currency conversion, seller trust lookup, checkout, purchase, or order monitoring is active."
+      tone = "success"
+    }
+
+    return WishlistAgentReadinessSummary(
+      title: title,
+      verdict: verdict,
+      detail: detail,
+      tone: tone,
+      readyBriefCount: readyBriefs.count,
+      scopeGapCount: scopeGapRequests.reduce(0) { $0 + $1.agentBriefGaps.count },
+      sellerOptionGapCount: sellerOptionGaps,
+      trustReviewCount: trustReviewCount,
+      purchaseHandoffGapCount: purchaseHandoffGaps,
+      orderWatchGapCount: orderWatchGaps,
+      items: items
+    )
+  }
+
   func runWishlistPurchaseReadinessCheck(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

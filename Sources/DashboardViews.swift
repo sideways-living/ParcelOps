@@ -628,6 +628,28 @@ struct DashboardView: View {
   private var wishlistBatchBriefNeeded: Bool {
     !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
   }
+  private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
+    store.wishlistAgentReadinessSummary
+  }
+  private var wishlistAgentReadinessIssueCount: Int {
+    wishlistAgentReadiness.scopeGapCount
+      + wishlistAgentReadiness.sellerOptionGapCount
+      + wishlistAgentReadiness.trustReviewCount
+      + wishlistAgentReadiness.purchaseHandoffGapCount
+      + wishlistAgentReadiness.orderWatchGapCount
+  }
+  private var wishlistAgentReadinessTint: Color {
+    switch wishlistAgentReadiness.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .purple
+    default:
+      return .secondary
+    }
+  }
   private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
     (item.comparisonOptions ?? []).reduce(0) { total, option in
       total + option.operatorSellerEvidenceGaps.count
@@ -2033,15 +2055,15 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + (wishlistBatchBriefNeeded ? 1 : 0),
+              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
               detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty
                 ? (wishlistBatchBriefNeeded
-                  ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet before future comparison work. Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked."
-                  : "Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
-                : "Top blockers: \(wishlistAttentionBlockerSummary). Release checklist: \(wishlistReleaseReadyItems.count) ready, \(wishlistReleaseBlockedItems.count) blocked.",
-              nextAction: wishlistDashboardNextAction,
+                  ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
+                  : "\(wishlistAgentReadiness.verdict). Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
+                : "Top blockers: \(wishlistAttentionBlockerSummary). Agent verdict: \(wishlistAgentReadiness.verdict).",
+              nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
-              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && !wishlistBatchBriefNeeded ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
+              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && !wishlistBatchBriefNeeded ? wishlistAgentReadinessTint : .purple
             ) {
               WishlistView(store: store)
             }

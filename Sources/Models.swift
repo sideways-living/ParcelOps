@@ -3112,6 +3112,30 @@ struct WishlistOrderWatchRecord: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct WishlistAgentReadinessItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var status: String
+  var detail: String
+  var tone: String
+  var nextAction: String
+}
+
+struct WishlistAgentReadinessSummary: Identifiable, Hashable {
+  var id = "wishlist-agent-readiness"
+  var title: String
+  var verdict: String
+  var detail: String
+  var tone: String
+  var readyBriefCount: Int
+  var scopeGapCount: Int
+  var sellerOptionGapCount: Int
+  var trustReviewCount: Int
+  var purchaseHandoffGapCount: Int
+  var orderWatchGapCount: Int
+  var items: [WishlistAgentReadinessItem]
+}
+
 extension WishlistResearchRequest {
   var agentBriefGaps: [String] {
     var gaps: [String] = []

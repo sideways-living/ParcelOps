@@ -229,6 +229,46 @@ private struct WishlistCaptureSourceReadiness: Identifiable {
   var tone: Color
 }
 
+private struct WishlistAgentReadinessVerdictRow: View {
+  var item: WishlistAgentReadinessItem
+
+  private var color: Color {
+    switch item.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: item.tone == "success" ? "checkmark.circle.fill" : item.tone == "warning" ? "exclamationmark.triangle.fill" : "circle.dashed.inset.filled")
+          .foregroundStyle(color)
+        Text(item.title)
+          .font(.caption.weight(.semibold))
+        Spacer(minLength: 8)
+        Badge(item.status, color: color)
+      }
+      Text(item.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Next: \(item.nextAction)")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct WishlistExtensionPayloadField: Identifiable {
   var id: String { name }
   var name: String
@@ -507,6 +547,7 @@ struct WishlistView: View {
         wishlistBrowserExtensionPayloadPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
+        wishlistAgentReadinessVerdictPanel
         wishlistSellerOptionReviewPanel
         wishlistSellerSafetyRubricPanel
         wishlistSellerTrustDiligencePanel
@@ -1795,6 +1836,68 @@ struct WishlistView: View {
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var wishlistAgentReadinessVerdictPanel: some View {
+    let summary = store.wishlistAgentReadinessSummary
+    let color = wishlistAgentReadinessColor(summary.tone)
+
+    return SettingsPanel(title: "Wishlist agent readiness verdict", symbol: "sparkles.rectangle.stack.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: summary.tone == "success" ? "checkmark.seal.fill" : summary.tone == "warning" ? "exclamationmark.triangle.fill" : "person.text.rectangle.fill")
+            .foregroundStyle(color)
+            .frame(width: 26)
+          VStack(alignment: .leading, spacing: 5) {
+            Text(summary.title)
+              .font(.headline)
+            Text(summary.verdict)
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(color)
+            Text(summary.detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(summary.tone.capitalized, color: color)
+        }
+        .padding(10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        MetricStrip(items: [
+          ("Ready briefs", "\(summary.readyBriefCount)", summary.readyBriefCount == 0 ? .secondary : .green),
+          ("Scope gaps", "\(summary.scopeGapCount)", summary.scopeGapCount == 0 ? .green : .orange),
+          ("Seller gaps", "\(summary.sellerOptionGapCount)", summary.sellerOptionGapCount == 0 ? .green : .orange),
+          ("Trust review", "\(summary.trustReviewCount)", summary.trustReviewCount == 0 ? .green : .red),
+          ("Order watch", "\(summary.orderWatchGapCount)", summary.orderWatchGapCount == 0 ? .green : .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(summary.items) { item in
+            WishlistAgentReadinessVerdictRow(item: item)
+          }
+        }
+
+        Text("Boundary: this verdict is computed from local Wishlist records only. It does not browse websites, compare live prices, convert currencies, quote postage, rate external sellers, open accounts, buy items, pay, or monitor orders in the background.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistAgentReadinessColor(_ tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .teal
+    default:
+      return .secondary
     }
   }
 
