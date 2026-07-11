@@ -198,6 +198,8 @@ private struct WishlistOperatorQueueEntry: Identifiable {
   var nextSymbol: String
   var sellerSummary: String
   var statusSummary: String
+  var handoffSummary: String?
+  var orderWatchSummary: String?
   var tone: Color
   var sortPriority: Int
 }
@@ -235,6 +237,12 @@ private struct WishlistOperatorQueueRow: View {
         Label(entry.statusSummary, systemImage: "checkmark.seal.fill")
         Label(entry.item.owner, systemImage: "person.crop.circle")
         Label(entry.item.source.rawValue, systemImage: "square.and.arrow.down.fill")
+        if let handoffSummary = entry.handoffSummary {
+          Label(handoffSummary, systemImage: "person.crop.circle.badge.checkmark")
+        }
+        if let orderWatchSummary = entry.orderWatchSummary {
+          Label(orderWatchSummary, systemImage: "envelope.badge.fill")
+        }
       }
       .font(.caption2)
       .foregroundStyle(.secondary)
@@ -983,6 +991,10 @@ struct WishlistView: View {
     } ?? options.first
     let checks = item.purchaseChecks ?? []
     let failedChecks = checks.filter { $0.status != "Passed" }
+    let handoff = item.purchaseHandoff
+    let isPurchased = handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+      || item.status.localizedCaseInsensitiveContains("awaiting order")
+      || item.status.localizedCaseInsensitiveContains("confirmation")
 
     let workflow: WishlistWorkflowFocus
     let stage: String
@@ -1059,6 +1071,14 @@ struct WishlistView: View {
       nextSymbol = "person.crop.circle.badge.checkmark"
       tone = .green
       sortPriority = 80
+    } else if item.purchaseHandoff?.linkedOrderID == nil && !isPurchased {
+      workflow = .watch
+      stage = "Ready to purchase"
+      detail = "Manual purchase handoff is prepared. Record the external purchase only after buying outside ParcelOps."
+      nextAction = "Record purchase"
+      nextSymbol = "bag.fill"
+      tone = .blue
+      sortPriority = 85
     } else if item.purchaseHandoff?.linkedOrderID == nil {
       workflow = .watch
       stage = "Watch confirmation"
@@ -1086,6 +1106,8 @@ struct WishlistView: View {
       nextSymbol: nextSymbol,
       sellerSummary: preferred.map { "\($0.sellerName) • \($0.estimatedAUDTotal) • \($0.trustRating)" } ?? item.storefront,
       statusSummary: item.purchaseReadiness ?? item.status,
+      handoffSummary: handoff.map { "\($0.sellerName) • \($0.accountLabel)" },
+      orderWatchSummary: handoff.map { $0.linkedOrderID == nil ? $0.orderWatchStatus : "Linked order ready" },
       tone: tone,
       sortPriority: sortPriority
     )
@@ -1108,6 +1130,8 @@ struct WishlistView: View {
       store.createWishlistPurchaseDecisionReviewTask(entry.item)
     case "Handoff needed":
       store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Ready to purchase":
+      store.recordWishlistPurchasedExternally(entry.item)
     case "Watch confirmation":
       store.markWishlistOrderConfirmationSeen(entry.item)
     default:
