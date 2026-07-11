@@ -5,6 +5,7 @@ struct MailboxView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var intakeSearchText = ""
   @State private var showResolvedIntakeEmails = false
+  @State private var providerSetupFeedbackMessage: String?
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -213,6 +214,33 @@ struct MailboxView: View {
     }
   }
 
+  private func addOrFocusSpaceMailSetup() {
+    if store.spaceMailIMAPConnections.isEmpty {
+      store.addSpaceMailIMAPConnectionPlaceholder()
+      providerSetupFeedbackMessage = "SpaceMail setup added locally. Confirm host/folder details and set the Keychain credential before real refresh."
+    } else {
+      providerSetupFeedbackMessage = "Use the existing SpaceMail setup row below. Add another setup only when there is a second IMAP mailbox to manage."
+    }
+  }
+
+  private func addOrFocusGmailSetup() {
+    if store.gmailMailboxConnections.isEmpty {
+      store.addGmailMailboxConnectionPlaceholder()
+      providerSetupFeedbackMessage = "Gmail setup added locally. Complete non-secret Google app details before sign-in or real refresh."
+    } else {
+      providerSetupFeedbackMessage = "Use the existing Gmail setup row below. Add another setup only when there is a second Gmail or Google Workspace mailbox."
+    }
+  }
+
+  private func addOrFocusMicrosoft365Setup() {
+    if store.microsoft365MailboxConnections.isEmpty {
+      store.addMicrosoft365MailboxConnectionPlaceholder()
+      providerSetupFeedbackMessage = "Microsoft 365 setup added locally. Keep this path advanced unless the mailbox is Microsoft-hosted."
+    } else {
+      providerSetupFeedbackMessage = "Use the existing Microsoft 365 setup row below. Keep it secondary unless this mailbox is actually Microsoft-hosted."
+    }
+  }
+
   private var activeMailboxProviderPanel: some View {
     SettingsPanel(title: "Active mailbox path", symbol: "arrow.triangle.branch") {
       VStack(alignment: .leading, spacing: 12) {
@@ -365,6 +393,15 @@ struct MailboxView: View {
 
         SpaceMailOperatorGuidanceStack(store: store)
 
+        if let providerSetupFeedbackMessage {
+          Label(providerSetupFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
           Text("Use SpaceMail for IMAP mailboxes. Gmail setup below covers Google-hosted mailboxes; both feed the same local Inbox intake path.")
             .font(.subheadline)
@@ -373,7 +410,9 @@ struct MailboxView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("Add SpaceMail setup", systemImage: "plus", action: store.addSpaceMailIMAPConnectionPlaceholder)
+            Button(store.spaceMailIMAPConnections.isEmpty ? "Add SpaceMail setup" : "Show existing SpaceMail setup", systemImage: store.spaceMailIMAPConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusSpaceMailSetup()
+            }
               .buttonStyle(.bordered)
             Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
           }
@@ -466,7 +505,9 @@ struct MailboxView: View {
             .foregroundStyle(.secondary)
           GmailGoogleCloudSetupGuide()
           CompactActionRow {
-            Button("Add Gmail setup", systemImage: "plus", action: store.addGmailMailboxConnectionPlaceholder)
+            Button(store.gmailMailboxConnections.isEmpty ? "Add Gmail setup" : "Show existing Gmail setup", systemImage: store.gmailMailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusGmailSetup()
+            }
               .buttonStyle(.bordered)
             Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
           }
@@ -630,7 +671,9 @@ struct MailboxView: View {
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add mailbox setup", systemImage: "plus", action: store.addMicrosoft365MailboxConnectionPlaceholder)
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Microsoft 365 setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusMicrosoft365Setup()
+            }
               .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
