@@ -531,7 +531,10 @@ struct OperationsWorkbenchView: View {
 
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
-      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + spaceMailUncertainCount
+      + pendingFilteredSpaceMailCount
+      + gmailUncertainCount
+      + pendingGmailFilteredReviewCount
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
