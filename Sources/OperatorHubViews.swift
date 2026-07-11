@@ -360,7 +360,9 @@ struct InboxView: View {
   private var wishlistOrderWatchItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
-        item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+        store.isActiveWishlistItem(item)
+          && item.purchaseHandoff != nil
+          && item.purchaseHandoff?.linkedOrderID == nil
       }
       .sorted { first, second in
         let firstMatches = store.suggestedWishlistOrderConfirmations(for: first).count

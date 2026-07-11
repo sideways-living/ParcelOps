@@ -19398,7 +19398,7 @@ final class ParcelOpsStore {
   }
 
   var wishlistAgentReadinessSummary: WishlistAgentReadinessSummary {
-    let activeItems = wishlistItems
+    let activeItems = wishlistItems.filter(isActiveWishlistItem)
     let researchRequests = wishlistResearchRequests
     let readyBriefs = researchRequests.filter(\.isAgentBriefReady)
     let scopeGapRequests = researchRequests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
@@ -19411,7 +19411,9 @@ final class ParcelOpsStore {
         || option.trustRating.localizedCaseInsensitiveContains("review")
         || option.trustRating.localizedCaseInsensitiveContains("low")
         || (option.riskLevel ?? "").localizedCaseInsensitiveContains("high")
-    }.count + wishlistSellerTrustRecords.filter { $0.reviewState != .accepted }.count
+    }.count + wishlistSellerTrustRecords.filter {
+      isActiveWishlistSellerTrustRecord($0) && $0.reviewState != .accepted
+    }.count
     let itemsWithoutComparison = activeItems.filter { ($0.comparisonOptions ?? []).isEmpty }.count
     let purchaseHandoffGaps = activeItems.reduce(0) { total, item in
       total + item.operatorPurchaseBlockers.filter { blocker in
@@ -19423,16 +19425,20 @@ final class ParcelOpsStore {
     let orderWatchGaps = activeItems.filter { item in
       item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
     }.count + wishlistOrderWatchRecords.filter {
-      $0.linkedOrderID == nil && $0.reviewState != .accepted
+      isActiveWishlistOrderWatchRecord($0)
+        && $0.linkedOrderID == nil
+        && $0.reviewState != .accepted
     }.count
     let readyPurchaseLinks = wishlistPurchaseLinkRecords.filter {
-      $0.selectedForPurchase
+      isActiveWishlistPurchaseLinkRecord($0)
+        && $0.selectedForPurchase
         && $0.reviewState == .accepted
         && !$0.productURL.isPlaceholderValidationValue
         && !$0.estimatedAUDTotal.isPlaceholderValidationValue
     }.count
     let readyApprovals = wishlistPurchaseApprovalRecords.filter {
-      $0.reviewState == .accepted
+      isActiveWishlistPurchaseApprovalRecord($0)
+        && $0.reviewState == .accepted
         && ($0.approvalStatus.localizedCaseInsensitiveContains("approved")
           || $0.approvalStatus.localizedCaseInsensitiveContains("accepted"))
     }.count
@@ -20662,6 +20668,11 @@ final class ParcelOpsStore {
     return wishlistItems.first { $0.id == id }
   }
 
+  func wishlistItem(id: UUID?) -> WishlistItem? {
+    guard let id else { return nil }
+    return wishlistItems.first { $0.id == id }
+  }
+
   func isActiveWishlistLinkedEntity(type: ReviewTaskLinkedEntityType, id: String) -> Bool {
     guard type == .wishlistItem, let item = wishlistItem(linkedEntityID: id) else {
       return true
@@ -20679,6 +20690,31 @@ final class ParcelOpsStore {
 
   func isActiveWishlistDraft(_ draft: DraftMessage) -> Bool {
     isActiveWishlistLinkedEntity(type: draft.linkedEntityType, id: draft.linkedEntityID)
+  }
+
+  func isActiveWishlistPurchaseLinkRecord(_ record: WishlistPurchaseLinkRecord) -> Bool {
+    guard let item = wishlistItem(id: record.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistOrderWatchRecord(_ record: WishlistOrderWatchRecord) -> Bool {
+    guard let item = wishlistItem(id: record.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistSellerTrustRecord(_ record: WishlistSellerTrustRecord) -> Bool {
+    guard let item = wishlistItem(id: record.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistPurchaseAccountRecord(_ record: WishlistPurchaseAccountRecord) -> Bool {
+    guard let item = wishlistItem(id: record.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistPurchaseApprovalRecord(_ record: WishlistPurchaseApprovalRecord) -> Bool {
+    guard let item = wishlistItem(id: record.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
   }
 
   func activeWishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {
@@ -21845,11 +21881,12 @@ final class ParcelOpsStore {
   func checkOpenWishlistOrderWatchRecords() {
     let candidateIDs = wishlistOrderWatchRecords
       .filter { record in
-        record.linkedOrderID == nil
+        isActiveWishlistOrderWatchRecord(record)
+          && record.linkedOrderID == nil
           && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
       }
       .map(\.id)
-    let beforeLinked = wishlistOrderWatchRecords.filter { $0.linkedOrderID != nil }.count
+    let beforeLinked = wishlistOrderWatchRecords.filter { isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID != nil }.count
     let beforeWaiting = candidateIDs.count
     guard !candidateIDs.isEmpty else {
       logAudit(
@@ -21869,7 +21906,7 @@ final class ParcelOpsStore {
       }
     }
 
-    let afterLinked = wishlistOrderWatchRecords.filter { $0.linkedOrderID != nil }.count
+    let afterLinked = wishlistOrderWatchRecords.filter { isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID != nil }.count
     let stillWaiting = wishlistOrderWatchRecords.filter { record in
       candidateIDs.contains(record.id)
         && record.linkedOrderID == nil

@@ -2917,11 +2917,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Snapshot first item", systemImage: "tag.badge.plus") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistPriceSnapshot(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
 
           Button("Task for first snapshot", systemImage: "checklist") {
             if let snapshot = snapshots.first {
@@ -5803,6 +5803,7 @@ struct WishlistView: View {
   private var wishlistPurchaseAccountLedgerItems: [WishlistPurchaseAccountLedgerEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPurchaseAccountLedgerEntry? in
+        guard store.isActiveWishlistItem(item) else { return nil }
         let decision = item.purchaseDecision
         let handoff = item.purchaseHandoff
         let isPurchaseRelated = handoff != nil
@@ -5899,7 +5900,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPurchaseApprovalPanel: some View {
-    let records = store.wishlistPurchaseApprovalRecords.sorted { first, second in
+    let records = store.wishlistPurchaseApprovalRecords.filter(store.isActiveWishlistPurchaseApprovalRecord).sorted { first, second in
       if first.reviewState == second.reviewState {
         return first.createdDate > second.createdDate
       }
@@ -5930,11 +5931,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add approval", systemImage: "checkmark.seal") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistPurchaseApprovalRecord(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -5987,7 +5988,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPurchaseLinkPanel: some View {
-    let records = store.wishlistPurchaseLinkRecords.sorted { first, second in
+    let records = store.wishlistPurchaseLinkRecords.filter(store.isActiveWishlistPurchaseLinkRecord).sorted { first, second in
       if first.selectedForPurchase != second.selectedForPurchase {
         return first.selectedForPurchase
       }
@@ -6022,11 +6023,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add link", systemImage: "link.badge.plus") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistPurchaseLinkRecord(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -6081,7 +6082,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPurchaseAccountReadinessPanel: some View {
-    let records = store.wishlistPurchaseAccountRecords.sorted { first, second in
+    let records = store.wishlistPurchaseAccountRecords.filter(store.isActiveWishlistPurchaseAccountRecord).sorted { first, second in
       if first.reviewState == second.reviewState {
         return first.createdDate > second.createdDate
       }
@@ -6109,11 +6110,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add account record", systemImage: "person.badge.plus") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistPurchaseAccountRecord(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -6236,7 +6237,7 @@ struct WishlistView: View {
   }
 
   private var wishlistOrderWatchRecordsPanel: some View {
-    let records = store.wishlistOrderWatchRecords.sorted { first, second in
+    let records = store.wishlistOrderWatchRecords.filter(store.isActiveWishlistOrderWatchRecord).sorted { first, second in
       if (first.linkedOrderID == nil) != (second.linkedOrderID == nil) {
         return first.linkedOrderID == nil
       }
@@ -6267,11 +6268,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add watch rule", systemImage: "envelope.badge.shield.half.filled") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistOrderWatchRecord(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           Button("Check open rules", systemImage: "magnifyingglass.circle") {
             store.checkOpenWishlistOrderWatchRecords()
           }
@@ -6566,6 +6567,7 @@ struct WishlistView: View {
   private var wishlistPostPurchaseOrderWatchEntries: [WishlistPostPurchaseOrderWatchEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPostPurchaseOrderWatchEntry? in
+        guard store.isActiveWishlistItem(item) else { return nil }
         guard let handoff = item.purchaseHandoff,
               handoff.linkedOrderID == nil else { return nil }
         let matches = store.suggestedWishlistOrderConfirmations(for: item)
@@ -6664,6 +6666,7 @@ struct WishlistView: View {
   private var wishlistPurchaseOperationsHandoffItems: [WishlistPurchaseOperationsHandoffEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPurchaseOperationsHandoffEntry? in
+        guard store.isActiveWishlistItem(item) else { return nil }
         guard item.purchaseHandoff != nil
           || item.status.localizedCaseInsensitiveContains("order confirmation")
           || item.status.localizedCaseInsensitiveContains("awaiting order")
@@ -8223,11 +8226,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add quote for first item", systemImage: "cart.badge.plus") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistSellerQuotePlaceholder(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -8315,11 +8318,11 @@ struct WishlistView: View {
 
         CompactActionRow {
           Button("Add rule for first item", systemImage: "bell.badge.fill") {
-            if let item = store.wishlistItems.first {
+            if let item = store.wishlistItems.first(where: store.isActiveWishlistItem) {
               store.addWishlistPriceWatchRule(item)
             }
           }
-          .disabled(store.wishlistItems.isEmpty)
+          .disabled(!store.wishlistItems.contains(where: store.isActiveWishlistItem))
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -8372,7 +8375,7 @@ struct WishlistView: View {
   }
 
   private var wishlistSellerTrustChecklistPanel: some View {
-    let checks = store.wishlistSellerTrustRecords.sorted { first, second in
+    let checks = store.wishlistSellerTrustRecords.filter(store.isActiveWishlistSellerTrustRecord).sorted { first, second in
       if first.reviewState == second.reviewState {
         return first.checkedDate > second.checkedDate
       }
