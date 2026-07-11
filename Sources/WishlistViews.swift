@@ -495,6 +495,7 @@ struct WishlistView: View {
         wishlistOperationsClosureReadinessPanel
         wishlistAgentResearchRunwayPanel
         wishlistAgentHandoffPacketPanel
+        wishlistAgentOutputContractPanel
         wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
@@ -5634,6 +5635,160 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistAgentOutputContractEntries: [WishlistAgentOutputContractEntry] {
+    store.wishlistResearchRequests
+      .map { request in
+        let gaps = request.agentBriefGaps
+        let isBlocked = request.requestStatus.localizedCaseInsensitiveContains("blocked")
+        let requiredOutputs = [
+          "Product URL",
+          "Seller",
+          "Listed price/currency",
+          "Estimated AUD landed total",
+          "Postage cost",
+          "Postage timing",
+          "Seller trust evidence",
+          "Returns/warranty notes",
+          "Recommendation"
+        ]
+        let stage: String
+        let detail: String
+        let tone: Color
+        let sortPriority: Int
+
+        if isBlocked {
+          stage = "Blocked"
+          detail = "Do not hand off until the block is resolved or the request is replaced."
+          tone = .red
+          sortPriority = 0
+        } else if gaps.isEmpty {
+          stage = "Ready contract"
+          detail = "Brief is ready to be copied into manual research or a future agent run."
+          tone = .green
+          sortPriority = 30
+        } else if gaps == ["operator review"] {
+          stage = "Review contract"
+          detail = "Scope is complete; operator review is the only remaining handoff step."
+          tone = .brown
+          sortPriority = 10
+        } else {
+          stage = "Contract gaps"
+          detail = "Resolve \(gaps.prefix(3).joined(separator: ", ")) before handoff."
+          tone = .orange
+          sortPriority = 20
+        }
+
+        return WishlistAgentOutputContractEntry(
+          request: request,
+          stage: stage,
+          detail: detail,
+          requiredOutputs: requiredOutputs,
+          gaps: gaps,
+          tone: tone,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.request.itemName.localizedCaseInsensitiveCompare(second.request.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistAgentOutputContractPanel: some View {
+    let entries = wishlistAgentOutputContractEntries
+    let ready = entries.filter { $0.stage == "Ready contract" }.count
+    let review = entries.filter { $0.stage == "Review contract" }.count
+    let gaps = entries.filter { $0.stage == "Contract gaps" }.count
+    let blocked = entries.filter { $0.stage == "Blocked" }.count
+
+    return SettingsPanel(title: "Agent research output contract", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This converts Wishlist research briefs into a precise result contract. It tells a future agent or human researcher exactly what must come back before ParcelOps can compare sellers or prepare a purchase decision.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Contracts", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Need review", "\(review)", review == 0 ? .green : .brown),
+          ("Gaps", "\(gaps)", gaps == 0 ? .green : .orange),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red)
+        ])
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Required result fields", systemImage: "list.bullet.rectangle.portrait.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactMetadataGrid(minimumWidth: 145) {
+            Label("Seller/product URL", systemImage: "link")
+            Label("AUD landed total", systemImage: "dollarsign.circle.fill")
+            Label("Postage cost/time", systemImage: "shippingbox.fill")
+            Label("Trust evidence", systemImage: "shield.checkered")
+            Label("Returns/warranty", systemImage: "arrow.uturn.backward.circle.fill")
+            Label("Recommendation", systemImage: "hand.thumbsup.fill")
+          }
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No output contracts yet",
+            detail: "Create Wishlist research requests first. Each request becomes a local contract for comparison results.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistAgentOutputContractRow(entry: entry) {
+                if entry.gaps == ["operator review"] || entry.gaps.isEmpty {
+                  store.markWishlistResearchRequestReviewed(entry.request)
+                } else {
+                  store.createReviewTask(
+                    linkedEntityType: .wishlistItem,
+                    linkedEntityID: entry.request.wishlistItemID?.uuidString ?? entry.request.id.uuidString,
+                    label: entry.request.itemName,
+                    summary: "Resolve Wishlist research output contract gaps before handoff: \(entry.gaps.prefix(5).joined(separator: ", ")).",
+                    priority: .high,
+                    assignee: "Wishlist review"
+                  )
+                }
+              } onDraft: {
+                store.createWishlistResearchBriefDraft(entry.request)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: entry.request.wishlistItemID?.uuidString ?? entry.request.id.uuidString,
+                  label: entry.request.itemName,
+                  summary: "Prepare Wishlist research output contract. Required return fields: seller/product URL, listed price/currency, AUD landed total, postage cost/time, trust evidence, returns/warranty, and recommendation. Boundaries: no checkout, payment, login, credential capture, or mailbox mutation.",
+                  priority: entry.gaps.isEmpty ? .normal : .high,
+                  assignee: "Wishlist review"
+                )
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more output contract\(remaining == 1 ? "" : "s") are available in the research requests list.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Still local-only: this does not browse retailers, convert currencies, quote postage, call seller trust services, run an external agent, log into accounts, purchase, pay, or monitor order pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistAgentBriefQualityEntries: [WishlistAgentBriefQualityEntry] {
     store.wishlistResearchRequests
       .map(wishlistAgentBriefQualityEntry(for:))
@@ -8484,6 +8639,108 @@ private struct WishlistResearchRequestRow: View {
         Button("Remove", systemImage: "trash", action: onRemove)
           .buttonStyle(.bordered)
       }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistAgentOutputContractEntry: Identifiable {
+  var id: UUID { request.id }
+  var request: WishlistResearchRequest
+  var stage: String
+  var detail: String
+  var requiredOutputs: [String]
+  var gaps: [String]
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistAgentOutputContractRow: View {
+  var entry: WishlistAgentOutputContractEntry
+  var onPrimary: () -> Void
+  var onDraft: () -> Void
+  var onTask: () -> Void
+
+  private var primaryTitle: String {
+    if entry.gaps == ["operator review"] || entry.gaps.isEmpty {
+      return "Review"
+    }
+    return "Resolve"
+  }
+
+  private var primarySymbol: String {
+    if entry.gaps == ["operator review"] || entry.gaps.isEmpty {
+      return "checkmark.seal.fill"
+    }
+    return "exclamationmark.triangle.fill"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "doc.text.magnifyingglass")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.request.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 6) {
+          Badge(entry.stage, color: entry.tone)
+          Badge(entry.request.reviewState.rawValue, color: entry.request.reviewState.color)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 135) {
+        Label(entry.request.maxBudgetAUD, systemImage: "dollarsign.circle.fill")
+        Label(entry.request.regionScope, systemImage: "globe.asia.australia.fill")
+        Label(entry.request.createdDate, systemImage: "calendar")
+        Label(entry.gaps.isEmpty ? "No gaps" : "\(entry.gaps.count) gap\(entry.gaps.count == 1 ? "" : "s")", systemImage: entry.gaps.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Return contract", systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(entry.requiredOutputs.joined(separator: " • "))
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(8)
+      .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      if !entry.gaps.isEmpty {
+        Text("Missing before handoff: \(entry.gaps.joined(separator: ", ")).")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Boundary: returned research may inform a local purchase decision, but ParcelOps still must not check out, pay, log into retailer accounts, capture credentials, or mutate mailboxes.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(primaryTitle, systemImage: primarySymbol, action: onPrimary)
+          .buttonStyle(.borderedProminent)
+        Button("Draft brief", systemImage: "doc.badge.plus", action: onDraft)
+          .buttonStyle(.bordered)
+        Button("Task", systemImage: "checklist", action: onTask)
+          .buttonStyle(.bordered)
+      }
+      .controlSize(.small)
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
