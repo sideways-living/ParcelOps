@@ -22047,6 +22047,31 @@ final class ParcelOpsStore {
     )
   }
 
+  func reopenClosedWishlistItem(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    var reopened = wishlistItems[index]
+    var handoff = reopened.purchaseHandoff
+    let hasLinkedOrder = handoff?.linkedOrderID != nil
+    handoff?.purchaseStatus = "Reopened locally for follow-up"
+    handoff?.orderWatchStatus = hasLinkedOrder ? "Reopened with linked local order" : "Reopened; order link needs review"
+    handoff?.updatedAt = Self.auditTimestamp()
+    reopened.purchaseHandoff = handoff
+    reopened.status = hasLinkedOrder ? "Order confirmation linked" : "Order confirmation needs linking"
+    reopened.purchaseReadiness = "Reopened locally after closure"
+    wishlistItems[index] = reopened
+    persistWishlist()
+    logAudit(
+      action: .reopened,
+      entityType: .wishlistItem,
+      entityID: reopened.id.uuidString,
+      entityLabel: reopened.itemName,
+      summary: "Closed Wishlist item reopened locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(reopened.auditDetail)\nReopen was local only. No external order, receiving, inventory, dispatch, mailbox, seller, purchase, payment, or background action occurred."
+    )
+  }
+
   func markWishlistOrderWatchRecordReviewed(_ record: WishlistOrderWatchRecord) {
     guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistOrderWatchRecords[index].auditDetail

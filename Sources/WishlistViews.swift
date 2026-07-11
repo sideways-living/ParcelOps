@@ -395,6 +395,7 @@ private struct WishlistDataQualityRow: View {
 struct WishlistView: View {
   var store: ParcelOpsStore
   @State private var showDeletedItems = false
+  @State private var showClosedItems = false
   @State private var wishlistSearchText = ""
   @State private var selectedSource: WishlistSource?
   @State private var selectedStatus: String?
@@ -407,12 +408,22 @@ struct WishlistView: View {
 
   private let wishlistSources: [WishlistSource] = [.pdf, .screenshot, .shareSheet, .browserExtension, .manual]
 
+  private var closedWishlistItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { $0.status == "Closed locally" }
+      .sorted { first, second in
+        first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+      }
+  }
+
   private var baseFilteredItems: [WishlistItem] {
     store.wishlistItems.filter { item in
+      let isClosed = item.status == "Closed locally"
+      let canShowClosed = showClosedItems || selectedStatus == "Closed locally"
       let matchesSource = selectedSource == nil || item.source == selectedSource
       let matchesStatus = selectedStatus == nil || item.status == selectedStatus
       let matchesWorkflow = selectedWorkflowFocus.matches(item: item, in: store)
-      return matchesSource && matchesStatus && matchesWorkflow
+      return (!isClosed || canShowClosed) && matchesSource && matchesStatus && matchesWorkflow
     }
   }
 
@@ -439,6 +450,7 @@ struct WishlistView: View {
     selectedSource != nil
       || selectedStatus != nil
       || selectedWorkflowFocus != .all
+      || showClosedItems
       || !wishlistSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -607,16 +619,37 @@ struct WishlistView: View {
         }
 
         SettingsPanel(title: "Wishlist items", symbol: "star.square.fill") {
-          HStack {
-            Text("\(filteredItems.count) visible wishlist items")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            if hasActiveFilters {
-              Badge("\(baseFilteredItems.count) after filters", color: .blue)
+          VStack(alignment: .leading, spacing: 10) {
+            HStack {
+              Text("\(filteredItems.count) visible wishlist items")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              if hasActiveFilters {
+                Badge("\(baseFilteredItems.count) after filters", color: .blue)
+              }
+              if !closedWishlistItems.isEmpty && !showClosedItems && selectedStatus != "Closed locally" {
+                Badge("\(closedWishlistItems.count) closed hidden", color: .green)
+              }
+              Spacer()
+              Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+                .buttonStyle(.borderedProminent)
             }
-            Spacer()
-            Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
-              .buttonStyle(.borderedProminent)
+
+            if !closedWishlistItems.isEmpty {
+              CompactActionRow {
+                Button(showClosedItems ? "Hide closed" : "Show closed", systemImage: showClosedItems ? "eye.slash.fill" : "checkmark.circle.fill") {
+                  withAnimation(.snappy) {
+                    showClosedItems.toggle()
+                  }
+                }
+                Button("Closed status", systemImage: "line.3.horizontal.decrease.circle") {
+                  selectedStatus = "Closed locally"
+                  showClosedItems = true
+                }
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
           }
 
           if filteredItems.isEmpty {
@@ -765,6 +798,8 @@ struct WishlistView: View {
             }
           }
         }
+
+        wishlistClosedItemsPanel
 
         SettingsPanel(title: "Deleted items", symbol: "trash.fill") {
           Button {
@@ -943,6 +978,65 @@ struct WishlistView: View {
     selectedSource = nil
     selectedStatus = nil
     selectedWorkflowFocus = .all
+    showClosedItems = false
+  }
+
+  private var wishlistClosedItemsPanel: some View {
+    SettingsPanel(title: "Closed Wishlist items", symbol: "checkmark.circle.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text("Closed items stay in local JSON for audit and linked-order history, but are hidden from the active Wishlist queue unless you show them.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Spacer()
+          Badge("\(closedWishlistItems.count) closed", color: closedWishlistItems.isEmpty ? .secondary : .green)
+        }
+
+        if closedWishlistItems.isEmpty {
+          MVPEmptyState(
+            title: "No locally closed Wishlist items",
+            detail: "Use the operations closure checklist once a Wishlist item has a linked order, receiving, storage, custody, label, manual check, manifest, dispatch, and no open tasks.",
+            symbol: "checkmark.circle.fill"
+          )
+        } else {
+          ForEach(closedWishlistItems.prefix(6)) { item in
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .frame(width: 24)
+              VStack(alignment: .leading, spacing: 4) {
+                Text(item.itemName)
+                  .font(.headline)
+                Text("\(item.storefront) • \(item.owner) • \(item.purchaseHandoff?.purchaseStatus ?? item.status)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                Text("Linked order: \(item.purchaseHandoff?.linkedOrderID?.uuidString ?? "none")")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+              Spacer()
+              Button("Reopen", systemImage: "arrow.uturn.backward.circle.fill") {
+                store.reopenClosedWishlistItem(item)
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+            .padding(10)
+            .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+
+          let remaining = max(closedWishlistItems.count - 6, 0)
+          if remaining > 0 {
+            Text("\(remaining) more closed item\(remaining == 1 ? "" : "s") are available by using the Closed status filter.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      }
+    }
   }
 
   private var wishlistWorkflowFocusPanel: some View {
