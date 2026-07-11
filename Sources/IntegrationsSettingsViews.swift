@@ -2484,6 +2484,26 @@ struct GmailMailboxConnectionRow: View {
           compiledValueRow(label: "GIDClientID", value: gmailExpectedCompiledClientID)
           compiledValueRow(label: "Gmail URL scheme", value: gmailExpectedCompiledCallbackScheme)
         }
+        CompactMetadataGrid(minimumWidth: 240) {
+          ForEach(gmailCompiledConfigFileRows, id: \.title) { row in
+            VStack(alignment: .leading, spacing: 5) {
+              Label(row.title, systemImage: row.symbol)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(row.nextAction)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
         VStack(alignment: .leading, spacing: 6) {
           Label("Operator handoff checklist", systemImage: "checklist")
             .font(.caption2.weight(.semibold))
@@ -2566,6 +2586,44 @@ struct GmailMailboxConnectionRow: View {
       return "These are the non-secret values the compiled app should contain for this saved Gmail setup."
     }
     return "Finish the saved Google iOS OAuth client ID and reversed URL scheme first; then this handoff will show exact compile-time values."
+  }
+
+  private var gmailCompiledConfigFileRows: [(title: String, detail: String, nextAction: String, symbol: String, color: Color)] {
+    let clientReady = gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+    let schemeReady = gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+    let savedValuesReady = clientReady && schemeReady
+    let compiledValuesMatch = readiness.isReady
+    return [
+      (
+        "Project.json",
+        savedValuesReady
+          ? "XcodeGen should define GIDClientID and the Gmail URL scheme here so regenerated projects keep the Google callback setup."
+          : "Project.json cannot be finalized until the real Google iOS client ID and reversed URL scheme are saved.",
+        savedValuesReady
+          ? "Update Project.json first, then regenerate the Xcode project if the generated project is stale."
+          : "Add the Google iOS client ID and reversed URL scheme in this setup row first.",
+        "curlybraces.square",
+        savedValuesReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        savedValuesReady
+          ? "The built app must contain GIDClientID and CFBundleURLSchemes with the same non-secret values shown above."
+          : "Info.plist callback readiness is blocked until the setup values are real, not placeholders.",
+        compiledValuesMatch
+          ? "Compiled values currently match this Gmail setup."
+          : "After Project.json/Info.plist are updated, rebuild and run Check readiness again.",
+        "doc.text.fill",
+        compiledValuesMatch ? .green : savedValuesReady ? .blue : .orange
+      ),
+      (
+        "Generated project",
+        "ParcelOps.xcodeproj may be regenerated from Project.json, so local generated project edits are not the source of truth.",
+        "Do not rely on Xcode-only generated edits for Gmail callback setup; keep Project.json and Info.plist aligned.",
+        "hammer.fill",
+        compiledValuesMatch ? .green : .secondary
+      )
+    ]
   }
 
   @ViewBuilder
