@@ -15679,6 +15679,12 @@ private struct WishlistComparisonOptionCard: View {
     return .secondary
   }
 
+  private var isCaptureStagedOption: Bool {
+    option.recommendation.localizedCaseInsensitiveContains("captured")
+      || option.decisionReason?.localizedCaseInsensitiveContains("capture metadata") == true
+      || option.trustNotes.localizedCaseInsensitiveContains("Wishlist staging")
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -15686,7 +15692,16 @@ private struct WishlistComparisonOptionCard: View {
           .font(.caption.weight(.semibold))
           .lineLimit(2)
         Spacer(minLength: 8)
+        if isCaptureStagedOption {
+          Badge("Captured", color: .purple)
+        }
         Badge(isPreferred ? "Preferred" : option.recommendation, color: isPreferred ? .green : .blue)
+      }
+      if isCaptureStagedOption {
+        Label("Created from staged capture clues. Confirm live price, AUD total, postage, trust, returns, warranty, and availability before selecting this seller.", systemImage: "puzzlepiece.extension.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.purple)
+          .fixedSize(horizontal: false, vertical: true)
       }
       Text("\(option.estimatedAUDTotal) • postage \(option.postageCost) • \(option.postageTime)")
         .font(.caption2)
