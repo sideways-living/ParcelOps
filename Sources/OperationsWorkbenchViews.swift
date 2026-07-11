@@ -113,9 +113,13 @@ struct OperationsWorkbenchView: View {
   private var draftFollowUpItems: [DraftMessage] {
     Array(store.draftMessagesNeedingReview.prefix(5))
   }
+  private func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
+    item.status != "Closed locally"
+  }
   private var wishlistWorkbenchItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.status.localizedCaseInsensitiveContains("purchase blocked")
+      isActiveWishlistItem(item) && (
+        item.status.localizedCaseInsensitiveContains("purchase blocked")
         || item.status.localizedCaseInsensitiveContains("handoff")
         || item.status.localizedCaseInsensitiveContains("awaiting order")
         || item.status.localizedCaseInsensitiveContains("confirmation")
@@ -125,6 +129,7 @@ struct OperationsWorkbenchView: View {
         || wishlistNeedsPurchaseDecision(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+      )
     }
   }
 
@@ -149,11 +154,13 @@ struct OperationsWorkbenchView: View {
 
   private var wishlistReleaseItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      !(item.comparisonOptions ?? []).isEmpty
+      isActiveWishlistItem(item) && (
+        !(item.comparisonOptions ?? []).isEmpty
         || item.purchaseDecision != nil
         || item.purchaseHandoff != nil
         || item.status.localizedCaseInsensitiveContains("purchase")
         || item.status.localizedCaseInsensitiveContains("ready")
+      )
     }
   }
 
@@ -172,7 +179,7 @@ struct OperationsWorkbenchView: View {
   }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
+      isActiveWishlistItem(item) && (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
     }
   }
   private var wishlistReadinessCriticalItems: [WishlistItem] {

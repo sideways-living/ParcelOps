@@ -573,9 +573,13 @@ struct DashboardView: View {
   private var operatorWorkbenchReviewItems: [WorkbenchItem] {
     operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
   }
+  private func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
+    item.status != "Closed locally"
+  }
   private var wishlistAttentionItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.status.localizedCaseInsensitiveContains("purchase blocked")
+      isActiveWishlistItem(item) && (
+        item.status.localizedCaseInsensitiveContains("purchase blocked")
         || item.status.localizedCaseInsensitiveContains("handoff")
         || item.status.localizedCaseInsensitiveContains("awaiting order")
         || item.status.localizedCaseInsensitiveContains("confirmation")
@@ -585,17 +589,20 @@ struct DashboardView: View {
         || wishlistNeedsPurchaseDecision(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+      )
     }
   }
   private var wishlistReadyItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.status.localizedCaseInsensitiveContains("ready to purchase")
+      isActiveWishlistItem(item) && (
+        item.status.localizedCaseInsensitiveContains("ready to purchase")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
+      )
     }
   }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
+      isActiveWishlistItem(item) && (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
     }
   }
   private var wishlistReadinessCriticalItems: [WishlistItem] {
@@ -605,11 +612,13 @@ struct DashboardView: View {
   }
   private var wishlistReleaseItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      !(item.comparisonOptions ?? []).isEmpty
+      isActiveWishlistItem(item) && (
+        !(item.comparisonOptions ?? []).isEmpty
         || item.purchaseDecision != nil
         || item.purchaseHandoff != nil
         || item.status.localizedCaseInsensitiveContains("purchase")
         || item.status.localizedCaseInsensitiveContains("ready")
+      )
     }
   }
   private var wishlistReleaseReadyItems: [WishlistItem] {

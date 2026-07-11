@@ -42,9 +42,13 @@ struct TasksView: View {
       $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
     }
   }
+  private func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
+    item.status != "Closed locally"
+  }
   private var wishlistTaskContextItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.status.localizedCaseInsensitiveContains("purchase blocked")
+      isActiveWishlistItem(item) && (
+        item.status.localizedCaseInsensitiveContains("purchase blocked")
         || item.status.localizedCaseInsensitiveContains("handoff")
         || item.status.localizedCaseInsensitiveContains("awaiting order")
         || item.status.localizedCaseInsensitiveContains("confirmation")
@@ -54,6 +58,7 @@ struct TasksView: View {
         || wishlistNeedsPurchaseDecision(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+      )
     }
   }
   private var wishlistLinkedQueueItems: [TaskQueueItem] {
@@ -68,21 +73,23 @@ struct TasksView: View {
 
   private var wishlistReadyPacketItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.operatorPurchaseBlockers.isEmpty
+      isActiveWishlistItem(item) && (
+        item.operatorPurchaseBlockers.isEmpty
         || item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") == true
         || item.purchaseDecision?.reviewState == .accepted
+      )
     }
   }
 
   private var wishlistNeedsHandoffItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
+      isActiveWishlistItem(item) && item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
     }
   }
 
   private var wishlistAwaitingOrderItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+      isActiveWishlistItem(item) && item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
     }
   }
 
