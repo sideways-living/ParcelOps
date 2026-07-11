@@ -496,6 +496,7 @@ struct WishlistView: View {
         wishlistPurchaseOperationsHandoffPanel
         wishlistLinkedOrderOperationsChecklistPanel
         wishlistOperationsClosureReadinessPanel
+        wishlistOrderConfirmationMatchPacketPanel
         wishlistAgentResearchRunwayPanel
         wishlistAgentHandoffPacketPanel
         wishlistAgentOutputContractPanel
@@ -4942,6 +4943,153 @@ struct WishlistView: View {
         }
         return first.matches.count > second.matches.count
       }
+  }
+
+  private var wishlistOrderConfirmationMatchPacketPanel: some View {
+    let entries = wishlistPostPurchaseOrderWatchEntries
+    let readyToWatch = entries.filter { $0.stage == "Ready to watch" }.count
+    let awaiting = entries.filter { $0.stage == "Awaiting confirmation" }.count
+    let withCandidates = entries.filter { !$0.matches.isEmpty }.count
+    let candidateRows = entries.reduce(0) { $0 + $1.matches.count }
+
+    return SettingsPanel(title: "Order confirmation match packet", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Prepare the local matching packet before and after an external Wishlist purchase. It tells the operator what confirmation signals to expect, how many Inbox candidates exist, and what to do next without fetching mail or touching retailer accounts.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Watching", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(readyToWatch)", readyToWatch == 0 ? .secondary : .green),
+          ("Awaiting", "\(awaiting)", awaiting == 0 ? .green : .orange),
+          ("With candidates", "\(withCandidates)", withCandidates == 0 ? .secondary : .teal),
+          ("Candidate rows", "\(candidateRows)", candidateRows == 0 ? .secondary : .purple)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist order confirmations are being watched",
+            detail: "Prepare a purchase handoff or record an external purchase before order confirmation matching becomes active.",
+            symbol: "envelope.badge.shield.half.filled"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: entry.matches.isEmpty ? "envelope.badge.clock" : "link.badge.plus")
+                    .foregroundStyle(entry.tone)
+                    .frame(width: 24)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.item.itemName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(entry.handoff.sellerName)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(entry.stage, color: entry.tone)
+                }
+
+                Text(wishlistOrderConfirmationMatchPacketDetail(for: entry))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactMetadataGrid(minimumWidth: 130) {
+                  Badge(entry.handoff.accountLabel, color: .blue)
+                  Badge(entry.handoff.purchaseStatus, color: entry.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased") ? .green : .orange)
+                  Badge(entry.matches.isEmpty ? "No candidates" : "\(entry.matches.count) candidate\(entry.matches.count == 1 ? "" : "s")", color: entry.matches.isEmpty ? .secondary : .teal)
+                  Badge(entry.handoff.linkedOrderID == nil ? "No linked order" : "Order linked", color: entry.handoff.linkedOrderID == nil ? .orange : .green)
+                }
+
+                Text("Expected signals: \(wishlistOrderConfirmationExpectedSignals(for: entry))")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(3)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                if let first = entry.matches.first {
+                  HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "envelope.open.fill")
+                      .foregroundStyle(.teal)
+                      .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                      Text("Best Inbox candidate")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                      Text("\(first.subject) • \(first.detectedOrderNumber) • \(first.detectedTrackingNumber)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    }
+                  }
+                }
+
+                CompactActionRow {
+                  if let first = entry.matches.first {
+                    Button("Use candidate", systemImage: "link.badge.plus") {
+                      store.confirmWishlistOrderFromIntake(entry.item, email: first)
+                    }
+                  }
+                  Button(entry.matches.isEmpty ? "Mark seen" : "Review match", systemImage: "envelope.badge.fill") {
+                    if let first = entry.matches.first {
+                      store.confirmWishlistOrderFromIntake(entry.item, email: first)
+                    } else {
+                      store.markWishlistOrderConfirmationSeen(entry.item)
+                    }
+                  }
+                  Button("Task", systemImage: "checklist") {
+                    store.createWishlistPurchaseHandoffReviewTask(entry.item)
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(10)
+              .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Match packets are local guidance only. ParcelOps does not fetch mail here, monitor in the background, log in to seller accounts, open checkout pages, send messages, or mutate mailbox messages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistOrderConfirmationMatchPacketDetail(for entry: WishlistPostPurchaseOrderWatchEntry) -> String {
+    if !entry.matches.isEmpty {
+      return "\(entry.matches.count) Inbox candidate\(entry.matches.count == 1 ? "" : "s") match seller, item, order, tracking, receipt, or dispatch signals. Use the candidate only after checking it is the real confirmation."
+    }
+    if entry.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased") || entry.item.status.localizedCaseInsensitiveContains("awaiting order") {
+      return "External purchase is recorded, but no imported Inbox confirmation matches yet. Refresh mailbox manually, then review candidates here."
+    }
+    return "Purchase handoff is ready. After the human buys externally, record the purchase and watch for matching Inbox order confirmation."
+  }
+
+  private func wishlistOrderConfirmationExpectedSignals(for entry: WishlistPostPurchaseOrderWatchEntry) -> String {
+    let raw = [
+      entry.handoff.expectedOrderSignals,
+      entry.handoff.sellerName,
+      entry.item.itemName,
+      entry.item.storefront,
+      entry.item.purchaseDecision?.selectedSellerName,
+      entry.item.purchaseDecision?.totalAUDSummary,
+      entry.item.purchaseDecision?.postageSummary
+    ]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && !$0.isPlaceholderValidationValue }
+
+    let unique = Array(NSOrderedSet(array: raw) as? [String] ?? raw)
+    return unique.prefix(5).joined(separator: " | ").isEmpty
+      ? "seller, item name, order number, tracking number, receipt, dispatch, or delivery wording"
+      : unique.prefix(5).joined(separator: " | ")
   }
 
   private var wishlistOrderConfirmationMatchingPanel: some View {
