@@ -1571,6 +1571,8 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(gmailSetupBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
+      gmailOperatorNextStepCard
+
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: labelReadiness.tone == "success" ? "tag.fill" : "tag.slash.fill")
@@ -2556,6 +2558,95 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailCompiledConfigurationColor: Color {
     readiness.isReady ? .green : .orange
+  }
+
+  private var gmailOperatorNextStepCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailPrimaryActionSymbol)
+          .foregroundStyle(gmailPrimaryActionColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Next Gmail setup action")
+            .font(.caption.weight(.semibold))
+          Text(gmailPrimaryActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailPrimaryActionBadge, color: gmailPrimaryActionColor)
+      }
+      CompactActionRow {
+        Button(gmailPrimaryActionLabel, systemImage: gmailPrimaryActionSymbol) {
+          runGmailPrimaryAction()
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Mock refresh fallback", systemImage: "envelope.badge", action: onMockRefresh)
+          .buttonStyle(.bordered)
+        Button("Create setup task", systemImage: "checklist", action: onCreatePlanTask)
+          .buttonStyle(.bordered)
+      }
+      Text("Use the real action only when the setup state says it is ready. Mock refresh remains the local test path and does not contact Google.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailPrimaryActionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailPrimaryActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Edit Gmail setup" }
+    if !readiness.isReady { return "Check readiness" }
+    if authState.status != .connected { return "Test real Google sign-in" }
+    return "Run real Gmail refresh"
+  }
+
+  private var gmailPrimaryActionSymbol: String {
+    if hasMissingCoreGmailSetup { return "pencil" }
+    if !readiness.isReady { return "network.badge.shield.half.filled" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailPrimaryActionBadge: String {
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Verify" }
+    if authState.status != .connected { return "Sign in" }
+    return "Refresh"
+  }
+
+  private var gmailPrimaryActionDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Complete the non-secret mailbox, label, Google iOS client ID, callback scheme, and read-only Gmail scope fields before testing real sign-in."
+    }
+    if !readiness.isReady {
+      return "Run the readiness check after updating Project.json/App Info.plist and rebuilding, or use the compile handoff details above to fix the mismatch."
+    }
+    if authState.status != .connected {
+      return "Run the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps Gmail refresh manual."
+    }
+    return "Run one manual read-only Gmail refresh. ParcelOps requests message metadata/snippets only and does not mutate Gmail messages."
+  }
+
+  private var gmailPrimaryActionColor: Color {
+    if readiness.isReady && authState.status == .connected { return .green }
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected { return .orange }
+    return .secondary
+  }
+
+  private func runGmailPrimaryAction() {
+    if hasMissingCoreGmailSetup {
+      draft = connection
+      isEditing = true
+    } else if !readiness.isReady {
+      onRealReadinessCheck()
+    } else if authState.status != .connected {
+      onRealAuthReadinessCheck()
+    } else {
+      onRealRefresh()
+    }
   }
 
   private var gmailExpectedCompiledClientID: String {
