@@ -13766,6 +13766,18 @@ struct WishlistItemRow: View {
   var onDelete: () -> Void
   @State private var feedbackMessage: String?
 
+  private var isClosedLocally: Bool {
+    item.status == "Closed locally"
+  }
+
+  private var statusBadgeColor: Color {
+    if isClosedLocally { return .green }
+    if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
+    if item.status.localizedCaseInsensitiveContains("review") { return .orange }
+    if item.status.localizedCaseInsensitiveContains("ready") { return .teal }
+    return .blue
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -13785,18 +13797,22 @@ struct WishlistItemRow: View {
             .foregroundStyle(.secondary)
         }
         Spacer()
-        Badge(item.status, color: .blue)
+        Badge(item.status, color: statusBadgeColor)
       }
       Text(item.capturedDetail)
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      if isClosedLocally {
+        wishlistClosedStateSummary
+      }
 
       wishlistPurchasePacketSummary
       wishlistComparisonSummary
       wishlistPurchaseChecksSummary
       wishlistPurchaseDecisionSummary
       wishlistPurchaseHandoffSummary
-      if !isDeleted {
+      if !isDeleted && !isClosedLocally {
         wishlistOperatorNextStep
       }
 
@@ -13939,6 +13955,26 @@ struct WishlistItemRow: View {
     .padding(12)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var wishlistClosedStateSummary: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Closed locally", systemImage: "checkmark.circle.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.green)
+      Text("This item is retained for local audit, linked-order history, and handoff evidence, but it is no longer active Wishlist work. Use the Closed Wishlist items ledger to reopen it if follow-up is needed.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if let handoff = item.purchaseHandoff {
+        HStack(spacing: 8) {
+          Badge(handoff.purchaseStatus, color: .green)
+          Badge(handoff.linkedOrderID == nil ? "No linked order" : "Linked order retained", color: handoff.linkedOrderID == nil ? .orange : .teal)
+        }
+      }
+    }
+    .padding(10)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   @ViewBuilder
