@@ -668,7 +668,6 @@ enum GmailMailboxFetchStatus: String, CaseIterable, Identifiable, Hashable {
   case ready = "Ready for real refresh"
   case oauthPlaceholder = "OAuth placeholder"
   case tokenMissing = "Token missing"
-  case apiNotImplemented = "Gmail API not implemented"
   case authRequired = "Auth required"
   case consentRequired = "Consent required"
   case labelNotFound = "Label not found"

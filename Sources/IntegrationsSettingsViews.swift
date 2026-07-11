@@ -3267,9 +3267,17 @@ struct GmailGoogleCloudSetupGuide: View {
     (
       "4",
       "Use read-only Gmail access",
-      "Use gmail.readonly or gmail.metadata only. Real refresh stays manual, fetches previews, and does not mutate mailbox messages.",
+      "Use gmail.readonly or gmail.metadata only. Real refresh is implemented as manual, read-only Gmail API access for message metadata, headers, snippets, and previews.",
       .green
     )
+  ]
+
+  private let boundaryBadges: [(String, Color)] = [
+    ("Real sign-in", .green),
+    ("Manual read-only refresh", .green),
+    ("No background sync", .secondary),
+    ("No mailbox mutation", .secondary),
+    ("No token JSON", .secondary)
   ]
 
   var body: some View {
@@ -3297,6 +3305,17 @@ struct GmailGoogleCloudSetupGuide: View {
       Text("Recommended sequence: save the Gmail setup record, run Check readiness, test real Google sign-in, then run manual real Gmail refresh. Keep mock refresh available for local workflow testing.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(boundaryBadges, id: \.0) { badge in
+          Badge(badge.0, color: badge.1)
+        }
+      }
+
+      Text("Current boundary: ParcelOps can use GoogleSignIn and the Gmail API for an explicit manual refresh after setup, but it still does not run background checks, send mail, mark messages read, delete or move messages, store token values in JSON, or use Gmail as an automation trigger.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
     .padding(10)
