@@ -6268,7 +6268,13 @@ struct WishlistView: View {
       .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty && !$0.isPlaceholderValidationValue }
 
-    let unique = Array(NSOrderedSet(array: raw) as? [String] ?? raw)
+    var seenSignals = Set<String>()
+    let unique = raw.filter { signal in
+      let key = signal.localizedLowercase
+      guard !seenSignals.contains(key) else { return false }
+      seenSignals.insert(key)
+      return true
+    }
     return unique.prefix(5).joined(separator: " | ").isEmpty
       ? "seller, item name, order number, tracking number, receipt, dispatch, or delivery wording"
       : unique.prefix(5).joined(separator: " | ")
