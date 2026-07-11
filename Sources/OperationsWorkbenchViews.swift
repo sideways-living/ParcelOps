@@ -170,6 +170,16 @@ struct OperationsWorkbenchView: View {
   private var wishlistReleaseOrderWatchItems: [WishlistItem] {
     wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
   }
+  private var wishlistReadinessBlockedItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
+    }
+  }
+  private var wishlistReadinessCriticalItems: [WishlistItem] {
+    wishlistReadinessBlockedItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status == "Blocked" || $0.severity == "High" }
+    }
+  }
 
   private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
     (item.comparisonOptions ?? []).reduce(0) { total, option in
@@ -1944,6 +1954,8 @@ struct OperationsWorkbenchView: View {
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
           ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
           ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
+          ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? .green : .orange),
+          ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? .green : .red),
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
@@ -2672,12 +2684,19 @@ private struct WishlistWorkbenchFollowUpRow: View {
     return gaps
   }
 
+  private var failedReadinessChecks: [WishlistPurchaseCheck] {
+    (item.purchaseChecks ?? []).filter { $0.status != "Passed" }
+  }
+
   private var nextAction: String {
     if !sellerEvidenceGaps.isEmpty {
       return "Confirm seller evidence: \(sellerEvidenceGaps.prefix(3).joined(separator: ", "))."
     }
     if needsDecision {
       return "Draft the local purchase decision before handoff."
+    }
+    if !failedReadinessChecks.isEmpty {
+      return "Clear readiness checks: \(failedReadinessChecks.prefix(2).map(\.title).joined(separator: ", "))."
     }
     if item.purchaseDecision?.reviewState == .needsReview {
       return "Review and accept the local purchase decision."
@@ -2735,6 +2754,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Seller evidence gaps: \(sellerEvidenceGaps.prefix(4).joined(separator: ", "))")
             .font(.caption2)
             .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !failedReadinessChecks.isEmpty {
+          Text("Readiness blockers: \(failedReadinessChecks.prefix(4).map(\.title).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(failedReadinessChecks.contains { $0.status == "Blocked" || $0.severity == "High" } ? .red : .orange)
             .fixedSize(horizontal: false, vertical: true)
         }
         if !handoffGaps.isEmpty {

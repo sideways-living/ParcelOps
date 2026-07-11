@@ -593,6 +593,16 @@ struct DashboardView: View {
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
     }
   }
+  private var wishlistReadinessBlockedItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
+    }
+  }
+  private var wishlistReadinessCriticalItems: [WishlistItem] {
+    wishlistReadinessBlockedItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status == "Blocked" || $0.severity == "High" }
+    }
+  }
   private var wishlistReleaseItems: [WishlistItem] {
     store.wishlistItems.filter { item in
       !(item.comparisonOptions ?? []).isEmpty
@@ -711,6 +721,10 @@ struct DashboardView: View {
   private var wishlistAttentionBlockerSummary: String {
     if wishlistBatchBriefNeeded {
       return "batch research brief needed (\(wishlistAgentReadyResearchRequests.count))"
+    }
+    if !wishlistReadinessBlockedItems.isEmpty {
+      let criticalPrefix = wishlistReadinessCriticalItems.isEmpty ? "" : "\(wishlistReadinessCriticalItems.count) critical, "
+      return "\(criticalPrefix)\(wishlistReadinessBlockedItems.count) readiness-blocked"
     }
     let blockers = wishlistAttentionItems.flatMap { item -> [String] in
       var labels = item.operatorPurchaseBlockers
@@ -2055,11 +2069,11 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
+              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistReadinessBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
               detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty
                 ? (wishlistBatchBriefNeeded
                   ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
-                  : "\(wishlistAgentReadiness.verdict). Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
+                  : "\(wishlistAgentReadiness.verdict). Readiness blockers: \(wishlistReadinessBlockedItems.count), release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
                 : "Top blockers: \(wishlistAttentionBlockerSummary). Agent verdict: \(wishlistAgentReadiness.verdict).",
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
