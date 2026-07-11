@@ -526,6 +526,7 @@ struct WishlistView: View {
         wishlistPurchaseEvidenceDossierPanel
         wishlistPurchaseDecisionEvidencePackPanel
         wishlistPurchaseApprovalPanel
+        wishlistPurchaseLinkPanel
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
@@ -5646,6 +5647,100 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseLinkPanel: some View {
+    let records = store.wishlistPurchaseLinkRecords.sorted { first, second in
+      if first.selectedForPurchase != second.selectedForPurchase {
+        return first.selectedForPurchase
+      }
+      if first.reviewState == second.reviewState {
+        return first.createdDate > second.createdDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let selected = records.filter(\.selectedForPurchase).count
+    let ready = records.filter { $0.reviewState == .accepted || $0.readinessStatus.localizedCaseInsensitiveContains("ready") }.count
+    let blocked = records.filter { $0.readinessStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let missingTrust = records.filter { record in
+      record.trustSummary.localizedCaseInsensitiveContains("needs")
+        || record.trustSummary.localizedCaseInsensitiveContains("unknown")
+        || record.trustSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }.count
+
+    return SettingsPanel(title: "Purchase links", symbol: "link.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Keep the best retailer/product links ready for a human to open outside ParcelOps. Each link records AUD total, postage, trust, account context, and readiness without opening checkout or buying.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Links", "\(records.count)", records.isEmpty ? .secondary : .blue),
+          ("Selected", "\(selected)", selected == 0 ? .secondary : .green),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
+          ("Trust gaps", "\(missingTrust)", missingTrust == 0 ? .green : .orange)
+        ])
+
+        CompactActionRow {
+          Button("Add link", systemImage: "link.badge.plus") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistPurchaseLinkRecord(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if records.isEmpty {
+          MVPEmptyState(
+            title: "No purchase links yet",
+            detail: "Add links after a seller option has been compared. A ready link is still manual: the operator opens it outside ParcelOps and completes any purchase elsewhere.",
+            symbol: "link.badge.plus"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(records.prefix(8)) { record in
+              WishlistPurchaseLinkRow(record: record) {
+                store.markWishlistPurchaseLinkSelected(record)
+              } onReady: {
+                store.markWishlistPurchaseLinkReady(record)
+              } onBlock: {
+                store.blockWishlistPurchaseLinkRecord(record)
+              } onRemove: {
+                store.removeWishlistPurchaseLinkRecord(record)
+              } onTask: {
+                store.createWishlistPurchaseLinkRecordReviewTask(record)
+              } onFocus: {
+                wishlistSearchText = record.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .buy
+              }
+            }
+          }
+
+          let remaining = max(records.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase link record\(remaining == 1 ? "" : "s") are stored locally.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only boundary: ParcelOps stores product links and review notes only. It does not open browser pages, log into retailer accounts, place orders, pay, reserve stock, or monitor retailer pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistPurchaseAccountReadinessPanel: some View {
     let records = store.wishlistPurchaseAccountRecords.sorted { first, second in
       if first.reviewState == second.reviewState {
@@ -9427,6 +9522,96 @@ private struct WishlistPurchaseApprovalRow: View {
         Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
+        Button("Remove", systemImage: "trash", action: onRemove)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(12)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(tone.opacity(0.18), lineWidth: 1)
+    )
+  }
+}
+
+private struct WishlistPurchaseLinkRow: View {
+  var record: WishlistPurchaseLinkRecord
+  var onSelect: () -> Void
+  var onReady: () -> Void
+  var onBlock: () -> Void
+  var onRemove: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isReady: Bool {
+    record.reviewState == .accepted || record.readinessStatus.localizedCaseInsensitiveContains("ready")
+  }
+
+  private var isBlocked: Bool {
+    record.readinessStatus.localizedCaseInsensitiveContains("blocked")
+  }
+
+  private var tone: Color {
+    if isBlocked { return .red }
+    if isReady { return .green }
+    if record.selectedForPurchase { return .purple }
+    if record.reviewState == .needsReview { return .orange }
+    return .blue
+  }
+
+  private var safeURLSummary: String {
+    guard let host = URL(string: record.productURL)?.host else { return record.productURL }
+    return host
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: record.selectedForPurchase ? "link.badge.plus" : "link")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(record.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(record.sellerName) • \(safeURLSummary)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(record.readinessStatus)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(record.selectedForPurchase ? "Selected" : record.linkType, color: record.selectedForPurchase ? .purple : .blue)
+          Badge(record.reviewState.rawValue, color: isReady ? .green : .orange)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "AUD total", value: record.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: record.postageSummary, symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: record.trustSummary, symbol: "shield.lefthalf.filled")
+        WishlistMatrixMetric(title: "Account", value: record.accountContext, symbol: "person.crop.circle.fill")
+      }
+
+      Text(record.notes)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Select", systemImage: "scope", action: onSelect)
+          .disabled(record.selectedForPurchase)
+        Button("Ready", systemImage: "checkmark.seal", action: onReady)
+          .disabled(isReady)
+        Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "magnifyingglass", action: onFocus)
         Button("Remove", systemImage: "trash", action: onRemove)
       }
       .buttonStyle(.bordered)

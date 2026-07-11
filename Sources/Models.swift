@@ -3075,6 +3075,25 @@ struct WishlistPurchaseApprovalRecord: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct WishlistPurchaseLinkRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var wishlistItemID: UUID?
+  var itemName: String
+  var sellerName: String
+  var productURL: String
+  var linkType: String
+  var estimatedAUDTotal: String
+  var postageSummary: String
+  var trustSummary: String
+  var readinessStatus: String
+  var accountContext: String
+  var selectedForPurchase: Bool
+  var createdDate: String
+  var lastCheckedDate: String
+  var reviewState: ReviewState
+  var notes: String
+}
+
 extension WishlistResearchRequest {
   var agentBriefGaps: [String] {
     var gaps: [String] = []

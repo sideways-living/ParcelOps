@@ -32,6 +32,7 @@ final class ParcelOpsStore {
   var wishlistSellerTrustRecords: [WishlistSellerTrustRecord]
   var wishlistPurchaseAccountRecords: [WishlistPurchaseAccountRecord]
   var wishlistPurchaseApprovalRecords: [WishlistPurchaseApprovalRecord]
+  var wishlistPurchaseLinkRecords: [WishlistPurchaseLinkRecord]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -253,6 +254,7 @@ final class ParcelOpsStore {
     self.wishlistSellerTrustRecords = repository.loadWishlistSellerTrustRecords()
     self.wishlistPurchaseAccountRecords = repository.loadWishlistPurchaseAccountRecords()
     self.wishlistPurchaseApprovalRecords = repository.loadWishlistPurchaseApprovalRecords()
+    self.wishlistPurchaseLinkRecords = repository.loadWishlistPurchaseLinkRecords()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -21245,6 +21247,155 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistPurchaseLinkRecords(for item: WishlistItem) -> [WishlistPurchaseLinkRecord] {
+    wishlistPurchaseLinkRecords
+      .filter { record in
+        record.wishlistItemID == item.id
+          || record.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(record.itemName)
+      }
+      .sorted { first, second in
+        if first.selectedForPurchase != second.selectedForPurchase {
+          return first.selectedForPurchase
+        }
+        if first.reviewState == second.reviewState {
+          return first.createdDate > second.createdDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistPurchaseLinkRecord(_ item: WishlistItem) {
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    } ?? item.comparisonOptions?.first
+    let decision = item.purchaseDecision
+    let sellerName = decision?.selectedSellerName ?? preferredOption?.sellerName ?? item.storefront
+    let productURL = preferredOption?.productURL ?? item.storefrontURL
+    let record = WishlistPurchaseLinkRecord(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: sellerName,
+      productURL: productURL,
+      linkType: decision == nil ? "Candidate seller link" : "Preferred purchase link",
+      estimatedAUDTotal: decision?.totalAUDSummary ?? preferredOption?.estimatedAUDTotal ?? item.estimatedCost,
+      postageSummary: decision?.postageSummary ?? [preferredOption?.postageCost, preferredOption?.postageTime].compactMap { $0 }.joined(separator: ", "),
+      trustSummary: decision?.trustSummary ?? preferredOption?.trustRating ?? "Needs trust review",
+      readinessStatus: "Needs operator review",
+      accountContext: item.purchaseHandoff?.accountLabel ?? "Account to confirm outside ParcelOps",
+      selectedForPurchase: decision != nil,
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: preferredOption?.lastChecked ?? "Not checked",
+      reviewState: .needsReview,
+      notes: "Local purchase-link record only. No browser page opened, checkout started, payment made, seller login used, or order placed."
+    )
+    wishlistPurchaseLinkRecords.insert(record, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist purchase link record added locally.",
+      afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo browser automation, seller login, checkout, payment, purchase, or network call occurred."
+    )
+  }
+
+  func markWishlistPurchaseLinkSelected(_ record: WishlistPurchaseLinkRecord) {
+    guard let index = wishlistPurchaseLinkRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistPurchaseLinkRecords[index].auditDetail
+    if let wishlistItemID = wishlistPurchaseLinkRecords[index].wishlistItemID {
+      for linkIndex in wishlistPurchaseLinkRecords.indices where wishlistPurchaseLinkRecords[linkIndex].wishlistItemID == wishlistItemID {
+        wishlistPurchaseLinkRecords[linkIndex].selectedForPurchase = wishlistPurchaseLinkRecords[linkIndex].id == record.id
+      }
+      if let itemIndex = wishlistItems.firstIndex(where: { $0.id == wishlistItemID }) {
+        wishlistItems[itemIndex].purchaseReadiness = "Purchase link selected locally"
+      }
+    } else {
+      wishlistPurchaseLinkRecords[index].selectedForPurchase = true
+    }
+    wishlistPurchaseLinkRecords[index].readinessStatus = "Selected for manual purchase review"
+    wishlistPurchaseLinkRecords[index].reviewState = .needsReview
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPurchaseLinkRecords[index].wishlistItemID?.uuidString ?? wishlistPurchaseLinkRecords[index].id.uuidString,
+      entityLabel: wishlistPurchaseLinkRecords[index].itemName,
+      summary: "Wishlist purchase link selected locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nSelection only. ParcelOps did not open a retailer page, log in, check out, pay, or buy."
+    )
+  }
+
+  func markWishlistPurchaseLinkReady(_ record: WishlistPurchaseLinkRecord) {
+    guard let index = wishlistPurchaseLinkRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistPurchaseLinkRecords[index].auditDetail
+    wishlistPurchaseLinkRecords[index].readinessStatus = "Ready to open externally"
+    wishlistPurchaseLinkRecords[index].reviewState = .accepted
+    wishlistPurchaseLinkRecords[index].lastCheckedDate = Self.auditTimestamp()
+    if let itemIndex = wishlistPurchaseLinkRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Purchase link ready for external manual buying"
+    }
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPurchaseLinkRecords[index].wishlistItemID?.uuidString ?? wishlistPurchaseLinkRecords[index].id.uuidString,
+      entityLabel: wishlistPurchaseLinkRecords[index].itemName,
+      summary: "Wishlist purchase link marked ready locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nReady means the operator can manually open this link outside ParcelOps. No browser automation, checkout, payment, or purchase occurred."
+    )
+  }
+
+  func blockWishlistPurchaseLinkRecord(_ record: WishlistPurchaseLinkRecord) {
+    guard let index = wishlistPurchaseLinkRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistPurchaseLinkRecords[index].auditDetail
+    wishlistPurchaseLinkRecords[index].readinessStatus = "Blocked locally"
+    wishlistPurchaseLinkRecords[index].reviewState = .needsReview
+    wishlistPurchaseLinkRecords[index].selectedForPurchase = false
+    if let itemIndex = wishlistPurchaseLinkRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Blocked by purchase link review"
+    }
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPurchaseLinkRecords[index].wishlistItemID?.uuidString ?? wishlistPurchaseLinkRecords[index].id.uuidString,
+      entityLabel: wishlistPurchaseLinkRecords[index].itemName,
+      summary: "Wishlist purchase link blocked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nBlocked only in local JSON. No browser, seller account, checkout, payment, purchase, or external service changed."
+    )
+  }
+
+  func removeWishlistPurchaseLinkRecord(_ record: WishlistPurchaseLinkRecord) {
+    guard let index = wishlistPurchaseLinkRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = wishlistPurchaseLinkRecords.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: removed.wishlistItemID?.uuidString ?? removed.id.uuidString,
+      entityLabel: removed.itemName,
+      summary: "Wishlist purchase link record removed locally.",
+      beforeDetail: removed.auditDetail,
+      afterDetail: "Local purchase-link record removed only. No wishlist item, browser page, seller account, checkout, payment, purchase, or external service was changed."
+    )
+  }
+
+  func createWishlistPurchaseLinkRecordReviewTask(_ record: WishlistPurchaseLinkRecord) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
+      label: "Review purchase link: \(record.itemName)",
+      summary: "Review Wishlist purchase link for \(record.itemName). Seller \(record.sellerName), link type \(record.linkType), total \(record.estimatedAUDTotal), postage \(record.postageSummary), trust \(record.trustSummary), readiness \(record.readinessStatus). Do not buy from inside ParcelOps.",
+      priority: record.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -22448,6 +22599,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistSellerTrustRecords(wishlistSellerTrustRecords)
     wishlistRepository.saveWishlistPurchaseAccountRecords(wishlistPurchaseAccountRecords)
     wishlistRepository.saveWishlistPurchaseApprovalRecords(wishlistPurchaseApprovalRecords)
+    wishlistRepository.saveWishlistPurchaseLinkRecords(wishlistPurchaseLinkRecords)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -23428,6 +23580,12 @@ private extension WishlistPurchaseAccountRecord {
 private extension WishlistPurchaseApprovalRecord {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); requested by: \(requestedBy); approver: \(approver); approval: \(approvalStatus); approved AUD limit: \(approvedAUDLimit); budget code: \(budgetCode); payment method: \(paymentMethodSummary); reason: \(approvalReason); created: \(createdDate); last reviewed: \(lastReviewedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistPurchaseLinkRecord {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); link type: \(linkType); estimated AUD total: \(estimatedAUDTotal); postage: \(postageSummary); trust: \(trustSummary); readiness: \(readinessStatus); account context: \(accountContext); selected: \(selectedForPurchase ? "yes" : "no"); created: \(createdDate); last checked: \(lastCheckedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

@@ -560,6 +560,43 @@ enum SampleData {
     )
   ]
 
+  static var wishlistPurchaseLinkRecords: [WishlistPurchaseLinkRecord] = [
+    WishlistPurchaseLinkRecord(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      productURL: "https://safetypro.example/scanner-compact",
+      linkType: "Preferred seller link",
+      estimatedAUDTotal: "AUD 216 landed",
+      postageSummary: "AUD 18 postage, 3-5 business days",
+      trustSummary: "Known AU supplier, clear returns, warranty visible",
+      readinessStatus: "Ready for operator review",
+      accountContext: "Operations purchasing account to confirm outside ParcelOps",
+      selectedForPurchase: true,
+      createdDate: "Sample only",
+      lastCheckedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Direct product link sample only. ParcelOps does not open checkout, log in, buy, pay, or monitor retailer pages."
+    ),
+    WishlistPurchaseLinkRecord(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "OfficeKit Store",
+      productURL: "https://officekit.example/thermal-rolls",
+      linkType: "Backup seller link",
+      estimatedAUDTotal: "AUD 48.50 landed",
+      postageSummary: "Local postage estimate pending confirmation",
+      trustSummary: "Known supplier; delivery reliability still needs review",
+      readinessStatus: "Needs postage confirmation",
+      accountContext: "Shared purchasing account readiness not confirmed",
+      selectedForPurchase: false,
+      createdDate: "Sample only",
+      lastCheckedDate: "Not checked",
+      reviewState: .monitor,
+      notes: "Use as a backup link after postage and stock are checked externally."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]
