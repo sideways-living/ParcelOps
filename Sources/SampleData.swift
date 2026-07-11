@@ -525,6 +525,41 @@ enum SampleData {
     )
   ]
 
+  static var wishlistPurchaseApprovalRecords: [WishlistPurchaseApprovalRecord] = [
+    WishlistPurchaseApprovalRecord(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      requestedBy: "Operations",
+      approver: "Budget owner to confirm",
+      approvalStatus: "Needs approval",
+      approvedAUDLimit: "AUD 220",
+      budgetCode: "OPS-EQUIP",
+      paymentMethodSummary: "Payment method confirmed outside ParcelOps only",
+      approvalReason: "Replacement scanner for intake and receiving checks.",
+      createdDate: "Sample only",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .needsReview,
+      notes: "Local approval sample only. No payment, checkout, purchase, or finance integration occurs."
+    ),
+    WishlistPurchaseApprovalRecord(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "OfficeKit Store",
+      requestedBy: "Warehouse team",
+      approver: "Team lead",
+      approvalStatus: "Approved locally",
+      approvedAUDLimit: "AUD 70",
+      budgetCode: "OPS-CONSUMABLES",
+      paymentMethodSummary: "Shared purchasing method to confirm externally",
+      approvalReason: "Consumable replenishment for local label printing.",
+      createdDate: "Sample only",
+      lastReviewedDate: "Sample only",
+      reviewState: .accepted,
+      notes: "Shows a reviewed approval placeholder without storing payment data."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

@@ -525,6 +525,7 @@ struct WishlistView: View {
         wishlistPurchaseDecisionSummaryPanel
         wishlistPurchaseEvidenceDossierPanel
         wishlistPurchaseDecisionEvidencePackPanel
+        wishlistPurchaseApprovalPanel
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
@@ -5557,6 +5558,94 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistPurchaseApprovalPanel: some View {
+    let records = store.wishlistPurchaseApprovalRecords.sorted { first, second in
+      if first.reviewState == second.reviewState {
+        return first.createdDate > second.createdDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let approved = records.filter { $0.reviewState == .accepted || $0.approvalStatus.localizedCaseInsensitiveContains("approved") }.count
+    let blocked = records.filter { $0.approvalStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let needsApproval = records.filter { $0.reviewState != .accepted && !$0.approvalStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let missingBudget = records.filter { record in
+      record.budgetCode.localizedCaseInsensitiveContains("confirm")
+        || record.budgetCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }.count
+
+    return SettingsPanel(title: "Purchase approval gate", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Record the local approval, budget limit, approver, and payment-method readiness before a Wishlist item is treated as ready to buy. This is an operator gate only; ParcelOps still does not purchase, pay, check out, or connect to finance systems.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Approvals", "\(records.count)", records.isEmpty ? .secondary : .blue),
+          ("Need approval", "\(needsApproval)", needsApproval == 0 ? .green : .orange),
+          ("Approved", "\(approved)", approved == 0 ? .secondary : .green),
+          ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
+          ("Budget gaps", "\(missingBudget)", missingBudget == 0 ? .green : .purple)
+        ])
+
+        CompactActionRow {
+          Button("Add approval", systemImage: "checkmark.seal") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistPurchaseApprovalRecord(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if records.isEmpty {
+          MVPEmptyState(
+            title: "No purchase approval records yet",
+            detail: "Add an approval when a Wishlist item has a preferred seller and landed-cost evidence. Keep budget and payment confirmation as non-secret notes only.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(records.prefix(8)) { record in
+              WishlistPurchaseApprovalRow(record: record) {
+                store.markWishlistPurchaseApprovalApproved(record)
+              } onBlock: {
+                store.blockWishlistPurchaseApprovalRecord(record)
+              } onRemove: {
+                store.removeWishlistPurchaseApprovalRecord(record)
+              } onTask: {
+                store.createWishlistPurchaseApprovalRecordReviewTask(record)
+              } onFocus: {
+                wishlistSearchText = record.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .buy
+              }
+            }
+          }
+
+          let remaining = max(records.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase approval record\(remaining == 1 ? "" : "s") are available in local storage.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only boundary: approvals here are notes in ParcelOps JSON. No payment card, bank feed, finance platform, checkout, seller login, purchase order submission, or purchase automation is connected.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistPurchaseAccountReadinessPanel: some View {
     let records = store.wishlistPurchaseAccountRecords.sorted { first, second in
       if first.reviewState == second.reviewState {
@@ -9269,6 +9358,87 @@ private struct WishlistPurchaseAccountLedgerEntry: Identifiable {
   var actionTitle: String
   var actionSymbol: String
   var sortPriority: Int
+}
+
+private struct WishlistPurchaseApprovalRow: View {
+  var record: WishlistPurchaseApprovalRecord
+  var onApprove: () -> Void
+  var onBlock: () -> Void
+  var onRemove: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isApproved: Bool {
+    record.reviewState == .accepted || record.approvalStatus.localizedCaseInsensitiveContains("approved")
+  }
+
+  private var isBlocked: Bool {
+    record.approvalStatus.localizedCaseInsensitiveContains("blocked")
+  }
+
+  private var tone: Color {
+    if isBlocked { return .red }
+    if isApproved { return .green }
+    if record.reviewState == .needsReview { return .orange }
+    return .purple
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isApproved ? "checkmark.seal.fill" : "checkmark.seal")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(record.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(record.sellerName) • \(record.approvalStatus)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(record.approvalReason)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(record.reviewState.rawValue, color: isApproved ? .green : .orange)
+          Badge(record.lastReviewedDate, color: .secondary)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Limit", value: record.approvedAUDLimit, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Budget", value: record.budgetCode, symbol: "tag.fill")
+        WishlistMatrixMetric(title: "Approver", value: record.approver, symbol: "person.crop.circle.fill")
+        WishlistMatrixMetric(title: "Payment", value: record.paymentMethodSummary, symbol: "creditcard.fill")
+      }
+
+      Text(record.notes)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Approve", systemImage: "checkmark.seal", action: onApprove)
+          .disabled(isApproved)
+        Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+        Button("Remove", systemImage: "trash", action: onRemove)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(12)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(tone.opacity(0.18), lineWidth: 1)
+    )
+  }
 }
 
 private struct WishlistPurchaseAccountReadinessRow: View {
