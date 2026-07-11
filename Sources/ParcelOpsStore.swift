@@ -33,6 +33,7 @@ final class ParcelOpsStore {
   var wishlistPurchaseAccountRecords: [WishlistPurchaseAccountRecord]
   var wishlistPurchaseApprovalRecords: [WishlistPurchaseApprovalRecord]
   var wishlistPurchaseLinkRecords: [WishlistPurchaseLinkRecord]
+  var wishlistOrderWatchRecords: [WishlistOrderWatchRecord]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -255,6 +256,7 @@ final class ParcelOpsStore {
     self.wishlistPurchaseAccountRecords = repository.loadWishlistPurchaseAccountRecords()
     self.wishlistPurchaseApprovalRecords = repository.loadWishlistPurchaseApprovalRecords()
     self.wishlistPurchaseLinkRecords = repository.loadWishlistPurchaseLinkRecords()
+    self.wishlistOrderWatchRecords = repository.loadWishlistOrderWatchRecords()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -21396,6 +21398,168 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistOrderWatchRecords(for item: WishlistItem) -> [WishlistOrderWatchRecord] {
+    wishlistOrderWatchRecords
+      .filter { record in
+        record.wishlistItemID == item.id
+          || record.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(record.itemName)
+      }
+      .sorted { first, second in
+        if (first.linkedOrderID == nil) != (second.linkedOrderID == nil) {
+          return first.linkedOrderID == nil
+        }
+        if first.reviewState == second.reviewState {
+          return first.createdDate > second.createdDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistOrderWatchRecord(_ item: WishlistItem) {
+    let handoff = item.purchaseHandoff
+    let selectedLink = wishlistPurchaseLinkRecords(for: item).first { $0.selectedForPurchase } ?? wishlistPurchaseLinkRecords(for: item).first
+    let sellerName = handoff?.sellerName ?? selectedLink?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    let record = WishlistOrderWatchRecord(
+      wishlistItemID: item.id,
+      linkedOrderID: handoff?.linkedOrderID,
+      itemName: item.itemName,
+      sellerName: sellerName,
+      accountLabel: handoff?.accountLabel ?? selectedLink?.accountContext ?? "\(item.owner) account to confirm",
+      expectedOrderSignals: handoff?.expectedOrderSignals ?? "\(sellerName), \(item.itemName), order confirmation, dispatch, tracking",
+      expectedMailboxOrSource: "Inbox triage after manual mailbox refresh",
+      watchStatus: handoff?.linkedOrderID == nil ? "Awaiting external purchase" : "Linked to local order",
+      matchedOrderSummary: handoff?.linkedOrderID.flatMap { id in orders.first { $0.id == id }?.orderNumber } ?? "No linked order yet",
+      nextCheckSummary: "After a human buys externally, refresh the relevant mailbox and link the captured confirmation order.",
+      createdDate: Self.auditTimestamp(),
+      lastCheckedDate: "Not checked",
+      reviewState: .needsReview,
+      notes: "Local watch rule only. No background polling, retailer monitoring, mailbox mutation, order placement, or purchase automation occurs."
+    )
+    wishlistOrderWatchRecords.insert(record, at: 0)
+    if let itemIndex = wishlistItems.firstIndex(where: { $0.id == item.id }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Order watch rule staged locally"
+    }
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist order watch record added locally.",
+      afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo mailbox polling, background job, retailer monitoring, browser automation, checkout, payment, or purchase occurred."
+    )
+  }
+
+  func checkWishlistOrderWatchRecord(_ record: WishlistOrderWatchRecord) {
+    guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
+    let matchedOrder = bestWishlistOrderMatch(for: wishlistItems.first { $0.id == wishlistOrderWatchRecords[index].wishlistItemID } ?? WishlistItem(
+      itemName: wishlistOrderWatchRecords[index].itemName,
+      storefront: wishlistOrderWatchRecords[index].sellerName,
+      storefrontURL: "",
+      estimatedCost: "",
+      owner: "",
+      pool: "Wishlist",
+      source: .manual,
+      status: "",
+      capturedDetail: wishlistOrderWatchRecords[index].expectedOrderSignals
+    ))
+    wishlistOrderWatchRecords[index].linkedOrderID = matchedOrder?.id ?? wishlistOrderWatchRecords[index].linkedOrderID
+    wishlistOrderWatchRecords[index].matchedOrderSummary = matchedOrder.map { "\($0.orderNumber) from \($0.store)" } ?? "No local order match found"
+    wishlistOrderWatchRecords[index].watchStatus = matchedOrder == nil ? "No local match yet" : "Matched local order"
+    wishlistOrderWatchRecords[index].lastCheckedDate = Self.auditTimestamp()
+    wishlistOrderWatchRecords[index].reviewState = matchedOrder == nil ? .needsReview : .accepted
+    if let wishlistItemID = wishlistOrderWatchRecords[index].wishlistItemID,
+       let itemIndex = wishlistItems.firstIndex(where: { $0.id == wishlistItemID }) {
+      var handoff = wishlistItems[itemIndex].purchaseHandoff
+      if handoff == nil {
+        prepareWishlistPurchaseHandoff(wishlistItems[itemIndex])
+        handoff = wishlistItems[itemIndex].purchaseHandoff
+      }
+      let existingLinkedOrderID = handoff?.linkedOrderID
+      let watchStatus = wishlistOrderWatchRecords[index].watchStatus
+      let updatedAt = Self.auditTimestamp()
+      handoff?.linkedOrderID = matchedOrder?.id ?? existingLinkedOrderID
+      handoff?.orderWatchStatus = watchStatus
+      handoff?.updatedAt = updatedAt
+      wishlistItems[itemIndex].purchaseHandoff = handoff
+      wishlistItems[itemIndex].purchaseReadiness = matchedOrder == nil ? "Order watch checked; no local match yet" : "Order watch matched local order"
+    }
+    persistWishlist()
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: wishlistOrderWatchRecords[index].wishlistItemID?.uuidString ?? wishlistOrderWatchRecords[index].id.uuidString,
+      entityLabel: wishlistOrderWatchRecords[index].itemName,
+      summary: matchedOrder == nil ? "Wishlist order watch checked with no local match." : "Wishlist order watch matched local order \(matchedOrder?.orderNumber ?? "").",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nLocal match check only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, or pay."
+    )
+  }
+
+  func markWishlistOrderWatchRecordReviewed(_ record: WishlistOrderWatchRecord) {
+    guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
+    wishlistOrderWatchRecords[index].watchStatus = wishlistOrderWatchRecords[index].linkedOrderID == nil ? "Reviewed; still awaiting order" : "Reviewed and linked"
+    wishlistOrderWatchRecords[index].reviewState = .accepted
+    wishlistOrderWatchRecords[index].lastCheckedDate = Self.auditTimestamp()
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistOrderWatchRecords[index].wishlistItemID?.uuidString ?? wishlistOrderWatchRecords[index].id.uuidString,
+      entityLabel: wishlistOrderWatchRecords[index].itemName,
+      summary: "Wishlist order watch reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nReview only. No mailbox fetch, background monitoring, retailer access, checkout, payment, or purchase occurred."
+    )
+  }
+
+  func blockWishlistOrderWatchRecord(_ record: WishlistOrderWatchRecord) {
+    guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
+    wishlistOrderWatchRecords[index].watchStatus = "Blocked locally"
+    wishlistOrderWatchRecords[index].reviewState = .needsReview
+    wishlistOrderWatchRecords[index].lastCheckedDate = Self.auditTimestamp()
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistOrderWatchRecords[index].wishlistItemID?.uuidString ?? wishlistOrderWatchRecords[index].id.uuidString,
+      entityLabel: wishlistOrderWatchRecords[index].itemName,
+      summary: "Wishlist order watch blocked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nBlocked only in local JSON. No mailbox, retailer, browser, checkout, payment, purchase, or external service changed."
+    )
+  }
+
+  func removeWishlistOrderWatchRecord(_ record: WishlistOrderWatchRecord) {
+    guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = wishlistOrderWatchRecords.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: removed.wishlistItemID?.uuidString ?? removed.id.uuidString,
+      entityLabel: removed.itemName,
+      summary: "Wishlist order watch record removed locally.",
+      beforeDetail: removed.auditDetail,
+      afterDetail: "Local watch record removed only. No mailbox, order, retailer page, checkout, payment, purchase, or external service was changed."
+    )
+  }
+
+  func createWishlistOrderWatchRecordReviewTask(_ record: WishlistOrderWatchRecord) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
+      label: "Review order watch: \(record.itemName)",
+      summary: "Review Wishlist order watch for \(record.itemName). Seller \(record.sellerName), account \(record.accountLabel), expected signals \(record.expectedOrderSignals), source \(record.expectedMailboxOrSource), status \(record.watchStatus).",
+      priority: record.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -22600,6 +22764,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistPurchaseAccountRecords(wishlistPurchaseAccountRecords)
     wishlistRepository.saveWishlistPurchaseApprovalRecords(wishlistPurchaseApprovalRecords)
     wishlistRepository.saveWishlistPurchaseLinkRecords(wishlistPurchaseLinkRecords)
+    wishlistRepository.saveWishlistOrderWatchRecords(wishlistOrderWatchRecords)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -23586,6 +23751,12 @@ private extension WishlistPurchaseApprovalRecord {
 private extension WishlistPurchaseLinkRecord {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); link type: \(linkType); estimated AUD total: \(estimatedAUDTotal); postage: \(postageSummary); trust: \(trustSummary); readiness: \(readinessStatus); account context: \(accountContext); selected: \(selectedForPurchase ? "yes" : "no"); created: \(createdDate); last checked: \(lastCheckedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistOrderWatchRecord {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); linked order: \(linkedOrderID?.uuidString ?? "none"); seller: \(sellerName); account: \(accountLabel); expected signals: \(expectedOrderSignals); source: \(expectedMailboxOrSource); status: \(watchStatus); matched order: \(matchedOrderSummary); next check: \(nextCheckSummary); created: \(createdDate); last checked: \(lastCheckedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

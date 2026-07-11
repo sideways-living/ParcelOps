@@ -597,6 +597,41 @@ enum SampleData {
     )
   ]
 
+  static var wishlistOrderWatchRecords: [WishlistOrderWatchRecord] = [
+    WishlistOrderWatchRecord(
+      wishlistItemID: nil,
+      linkedOrderID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      accountLabel: "Operations purchasing account",
+      expectedOrderSignals: "SafetyPro Direct AU, compact barcode scanner, order confirmation, dispatch email, tracking number",
+      expectedMailboxOrSource: "SpaceMail mixed mailbox / Inbox triage",
+      watchStatus: "Awaiting external purchase",
+      matchedOrderSummary: "No linked order yet",
+      nextCheckSummary: "After a human buys externally, refresh mailbox and link the confirmation order.",
+      createdDate: "Sample only",
+      lastCheckedDate: "Not checked",
+      reviewState: .needsReview,
+      notes: "Local order-watch sample only. No background polling, retailer monitoring, mailbox mutation, or purchase automation occurs."
+    ),
+    WishlistOrderWatchRecord(
+      wishlistItemID: nil,
+      linkedOrderID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "OfficeKit Store",
+      accountLabel: "Shared purchasing account to confirm",
+      expectedOrderSignals: "OfficeKit Store, thermal rolls, receipt, shipment update",
+      expectedMailboxOrSource: "Gmail order updates placeholder",
+      watchStatus: "Needs account context",
+      matchedOrderSummary: "No linked order yet",
+      nextCheckSummary: "Confirm which account/mailbox receives the order confirmation before purchase.",
+      createdDate: "Sample only",
+      lastCheckedDate: "Not checked",
+      reviewState: .monitor,
+      notes: "Shows how Gmail-hosted confirmations can be planned without running Gmail refresh automatically."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

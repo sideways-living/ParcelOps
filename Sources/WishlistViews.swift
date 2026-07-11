@@ -535,6 +535,7 @@ struct WishlistView: View {
         wishlistPurchaseAccountLedgerPanel
         wishlistPurchaseWatchCommandCentrePanel
         wishlistPostPurchaseMonitorPanel
+        wishlistOrderWatchRecordsPanel
         wishlistOrderConfirmationMatchingPanel
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
@@ -5896,6 +5897,96 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistOrderWatchRecordsPanel: some View {
+    let records = store.wishlistOrderWatchRecords.sorted { first, second in
+      if (first.linkedOrderID == nil) != (second.linkedOrderID == nil) {
+        return first.linkedOrderID == nil
+      }
+      if first.reviewState == second.reviewState {
+        return first.createdDate > second.createdDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let waiting = records.filter { $0.linkedOrderID == nil && !$0.watchStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let linked = records.filter { $0.linkedOrderID != nil }.count
+    let blocked = records.filter { $0.watchStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let needsReview = records.filter { $0.reviewState != .accepted }.count
+
+    return SettingsPanel(title: "Order watch rules", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Track what should appear after a human buys externally: seller, account label, expected confirmation wording, mailbox/source, and local order link. Checks are manual only; no background polling or mailbox mutation runs here.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Rules", "\(records.count)", records.isEmpty ? .secondary : .blue),
+          ("Waiting", "\(waiting)", waiting == 0 ? .secondary : .orange),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .green),
+          ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
+          ("Need review", "\(needsReview)", needsReview == 0 ? .green : .purple)
+        ])
+
+        CompactActionRow {
+          Button("Add watch rule", systemImage: "envelope.badge.shield.half.filled") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistOrderWatchRecord(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Open Inbox", systemImage: "tray.full.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if records.isEmpty {
+          MVPEmptyState(
+            title: "No order watch rules yet",
+            detail: "Add a watch rule after a purchase link or handoff exists. Then refresh the relevant mailbox manually and link any captured order confirmation.",
+            symbol: "envelope.badge.shield.half.filled"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 430), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(records.prefix(8)) { record in
+              WishlistOrderWatchRecordRow(record: record) {
+                store.checkWishlistOrderWatchRecord(record)
+              } onReviewed: {
+                store.markWishlistOrderWatchRecordReviewed(record)
+              } onBlock: {
+                store.blockWishlistOrderWatchRecord(record)
+              } onRemove: {
+                store.removeWishlistOrderWatchRecord(record)
+              } onTask: {
+                store.createWishlistOrderWatchRecordReviewTask(record)
+              } onFocus: {
+                wishlistSearchText = record.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .watch
+              }
+            }
+          }
+
+          let remaining = max(records.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more order watch rule\(remaining == 1 ? "" : "s") are stored locally.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only boundary: this stores expected order-confirmation signals and manual check status. It does not poll mailboxes, scrape retailers, mark email read, place orders, pay, or send messages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistOrderConfirmationMatchingEntries: [WishlistPostPurchaseOrderWatchEntry] {
     wishlistPostPurchaseOrderWatchEntries
       .filter { entry in
@@ -9612,6 +9703,89 @@ private struct WishlistPurchaseLinkRow: View {
         Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "magnifyingglass", action: onFocus)
+        Button("Remove", systemImage: "trash", action: onRemove)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(12)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(tone.opacity(0.18), lineWidth: 1)
+    )
+  }
+}
+
+private struct WishlistOrderWatchRecordRow: View {
+  var record: WishlistOrderWatchRecord
+  var onCheck: () -> Void
+  var onReviewed: () -> Void
+  var onBlock: () -> Void
+  var onRemove: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isLinked: Bool {
+    record.linkedOrderID != nil || record.watchStatus.localizedCaseInsensitiveContains("matched")
+  }
+
+  private var isBlocked: Bool {
+    record.watchStatus.localizedCaseInsensitiveContains("blocked")
+  }
+
+  private var tone: Color {
+    if isBlocked { return .red }
+    if isLinked || record.reviewState == .accepted { return .green }
+    if record.watchStatus.localizedCaseInsensitiveContains("no local") { return .orange }
+    return .purple
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isLinked ? "envelope.badge.fill" : "envelope.badge.shield.half.filled")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(record.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(record.sellerName) • \(record.watchStatus)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(record.nextCheckSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(record.linkedOrderID == nil ? "No order link" : "Linked", color: record.linkedOrderID == nil ? .orange : .green)
+          Badge(record.reviewState.rawValue, color: record.reviewState == .accepted ? .green : .orange)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Account", value: record.accountLabel, symbol: "person.crop.circle.fill")
+        WishlistMatrixMetric(title: "Source", value: record.expectedMailboxOrSource, symbol: "tray.full.fill")
+        WishlistMatrixMetric(title: "Signals", value: record.expectedOrderSignals, symbol: "magnifyingglass")
+        WishlistMatrixMetric(title: "Match", value: record.matchedOrderSummary, symbol: "link")
+      }
+
+      Text(record.notes)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Check local", systemImage: "magnifyingglass", action: onCheck)
+        Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)
+          .disabled(record.reviewState == .accepted)
+        Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
         Button("Remove", systemImage: "trash", action: onRemove)
       }
       .buttonStyle(.bordered)
