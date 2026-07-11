@@ -545,11 +545,10 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           SpaceMailOperatorGuidanceStack(store: store)
           CompactActionRow {
-            Button("Add SpaceMail setup", systemImage: "plus") {
-              store.addSpaceMailIMAPConnectionPlaceholder()
-              setupFeedbackMessage = "SpaceMail IMAP setup placeholder added locally. Configure host, folder, mode, and Keychain credential before real refresh."
+            Button(store.spaceMailIMAPConnections.isEmpty ? "Add SpaceMail setup" : "Show existing SpaceMail setup", systemImage: store.spaceMailIMAPConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusSpaceMailSetup()
             }
-              .buttonStyle(.bordered)
+            .buttonStyle(.bordered)
             Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
           }
           if store.spaceMailIMAPConnections.isEmpty {
@@ -644,11 +643,10 @@ struct IntegrationsView: View {
           GmailGoogleCloudSetupGuide()
           SettingsGmailManualRunbookPanel(store: store)
           CompactActionRow {
-            Button("Add Gmail setup", systemImage: "plus") {
-              store.addGmailMailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Gmail setup added locally. Use mock refresh for local testing or real refresh after Google sign-in."
+            Button(store.gmailMailboxConnections.isEmpty ? "Add Gmail setup" : "Show existing Gmail setup", systemImage: store.gmailMailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusGmailSetup()
             }
-              .buttonStyle(.bordered)
+            .buttonStyle(.bordered)
             Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
           }
           if store.gmailMailboxConnections.isEmpty {
@@ -754,11 +752,10 @@ struct IntegrationsView: View {
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button("Add mailbox setup", systemImage: "plus") {
-              store.addMicrosoft365MailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Microsoft 365 mailbox setup placeholder added locally. Real Graph refresh remains manual and explicit."
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Microsoft 365 setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusMicrosoft365Setup()
             }
-              .buttonStyle(.bordered)
+            .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
           if store.microsoft365MailboxConnections.isEmpty {
