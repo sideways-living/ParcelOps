@@ -669,6 +669,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistNextActionGuidePanel
+        wishlistComparisonReadinessLadderPanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
         wishlistLocalActivityPanel
@@ -1216,6 +1217,160 @@ struct WishlistView: View {
       selectedWorkflowFocus = .operations
     default:
       break
+    }
+  }
+
+  private var wishlistComparisonReadinessLadderPanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let activeResearchRequests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+    let stagedCaptureGaps = store.wishlistCaptureCandidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
+    let unbriefedItems = activeItems.filter { item in
+      !activeResearchRequests.contains { $0.wishlistItemID == item.id }
+        && (item.comparisonOptions ?? []).isEmpty
+    }.count
+    let researchScopeGaps = activeResearchRequests.filter {
+      !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked")
+    }.count
+    let sellerEvidenceGaps = activeItems.filter { item in
+      (item.comparisonOptions ?? []).contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+    }.count
+    let purchaseBlockers = activeItems.filter { !$0.operatorPurchaseBlockers.isEmpty }.count
+    let acceptedDecisions = activeItems.filter { $0.purchaseDecision?.reviewState == .accepted }.count
+    let orderWatchItems = activeItems.filter {
+      $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil
+    }.count
+    let linkedOperationalItems = activeItems.filter {
+      $0.purchaseHandoff?.linkedOrderID != nil
+        || !store.suggestedReceivingInspections(for: $0).isEmpty
+        || !store.suggestedInventoryReceipts(for: $0).isEmpty
+        || !store.suggestedDispatchReadinessChecklists(for: $0).isEmpty
+    }.count
+    let blockingCount = stagedCaptureGaps + unbriefedItems + researchScopeGaps + sellerEvidenceGaps + purchaseBlockers
+
+    let steps: [(title: String, status: String, detail: String, count: Int, symbol: String, color: Color, focus: WishlistWorkflowFocus)] = [
+      (
+        "1. Capture",
+        stagedCaptureGaps == 0 ? "Inputs clear" : "Fix captures",
+        stagedCaptureGaps == 0 ? "Manual items and staged captures have enough basic product context." : "Confirm item name, seller, URL, price clues, and owner before comparison.",
+        stagedCaptureGaps,
+        "square.and.arrow.down.fill",
+        stagedCaptureGaps == 0 ? .green : .orange,
+        .capture
+      ),
+      (
+        "2. Research brief",
+        unbriefedItems == 0 ? "Briefs present" : "Create briefs",
+        unbriefedItems == 0 ? "Active items have a local brief or seller option context." : "Create a local comparison brief before any human or future agent compares retailers.",
+        unbriefedItems,
+        "doc.text.magnifyingglass",
+        unbriefedItems == 0 ? .green : .blue,
+        .compare
+      ),
+      (
+        "3. Scope quality",
+        researchScopeGaps == 0 ? "Scope clear" : "Scope gaps",
+        researchScopeGaps == 0 ? "Research requests include item, source, budget, region, postage, and trust expectations." : "Fill missing AUD budget, region, seller criteria, postage, trust, source, or review fields.",
+        researchScopeGaps,
+        "checklist.checked",
+        researchScopeGaps == 0 ? .green : .orange,
+        .compare
+      ),
+      (
+        "4. Seller comparison",
+        sellerEvidenceGaps == 0 ? "Evidence clear" : "Evidence gaps",
+        sellerEvidenceGaps == 0 ? "Recorded seller options have enough local evidence for operator review." : "Add product URL, AUD landed total, postage, delivery time, trust, returns, or recommendation notes.",
+        sellerEvidenceGaps,
+        "shield.checkered",
+        sellerEvidenceGaps == 0 ? .green : .purple,
+        .compare
+      ),
+      (
+        "5. Purchase decision",
+        purchaseBlockers == 0 ? "\(acceptedDecisions) accepted" : "Blocked",
+        purchaseBlockers == 0 ? "Purchase decisions can be drafted or reviewed locally before any external purchase." : "Resolve seller choice, price, postage, trust, approval, account, or order-watch checks before buying.",
+        purchaseBlockers,
+        "cart.badge.plus",
+        purchaseBlockers == 0 ? .green : .orange,
+        .buy
+      ),
+      (
+        "6. Order watch",
+        orderWatchItems == 0 ? "No watch queue" : "Watch confirmations",
+        orderWatchItems == 0 ? "No purchased Wishlist item is currently waiting for an order confirmation link." : "After external purchase, match Inbox/Orders confirmation back to the Wishlist handoff.",
+        orderWatchItems,
+        "envelope.badge.fill",
+        orderWatchItems == 0 ? .secondary : .teal,
+        .watch
+      ),
+      (
+        "7. Operations",
+        linkedOperationalItems == 0 ? "Not started" : "Linked",
+        linkedOperationalItems == 0 ? "Operations work starts after a Wishlist handoff is linked to an order or downstream records." : "Continue receiving, storage, custody, labels, dispatch, and closure checks.",
+        linkedOperationalItems,
+        "shippingbox.fill",
+        linkedOperationalItems == 0 ? .secondary : .green,
+        .operations
+      )
+    ]
+
+    return SettingsPanel(title: "Wishlist comparison readiness ladder", symbol: "list.bullet.rectangle.portrait.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: blockingCount == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(blockingCount == 0 ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(blockingCount == 0 ? "Wishlist comparison path is locally clear" : "Wishlist comparison path has local blockers")
+              .font(.headline)
+            Text(blockingCount == 0
+              ? "Use the queue below to choose a purchase decision, prepare a handoff, or match order confirmations when needed."
+              : "Work the ladder top-down before relying on seller comparisons, purchase decisions, or order-watch handoff.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(blockingCount == 0 ? "Clear" : "\(blockingCount) blocker\(blockingCount == 1 ? "" : "s")", color: blockingCount == 0 ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(step.title, systemImage: step.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(step.color)
+                Spacer(minLength: 8)
+                Badge(step.status, color: step.color)
+              }
+              Text(step.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              HStack {
+                Badge("\(step.count)", color: step.color)
+                Spacer()
+                Button("Focus", systemImage: "scope") {
+                  selectedWorkflowFocus = step.focus
+                  selectedSource = nil
+                  selectedStatus = nil
+                  wishlistSearchText = ""
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Boundary: this ladder reads local Wishlist records only. It does not compare live websites, convert currency, rate sellers externally, log into retailer accounts, purchase, pay, scrape pages, or monitor orders in the background.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
