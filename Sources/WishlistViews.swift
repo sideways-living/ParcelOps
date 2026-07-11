@@ -475,6 +475,7 @@ struct WishlistView: View {
         wishlistSellerOptionReviewPanel
         wishlistSellerSafetyRubricPanel
         wishlistSellerTrustDiligencePanel
+        wishlistSellerTrustEvidenceLedgerPanel
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
         wishlistPurchaseRecommendationPanel
@@ -2207,6 +2208,124 @@ struct WishlistView: View {
     } else {
       store.runWishlistPurchaseReadinessCheck(entry.item)
     }
+  }
+
+  private var wishlistSellerTrustEvidenceLedgerPanel: some View {
+    let entries = wishlistSellerTrustDiligenceEntries
+    let blocked = entries.filter { $0.verdict == "Do not buy yet" }.count
+    let missingReturns = entries.filter { entry in
+      entry.checks.contains { $0.label == "Returns/warranty" && $0.status == "Missing" }
+    }.count
+    let missingTrust = entries.filter { entry in
+      entry.checks.contains { $0.label == "Trust evidence" && $0.status == "Review" }
+    }.count
+    let overseasReview = entries.filter(\.isOverseas).count
+    let preferredRisk = entries.filter { $0.isPreferred && $0.verdict != "Ready for live check" }.count
+
+    return SettingsPanel(title: "Seller trust evidence ledger", symbol: "shield.checkered") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("A compact local ledger of seller trust evidence before purchase. It highlights missing returns/warranty notes, weak trust evidence, overseas review risk, and preferred sellers that still should not be bought from.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Seller options", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red),
+          ("Trust gaps", "\(missingTrust)", missingTrust == 0 ? .green : .orange),
+          ("Returns gaps", "\(missingReturns)", missingReturns == 0 ? .green : .purple),
+          ("Overseas", "\(overseasReview)", overseasReview == 0 ? .secondary : .teal),
+          ("Preferred risk", "\(preferredRisk)", preferredRisk == 0 ? .green : .red)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller trust evidence to review",
+            detail: "Add seller options first. Trust evidence appears here once sellers have been recorded for Wishlist comparison.",
+            symbol: "shield.checkered"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: entry.verdict == "Ready for live check" ? "shield.lefthalf.filled" : "exclamationmark.shield.fill")
+                    .foregroundStyle(entry.tone)
+                    .frame(width: 24)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.option.sellerName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(entry.item.itemName)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(2)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(entry.verdict, color: entry.tone)
+                }
+
+                Text(wishlistSellerTrustEvidenceLedgerDetail(for: entry))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactMetadataGrid(minimumWidth: 125) {
+                  Badge(entry.option.trustRating, color: entry.tone)
+                  Badge(entry.option.sellerRegion.isEmpty ? "Region missing" : entry.option.sellerRegion, color: entry.isOverseas ? .purple : .blue)
+                  Badge(entry.option.postageTime, color: entry.option.postageTime.localizedCaseInsensitiveContains("pending") ? .orange : .teal)
+                  Badge(entry.isPreferred ? "Preferred" : "Alternative", color: entry.isPreferred ? .green : .secondary)
+                }
+
+                let missing = entry.checks.filter { $0.status == "Missing" || $0.status == "Review" }.map(\.label)
+                if !missing.isEmpty {
+                  Text("Evidence needed: \(missing.prefix(4).joined(separator: ", ")).")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                CompactActionRow {
+                  Button(entry.verdict == "Ready for live check" ? "Readiness" : "Evidence task", systemImage: entry.verdict == "Ready for live check" ? "checklist.checked" : "checklist") {
+                    runWishlistSellerTrustDiligenceAction(for: entry)
+                  }
+                  Button("Score", systemImage: "chart.bar.doc.horizontal") {
+                    store.evaluateWishlistComparisonOptions(entry.item)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = entry.item.itemName
+                    selectedSource = nil
+                    selectedStatus = nil
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(10)
+              .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Trust evidence remains manually supplied. ParcelOps does not call review sites, check business registrations, validate seller identity, test checkout, verify delivery probability, or contact sellers.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistSellerTrustEvidenceLedgerDetail(for entry: WishlistSellerTrustDiligenceEntry) -> String {
+    if entry.verdict == "Do not buy yet" {
+      return "Seller should stay blocked until trust evidence, delivery reliability, returns/warranty, and landed cost are stronger."
+    }
+    if entry.verdict == "Needs evidence" {
+      let missing = entry.checks.filter { $0.status == "Missing" || $0.status == "Review" }.map(\.label)
+      return missing.isEmpty
+        ? "Seller needs manual evidence cleanup before it becomes a purchase candidate."
+        : "Missing or weak evidence: \(missing.prefix(3).joined(separator: ", "))."
+    }
+    return "Local trust evidence is complete enough for manual live verification. Still check current stock, price, postage, returns, account, and payment externally."
   }
 
   private var wishlistComparisonMatrixEntries: [WishlistComparisonMatrixEntry] {
