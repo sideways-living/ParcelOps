@@ -27,6 +27,7 @@ final class ParcelOpsStore {
   var wishlistCaptureCandidates: [WishlistCaptureCandidate]
   var wishlistResearchRequests: [WishlistResearchRequest]
   var wishlistPriceSnapshots: [WishlistPriceSnapshot]
+  var wishlistSellerQuotes: [WishlistSellerQuote]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -243,6 +244,7 @@ final class ParcelOpsStore {
     self.wishlistCaptureCandidates = repository.loadWishlistCaptureCandidates()
     self.wishlistResearchRequests = repository.loadWishlistResearchRequests()
     self.wishlistPriceSnapshots = repository.loadWishlistPriceSnapshots()
+    self.wishlistSellerQuotes = repository.loadWishlistSellerQuotes()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -20569,6 +20571,144 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistSellerQuotes(for item: WishlistItem) -> [WishlistSellerQuote] {
+    wishlistSellerQuotes
+      .filter { quote in
+        quote.wishlistItemID == item.id
+          || quote.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(quote.itemName)
+      }
+      .sorted { first, second in
+        if first.reviewState == second.reviewState {
+          return first.capturedDate > second.capturedDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistSellerQuotePlaceholder(_ item: WishlistItem) {
+    let timestamp = Self.auditTimestamp()
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    } ?? item.comparisonOptions?.first
+    let quote = WishlistSellerQuote(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: preferredOption?.sellerName ?? item.storefront,
+      productURL: preferredOption?.productURL ?? item.storefrontURL,
+      listedPrice: preferredOption?.listedPrice ?? item.estimatedCost,
+      currency: preferredOption?.currency ?? "AUD or source currency",
+      estimatedAUDTotal: preferredOption?.estimatedAUDTotal ?? "AUD total to confirm",
+      postageCost: preferredOption?.postageCost ?? "Postage cost to confirm",
+      postageTime: preferredOption?.postageTime ?? "Postage time to confirm",
+      sellerRegion: preferredOption?.sellerRegion ?? "Region to confirm",
+      trustSummary: preferredOption?.trustRating ?? "Seller trust to confirm",
+      returnsWarrantySummary: "Returns and warranty to confirm before purchase.",
+      quoteSource: "Manual quote intake",
+      quoteStatus: "Needs review",
+      capturedDate: timestamp,
+      reviewState: .needsReview,
+      notes: "Local seller quote only. No retailer page was fetched, no currency conversion or postage lookup ran, no trust service was called, and no purchase occurred."
+    )
+    wishlistSellerQuotes.insert(quote, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist seller quote captured locally.",
+      afterDetail: "\(quote.auditDetail)\nSource item: \(item.auditDetail)\nQuote is local/manual only. No live retailer lookup, account login, checkout, purchase, payment, or mailbox monitoring occurred."
+    )
+  }
+
+  func promoteWishlistSellerQuoteToOption(_ quote: WishlistSellerQuote) {
+    guard let quoteIndex = wishlistSellerQuotes.firstIndex(where: { $0.id == quote.id }) else { return }
+    guard let itemIndex = wishlistItems.firstIndex(where: { item in
+      quote.wishlistItemID == item.id
+        || quote.itemName.localizedCaseInsensitiveContains(item.itemName)
+        || item.itemName.localizedCaseInsensitiveContains(quote.itemName)
+    }) else {
+      createWishlistSellerQuoteReviewTask(quote)
+      return
+    }
+    let beforeQuote = wishlistSellerQuotes[quoteIndex].auditDetail
+    let beforeItem = wishlistItems[itemIndex].auditDetail
+    var option = WishlistComparisonOption(
+      sellerName: quote.sellerName,
+      productURL: quote.productURL,
+      listedPrice: quote.listedPrice,
+      currency: quote.currency,
+      estimatedAUDTotal: quote.estimatedAUDTotal,
+      postageCost: quote.postageCost,
+      postageTime: quote.postageTime,
+      sellerRegion: quote.sellerRegion,
+      trustRating: quote.trustSummary,
+      trustNotes: quote.returnsWarrantySummary,
+      recommendation: "Promoted from local seller quote intake. Verify live price, stock, postage, trust, returns, account fit, and payment readiness before buying.",
+      lastChecked: quote.capturedDate,
+      localScore: nil,
+      riskLevel: nil,
+      decisionReason: quote.notes
+    )
+    let evaluation = localWishlistOptionEvaluation(for: option)
+    option.localScore = evaluation.score
+    option.riskLevel = evaluation.risk
+    option.decisionReason = "\(evaluation.recommendation): \(evaluation.reasons.joined(separator: ", "))"
+
+    if wishlistItems[itemIndex].comparisonOptions == nil {
+      wishlistItems[itemIndex].comparisonOptions = []
+    }
+    wishlistItems[itemIndex].comparisonOptions?.insert(option, at: 0)
+    if wishlistItems[itemIndex].preferredOptionID == nil {
+      wishlistItems[itemIndex].preferredOptionID = option.id
+    }
+    wishlistItems[itemIndex].comparisonStatus = "Seller quote promoted"
+    wishlistItems[itemIndex].purchaseReadiness = "Needs final seller verification"
+    wishlistSellerQuotes[quoteIndex].quoteStatus = "Promoted to seller option"
+    wishlistSellerQuotes[quoteIndex].reviewState = .accepted
+    wishlistSellerQuotes[quoteIndex].notes = "\(wishlistSellerQuotes[quoteIndex].notes) Promoted locally at \(Self.auditTimestamp())."
+    persistWishlist()
+    logAudit(
+      action: .linked,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[itemIndex].id.uuidString,
+      entityLabel: wishlistItems[itemIndex].itemName,
+      summary: "Wishlist seller quote promoted to comparison option.",
+      beforeDetail: "Quote before:\n\(beforeQuote)\nItem before:\n\(beforeItem)",
+      afterDetail: "Quote after:\n\(wishlistSellerQuotes[quoteIndex].auditDetail)\nItem after:\n\(wishlistItems[itemIndex].auditDetail)\nNo live retailer lookup, currency conversion, postage quote, trust lookup, account login, checkout, purchase, payment, or mailbox action occurred."
+    )
+  }
+
+  func rejectWishlistSellerQuote(_ quote: WishlistSellerQuote) {
+    guard let index = wishlistSellerQuotes.firstIndex(where: { $0.id == quote.id }) else { return }
+    let beforeDetail = wishlistSellerQuotes[index].auditDetail
+    wishlistSellerQuotes[index].quoteStatus = "Rejected locally"
+    wishlistSellerQuotes[index].reviewState = .accepted
+    wishlistSellerQuotes[index].notes = "\(wishlistSellerQuotes[index].notes) Rejected locally at \(Self.auditTimestamp())."
+    persistWishlist()
+    logAudit(
+      action: .ignored,
+      entityType: .wishlistItem,
+      entityID: wishlistSellerQuotes[index].wishlistItemID?.uuidString ?? wishlistSellerQuotes[index].id.uuidString,
+      entityLabel: wishlistSellerQuotes[index].itemName,
+      summary: "Wishlist seller quote rejected locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistSellerQuotes[index].auditDetail)\nQuote removed from purchase consideration only. No seller page, account, checkout, payment, purchase, mailbox, or external service was changed."
+    )
+  }
+
+  func createWishlistSellerQuoteReviewTask(_ quote: WishlistSellerQuote) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: quote.wishlistItemID?.uuidString ?? quote.id.uuidString,
+      label: "Review seller quote: \(quote.itemName)",
+      summary: "Review Wishlist seller quote from \(quote.sellerName). Confirm product link, listed price \(quote.listedPrice) \(quote.currency), AUD total \(quote.estimatedAUDTotal), postage \(quote.postageCost) \(quote.postageTime), seller trust, returns/warranty, and whether it should become a comparison option. No retailer lookup or purchase occurs.",
+      priority: quote.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -21767,6 +21907,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistCaptureCandidates(wishlistCaptureCandidates)
     wishlistRepository.saveWishlistResearchRequests(wishlistResearchRequests)
     wishlistRepository.saveWishlistPriceSnapshots(wishlistPriceSnapshots)
+    wishlistRepository.saveWishlistSellerQuotes(wishlistSellerQuotes)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -22692,6 +22833,12 @@ private extension WishlistResearchRequest {
 private extension WishlistPriceSnapshot {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); observed price: \(observedPrice); currency: \(currency); estimated AUD total: \(estimatedAUDTotal); postage: \(postageCost), \(postageTime); availability: \(availabilityStatus); trust: \(trustSignal); source: \(snapshotSource); captured: \(capturedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistSellerQuote {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); listed price: \(listedPrice); currency: \(currency); estimated AUD total: \(estimatedAUDTotal); postage: \(postageCost), \(postageTime); region: \(sellerRegion); trust: \(trustSummary); returns/warranty: \(returnsWarrantySummary); source: \(quoteSource); status: \(quoteStatus); captured: \(capturedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

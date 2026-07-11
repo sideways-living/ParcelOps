@@ -542,6 +542,7 @@ struct WishlistView: View {
         wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
+        wishlistSellerQuoteIntakePanel
         wishlistResearchPasteBackChecklistPanel
         wishlistResearchPasteBackFieldMapPanel
         wishlistResearchResultQualityPanel
@@ -7452,6 +7453,102 @@ struct WishlistView: View {
     return .green
   }
 
+  private var wishlistSellerQuoteIntakePanel: some View {
+    let quotes = store.wishlistSellerQuotes.sorted { first, second in
+      if first.reviewState == second.reviewState {
+        return first.capturedDate > second.capturedDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let needsReview = quotes.filter { $0.reviewState != .accepted && !$0.quoteStatus.localizedCaseInsensitiveContains("rejected") }.count
+    let promoted = quotes.filter { $0.quoteStatus.localizedCaseInsensitiveContains("promoted") }.count
+    let rejected = quotes.filter { $0.quoteStatus.localizedCaseInsensitiveContains("rejected") }.count
+    let linked = quotes.filter { quote in
+      store.wishlistItems.contains { item in
+        quote.wishlistItemID == item.id
+          || quote.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(quote.itemName)
+      }
+    }.count
+
+    return SettingsPanel(title: "Seller quote intake", symbol: "cart.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Capture researched seller offers before they become purchase options. Use this for manual research now and future browser/agent paste-back later; every quote still needs operator review before purchase.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Quotes", "\(quotes.count)", quotes.isEmpty ? .secondary : .blue),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .teal),
+          ("Need review", "\(needsReview)", needsReview == 0 ? .green : .orange),
+          ("Promoted", "\(promoted)", promoted == 0 ? .secondary : .green),
+          ("Rejected", "\(rejected)", rejected == 0 ? .secondary : .red)
+        ])
+
+        CompactActionRow {
+          Button("Add quote for first item", systemImage: "cart.badge.plus") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistSellerQuotePlaceholder(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if quotes.isEmpty {
+          MVPEmptyState(
+            title: "No seller quotes captured",
+            detail: "Add a local quote after manual research. Later browser or agent results can use this same review lane before becoming seller options.",
+            symbol: "cart.badge.plus"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(quotes.prefix(8)) { quote in
+              WishlistSellerQuoteRow(
+                quote: quote,
+                linkedItem: store.wishlistItems.first { item in
+                  quote.wishlistItemID == item.id
+                    || quote.itemName.localizedCaseInsensitiveContains(item.itemName)
+                    || item.itemName.localizedCaseInsensitiveContains(quote.itemName)
+                }
+              ) {
+                store.promoteWishlistSellerQuoteToOption(quote)
+              } onReject: {
+                store.rejectWishlistSellerQuote(quote)
+              } onTask: {
+                store.createWishlistSellerQuoteReviewTask(quote)
+              } onFocus: {
+                wishlistSearchText = quote.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .compare
+              }
+            }
+          }
+
+          let remaining = max(quotes.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller quote\(remaining == 1 ? "" : "s") are stored in the local quote ledger.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only boundary: this does not browse retailer sites, convert currency, fetch postage, rate sellers, log into stores, buy, pay, or monitor orders.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistResearchPasteBackChecklistPanel: some View {
     let briefedItems = store.wishlistItems.filter { item in
       store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
@@ -10836,6 +10933,99 @@ private struct WishlistPriceWatchDecisionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistSellerQuoteRow: View {
+  var quote: WishlistSellerQuote
+  var linkedItem: WishlistItem?
+  var onPromote: () -> Void
+  var onReject: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isPromoted: Bool {
+    quote.quoteStatus.localizedCaseInsensitiveContains("promoted")
+  }
+
+  private var isRejected: Bool {
+    quote.quoteStatus.localizedCaseInsensitiveContains("rejected")
+  }
+
+  private var tone: Color {
+    if isRejected { return .red }
+    if isPromoted { return .green }
+    if quote.reviewState == .accepted { return .teal }
+    return .orange
+  }
+
+  private var linkedDetail: String {
+    if let linkedItem {
+      return "Linked to \(linkedItem.itemName)"
+    }
+    return "No matching Wishlist item yet"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isPromoted ? "checkmark.seal.fill" : "cart.badge.plus")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(quote.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(quote.sellerName) • \(quote.estimatedAUDTotal)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(linkedDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(quote.quoteStatus, color: tone)
+          Badge(quote.reviewState.rawValue, color: quote.reviewState == .accepted ? .green : .orange)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Listed", value: "\(quote.listedPrice) \(quote.currency)", symbol: "tag.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(quote.postageCost), \(quote.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Region", value: quote.sellerRegion, symbol: "globe.asia.australia.fill")
+        WishlistMatrixMetric(title: "Trust", value: quote.trustSummary, symbol: "shield.checkered")
+      }
+
+      Text(quote.returnsWarrantySummary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !quote.productURL.isPlaceholderValidationValue {
+        Text(quote.productURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      CompactActionRow {
+        Button("Promote", systemImage: "arrow.up.doc.fill", action: onPromote)
+          .disabled(isPromoted || isRejected || linkedItem == nil)
+        Button("Reject", systemImage: "xmark.circle", action: onReject)
+          .disabled(isRejected)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

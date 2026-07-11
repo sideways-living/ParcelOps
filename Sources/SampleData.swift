@@ -387,6 +387,47 @@ enum SampleData {
     )
   ]
 
+  static var wishlistSellerQuotes: [WishlistSellerQuote] = [
+    WishlistSellerQuote(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      productURL: "https://safetypro.example/scanner-compact",
+      listedPrice: "189.00",
+      currency: "AUD",
+      estimatedAUDTotal: "AUD 201.00",
+      postageCost: "AUD 12.00",
+      postageTime: "2-4 business days",
+      sellerRegion: "Australia",
+      trustSummary: "Known local supplier placeholder; business details and returns visible.",
+      returnsWarrantySummary: "Warranty and return terms need final operator check.",
+      quoteSource: "Manual research sample",
+      quoteStatus: "Needs review",
+      capturedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Local quote intake sample only. No retailer page was fetched, no price was verified live, no seller was contacted, and no purchase occurred."
+    ),
+    WishlistSellerQuote(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "Global Warehouse Placeholder",
+      productURL: "https://global.example/label-rolls",
+      listedPrice: "42.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD conversion pending",
+      postageCost: "Postage pending",
+      postageTime: "10-21 business days",
+      sellerRegion: "Overseas",
+      trustSummary: "Seller trust evidence missing; do not buy until reviewed.",
+      returnsWarrantySummary: "Returns and warranty unclear.",
+      quoteSource: "Future agent paste-back sample",
+      quoteStatus: "Needs review",
+      capturedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Shows why quote intake should be reviewed before becoming a purchase option."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

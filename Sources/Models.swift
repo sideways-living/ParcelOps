@@ -2986,6 +2986,27 @@ struct WishlistPriceSnapshot: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct WishlistSellerQuote: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var wishlistItemID: UUID?
+  var itemName: String
+  var sellerName: String
+  var productURL: String
+  var listedPrice: String
+  var currency: String
+  var estimatedAUDTotal: String
+  var postageCost: String
+  var postageTime: String
+  var sellerRegion: String
+  var trustSummary: String
+  var returnsWarrantySummary: String
+  var quoteSource: String
+  var quoteStatus: String
+  var capturedDate: String
+  var reviewState: ReviewState
+  var notes: String
+}
+
 extension WishlistResearchRequest {
   var agentBriefGaps: [String] {
     var gaps: [String] = []
