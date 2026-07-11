@@ -2553,7 +2553,7 @@ struct GmailMailboxConnectionRow: View {
           gmailCompiledHandoffStep(
             number: "4",
             title: "Manual test",
-            detail: "Use Test real Google sign-in first. Run real Gmail refresh only after sign-in and read-only scope consent are clear."
+            detail: "Use Test real Google sign-in first. Run real Gmail refresh only after setup, compiled callback readiness, sign-in, and read-only scope consent are clear."
           )
         }
         .padding(8)

@@ -2226,7 +2226,7 @@ private struct MailboxGmailReadinessPanel: View {
       ),
       GmailReadinessChecklistItem(
         title: "Manual refresh",
-        detail: hasManualRefresh ? "A manual Gmail refresh result exists. Refresh remains read-only and user-initiated." : "Run real Gmail refresh only after sign-in, or use mock refresh for local workflow testing.",
+        detail: hasManualRefresh ? "A manual Gmail refresh result exists. Refresh remains read-only and user-initiated." : "Run real Gmail refresh only after setup, compiled callback readiness, and Google sign-in are ready. Use mock refresh for local workflow testing.",
         symbol: "arrow.triangle.2.circlepath",
         isComplete: hasManualRefresh
       ),
