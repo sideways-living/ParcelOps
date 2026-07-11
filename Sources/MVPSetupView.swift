@@ -72,7 +72,7 @@ struct MVPSetupView: View {
           MVPStatusCard(title: "Local data store", detail: "Orders, intake, review work, manifests, tasks, and audit events are persisted as local JSON.", status: "Available", symbol: "internaldrive.fill", color: .green)
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
           MVPStatusCard(title: "SpaceMail intake", detail: "SpaceMail IMAP can run a manual read-only refresh, filter mixed mailbox mail, and import likely order messages into local Inbox review.", status: "Manual", symbol: "envelope.badge.fill", color: .green)
-          MVPStatusCard(title: "Gmail intake", detail: "Gmail can use explicit sign-in and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
+          MVPStatusCard(title: "Gmail intake", detail: "Gmail can use readiness checks, explicit sign-in, and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
           MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available, but it is no longer the primary mailbox path for this MVP.", status: "Advanced", symbol: "building.2.crop.circle", color: .teal)
           MVPStatusCard(title: "Wishlist", detail: "Wishlist supports local manual capture, comparison planning, seller trust notes, purchase handoff, and order-watch records. Agent research and browser extension capture remain planning/local handoff work.", status: "Local", symbol: "star.square.fill", color: .purple)
           MVPStatusCard(title: "Shopify", detail: "Shopify records and account placeholders exist, but no Shopify API or OAuth flow is connected.", status: "Placeholder", symbol: "cart.badge.plus", color: .orange)
@@ -215,7 +215,7 @@ struct MVPMailboxProviderStatusPanel: View {
       return "Use SpaceMail for IMAP mailboxes and Gmail for Google-hosted mailboxes. Both paths are explicit, manual, read-only, mixed-mailbox aware, and route into the same Inbox triage flow."
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
-      return "Gmail setup exists, but real refresh needs the explicit Gmail sign-in test to succeed. Mock refresh remains available for local testing."
+      return "Gmail setup exists, but real refresh needs readiness checks and the explicit Gmail sign-in test to succeed. Mock refresh remains available for local testing."
     }
     if hasSpaceMailSetup && !hasSpaceMailCredential {
       return "SpaceMail setup exists, but real refresh needs a Keychain password or app-password reference."
@@ -264,7 +264,7 @@ struct MVPMailboxProviderStatusPanel: View {
           )
           providerBlock(
             title: "Gmail",
-            detail: latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after explicit sign-in; mock refresh remains available.",
+            detail: latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after readiness checks and explicit sign-in; mock refresh remains available.",
             symbol: "envelope.open.fill",
             color: hasGmailSetup && hasGmailConnectedAuth ? .green : .orange
           )

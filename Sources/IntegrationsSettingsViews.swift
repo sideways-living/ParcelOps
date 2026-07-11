@@ -2234,7 +2234,7 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
 
-      Text("Recommended order: save setup, test real Google sign-in, then run real Gmail refresh. Mock Gmail refresh is still available for local intake testing.")
+      Text("Recommended order: save setup, run Check readiness, test real Google sign-in, then run real Gmail refresh. Mock Gmail refresh is still available for local intake testing.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
@@ -2812,7 +2812,7 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailCompiledConfigurationNextAction: String {
     if readiness.isReady {
-      return "Next: use Test real Google sign-in, then run manual read-only Gmail refresh only when needed."
+      return "Next: run Check readiness, use Test real Google sign-in, then run manual read-only Gmail refresh only when needed."
     }
     if !gmailCompiledBlockingFields.isEmpty {
       return "Next: replace the Gmail placeholder values in Project.json and App/Info.plist with the Google iOS OAuth client ID and reversed URL scheme, regenerate/rebuild, then rerun readiness."
@@ -2861,7 +2861,7 @@ struct GmailMailboxConnectionRow: View {
       return "The saved Gmail setup and the compiled app callback configuration need to agree before Google sign-in can be trusted."
     }
     if authState.status != .connected {
-      return "Run the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps mock refresh available."
+      return "Run Check readiness, then the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps mock refresh available."
     }
     return readiness.detailText
   }
@@ -2870,7 +2870,7 @@ struct GmailMailboxConnectionRow: View {
     if readiness.isReady && authState.status == .connected { return "Next: run manual real Gmail refresh only when you want to check the mailbox." }
     if hasMissingCoreGmailSetup { return "Next: edit setup and save the missing non-secret Gmail fields." }
     if !readiness.isReady { return "Next: fix the listed setup/configuration mismatch, regenerate if needed, then rebuild." }
-    if authState.status != .connected { return "Next: tap Test real Google sign-in; do not run real refresh until sign-in succeeds." }
+    if authState.status != .connected { return "Next: tap Check readiness, then Test real Google sign-in; do not run real refresh until readiness and sign-in succeed." }
     return readiness.detailText
   }
 

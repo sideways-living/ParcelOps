@@ -2220,13 +2220,13 @@ private struct MailboxGmailReadinessPanel: View {
       ),
       GmailReadinessChecklistItem(
         title: "Google sign-in",
-        detail: hasConnectedAuth ? "Real Google sign-in status is connected for this app session." : "Use Test real Google sign-in before running a real Gmail refresh.",
+        detail: hasConnectedAuth ? "Real Google sign-in status is connected for this app session." : "Run Check readiness, then use Test real Google sign-in before running a real Gmail refresh.",
         symbol: "person.crop.circle.badge.checkmark",
         isComplete: hasConnectedAuth
       ),
       GmailReadinessChecklistItem(
         title: "Manual refresh",
-        detail: hasManualRefresh ? "A manual Gmail refresh result exists. Refresh remains read-only and user-initiated." : "Run real Gmail refresh only after setup, compiled callback readiness, and Google sign-in are ready. Use mock refresh for local workflow testing.",
+        detail: hasManualRefresh ? "A manual Gmail refresh result exists. Refresh remains read-only and user-initiated." : "Run real Gmail refresh only after setup readiness, compiled callback readiness, Google sign-in, and read-only scope consent are clear. Use mock refresh for local workflow testing.",
         symbol: "arrow.triangle.2.circlepath",
         isComplete: hasManualRefresh
       ),
