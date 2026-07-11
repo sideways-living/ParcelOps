@@ -499,6 +499,7 @@ struct WishlistView: View {
         wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
+        wishlistResearchPasteBackChecklistPanel
         wishlistResearchResultQualityPanel
         wishlistSellerComparisonDecisionRunwayPanel
         wishlistResearchRequestsPanel
@@ -6278,6 +6279,154 @@ struct WishlistView: View {
     if item.comparisonOptions?.isEmpty != false { return .orange }
     if (item.comparisonOptions ?? []).contains(where: { !$0.operatorSellerEvidenceGaps.isEmpty }) { return .purple }
     return .green
+  }
+
+  private var wishlistResearchPasteBackChecklistPanel: some View {
+    let briefedItems = store.wishlistItems.filter { item in
+      store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+        || store.draftMessages.contains {
+          $0.linkedEntityType == .wishlistItem
+            && $0.linkedEntityID == "wishlist-research-batch"
+            && $0.body.localizedCaseInsensitiveContains(item.itemName)
+        }
+    }
+    let awaitingPasteBack = briefedItems.filter { ($0.comparisonOptions ?? []).isEmpty }
+    let optionsNeedingCleanup = briefedItems.filter { item in
+      (item.comparisonOptions ?? []).contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+    }
+    let readyForScoring = briefedItems.filter { item in
+      let options = item.comparisonOptions ?? []
+      return !options.isEmpty
+        && options.allSatisfy { $0.operatorSellerEvidenceGaps.isEmpty }
+        && item.purchaseDecision == nil
+    }
+    let nextItem = awaitingPasteBack.first ?? optionsNeedingCleanup.first ?? readyForScoring.first
+
+    return SettingsPanel(title: "Research paste-back checklist", symbol: "square.and.arrow.down.on.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this when comparison research comes back from a person, draft packet, browser notes, or future agent. Paste only verified result fields into seller options, then score locally before any purchase decision.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Briefed items", "\(briefedItems.count)", briefedItems.isEmpty ? .secondary : .blue),
+          ("Need paste-back", "\(awaitingPasteBack.count)", awaitingPasteBack.isEmpty ? .green : .orange),
+          ("Clean up", "\(optionsNeedingCleanup.count)", optionsNeedingCleanup.isEmpty ? .green : .purple),
+          ("Ready to score", "\(readyForScoring.count)", readyForScoring.isEmpty ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 245 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistResearchRunwayStep(
+            number: "1",
+            title: "Identify result source",
+            detail: "Confirm which brief, draft, browser note, or manual comparison the seller option came from.",
+            status: "Traceable",
+            color: .blue
+          )
+          WishlistResearchRunwayStep(
+            number: "2",
+            title: "Paste seller option",
+            detail: "Record seller, product URL, listed price/currency, AUD landed total, postage cost/time, seller region, and returns/warranty notes.",
+            status: awaitingPasteBack.isEmpty ? "No waiting" : "\(awaitingPasteBack.count) waiting",
+            color: awaitingPasteBack.isEmpty ? .green : .orange
+          )
+          WishlistResearchRunwayStep(
+            number: "3",
+            title: "Check trust",
+            detail: "Do not accept cheap options without clear seller trust evidence, delivery reliability, contact details, and returns/warranty terms.",
+            status: optionsNeedingCleanup.isEmpty ? "Clear" : "Review",
+            color: optionsNeedingCleanup.isEmpty ? .green : .purple
+          )
+          WishlistResearchRunwayStep(
+            number: "4",
+            title: "Score locally",
+            detail: "Run local scoring after fields are complete. Scoring guides a human decision; it does not verify live pages or buy.",
+            status: readyForScoring.isEmpty ? "Not ready" : "Ready",
+            color: readyForScoring.isEmpty ? .secondary : .green
+          )
+        }
+
+        if let nextItem {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "arrowshape.turn.up.right.fill")
+              .foregroundStyle(.teal)
+              .frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Next paste-back item")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Text(nextItem.itemName)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
+              Text(wishlistResearchPasteBackNextAction(for: nextItem))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Badge(wishlistResearchResultIntakeBadge(for: nextItem), color: wishlistResearchResultIntakeColor(for: nextItem))
+          }
+          .padding(10)
+          .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        } else {
+          Label("No research paste-back work is waiting. Create a research brief or add seller options when comparison results are available.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        }
+
+        CompactActionRow {
+          Button("Add seller option", systemImage: "storefront.fill") {
+            if let nextItem {
+              store.addManualWishlistSellerOptionPlaceholder(nextItem)
+            }
+          }
+          .disabled(nextItem == nil)
+
+          Button("Score next", systemImage: "chart.bar.doc.horizontal") {
+            if let nextItem {
+              store.evaluateWishlistComparisonOptions(nextItem)
+            }
+          }
+          .disabled(nextItem?.comparisonOptions?.isEmpty != false)
+
+          Button("Create task", systemImage: "checklist") {
+            if let nextItem {
+              store.createReviewTask(
+                linkedEntityType: .wishlistItem,
+                linkedEntityID: nextItem.id.uuidString,
+                label: nextItem.itemName,
+                summary: "Paste back Wishlist comparison research into seller options. Required fields: seller/product URL, listed price/currency, AUD landed total, postage cost/time, seller region, returns/warranty, trust evidence, and recommendation. Do not buy, log in, store credentials, or rely on unverified seller claims.",
+                priority: .high,
+                assignee: "Wishlist review"
+              )
+            }
+          }
+          .disabled(nextItem == nil)
+        }
+        .buttonStyle(.bordered)
+
+        Text("Manual boundary: this checklist does not browse, scrape, convert currencies, quote postage, validate seller trust, log into accounts, buy items, pay, or monitor orders. It only prepares local seller-option records for human review.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistResearchPasteBackNextAction(for item: WishlistItem) -> String {
+    let options = item.comparisonOptions ?? []
+    if options.isEmpty {
+      return "Paste the first verified seller option from returned research. Include URL, AUD total, postage, delivery time, and trust evidence."
+    }
+    let gapCount = options.reduce(0) { $0 + $1.operatorSellerEvidenceGaps.count }
+    if gapCount > 0 {
+      return "\(options.count) seller option\(options.count == 1 ? "" : "s") exist, but \(gapCount) evidence gap\(gapCount == 1 ? "" : "s") still need cleanup before scoring."
+    }
+    if item.preferredOptionID == nil {
+      return "Seller option fields look complete. Run local scoring and choose a preferred purchase route."
+    }
+    return "Preferred seller exists. Move this into purchase decision review if live price, stock, postage, trust, and account readiness are still acceptable."
   }
 
   private var wishlistResearchResultQualityEntries: [WishlistResearchResultQualityEntry] {
