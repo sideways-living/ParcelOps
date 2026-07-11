@@ -42,12 +42,9 @@ struct TasksView: View {
       $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
     }
   }
-  private func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
-    item.status != "Closed locally"
-  }
   private var wishlistTaskContextItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      isActiveWishlistItem(item) && (
+      store.isActiveWishlistItem(item) && (
         item.status.localizedCaseInsensitiveContains("purchase blocked")
         || item.status.localizedCaseInsensitiveContains("handoff")
         || item.status.localizedCaseInsensitiveContains("awaiting order")
@@ -73,7 +70,7 @@ struct TasksView: View {
 
   private var wishlistReadyPacketItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      isActiveWishlistItem(item) && (
+      store.isActiveWishlistItem(item) && (
         item.operatorPurchaseBlockers.isEmpty
         || item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") == true
         || item.purchaseDecision?.reviewState == .accepted
@@ -83,13 +80,13 @@ struct TasksView: View {
 
   private var wishlistNeedsHandoffItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      isActiveWishlistItem(item) && item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
+      store.isActiveWishlistItem(item) && item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
     }
   }
 
   private var wishlistAwaitingOrderItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      isActiveWishlistItem(item) && item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+      store.isActiveWishlistItem(item) && item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
     }
   }
 

@@ -2685,14 +2685,14 @@ struct WishlistView: View {
   }
 
   private func scoreAllWishlistOptions() {
-    let itemsWithOptions = store.wishlistItems.filter { !($0.comparisonOptions ?? []).isEmpty }
+    let itemsWithOptions = store.wishlistItems.filter { store.isActiveWishlistItem($0) && !($0.comparisonOptions ?? []).isEmpty }
     for item in itemsWithOptions {
       store.evaluateWishlistComparisonOptions(item)
     }
   }
 
   private var wishlistLandedCostReviewEntries: [WishlistLandedCostReviewEntry] {
-    store.wishlistItems.flatMap { item in
+    store.wishlistItems.filter(store.isActiveWishlistItem).flatMap { item in
       let options = item.comparisonOptions ?? []
       let cheapestID = options
         .compactMap { option -> (UUID, Double)? in
@@ -7288,7 +7288,8 @@ struct WishlistView: View {
     let needsScope = requests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let blocked = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let missingResearchItems = store.wishlistItems.filter { item in
-      (item.comparisonOptions ?? []).isEmpty
+      store.isActiveWishlistItem(item)
+        && (item.comparisonOptions ?? []).isEmpty
         && !requests.contains { $0.wishlistItemID == item.id }
     }
 
@@ -7862,12 +7863,14 @@ struct WishlistView: View {
     let blockedRequests = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let captureGapCandidates = store.wishlistCaptureCandidates.filter { !$0.operatorCaptureGaps.isEmpty }
     let unbriefedItems = store.wishlistItems.filter { item in
-      !requests.contains { $0.wishlistItemID == item.id }
+      store.isActiveWishlistItem(item)
+        && !requests.contains { $0.wishlistItemID == item.id }
         && (item.comparisonOptions ?? []).isEmpty
     }
     let returnedOptionItems = store.wishlistItems.filter { item in
       let hasRequest = requests.contains { $0.wishlistItemID == item.id }
-      return hasRequest
+      return store.isActiveWishlistItem(item)
+        && hasRequest
         && !(item.comparisonOptions ?? []).isEmpty
         && item.purchaseDecision == nil
     }
@@ -8054,7 +8057,7 @@ struct WishlistView: View {
 
   private var wishlistResearchResultsReadyCount: Int {
     store.wishlistItems.filter { item in
-      (item.comparisonOptions ?? []).contains { option in
+      store.isActiveWishlistItem(item) && (item.comparisonOptions ?? []).contains { option in
         option.operatorSellerEvidenceGaps.isEmpty && option.operatorSellerMatrixScore >= 70
       }
     }.count
@@ -8437,12 +8440,14 @@ struct WishlistView: View {
 
   private var wishlistResearchPasteBackChecklistPanel: some View {
     let briefedItems = store.wishlistItems.filter { item in
-      store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+      store.isActiveWishlistItem(item) && (
+        store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
         || store.draftMessages.contains {
           $0.linkedEntityType == .wishlistItem
             && $0.linkedEntityID == "wishlist-research-batch"
             && $0.body.localizedCaseInsensitiveContains(item.itemName)
         }
+      )
     }
     let awaitingPasteBack = briefedItems.filter { ($0.comparisonOptions ?? []).isEmpty }
     let optionsNeedingCleanup = briefedItems.filter { item in
@@ -9109,7 +9114,7 @@ struct WishlistView: View {
   private var wishlistCaptureContractPanel: some View {
     let candidates = store.wishlistCaptureCandidates
     let extensionCandidates = candidates.filter { $0.source == .browserExtension }.count
-    let manualReady = store.wishlistItems.filter { $0.source == .manual && !$0.itemName.isPlaceholderValidationValue }.count
+    let manualReady = store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.source == .manual && !$0.itemName.isPlaceholderValidationValue }.count
     let stagedWithGaps = candidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
 
     return SettingsPanel(title: "Wishlist capture contract", symbol: "square.and.arrow.down.on.square.fill") {
@@ -9200,7 +9205,7 @@ struct WishlistView: View {
   private var wishlistCaptureSourceReadinessRows: [WishlistCaptureSourceReadiness] {
     let sources: [WishlistSource] = [.manual, .browserExtension, .shareSheet, .screenshot, .pdf]
     return sources.map { source in
-      let activeItems = store.wishlistItems.filter { $0.source == source }.count
+      let activeItems = store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.source == source }.count
       let candidates = store.wishlistCaptureCandidates.filter { $0.source == source }
       let gaps = candidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
 
@@ -9660,8 +9665,8 @@ struct WishlistView: View {
           MetricStrip(items: [
             ("Gmail candidates", "\(gmailWishlistCandidateEmails.count)", gmailWishlistCandidateEmails.isEmpty ? .secondary : .blue),
             ("Ready signals", "\(gmailWishlistReadyCount)", gmailWishlistReadyCount == 0 ? .secondary : .teal),
-            ("Wishlist items", "\(store.wishlistItems.count)", store.wishlistItems.isEmpty ? .secondary : .green),
-            ("Needs review", "\(store.wishlistItems.filter { $0.status.localizedCaseInsensitiveContains("review") }.count)", store.wishlistItems.contains { $0.status.localizedCaseInsensitiveContains("review") } ? .orange : .green)
+            ("Wishlist items", "\(store.wishlistItems.filter(store.isActiveWishlistItem).count)", store.wishlistItems.filter(store.isActiveWishlistItem).isEmpty ? .secondary : .green),
+            ("Needs review", "\(store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") }.count)", store.wishlistItems.contains { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") } ? .orange : .green)
           ])
 
           if gmailWishlistCandidateEmails.isEmpty {
