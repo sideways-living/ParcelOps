@@ -399,6 +399,7 @@ struct WishlistView: View {
         wishlistPurchaseShortlistPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
+        wishlistPurchaseEvidenceDossierPanel
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
@@ -2885,6 +2886,168 @@ struct WishlistView: View {
       store.markWishlistOrderConfirmationSeen(item)
     } else {
       wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private var wishlistPurchaseEvidenceDossiers: [WishlistPurchaseEvidenceDossier] {
+    wishlistPurchaseDecisionSummaries
+      .map { summary in
+        wishlistPurchaseEvidenceDossier(for: summary.item, summary: summary)
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseEvidenceDossierPanel: some View {
+    let dossiers = wishlistPurchaseEvidenceDossiers
+    let ready = dossiers.filter { $0.stage == "Evidence ready" }.count
+    let missing = dossiers.filter { $0.stage == "Evidence missing" }.count
+    let needsReview = dossiers.filter { $0.stage == "Decision review" }.count
+    let handoffMissing = dossiers.filter { $0.gaps.contains("handoff") || $0.gaps.contains("order watch") }.count
+
+    return SettingsPanel(title: "Purchase evidence dossier", symbol: "folder.badge.gearshape.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Before a Wishlist item is bought externally, confirm the local evidence bundle is coherent: seller choice, AUD total, postage, trust, account context, cost context, decision review, and order-watch handoff.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Dossiers", "\(dossiers.count)", dossiers.isEmpty ? .secondary : .blue),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Missing evidence", "\(missing)", missing == 0 ? .green : .orange),
+          ("Decision review", "\(needsReview)", needsReview == 0 ? .green : .brown),
+          ("Handoff gaps", "\(handoffMissing)", handoffMissing == 0 ? .green : .purple)
+        ])
+
+        if dossiers.isEmpty {
+          MVPEmptyState(
+            title: "No purchase evidence dossiers yet",
+            detail: "Add seller options and enter the purchase decision flow before ParcelOps can summarise evidence readiness.",
+            symbol: "folder.badge.gearshape.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(dossiers.prefix(8)) { dossier in
+              WishlistPurchaseEvidenceDossierRow(dossier: dossier) {
+                runWishlistPurchaseEvidenceDossierAction(for: dossier)
+              } onTask: {
+                store.createWishlistPurchaseDecisionReviewTask(dossier.item)
+              } onDecision: {
+                store.createWishlistPurchaseDecision(dossier.item)
+              } onFocus: {
+                wishlistSearchText = dossier.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(dossiers.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more evidence dossier\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Evidence dossiers are local summaries only. ParcelOps does not verify live stock, live price, payment availability, account login, seller reviews, seller identity, or retailer checkout.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseEvidenceDossier(for item: WishlistItem, summary: WishlistPurchaseDecisionSummary) -> WishlistPurchaseEvidenceDossier {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { optionID in
+      options.first { $0.id == optionID }
+    }
+    let decision = item.purchaseDecision
+    let handoff = item.purchaseHandoff
+    let accountCount = store.suggestedAccounts(for: item).count
+    let costCount = store.suggestedCostRecords(for: item).count
+    let passedChecks = (item.purchaseChecks ?? []).filter { $0.status == "Passed" }.count
+    let failedChecks = (item.purchaseChecks ?? []).filter { $0.status != "Passed" }.count
+
+    let checks: [WishlistPurchaseEvidenceCheck] = [
+      WishlistPurchaseEvidenceCheck(label: "Seller option", detail: preferred?.sellerName ?? "No preferred seller", isReady: preferred != nil),
+      WishlistPurchaseEvidenceCheck(label: "AUD total", detail: summary.totalAUD, isReady: !wishlistPurchaseDecisionValueNeedsReview(summary.totalAUD)),
+      WishlistPurchaseEvidenceCheck(label: "Postage", detail: summary.postage, isReady: !wishlistPurchaseDecisionValueNeedsReview(summary.postage)),
+      WishlistPurchaseEvidenceCheck(label: "Seller trust", detail: summary.trust, isReady: !wishlistPurchaseDecisionValueNeedsReview(summary.trust) && preferred?.operatorSellerEvidenceGaps.contains("seller trust") != true),
+      WishlistPurchaseEvidenceCheck(label: "Readiness", detail: passedChecks == 0 && failedChecks == 0 ? "Not run" : "\(passedChecks) passed, \(failedChecks) need review", isReady: passedChecks > 0 && failedChecks == 0),
+      WishlistPurchaseEvidenceCheck(label: "Decision", detail: decision?.reviewState.rawValue ?? "Not drafted", isReady: decision?.reviewState == .accepted),
+      WishlistPurchaseEvidenceCheck(label: "Account context", detail: accountCount == 0 ? "No suggested account" : "\(accountCount) suggested", isReady: accountCount > 0 || handoff != nil),
+      WishlistPurchaseEvidenceCheck(label: "Cost context", detail: costCount == 0 ? "No linked cost" : "\(costCount) suggested", isReady: costCount > 0 || decision != nil),
+      WishlistPurchaseEvidenceCheck(label: "Order watch", detail: handoff?.orderWatchStatus ?? "Handoff not prepared", isReady: handoff != nil)
+    ]
+
+    var gaps = checks.filter { !$0.isReady }.map { $0.label.localizedLowercase }
+    gaps.append(contentsOf: summary.verificationGaps)
+    gaps = Array(Set(gaps)).sorted()
+
+    let stage: String
+    let detail: String
+    let tone: Color
+    let sortPriority: Int
+
+    if decision == nil {
+      stage = "Evidence missing"
+      detail = "Draft a purchase decision after seller, cost, postage, and trust fields are coherent."
+      tone = .orange
+      sortPriority = 10
+    } else if decision?.reviewState != .accepted {
+      stage = "Decision review"
+      detail = "Decision exists but still needs local review before handoff."
+      tone = .brown
+      sortPriority = 20
+    } else if !gaps.isEmpty {
+      stage = "Evidence missing"
+      detail = "Resolve \(gaps.prefix(3).joined(separator: ", ")) before external purchase."
+      tone = .orange
+      sortPriority = 30
+    } else if handoff == nil {
+      stage = "Handoff missing"
+      detail = "Evidence is mostly ready. Prepare the account and order-watch handoff."
+      tone = .purple
+      sortPriority = 40
+    } else {
+      stage = "Evidence ready"
+      detail = "Local evidence is ready for final live checks and external purchase."
+      tone = .green
+      sortPriority = 50
+    }
+
+    return WishlistPurchaseEvidenceDossier(
+      item: item,
+      selectedSeller: summary.selectedSeller,
+      checks: checks,
+      gaps: gaps,
+      stage: stage,
+      detail: detail,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistPurchaseEvidenceDossierAction(for dossier: WishlistPurchaseEvidenceDossier) {
+    if dossier.item.purchaseDecision == nil {
+      store.createWishlistPurchaseDecision(dossier.item)
+    } else if dossier.item.purchaseDecision?.reviewState != .accepted {
+      store.markWishlistPurchaseDecisionReviewed(dossier.item)
+    } else if dossier.item.purchaseHandoff == nil {
+      store.prepareWishlistPurchaseHandoff(dossier.item)
+    } else if !dossier.gaps.isEmpty {
+      store.runWishlistPurchaseReadinessCheck(dossier.item)
+    } else {
+      wishlistSearchText = dossier.item.itemName
       selectedSource = nil
       selectedStatus = nil
     }
@@ -6939,6 +7102,139 @@ private struct WishlistPurchaseDecisionSummaryRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(summary.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseEvidenceCheck: Identifiable {
+  var id: String { label }
+  var label: String
+  var detail: String
+  var isReady: Bool
+}
+
+private struct WishlistPurchaseEvidenceDossier: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var selectedSeller: String
+  var checks: [WishlistPurchaseEvidenceCheck]
+  var gaps: [String]
+  var stage: String
+  var detail: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseEvidenceDossierRow: View {
+  var dossier: WishlistPurchaseEvidenceDossier
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onDecision: () -> Void
+  var onFocus: () -> Void
+
+  private var actionTitle: String {
+    switch dossier.stage {
+    case "Decision review":
+      return "Accept decision"
+    case "Handoff missing":
+      return "Handoff"
+    case "Evidence ready":
+      return "Focus"
+    default:
+      return dossier.item.purchaseDecision == nil ? "Draft decision" : "Run checks"
+    }
+  }
+
+  private var actionSymbol: String {
+    switch dossier.stage {
+    case "Decision review":
+      return "checkmark.seal"
+    case "Handoff missing":
+      return "person.crop.circle.badge.checkmark"
+    case "Evidence ready":
+      return "scope"
+    default:
+      return dossier.item.purchaseDecision == nil ? "doc.text.magnifyingglass" : "checklist.checked"
+    }
+  }
+
+  private var readyCount: Int {
+    dossier.checks.filter(\.isReady).count
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: dossier.stage == "Evidence ready" ? "folder.badge.checkmark" : "folder.badge.gearshape.fill")
+          .foregroundStyle(dossier.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(dossier.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(dossier.selectedSeller)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(dossier.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(dossier.stage, color: dossier.tone)
+          Badge("\(readyCount)/\(dossier.checks.count)", color: readyCount == dossier.checks.count ? .green : .orange)
+        }
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(dossier.checks) { check in
+          VStack(alignment: .leading, spacing: 3) {
+            Label(check.label, systemImage: check.isReady ? "checkmark.circle.fill" : "circle")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(check.isReady ? .green : .orange)
+              .lineLimit(1)
+            Text(check.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
+          .padding(7)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background((check.isReady ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if !dossier.gaps.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Evidence still needed", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(dossier.gaps.prefix(8), id: \.self) { gap in
+              Badge(gap, color: .orange)
+            }
+          }
+        }
+      }
+
+      Text("This dossier is a local readiness summary. Re-check live seller page, checkout, payment, stock, final AUD total, postage, delivery address, returns, and warranty before buying outside ParcelOps.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Decision", systemImage: "doc.text.magnifyingglass", action: onDecision)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(dossier.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
