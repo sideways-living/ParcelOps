@@ -26,6 +26,7 @@ final class ParcelOpsStore {
   var wishlistItems: [WishlistItem]
   var wishlistCaptureCandidates: [WishlistCaptureCandidate]
   var wishlistResearchRequests: [WishlistResearchRequest]
+  var wishlistPriceSnapshots: [WishlistPriceSnapshot]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -241,6 +242,7 @@ final class ParcelOpsStore {
     self.wishlistItems = repository.loadWishlistItems()
     self.wishlistCaptureCandidates = repository.loadWishlistCaptureCandidates()
     self.wishlistResearchRequests = repository.loadWishlistResearchRequests()
+    self.wishlistPriceSnapshots = repository.loadWishlistPriceSnapshots()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -20475,6 +20477,98 @@ final class ParcelOpsStore {
     return (clampedScore, risk, recommendation, reasons)
   }
 
+  func wishlistPriceSnapshots(for item: WishlistItem) -> [WishlistPriceSnapshot] {
+    wishlistPriceSnapshots
+      .filter { snapshot in
+        snapshot.wishlistItemID == item.id
+          || snapshot.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(snapshot.itemName)
+      }
+      .sorted { first, second in
+        if first.reviewState == second.reviewState {
+          return first.capturedDate > second.capturedDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistPriceSnapshot(_ item: WishlistItem) {
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    } ?? item.comparisonOptions?.first
+    let timestamp = Self.auditTimestamp()
+    let snapshot = WishlistPriceSnapshot(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: preferredOption?.sellerName ?? item.storefront,
+      productURL: preferredOption?.productURL ?? item.storefrontURL,
+      observedPrice: preferredOption?.listedPrice ?? item.estimatedCost,
+      currency: preferredOption?.currency ?? "AUD or source currency",
+      estimatedAUDTotal: preferredOption?.estimatedAUDTotal ?? item.estimatedCost,
+      postageCost: preferredOption?.postageCost ?? "Postage to confirm",
+      postageTime: preferredOption?.postageTime ?? "Delivery time to confirm",
+      availabilityStatus: "Manual availability check needed",
+      trustSignal: preferredOption?.trustRating ?? "Trust evidence to confirm",
+      snapshotSource: "Manual price/watch snapshot",
+      capturedDate: timestamp,
+      reviewState: .needsReview,
+      notes: "Local manual price/watch snapshot only. No retailer page was fetched, no live price was checked, no browser automation ran, no account login occurred, and no purchase was made."
+    )
+    wishlistPriceSnapshots.insert(snapshot, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist price/watch snapshot added locally.",
+      afterDetail: "\(snapshot.auditDetail)\nSource item: \(item.auditDetail)\nSnapshot is operator-entered/local only. No retailer lookup, currency conversion, postage lookup, trust lookup, browser extension sync, account login, checkout, purchase, or payment occurred."
+    )
+  }
+
+  func markWishlistPriceSnapshotReviewed(_ snapshot: WishlistPriceSnapshot) {
+    guard let index = wishlistPriceSnapshots.firstIndex(where: { $0.id == snapshot.id }) else { return }
+    let beforeDetail = wishlistPriceSnapshots[index].auditDetail
+    wishlistPriceSnapshots[index].reviewState = .accepted
+    wishlistPriceSnapshots[index].notes = "\(wishlistPriceSnapshots[index].notes) Reviewed locally at \(Self.auditTimestamp())."
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPriceSnapshots[index].wishlistItemID?.uuidString ?? wishlistPriceSnapshots[index].id.uuidString,
+      entityLabel: wishlistPriceSnapshots[index].itemName,
+      summary: "Wishlist price/watch snapshot reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPriceSnapshots[index].auditDetail)\nReview only. Live price, stock, postage, seller trust, account access, checkout, and payment still need confirmation outside ParcelOps before buying."
+    )
+  }
+
+  func removeWishlistPriceSnapshot(_ snapshot: WishlistPriceSnapshot) {
+    guard let index = wishlistPriceSnapshots.firstIndex(where: { $0.id == snapshot.id }) else { return }
+    let removed = wishlistPriceSnapshots.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: removed.wishlistItemID?.uuidString ?? removed.id.uuidString,
+      entityLabel: removed.itemName,
+      summary: "Wishlist price/watch snapshot removed locally.",
+      beforeDetail: removed.auditDetail,
+      afterDetail: "Snapshot removed from the local price/watch ledger only. No wishlist item, seller page, account, checkout, purchase, payment, mailbox, or external service was changed."
+    )
+  }
+
+  func createWishlistPriceSnapshotReviewTask(_ snapshot: WishlistPriceSnapshot) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: snapshot.wishlistItemID?.uuidString ?? snapshot.id.uuidString,
+      label: "Review price snapshot: \(snapshot.itemName)",
+      summary: "Review wishlist price/watch snapshot for \(snapshot.itemName) from \(snapshot.sellerName). Confirm live price \(snapshot.observedPrice) \(snapshot.currency), AUD total \(snapshot.estimatedAUDTotal), postage \(snapshot.postageCost) \(snapshot.postageTime), availability \(snapshot.availabilityStatus), and seller trust \(snapshot.trustSignal) before purchase. This task does not fetch retailer pages or purchase anything.",
+      priority: snapshot.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -21672,6 +21766,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistItems(wishlistItems)
     wishlistRepository.saveWishlistCaptureCandidates(wishlistCaptureCandidates)
     wishlistRepository.saveWishlistResearchRequests(wishlistResearchRequests)
+    wishlistRepository.saveWishlistPriceSnapshots(wishlistPriceSnapshots)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -22591,6 +22686,12 @@ private extension WishlistCaptureCandidate {
 private extension WishlistResearchRequest {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); source URL: \(sourceURL); region scope: \(regionScope); seller criteria: \(sellerCriteria); max budget: \(maxBudgetAUD); postage: \(postageRequirements); trust: \(trustRequirements); status: \(requestStatus); created: \(createdDate); last reviewed: \(lastReviewedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistPriceSnapshot {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); observed price: \(observedPrice); currency: \(currency); estimated AUD total: \(estimatedAUDTotal); postage: \(postageCost), \(postageTime); availability: \(availabilityStatus); trust: \(trustSignal); source: \(snapshotSource); captured: \(capturedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

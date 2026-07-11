@@ -500,6 +500,7 @@ struct WishlistView: View {
         wishlistSellerTrustEvidenceLedgerPanel
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
+        wishlistPriceWatchSnapshotPanel
         wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
@@ -2644,6 +2645,195 @@ struct WishlistView: View {
       return Int(String(match.output))
     }
     return nil
+  }
+
+  private var wishlistPriceWatchSnapshotPanel: some View {
+    let snapshots = wishlistPriceWatchSnapshots
+    let needsReview = snapshots.filter { $0.reviewState != .accepted }.count
+    let missingPostage = snapshots.filter { snapshot in
+      let postage = "\(snapshot.postageCost) \(snapshot.postageTime)".localizedLowercase
+      return postage.contains("pending") || postage.contains("confirm") || postage.contains("unknown")
+    }.count
+    let missingTrust = snapshots.filter { snapshot in
+      let trust = snapshot.trustSignal.localizedLowercase
+      return trust.contains("missing") || trust.contains("unknown") || trust.contains("review") || trust.contains("confirm")
+    }.count
+    let linkedSnapshots = snapshots.filter { $0.wishlistItemID != nil }.count
+
+    return SettingsPanel(title: "Price/watch snapshots", symbol: "tag.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Record manual observations of seller price, estimated AUD total, postage, availability, and trust over time. These are local snapshots for comparison and purchase review; ParcelOps does not check live retailer pages or run an agent here.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Snapshots", "\(snapshots.count)", snapshots.isEmpty ? .secondary : .blue),
+          ("Needs review", "\(needsReview)", needsReview == 0 ? .green : .orange),
+          ("Linked items", "\(linkedSnapshots)", linkedSnapshots == 0 ? .secondary : .teal),
+          ("Postage gaps", "\(missingPostage)", missingPostage == 0 ? .green : .orange),
+          ("Trust gaps", "\(missingTrust)", missingTrust == 0 ? .green : .red)
+        ])
+
+        CompactActionRow {
+          Button("Snapshot first item", systemImage: "tag.badge.plus") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistPriceSnapshot(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+
+          Button("Task for first snapshot", systemImage: "checklist") {
+            if let snapshot = snapshots.first {
+              store.createWishlistPriceSnapshotReviewTask(snapshot)
+            }
+          }
+          .disabled(snapshots.isEmpty)
+        }
+        .buttonStyle(.bordered)
+
+        if snapshots.isEmpty {
+          MVPEmptyState(
+            title: "No price/watch snapshots yet",
+            detail: "Create a manual seller option or use Snapshot first item to start recording price, postage, availability, and trust observations before purchase.",
+            symbol: "tag.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(snapshots.prefix(10)) { snapshot in
+              wishlistPriceWatchSnapshotRow(snapshot)
+            }
+          }
+
+          let remaining = max(snapshots.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more price/watch snapshot\(remaining == 1 ? "" : "s") are stored locally.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Manual snapshot ledger only. No live price polling, currency lookup, postage quote, seller trust lookup, browser extension sync, account login, checkout, purchase, payment, background job, or notification is active.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistPriceWatchSnapshots: [WishlistPriceSnapshot] {
+    store.wishlistPriceSnapshots.sorted { first, second in
+      let firstPriority = wishlistPriceSnapshotPriority(first)
+      let secondPriority = wishlistPriceSnapshotPriority(second)
+      if firstPriority == secondPriority {
+        return first.capturedDate > second.capturedDate
+      }
+      return firstPriority < secondPriority
+    }
+  }
+
+  private func wishlistPriceSnapshotPriority(_ snapshot: WishlistPriceSnapshot) -> Int {
+    if snapshot.reviewState == .needsReview { return 0 }
+    if wishlistPriceSnapshotHasGaps(snapshot) { return 1 }
+    if snapshot.reviewState == .monitor { return 2 }
+    return 3
+  }
+
+  private func wishlistPriceSnapshotHasGaps(_ snapshot: WishlistPriceSnapshot) -> Bool {
+    let searchable = [
+      snapshot.estimatedAUDTotal,
+      snapshot.postageCost,
+      snapshot.postageTime,
+      snapshot.availabilityStatus,
+      snapshot.trustSignal
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+    return searchable.contains("pending")
+      || searchable.contains("confirm")
+      || searchable.contains("unknown")
+      || searchable.contains("missing")
+      || searchable.contains("review")
+  }
+
+  private func wishlistItem(for snapshot: WishlistPriceSnapshot) -> WishlistItem? {
+    if let itemID = snapshot.wishlistItemID,
+       let item = store.wishlistItems.first(where: { $0.id == itemID }) {
+      return item
+    }
+    return store.wishlistItems.first { item in
+      item.itemName.localizedCaseInsensitiveContains(snapshot.itemName)
+        || snapshot.itemName.localizedCaseInsensitiveContains(item.itemName)
+    }
+  }
+
+  @ViewBuilder
+  private func wishlistPriceWatchSnapshotRow(_ snapshot: WishlistPriceSnapshot) -> some View {
+    let linkedItem = wishlistItem(for: snapshot)
+    let hasGaps = wishlistPriceSnapshotHasGaps(snapshot)
+    let tone: Color = snapshot.reviewState == .accepted && !hasGaps ? .green : hasGaps ? .orange : .teal
+
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "tag.fill")
+          .foregroundStyle(tone)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(snapshot.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(snapshot.sellerName) • \(snapshot.snapshotSource)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        Badge(snapshot.reviewState.rawValue, color: tone)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], alignment: .leading, spacing: 8) {
+        WishlistMatrixMetric(title: "Observed", value: "\(snapshot.observedPrice) \(snapshot.currency)", symbol: "tag.fill")
+        WishlistMatrixMetric(title: "AUD total", value: snapshot.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(snapshot.postageCost), \(snapshot.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: snapshot.trustSignal, symbol: "shield.checkered")
+      }
+
+      Text(snapshot.availabilityStatus)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+
+      Text(linkedItem == nil ? "Not linked to a current Wishlist item. Keep for reference or remove if it is no longer useful." : "Linked to \(linkedItem?.itemName ?? snapshot.itemName). Reconfirm live details before buying.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(linkedItem == nil ? .orange : .secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        if let linkedItem {
+          Button("New snapshot", systemImage: "tag.badge.plus") {
+            store.addWishlistPriceSnapshot(linkedItem)
+          }
+        }
+        Button("Reviewed", systemImage: "checkmark.seal") {
+          store.markWishlistPriceSnapshotReviewed(snapshot)
+        }
+        .disabled(snapshot.reviewState == .accepted && !hasGaps)
+        Button("Task", systemImage: "checklist") {
+          store.createWishlistPriceSnapshotReviewTask(snapshot)
+        }
+        Button("Focus item", systemImage: "scope") {
+          wishlistSearchText = linkedItem?.itemName ?? snapshot.itemName
+          selectedSource = nil
+          selectedStatus = nil
+        }
+        Button("Remove", systemImage: "trash") {
+          store.removeWishlistPriceSnapshot(snapshot)
+        }
+      }
+      .buttonStyle(.bordered)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var wishlistPurchaseRecommendationEntries: [WishlistPurchaseRecommendationEntry] {

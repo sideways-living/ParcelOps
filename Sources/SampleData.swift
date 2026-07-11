@@ -350,6 +350,43 @@ enum SampleData {
     )
   ]
 
+  static var wishlistPriceSnapshots: [WishlistPriceSnapshot] = [
+    WishlistPriceSnapshot(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      productURL: "https://safetypro.example/scanner-compact",
+      observedPrice: "189.00",
+      currency: "AUD",
+      estimatedAUDTotal: "AUD 201.00",
+      postageCost: "AUD 12.00",
+      postageTime: "2-4 business days",
+      availabilityStatus: "In stock when manually checked",
+      trustSignal: "Known local supplier placeholder; returns and warranty visible",
+      snapshotSource: "Manual sample",
+      capturedDate: "Sample only",
+      reviewState: .monitor,
+      notes: "Local sample only. No retailer page was fetched, no live price was checked, and no purchase was made."
+    ),
+    WishlistPriceSnapshot(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "Global Warehouse Placeholder",
+      productURL: "https://global.example/scanner-compact",
+      observedPrice: "82.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 154.00 + postage pending",
+      postageCost: "Pending",
+      postageTime: "10-21 business days",
+      availabilityStatus: "Availability needs manual review",
+      trustSignal: "Trust and warranty evidence missing",
+      snapshotSource: "Manual sample",
+      capturedDate: "Sample only",
+      reviewState: .needsReview,
+      notes: "Shows why cheap overseas options need trust and postage review before purchase."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]
