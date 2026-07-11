@@ -21937,6 +21937,116 @@ final class ParcelOpsStore {
     )
   }
 
+  private func wishlistOperationsClosureGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    if suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if suggestedInventoryReceipts(for: item).isEmpty { gaps.append("inventory") }
+    if suggestedStorageLocations(for: item).isEmpty { gaps.append("storage") }
+    if suggestedCustodyRecords(for: item).isEmpty { gaps.append("custody") }
+    if suggestedLabelReferenceRecords(for: item).isEmpty { gaps.append("label") }
+    if suggestedScanSessionRecords(for: item).isEmpty { gaps.append("manual check") }
+    if suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+    if suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("dispatch") }
+    let hasOpenTasks = reviewTasks.contains { task in
+      task.linkedEntityType == .wishlistItem
+        && task.linkedEntityID == item.id.uuidString
+        && task.status != .completed
+    }
+    if hasOpenTasks { gaps.append("open task") }
+    return Array(Set(gaps)).sorted()
+  }
+
+  func closeWishlistItemLocally(_ item: WishlistItem) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let current = wishlistItems[index]
+    let gaps = wishlistOperationsClosureGaps(for: current)
+    guard gaps.isEmpty else {
+      createReviewTask(
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: current.id.uuidString,
+        label: "Close Wishlist item: \(current.itemName)",
+        summary: "Wishlist item cannot be closed yet. Remaining local closure gaps: \(gaps.joined(separator: ", ")). This is a local task only and does not close external orders, receive stock, book dispatch, contact sellers, purchase, or pay.",
+        priority: .normal,
+        assignee: current.owner
+      )
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: current.id.uuidString,
+        entityLabel: current.itemName,
+        summary: "Wishlist item closure blocked by local gaps.",
+        afterDetail: "Closure gaps: \(gaps.joined(separator: ", ")). A local review task was created. No Wishlist item was closed, deleted, or moved. No order, receiving, inventory, dispatch, mailbox, seller, purchase, payment, or external service action occurred."
+      )
+      return
+    }
+
+    let beforeDetail = current.auditDetail
+    var closed = current
+    var handoff = closed.purchaseHandoff
+    let previousHandoffNotes = handoff?.notes
+    handoff?.purchaseStatus = "Closed locally after operations handoff"
+    handoff?.orderWatchStatus = "Closed against local order and operations trail"
+    handoff?.notes = [previousHandoffNotes, "Closed locally after order, receiving, inventory, storage, custody, label, manual check, manifest, dispatch, and open-task closure checks passed."]
+      .compactMap { $0 }
+      .joined(separator: " ")
+    handoff?.updatedAt = Self.auditTimestamp()
+    closed.purchaseHandoff = handoff
+    closed.status = "Closed locally"
+    closed.purchaseReadiness = "Wishlist operations closed locally"
+    wishlistItems[index] = closed
+    persistWishlist()
+    logAudit(
+      action: .completed,
+      entityType: .wishlistItem,
+      entityID: closed.id.uuidString,
+      entityLabel: closed.itemName,
+      summary: "Wishlist item closed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(closed.auditDetail)\nClosure was local only. ParcelOps did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
+    )
+  }
+
+  func closeReadyWishlistItemsLocally() {
+    let candidates = wishlistItems.filter { item in
+      item.status != "Closed locally"
+        && (item.purchaseHandoff?.linkedOrderID != nil
+          || !suggestedReceivingInspections(for: item).isEmpty
+          || !suggestedInventoryReceipts(for: item).isEmpty
+          || !suggestedStorageLocations(for: item).isEmpty
+          || !suggestedCustodyRecords(for: item).isEmpty
+          || !suggestedLabelReferenceRecords(for: item).isEmpty
+          || !suggestedScanSessionRecords(for: item).isEmpty
+          || !suggestedShipmentManifestRecords(for: item).isEmpty
+          || !suggestedDispatchReadinessChecklists(for: item).isEmpty)
+    }
+    let ready = candidates.filter { wishlistOperationsClosureGaps(for: $0).isEmpty }
+    guard !ready.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: "wishlist-close-ready-batch",
+        entityLabel: "Wishlist close ready",
+        summary: "Wishlist close-ready batch found no closable items.",
+        afterDetail: "Items checked: \(candidates.count)\nNo Wishlist item passed all local closure checks. No item was closed, deleted, or moved. No order, receiving, inventory, dispatch, mailbox, seller, purchase, payment, or external service action occurred."
+      )
+      return
+    }
+
+    for item in ready {
+      closeWishlistItemLocally(item)
+    }
+
+    logAudit(
+      action: .completed,
+      entityType: .wishlistItem,
+      entityID: "wishlist-close-ready-batch",
+      entityLabel: "Wishlist close ready",
+      summary: "Wishlist close-ready batch completed locally.",
+      afterDetail: "Items checked: \(candidates.count)\nItems closed locally: \(ready.count)\nClosed item examples: \(ready.prefix(6).map(\.itemName).joined(separator: ", "))\nClosure was local only. ParcelOps did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
+    )
+  }
+
   func markWishlistOrderWatchRecordReviewed(_ record: WishlistOrderWatchRecord) {
     guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistOrderWatchRecords[index].auditDetail

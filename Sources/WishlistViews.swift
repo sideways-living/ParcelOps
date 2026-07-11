@@ -7016,6 +7016,10 @@ struct WishlistView: View {
             store.checkWishlistOperationsClosureReadinessBatch()
           }
           .disabled(entries.isEmpty)
+          Button("Close ready", systemImage: "checkmark.circle.fill") {
+            store.closeReadyWishlistItemsLocally()
+          }
+          .disabled(ready == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -7108,9 +7112,9 @@ struct WishlistView: View {
       sortPriority = 30
     } else {
       stage = "Ready to close"
-      detail = "Local order and operations records are staged. Continue operational execution in Orders, Dispatch, and Tasks."
-      nextAction = "Focus item"
-      nextSymbol = "scope"
+      detail = "Local order and operations records are staged, with no open Wishlist follow-up tasks."
+      nextAction = "Close locally"
+      nextSymbol = "checkmark.circle.fill"
       tone = .green
       sortPriority = 40
     }
@@ -7180,9 +7184,7 @@ struct WishlistView: View {
     } else if entry.gaps.contains("open task") {
       store.createWishlistPurchaseHandoffReviewTask(entry.item)
     } else {
-      wishlistSearchText = entry.item.itemName
-      selectedSource = nil
-      selectedStatus = nil
+      store.closeWishlistItemLocally(entry.item)
     }
   }
 
