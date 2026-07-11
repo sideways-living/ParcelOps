@@ -220,7 +220,7 @@ struct ShipmentGroupsView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var shipmentGroupSourceOrders: [TrackedOrder] {
@@ -467,7 +467,7 @@ struct ShipmentGroupRow: View {
     guard let store else { return [] }
     var seen: Set<UUID> = []
     var unique: [WishlistItem] = []
-    for item in linkedOrders.flatMap({ store.wishlistItemsLinked(to: $0) }) where seen.contains(item.id) == false {
+    for item in linkedOrders.flatMap({ store.activeWishlistItemsLinked(to: $0) }) where seen.contains(item.id) == false {
       seen.insert(item.id)
       unique.append(item)
     }

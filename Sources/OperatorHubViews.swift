@@ -3125,7 +3125,7 @@ struct DispatchView: View {
   }
 
   private func orderHasWishlistSource(_ order: TrackedOrder) -> Bool {
-    !store.wishlistItemsLinked(to: order).isEmpty
+    !store.activeWishlistItemsLinked(to: order).isEmpty
   }
 }
 

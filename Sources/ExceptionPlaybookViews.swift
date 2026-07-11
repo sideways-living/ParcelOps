@@ -236,7 +236,7 @@ struct ExceptionPlaybooksView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var playbookSourceOrders: [TrackedOrder] {

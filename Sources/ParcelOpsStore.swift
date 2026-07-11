@@ -20650,6 +20650,14 @@ final class ParcelOpsStore {
     }
   }
 
+  func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
+    item.status != "Closed locally"
+  }
+
+  func activeWishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {
+    wishlistItemsLinked(to: order).filter(isActiveWishlistItem)
+  }
+
   private func wishlistOrderConfirmationScore(item: WishlistItem, email: ForwardedEmailIntake) -> Int {
     let handoff = item.purchaseHandoff
     let searchable = [

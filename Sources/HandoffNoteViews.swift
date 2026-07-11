@@ -511,7 +511,7 @@ struct HandoffNotesView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var sourceOrders: [TrackedOrder] {
@@ -788,7 +788,7 @@ struct HandoffNoteRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        let wishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        let wishlistItems = store.activeWishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox handoff source", systemImage: "tray.and.arrow.down.fill")

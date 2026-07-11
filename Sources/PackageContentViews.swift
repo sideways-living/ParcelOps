@@ -283,7 +283,7 @@ struct PackageContentsView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var packageContentSourceOrders: [TrackedOrder] {
@@ -493,7 +493,7 @@ struct PackageContentRow: View {
 
   private var linkedWishlistItems: [WishlistItem] {
     guard let store, let linkedOrder else { return [] }
-    return store.wishlistItemsLinked(to: linkedOrder)
+    return store.activeWishlistItemsLinked(to: linkedOrder)
   }
 
   private var needsInboxVerificationAttention: Bool {

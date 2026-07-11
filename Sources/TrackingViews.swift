@@ -258,7 +258,7 @@ struct TrackingView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var sourceOrders: [TrackedOrder] {
@@ -479,7 +479,7 @@ struct TrackingEventRow: View {
 
           if let store, let order {
             let linkedEmails = linkedIntakeEmails(for: order, store: store)
-            let wishlistItems = store.wishlistItemsLinked(to: order)
+            let wishlistItems = store.activeWishlistItemsLinked(to: order)
             if !linkedEmails.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
                 Label("Inbox tracking source", systemImage: "tray.and.arrow.down.fill")

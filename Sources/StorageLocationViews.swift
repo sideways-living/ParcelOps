@@ -330,7 +330,7 @@ struct StorageLocationsView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var storageSourceOrders: [TrackedOrder] {
@@ -565,7 +565,7 @@ struct StorageLocationRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        let linkedWishlistItems = store.activeWishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox/Wishlist storage source", systemImage: "tray.and.arrow.down.fill")

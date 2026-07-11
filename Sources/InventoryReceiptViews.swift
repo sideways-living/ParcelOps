@@ -330,7 +330,7 @@ struct InventoryReceiptsView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.wishlistItemsLinked(to: $0).isEmpty }
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   private var inventorySourceOrders: [TrackedOrder] {
@@ -570,7 +570,7 @@ struct InventoryReceiptRow: View {
 
       if let store, let linkedOrder {
         let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
-        let linkedWishlistItems = store.wishlistItemsLinked(to: linkedOrder)
+        let linkedWishlistItems = store.activeWishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox inventory handoff", systemImage: "tray.and.arrow.down.fill")

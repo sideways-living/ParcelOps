@@ -331,7 +331,7 @@ struct ReceivingInspectionsView: View {
 
   private var wishlistLinkedOrders: [TrackedOrder] {
     store.orders.filter { order in
-      !store.wishlistItemsLinked(to: order).isEmpty
+      !store.activeWishlistItemsLinked(to: order).isEmpty
     }
   }
 
@@ -516,7 +516,7 @@ struct ReceivingInspectionRow: View {
 
   private var linkedWishlistItems: [WishlistItem] {
     guard let store, let linkedOrder else { return [] }
-    return store.wishlistItemsLinked(to: linkedOrder)
+    return store.activeWishlistItemsLinked(to: linkedOrder)
   }
 
   private var inspectionReadinessWarnings: [String] {
