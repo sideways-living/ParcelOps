@@ -60,6 +60,90 @@ struct MailboxView: View {
       + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
   }
 
+  private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
+    let hasSpaceMailSetup = !store.spaceMailIMAPConnections.isEmpty
+    let hasGmailSetup = !store.gmailMailboxConnections.isEmpty
+    let hasSpaceMailRefresh = latestSpaceMailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
+    } ?? false
+    let hasGmailRefresh = latestGmailSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
+    } ?? false
+
+    if latestMailboxImportedCount > 0 {
+      return (
+        "Start in Inbox",
+        "\(latestMailboxImportedCount) likely order message\(latestMailboxImportedCount == 1 ? "" : "s") reached Inbox. Review, edit, then create or link orders.",
+        .green
+      )
+    }
+    if latestMailboxUncertainCount > 0 {
+      return (
+        "Review uncertain mail first",
+        "\(latestMailboxUncertainCount) uncertain preview\(latestMailboxUncertainCount == 1 ? "" : "s") stayed out of Inbox. Import only the true order messages.",
+        .orange
+      )
+    }
+    if latestMailboxFilteredCount > 0 {
+      return (
+        "Filtered mail looks quiet",
+        "\(latestMailboxFilteredCount) mixed-mailbox message\(latestMailboxFilteredCount == 1 ? "" : "s") were kept out of Inbox. Check examples only if an expected order is missing.",
+        .teal
+      )
+    }
+    if hasSpaceMailRefresh || hasGmailRefresh {
+      return (
+        "Refresh ran with no order candidates",
+        "The latest manual refresh fetched mail but did not create order intake. Send a known test order or check filtered examples if something is missing.",
+        .secondary
+      )
+    }
+    if hasSpaceMailSetup || hasGmailSetup {
+      return (
+        "Run the active provider refresh",
+        "Choose SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes, then run the explicit manual read-only refresh.",
+        .blue
+      )
+    }
+    return (
+      "Set up a mailbox provider",
+      "Add SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes before testing live intake.",
+      .orange
+    )
+  }
+
+  private var mailboxProviderRows: [(name: String, status: String, detail: String, symbol: String, color: Color)] {
+    let spaceMailCredentialReady = store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+    let gmailSignedIn = store.gmailMailboxConnections.contains {
+      store.gmailAuthSessionState(for: $0).status == .connected
+    }
+    let gmailSetupReady = store.gmailMailboxConnections.contains {
+      store.gmailOAuthReadinessSummary(for: $0).isReady
+    }
+
+    return [
+      (
+        "SpaceMail / IMAP",
+        store.spaceMailIMAPConnections.isEmpty ? "Not set" : spaceMailCredentialReady ? "Ready" : "Credential needed",
+        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount) uncertain. \($0.nextAction)" }
+          ?? "Use for SpaceMail or other IMAP-hosted mailboxes. Requires host, SSL/TLS, folder, username, and Keychain password reference.",
+        "server.rack",
+        store.spaceMailIMAPConnections.isEmpty ? .secondary : spaceMailCredentialReady ? .green : .orange
+      ),
+      (
+        "Gmail / Google Workspace",
+        store.gmailMailboxConnections.isEmpty ? "Not set" : gmailSignedIn ? "Signed in" : gmailSetupReady ? "Sign-in needed" : "Setup needed",
+        latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount) uncertain. \($0.nextAction)" }
+          ?? "Use only for Gmail or Google Workspace mailboxes. Requires matching Google client setup, explicit sign-in, and manual read-only refresh.",
+        "envelope.badge.shield.half.filled",
+        store.gmailMailboxConnections.isEmpty ? .secondary : gmailSignedIn ? .green : .orange
+      )
+    ]
+  }
+
   private var wishlistOrderWatchItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
@@ -129,6 +213,54 @@ struct MailboxView: View {
     }
   }
 
+  private var activeMailboxProviderPanel: some View {
+    SettingsPanel(title: "Active mailbox path", symbol: "arrow.triangle.branch") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: mailboxProviderDecision.color == .green ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+            .foregroundStyle(mailboxProviderDecision.color)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(mailboxProviderDecision.title)
+              .font(.headline)
+            Text(mailboxProviderDecision.detail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(mailboxProviderDecision.color == .green ? "Ready" : "Next", color: mailboxProviderDecision.color)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(mailboxProviderRows, id: \.name) { row in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(row.name, systemImage: row.symbol)
+                  .font(.subheadline.weight(.semibold))
+                Spacer()
+                Badge(row.status, color: row.color)
+              }
+              Text(row.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(row.color.opacity(0.22)))
+          }
+        }
+
+        Text("Boundary: this panel only summarizes local provider state. It does not sign in, fetch mail, store credentials, classify new messages, or change mailbox messages.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
     let query = normalizedIntakeSearch
     guard !query.isEmpty else { return true }
@@ -169,6 +301,8 @@ struct MailboxView: View {
           ],
           symbol: "envelope.open.fill"
         )
+
+        activeMailboxProviderPanel
 
         MailboxReviewStartPanel(store: store)
 
