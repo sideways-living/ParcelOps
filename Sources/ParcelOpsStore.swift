@@ -18610,6 +18610,7 @@ final class ParcelOpsStore {
   func promoteWishlistCaptureToItem(_ capture: WishlistCaptureCandidate) {
     guard wishlistCaptureCandidates.contains(where: { $0.id == capture.id }) else { return }
     wishlistCaptureCandidates.removeAll { $0.id == capture.id }
+    let stagedOption = wishlistComparisonOptionFromCapture(capture)
     let item = WishlistItem(
       itemName: capture.pageTitle.isPlaceholderValidationValue ? capture.productSummary : capture.pageTitle,
       storefront: capture.detectedStorefront,
@@ -18620,11 +18621,13 @@ final class ParcelOpsStore {
       source: capture.source,
       status: "Needs review",
       capturedDetail: "\(capture.productSummary) \(capture.notes)",
-      comparisonStatus: "Not compared",
-      comparisonNotes: "Promoted from local capture staging. Create a comparison plan before purchase.",
-      purchaseReadiness: "Needs comparison",
+      comparisonStatus: stagedOption == nil ? "Not compared" : "Capture seller option staged",
+      comparisonNotes: stagedOption == nil
+        ? "Promoted from local capture staging. Create a comparison plan before purchase."
+        : "Promoted from local capture staging with an initial seller option created from captured page metadata. Confirm AUD total, postage, seller trust, returns, warranty, and live availability before purchase review.",
+      purchaseReadiness: stagedOption == nil ? "Needs comparison" : "Needs seller evidence review",
       preferredOptionID: nil,
-      comparisonOptions: []
+      comparisonOptions: stagedOption.map { [$0] } ?? []
     )
     wishlistItems.insert(item, at: 0)
     persistWishlist()
@@ -18635,7 +18638,55 @@ final class ParcelOpsStore {
       entityLabel: item.itemName,
       summary: "Wishlist capture candidate promoted to item.",
       beforeDetail: capture.auditDetail,
-      afterDetail: "\(item.auditDetail)\nPromoted from capture candidate \(capture.id.uuidString). No browser extension sync, web lookup, account login, purchase, payment, or retailer action occurred."
+      afterDetail: "\(item.auditDetail)\nInitial seller option from capture: \(stagedOption == nil ? "none" : "created for \(stagedOption?.sellerName ?? "captured seller")"). Captured seller/price/link clues stay local and must be reviewed before purchase.\nPromoted from capture candidate \(capture.id.uuidString). No browser extension sync, web lookup, account login, purchase, payment, or retailer action occurred."
+    )
+  }
+
+  private func wishlistComparisonOptionFromCapture(_ capture: WishlistCaptureCandidate) -> WishlistComparisonOption? {
+    let seller = capture.detectedStorefront.trimmingCharacters(in: .whitespacesAndNewlines)
+    let url = capture.pageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    let price = capture.detectedPrice.trimmingCharacters(in: .whitespacesAndNewlines)
+    let summary = capture.productSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let hasSeller = !seller.isEmpty
+      && !seller.isPlaceholderValidationValue
+      && !seller.localizedCaseInsensitiveContains("needs review")
+      && !seller.localizedCaseInsensitiveContains("pending")
+    let hasURL = !url.isEmpty
+      && !url.isPlaceholderValidationValue
+      && url.localizedCaseInsensitiveContains("http")
+      && !url.localizedCaseInsensitiveContains("example.com")
+    let hasPrice = !price.isEmpty
+      && !price.isPlaceholderValidationValue
+      && !price.localizedCaseInsensitiveContains("needs review")
+      && !price.localizedCaseInsensitiveContains("pending")
+
+    guard hasSeller || hasURL || hasPrice else { return nil }
+
+    let listedPrice = hasPrice ? price : "Listed price needs review"
+    let estimatedAUD: String
+    if hasPrice && price.localizedCaseInsensitiveContains("aud") {
+      estimatedAUD = price
+    } else {
+      estimatedAUD = "AUD total needs review"
+    }
+
+    return WishlistComparisonOption(
+      sellerName: hasSeller ? seller : "Captured seller needs review",
+      productURL: hasURL ? url : "Product URL needs review",
+      listedPrice: listedPrice,
+      currency: hasPrice && price.localizedCaseInsensitiveContains("aud") ? "AUD" : "Currency needs review",
+      estimatedAUDTotal: estimatedAUD,
+      postageCost: "Postage cost needs review",
+      postageTime: "Postage time needs review",
+      sellerRegion: "Seller region needs review",
+      trustRating: "Seller trust needs review",
+      trustNotes: summary.isEmpty ? "Captured from Wishlist staging. Confirm seller reputation, returns, warranty, contact details, and delivery reliability before purchase." : "Captured from Wishlist staging: \(summary)",
+      recommendation: "Review captured option",
+      lastChecked: "Captured locally",
+      localScore: nil,
+      riskLevel: "Needs review",
+      decisionReason: "Created from local capture metadata only. Confirm live price, AUD total, postage, trust, returns, warranty, and availability before selecting as preferred."
     )
   }
 
