@@ -105,6 +105,35 @@ struct DashboardView: View {
     (hasSpaceMailSetup && hasSpaceMailCredentialReference && hasSpaceMailManualRefreshEvidence)
       || (hasGmailSetup && hasGmailConnectedAuth && hasGmailManualRefreshEvidence)
   }
+  private var dashboardMailboxSetupMetric: (value: String, color: Color) {
+    switch (hasSpaceMailSetup, hasGmailSetup) {
+    case (true, true):
+      return ("2 paths", .teal)
+    case (true, false):
+      return ("IMAP", .green)
+    case (false, true):
+      return ("Gmail", .green)
+    default:
+      return ("Needed", .orange)
+    }
+  }
+  private var dashboardMailboxAuthMetric: (value: String, color: Color) {
+    let readyCount = (hasSpaceMailCredentialReference ? 1 : 0) + (hasGmailConnectedAuth ? 1 : 0)
+    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    if readyCount > 0 && readyCount == setupCount { return ("Ready", .green) }
+    if readyCount > 0 { return ("Partial", .orange) }
+    if hasSpaceMailSetup { return ("Keychain", .orange) }
+    if hasGmailSetup { return ("Sign-in", .orange) }
+    return ("Needed", .orange)
+  }
+  private var dashboardMailboxRefreshMetric: (value: String, color: Color) {
+    let refreshCount = (hasSpaceMailManualRefreshEvidence ? 1 : 0) + (hasGmailManualRefreshEvidence ? 1 : 0)
+    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    if refreshCount > 0 && hasReadyMailboxProviderPath { return ("Seen", .green) }
+    if refreshCount > 0 && refreshCount < setupCount { return ("Partial", .orange) }
+    if refreshCount > 0 { return ("Review", .orange) }
+    return ("Needed", .orange)
+  }
   private var spaceMailHealthAttentionCount: Int {
     store.spaceMailIntakeHealthSummaries.filter {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
@@ -1537,9 +1566,9 @@ struct DashboardView: View {
         }
 
         MetricStrip(items: [
-          ("Setup", hasSpaceMailSetup ? "Set" : "Needed", hasSpaceMailSetup ? .green : .orange),
-          ("Credential", hasSpaceMailCredentialReference ? "Keychain" : "Needed", hasSpaceMailCredentialReference ? .green : .orange),
-          ("Refresh", hasSpaceMailManualRefreshEvidence ? "Seen" : "Needed", hasSpaceMailManualRefreshEvidence ? .green : .orange),
+          ("Mailbox", dashboardMailboxSetupMetric.value, dashboardMailboxSetupMetric.color),
+          ("Access", dashboardMailboxAuthMetric.value, dashboardMailboxAuthMetric.color),
+          ("Refresh", dashboardMailboxRefreshMetric.value, dashboardMailboxRefreshMetric.color),
           ("Inbox", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
           ("Orders", "\(problemOrdersCount)", problemOrdersCount == 0 ? .green : .red),
           ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
