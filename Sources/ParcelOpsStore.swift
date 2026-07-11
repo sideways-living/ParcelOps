@@ -4829,7 +4829,10 @@ final class ParcelOpsStore {
   }
 
   var draftMessagesNeedingReview: [DraftMessage] {
-    draftMessages.filter { $0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened }
+    draftMessages.filter {
+      isActiveWishlistDraft($0)
+        && ($0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened)
+    }
   }
 
   var enabledContactCount: Int {
@@ -20652,6 +20655,30 @@ final class ParcelOpsStore {
 
   func isActiveWishlistItem(_ item: WishlistItem) -> Bool {
     item.status != "Closed locally"
+  }
+
+  func wishlistItem(linkedEntityID: String) -> WishlistItem? {
+    guard let id = UUID(uuidString: linkedEntityID) else { return nil }
+    return wishlistItems.first { $0.id == id }
+  }
+
+  func isActiveWishlistLinkedEntity(type: ReviewTaskLinkedEntityType, id: String) -> Bool {
+    guard type == .wishlistItem, let item = wishlistItem(linkedEntityID: id) else {
+      return true
+    }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistTask(_ task: ReviewTask) -> Bool {
+    isActiveWishlistLinkedEntity(type: task.linkedEntityType, id: task.linkedEntityID)
+  }
+
+  func isActiveWishlistHandoff(_ note: HandoffNote) -> Bool {
+    isActiveWishlistLinkedEntity(type: note.linkedEntityType, id: note.linkedEntityID)
+  }
+
+  func isActiveWishlistDraft(_ draft: DraftMessage) -> Bool {
+    isActiveWishlistLinkedEntity(type: draft.linkedEntityType, id: draft.linkedEntityID)
   }
 
   func activeWishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {

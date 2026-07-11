@@ -261,10 +261,13 @@ struct CommunicationView: View {
   private var wishlistDrafts: [DraftMessage] {
     store.draftMessages
       .filter { draft in
-        draft.linkedEntityType == .wishlistItem
-          || draft.linkedEntityID.localizedCaseInsensitiveContains("wishlist")
-          || draft.subject.localizedCaseInsensitiveContains("wishlist")
-          || draft.body.localizedCaseInsensitiveContains("wishlist")
+        store.isActiveWishlistDraft(draft)
+          && (
+            draft.linkedEntityType == .wishlistItem
+              || draft.linkedEntityID.localizedCaseInsensitiveContains("wishlist")
+              || draft.subject.localizedCaseInsensitiveContains("wishlist")
+              || draft.body.localizedCaseInsensitiveContains("wishlist")
+          )
       }
       .sorted { first, second in
         let firstPriority = wishlistDraftSortPriority(first)
@@ -288,7 +291,7 @@ struct CommunicationView: View {
 
   @ViewBuilder
   private var wishlistDraftFocusPanel: some View {
-    if !wishlistDrafts.isEmpty || !store.wishlistItems.isEmpty || !store.wishlistResearchRequests.isEmpty {
+    if !wishlistDrafts.isEmpty || store.wishlistItems.contains(where: store.isActiveWishlistItem) || !store.wishlistResearchRequests.isEmpty {
       SettingsPanel(title: "Wishlist draft focus", symbol: "star.square.on.square.fill") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Wishlist research briefs, purchase handoff packets, and seller follow-up drafts are grouped here. They stay local until an operator copies or sends them outside ParcelOps and marks them sent locally.")

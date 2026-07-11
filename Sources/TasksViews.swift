@@ -9,10 +9,10 @@ struct TasksView: View {
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.reviewTasks
-      .filter { $0.status != .completed || $0.reviewState != .accepted }
+      .filter { store.isActiveWishlistTask($0) && ($0.status != .completed || $0.reviewState != .accepted) }
       .map(TaskQueueItem.task)
     let notes = store.handoffNotes
-      .filter { $0.status != .completed || $0.reviewState != .accepted }
+      .filter { store.isActiveWishlistHandoff($0) && ($0.status != .completed || $0.reviewState != .accepted) }
       .map(TaskQueueItem.handoff)
 
     return (tasks + notes).sorted { first, second in
@@ -24,7 +24,7 @@ struct TasksView: View {
   }
 
   private var draftFollowUpItems: [DraftMessage] {
-    let reviewDrafts = Array(store.draftMessagesNeedingReview.prefix(6))
+    let reviewDrafts = Array(store.draftMessagesNeedingReview.filter { store.isActiveWishlistDraft($0) }.prefix(6))
     let batchDrafts = wishlistBatchResearchDrafts.filter { draft in
       draft.status != .sentLocally || draft.reviewState != .accepted
     }
@@ -64,6 +64,7 @@ struct TasksView: View {
   private var wishlistDraftItems: [DraftMessage] {
     store.draftMessages.filter {
       $0.linkedEntityType == .wishlistItem
+        && store.isActiveWishlistDraft($0)
         && ($0.reviewState != .accepted || $0.status != .sentLocally || $0.linkedEntityID == "wishlist-research-batch")
     }
   }
