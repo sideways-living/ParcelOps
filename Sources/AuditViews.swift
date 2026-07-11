@@ -77,6 +77,18 @@ struct AuditView: View {
     Array(wishlistPurchaseTrailEvents.prefix(8))
   }
 
+  private var wishlistHandoffSanityItems: [WishlistItem] {
+    store.wishlistItems.filter { item in
+      store.isActiveWishlistItem(item) && !wishlistHandoffSanityGaps(for: item).isEmpty
+    }
+  }
+
+  private var wishlistHandoffSanityGapCount: Int {
+    wishlistHandoffSanityItems.reduce(0) { total, item in
+      total + wishlistHandoffSanityGaps(for: item).count
+    }
+  }
+
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
@@ -307,6 +319,9 @@ struct AuditView: View {
     if !inboxDispatchHandoffEvents.isEmpty {
       return "Confirm Inbox dispatch handoff trail"
     }
+    if !wishlistHandoffSanityItems.isEmpty {
+      return "Check Wishlist handoff sanity"
+    }
     if !inboxOrderHandoffEvents.isEmpty {
       return "Confirm Inbox-to-order handoff"
     }
@@ -332,6 +347,9 @@ struct AuditView: View {
     if !inboxDispatchHandoffEvents.isEmpty {
       return "Check reopened and completed dispatch handoff events together so Inbox-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
     }
+    if !wishlistHandoffSanityItems.isEmpty {
+      return "Wishlist purchase handoffs still have missing seller, account, order-watch, cost, procurement, receiving, or order-link context. Use Audit to confirm the visible trail before closing purchase follow-up."
+    }
     if !inboxOrderHandoffEvents.isEmpty {
       return "Check that created or linked orders still have a clear source trail back to Inbox, Import Queue, or Acceptance Review."
     }
@@ -349,6 +367,7 @@ struct AuditView: View {
     if store.mailboxProviderReleaseGateSummary.tone != "success" || !mailboxProviderReleaseGateEvents.isEmpty { return "checkmark.seal.fill" }
     if !mailboxEvidenceEvents.isEmpty { return "tray.and.arrow.down.fill" }
     if !inboxDispatchHandoffEvents.isEmpty { return "arrow.triangle.2.circlepath.circle.fill" }
+    if !wishlistHandoffSanityItems.isEmpty { return "star.square.on.square.fill" }
     if !inboxOrderHandoffEvents.isEmpty { return "arrow.triangle.branch" }
     if !workflowEvents.isEmpty { return "checklist" }
     if !recordChangeEvents.isEmpty { return "pencil.and.list.clipboard" }
@@ -384,6 +403,13 @@ struct AuditView: View {
         inboxDispatchHandoffEvents.count,
         "paperplane.fill",
         inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple
+      ),
+      (
+        "Wishlist handoff sanity",
+        "Wishlist handoffs with missing seller, account, order-watch, cost, procurement, receiving, or order-link context remain visible before purchase closure.",
+        wishlistHandoffSanityItems.count,
+        "star.square.on.square.fill",
+        wishlistHandoffSanityItems.isEmpty ? .green : .orange
       ),
       (
         "Workflow actions",
@@ -473,6 +499,7 @@ struct AuditView: View {
         inboxSourceTrailAuditPanel
 
         inboxDispatchHandoffTrailPanel
+        wishlistHandoffSanityAuditPanel
 
         activityFeed
 
@@ -522,6 +549,7 @@ struct AuditView: View {
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
           ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple),
+          ("Wishlist gaps", "\(wishlistHandoffSanityGapCount)", wishlistHandoffSanityGapCount == 0 ? .green : .orange),
           ("Workflow", "\(workflowEvents.count)", workflowEvents.isEmpty ? .secondary : .teal),
           ("Record changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange)
         ])
@@ -625,6 +653,7 @@ struct AuditView: View {
         ("Inbox handoff", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .green : .teal),
         ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .green : .purple),
         ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+        ("Wishlist sanity", "\(wishlistHandoffSanityItems.count)", wishlistHandoffSanityItems.isEmpty ? .green : .orange),
         ("Changes", "\(recordChangeEvents.count)", .orange),
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
@@ -1047,6 +1076,90 @@ struct AuditView: View {
     }
   }
 
+  @ViewBuilder
+  private var wishlistHandoffSanityAuditPanel: some View {
+    if !wishlistHandoffSanityItems.isEmpty {
+      SettingsPanel(title: "Wishlist handoff sanity audit", symbol: "star.square.on.square.fill") {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Wishlist items that have reached purchase decision, purchase handoff, or order-watch status should have enough local evidence before they disappear from daily follow-up.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Items", "\(wishlistHandoffSanityItems.count)", .orange),
+            ("Gaps", "\(wishlistHandoffSanityGapCount)", .orange),
+            ("Trail events", "\(wishlistPurchaseTrailEvents.count)", wishlistPurchaseTrailEvents.isEmpty ? .secondary : .purple),
+            ("Tasks", "\(wishlistPurchaseTrailEvents.filter { $0.entityType == .reviewTask }.count)", wishlistPurchaseTrailEvents.contains { $0.entityType == .reviewTask } ? .purple : .secondary)
+          ])
+
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 210 : 260), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(wishlistHandoffSanityItems.prefix(6)) { item in
+              NavigationLink {
+                WishlistView(store: store)
+              } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                  HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                      .foregroundStyle(.orange)
+                      .frame(width: 18)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                      Text(item.itemName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+                      Text(wishlistHandoffSanityDetail(for: item))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 8)
+                    Badge("\(wishlistHandoffSanityGaps(for: item).count) gaps", color: .orange)
+                  }
+
+                  CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 120 : 140) {
+                    ForEach(wishlistHandoffSanityGaps(for: item).prefix(5), id: \.self) { gap in
+                      Badge(gap.capitalized, color: .orange)
+                    }
+                  }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+              .buttonStyle(.plain)
+            }
+          }
+
+          CompactActionRow {
+            NavigationLink {
+              WishlistView(store: store)
+            } label: {
+              Label("Open Wishlist", systemImage: "star.square.fill")
+            }
+            NavigationLink {
+              TasksView(store: store)
+            } label: {
+              Label("Open Tasks", systemImage: "checklist")
+            }
+            NavigationLink {
+              OperationsWorkbenchView(store: store)
+            } label: {
+              Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("Local boundary: this panel only summarizes existing local Wishlist records and audit events. It does not compare retailers, open websites, watch accounts, fetch mail in the background, pay sellers, or mutate external orders.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
   private var activityFeed: some View {
     SettingsPanel(title: "Activity feed", symbol: "list.clipboard.fill") {
       VStack(alignment: .leading, spacing: 14) {
@@ -1160,6 +1273,46 @@ struct AuditView: View {
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
         || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
     }
+  }
+
+  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
+  }
+
+  private func wishlistHandoffSanityDetail(for item: WishlistItem) -> String {
+    let gaps = wishlistHandoffSanityGaps(for: item)
+    let seller = item.purchaseHandoff?.sellerName
+      ?? item.purchaseDecision?.selectedSellerName
+      ?? item.storefront
+    let status = item.purchaseHandoff?.purchaseStatus ?? item.status
+    let sellerText = seller.isPlaceholderValidationValue ? "seller not confirmed" : seller
+    return "\(status) with \(gaps.joined(separator: ", ")) missing. Seller route: \(sellerText)."
   }
 }
 
