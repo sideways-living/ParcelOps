@@ -415,6 +415,7 @@ struct WishlistView: View {
         wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
+        wishlistResearchResultQualityPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -5447,6 +5448,207 @@ struct WishlistView: View {
     return .green
   }
 
+  private var wishlistResearchResultQualityEntries: [WishlistResearchResultQualityEntry] {
+    store.wishlistItems.compactMap { item in
+      wishlistResearchResultQualityEntry(for: item)
+    }
+    .sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
+  private var wishlistResearchResultQualityPanel: some View {
+    let entries = wishlistResearchResultQualityEntries
+    let missingOptions = entries.filter { $0.stage == "Needs seller option" }.count
+    let evidenceGaps = entries.filter { $0.stage == "Clean evidence" }.count
+    let readyForDecision = entries.filter { $0.stage == "Ready for decision" }.count
+    let preferredNeeded = entries.filter { $0.stage == "Select preferred" }.count
+
+    return SettingsPanel(title: "Research result quality review", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this before turning comparison research into a purchase decision. It checks that seller options include a product link, AUD landed total, postage detail, returns/warranty evidence, and seller trust notes.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("In review", "\(entries.count)", entries.isEmpty ? .green : .purple),
+          ("Need options", "\(missingOptions)", missingOptions == 0 ? .green : .orange),
+          ("Evidence gaps", "\(evidenceGaps)", evidenceGaps == 0 ? .green : .orange),
+          ("Pick preferred", "\(preferredNeeded)", preferredNeeded == 0 ? .green : .blue),
+          ("Decision-ready", "\(readyForDecision)", readyForDecision == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          Label("No research-result QA is waiting. Seller options either have not been created yet or have already moved into purchase decision and handoff review.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistResearchResultQualityRow(entry: entry) {
+                runWishlistResearchResultQualityPrimaryAction(for: entry)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: entry.item.id.uuidString,
+                  label: entry.item.itemName,
+                  summary: "Review wishlist seller research quality: \(entry.nextAction)",
+                  priority: entry.stage == "Ready for decision" ? .normal : .high,
+                  assignee: "Wishlist review"
+                )
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .compare
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more research-result review item\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Still local only: this quality review does not browse retailer pages, convert currencies, quote postage, verify seller identity, log in, purchase, or monitor external stock.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistResearchResultQualityEntry(for item: WishlistItem) -> WishlistResearchResultQualityEntry? {
+    let hasResearchRequest = store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+    let hasBatchDraft = store.draftMessages.contains {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == "wishlist-research-batch"
+        && $0.body.localizedCaseInsensitiveContains(item.itemName)
+    }
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    }
+    let bestOption = options.sorted { first, second in
+      first.operatorSellerMatrixScore > second.operatorSellerMatrixScore
+    }.first
+    let readyOptions = options.filter { $0.operatorSellerEvidenceGaps.isEmpty && $0.operatorSellerMatrixScore >= 70 }
+    let gapLabels = Array(Set(options.flatMap(\.operatorSellerEvidenceGaps))).sorted()
+
+    guard hasResearchRequest || hasBatchDraft || !options.isEmpty else { return nil }
+    guard item.purchaseHandoff == nil else { return nil }
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let primaryActionTitle: String
+    let primaryActionSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if options.isEmpty {
+      stage = "Needs seller option"
+      detail = "Research exists, but no seller option has been captured into the item yet."
+      nextAction = "Add a seller option with product URL, AUD total, postage, trust, and returns/warranty evidence."
+      primaryActionTitle = "Add option"
+      primaryActionSymbol = "storefront.fill"
+      tone = .orange
+      sortPriority = 0
+    } else if !gapLabels.isEmpty {
+      stage = "Clean evidence"
+      detail = "Seller options are recorded, but missing \(gapLabels.prefix(4).joined(separator: ", "))."
+      nextAction = "Edit seller options, then score them again before purchase review."
+      primaryActionTitle = "Score"
+      primaryActionSymbol = "chart.bar.doc.horizontal"
+      tone = .orange
+      sortPriority = 10
+    } else if readyOptions.isEmpty {
+      stage = "Score review"
+      detail = "Evidence fields are complete, but no seller option has reached the local decision threshold."
+      nextAction = "Run local scoring and review seller risk before drafting a decision."
+      primaryActionTitle = "Score"
+      primaryActionSymbol = "chart.bar.doc.horizontal"
+      tone = .purple
+      sortPriority = 20
+    } else if preferred == nil || preferred?.operatorSellerEvidenceGaps.isEmpty == false || (preferred?.operatorSellerMatrixScore ?? 0) < 70 {
+      stage = "Select preferred"
+      detail = "A viable seller exists. Choose the strongest option before drafting the purchase decision."
+      nextAction = "Mark the best scored seller as preferred."
+      primaryActionTitle = "Prefer best"
+      primaryActionSymbol = "star.circle.fill"
+      tone = .blue
+      sortPriority = 30
+    } else if item.purchaseDecision == nil {
+      stage = "Ready for decision"
+      detail = "Preferred seller has enough local evidence for a draft purchase decision."
+      nextAction = "Draft the local purchase decision and keep live price/payment checks outside ParcelOps."
+      primaryActionTitle = "Draft decision"
+      primaryActionSymbol = "doc.badge.plus"
+      tone = .green
+      sortPriority = 40
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      stage = "Decision review"
+      detail = "Purchase decision exists and needs operator review before handoff."
+      nextAction = "Review the decision or send it back for seller evidence cleanup."
+      primaryActionTitle = "Decision task"
+      primaryActionSymbol = "checklist"
+      tone = .teal
+      sortPriority = 50
+    } else {
+      stage = "Decision accepted"
+      detail = "Decision is accepted locally; use purchase handoff before any real buy action."
+      nextAction = "Prepare account/order-watch handoff if it has not already been created."
+      primaryActionTitle = "Focus item"
+      primaryActionSymbol = "scope"
+      tone = .green
+      sortPriority = 60
+    }
+
+    return WishlistResearchResultQualityEntry(
+      item: item,
+      bestOption: bestOption,
+      preferredOption: preferred,
+      readyOptionCount: readyOptions.count,
+      evidenceGaps: gapLabels,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      primaryActionTitle: primaryActionTitle,
+      primaryActionSymbol: primaryActionSymbol,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistResearchResultQualityPrimaryAction(for entry: WishlistResearchResultQualityEntry) {
+    switch entry.stage {
+    case "Needs seller option":
+      store.addManualWishlistSellerOptionPlaceholder(entry.item)
+    case "Clean evidence", "Score review":
+      store.evaluateWishlistComparisonOptions(entry.item)
+    case "Select preferred":
+      if let option = entry.bestOption {
+        store.markWishlistPreferredOption(entry.item, option: option)
+      }
+    case "Ready for decision":
+      store.createWishlistPurchaseDecision(entry.item)
+    case "Decision review":
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .compare
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -7186,6 +7388,109 @@ private struct WishlistAgentBriefQualityEntry: Identifiable {
   var detail: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistResearchResultQualityEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var bestOption: WishlistComparisonOption?
+  var preferredOption: WishlistComparisonOption?
+  var readyOptionCount: Int
+  var evidenceGaps: [String]
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var primaryActionTitle: String
+  var primaryActionSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistResearchResultQualityRow: View {
+  var entry: WishlistResearchResultQualityEntry
+  var onPrimary: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var optionCount: Int {
+    entry.item.comparisonOptions?.count ?? 0
+  }
+
+  private var bestSellerSummary: String {
+    guard let option = entry.bestOption else {
+      return "No seller option captured yet."
+    }
+    return "\(option.sellerName): \(option.estimatedAUDTotal), postage \(option.postageCost) / \(option.postageTime), trust \(option.trustRating), score \(option.operatorSellerMatrixScore)."
+  }
+
+  private var preferredSummary: String {
+    guard let option = entry.preferredOption else {
+      return "No preferred seller selected."
+    }
+    return "\(option.sellerName), \(option.operatorSellerMatrixRecommendation)"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.stage == "Ready for decision" ? "checkmark.seal.fill" : "checklist.checked")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge("\(entry.readyOptionCount) ready", color: entry.readyOptionCount == 0 ? .secondary : .green)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        Label("\(optionCount) seller option\(optionCount == 1 ? "" : "s")", systemImage: "storefront.fill")
+        Label(entry.item.comparisonStatus ?? "Comparison needed", systemImage: "chart.bar.doc.horizontal")
+        Label(entry.item.purchaseReadiness ?? "Not ready", systemImage: "cart.badge.questionmark")
+        Label(entry.item.purchaseDecision == nil ? "No decision" : "Decision drafted", systemImage: "doc.text.fill")
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 6) {
+        WishlistResearchLine(title: "Best local option", detail: bestSellerSummary)
+        WishlistResearchLine(title: "Preferred seller", detail: preferredSummary)
+        WishlistResearchLine(title: "Next action", detail: entry.nextAction)
+      }
+
+      if !entry.evidenceGaps.isEmpty {
+        Text("Evidence gaps: \(entry.evidenceGaps.prefix(6).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Research QA only. Verify live retailer price, stock, AUD total, postage, delivery timing, trust evidence, returns, and account/payment readiness outside ParcelOps.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.primaryActionTitle, systemImage: entry.primaryActionSymbol, action: onPrimary)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistAgentBriefQualityRow: View {
