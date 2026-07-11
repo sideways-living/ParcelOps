@@ -481,6 +481,7 @@ struct WishlistView: View {
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
         wishlistPurchaseDecisionQueuePanel
+        wishlistExternalPurchaseSafetyGatePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPurchaseEvidenceDossierPanel
         wishlistPrePurchaseOperatorChecklistPanel
@@ -3144,6 +3145,184 @@ struct WishlistView: View {
       store.markWishlistOrderConfirmationSeen(item)
     default:
       wishlistSearchText = item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private var wishlistExternalPurchaseSafetyGatePanel: some View {
+    let summaries = wishlistPurchaseDecisionSummaries
+    let blocked = summaries.filter { !$0.verificationGaps.isEmpty || $0.item.purchaseDecision?.reviewState != .accepted }
+    let handoffMissing = summaries.filter { $0.item.purchaseDecision?.reviewState == .accepted && $0.item.purchaseHandoff == nil }
+    let orderWatchMissing = summaries.filter { $0.item.purchaseHandoff != nil && $0.item.purchaseHandoff?.linkedOrderID == nil }
+    let ready = summaries.filter { wishlistExternalPurchaseSafetyStatus(for: $0).label == "Ready to buy externally" }
+
+    return SettingsPanel(title: "External purchase safety gate", symbol: "lock.shield.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the last local gate before a human buys on a retailer site. It keeps cheap-but-risky options, missing AUD totals, unclear postage, weak seller trust, and missing account/order-watch handoff out of the purchase path.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("In gate", "\(summaries.count)", summaries.isEmpty ? .secondary : .blue),
+          ("Blocked", "\(blocked.count)", blocked.isEmpty ? .green : .orange),
+          ("Need handoff", "\(handoffMissing.count)", handoffMissing.isEmpty ? .green : .purple),
+          ("Order watch", "\(orderWatchMissing.count)", orderWatchMissing.isEmpty ? .secondary : .teal),
+          ("Ready", "\(ready.count)", ready.isEmpty ? .secondary : .green)
+        ])
+
+        if summaries.isEmpty {
+          MVPEmptyState(
+            title: "No seller route is near purchase",
+            detail: "Add seller options, score them, and create a purchase decision before the external purchase gate becomes active.",
+            symbol: "lock.shield.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(summaries.prefix(8)) { summary in
+              let safety = wishlistExternalPurchaseSafetyStatus(for: summary)
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: safety.symbol)
+                    .foregroundStyle(safety.color)
+                    .frame(width: 24)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(summary.item.itemName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(summary.selectedSeller)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(safety.label, color: safety.color)
+                }
+
+                Text(safety.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactMetadataGrid(minimumWidth: 125) {
+                  Badge(summary.totalAUD, color: wishlistPurchaseDecisionValueNeedsReview(summary.totalAUD) ? .orange : .green)
+                  Badge(summary.postage, color: wishlistPurchaseDecisionValueNeedsReview(summary.postage) ? .orange : .teal)
+                  Badge(summary.trust, color: wishlistPurchaseDecisionValueNeedsReview(summary.trust) ? .orange : .purple)
+                  Badge(summary.item.purchaseHandoff == nil ? "No handoff" : "Handoff ready", color: summary.item.purchaseHandoff == nil ? .orange : .green)
+                }
+
+                if !summary.verificationGaps.isEmpty {
+                  Text("Blockers: \(summary.verificationGaps.prefix(4).joined(separator: ", "))\(summary.verificationGaps.count > 4 ? "..." : "").")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                CompactActionRow {
+                  Button(safety.actionTitle, systemImage: safety.actionSymbol) {
+                    wishlistRunExternalPurchaseSafetyAction(for: summary)
+                  }
+                  Button("Task", systemImage: "checklist") {
+                    store.createWishlistPurchaseDecisionReviewTask(summary.item)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = summary.item.itemName
+                    selectedSource = nil
+                    selectedStatus = nil
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(10)
+              .background(safety.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Safety boundary: this gate does not open retailer pages, log into accounts, check stock, compare live prices, pay, buy, store payment data, or mutate mailbox/order data. It records only local readiness for a human external purchase.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistExternalPurchaseSafetyStatus(for summary: WishlistPurchaseDecisionSummary) -> (label: String, detail: String, color: Color, symbol: String, actionTitle: String, actionSymbol: String) {
+    if summary.item.purchaseDecision == nil {
+      return (
+        "Decision missing",
+        "Draft the local purchase decision before any external checkout. Include seller, AUD total, postage, trust, and rejected alternatives.",
+        .brown,
+        "doc.text.magnifyingglass",
+        "Draft decision",
+        "doc.text.magnifyingglass"
+      )
+    }
+    if summary.item.purchaseDecision?.reviewState != .accepted {
+      return (
+        "Review required",
+        "Decision exists but has not been accepted. Review the seller route and verification gaps before buying externally.",
+        .orange,
+        "checkmark.seal",
+        "Accept decision",
+        "checkmark.seal"
+      )
+    }
+    if !summary.verificationGaps.isEmpty {
+      return (
+        "Blocked",
+        "Resolve local blockers before purchase: \(summary.verificationGaps.prefix(3).joined(separator: ", ")).",
+        .red,
+        "exclamationmark.triangle.fill",
+        "Create task",
+        "checklist"
+      )
+    }
+    if summary.item.purchaseHandoff == nil {
+      return (
+        "Handoff missing",
+        "Prepare account, order-watch, budget, and expected confirmation signals before buying externally.",
+        .purple,
+        "person.crop.circle.badge.checkmark",
+        "Prepare handoff",
+        "person.crop.circle.badge.checkmark"
+      )
+    }
+    if summary.item.purchaseHandoff?.linkedOrderID == nil {
+      return (
+        "Ready to buy externally",
+        "Local gate is clear. After the human purchase, watch Inbox/Orders for confirmation and link the order back to this Wishlist item.",
+        .green,
+        "lock.open.fill",
+        "Order seen",
+        "envelope.badge.fill"
+      )
+    }
+    return (
+      "Order linked",
+      "Purchase trail is linked to an order. Continue operational follow-up through Orders, Dispatch, Tasks, and Audit.",
+      .teal,
+      "link.circle.fill",
+      "Focus item",
+      "scope"
+    )
+  }
+
+  private func wishlistRunExternalPurchaseSafetyAction(for summary: WishlistPurchaseDecisionSummary) {
+    if summary.item.purchaseDecision == nil {
+      store.createWishlistPurchaseDecision(summary.item)
+    } else if summary.item.purchaseDecision?.reviewState != .accepted {
+      store.markWishlistPurchaseDecisionReviewed(summary.item)
+    } else if !summary.verificationGaps.isEmpty {
+      store.createWishlistPurchaseDecisionReviewTask(summary.item)
+    } else if summary.item.purchaseHandoff == nil {
+      store.prepareWishlistPurchaseHandoff(summary.item)
+    } else if summary.item.purchaseHandoff?.linkedOrderID == nil {
+      store.markWishlistOrderConfirmationSeen(summary.item)
+    } else {
+      wishlistSearchText = summary.item.itemName
       selectedSource = nil
       selectedStatus = nil
     }
