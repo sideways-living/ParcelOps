@@ -6178,6 +6178,10 @@ struct WishlistView: View {
             }
           }
           .disabled(store.wishlistItems.isEmpty)
+          Button("Check open rules", systemImage: "magnifyingglass.circle") {
+            store.checkOpenWishlistOrderWatchRecords()
+          }
+          .disabled(waiting == 0)
           NavigationLink {
             InboxView(store: store)
           } label: {

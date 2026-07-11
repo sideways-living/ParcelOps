@@ -21807,6 +21807,50 @@ final class ParcelOpsStore {
     )
   }
 
+  func checkOpenWishlistOrderWatchRecords() {
+    let candidateIDs = wishlistOrderWatchRecords
+      .filter { record in
+        record.linkedOrderID == nil
+          && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
+      }
+      .map(\.id)
+    let beforeLinked = wishlistOrderWatchRecords.filter { $0.linkedOrderID != nil }.count
+    let beforeWaiting = candidateIDs.count
+    guard !candidateIDs.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: "wishlist-order-watch-batch",
+        entityLabel: "Wishlist order watch",
+        summary: "Wishlist order watch batch check found no open records.",
+        afterDetail: "Open watch rules checked: 0\nNo local order matching was needed. No mailbox fetch, background polling, retailer access, checkout, payment, purchase, or external service call occurred."
+      )
+      return
+    }
+
+    for recordID in candidateIDs {
+      if let record = wishlistOrderWatchRecords.first(where: { $0.id == recordID }) {
+        checkWishlistOrderWatchRecord(record)
+      }
+    }
+
+    let afterLinked = wishlistOrderWatchRecords.filter { $0.linkedOrderID != nil }.count
+    let stillWaiting = wishlistOrderWatchRecords.filter { record in
+      candidateIDs.contains(record.id)
+        && record.linkedOrderID == nil
+        && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
+    }.count
+    let matched = max(afterLinked - beforeLinked, 0)
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: "wishlist-order-watch-batch",
+      entityLabel: "Wishlist order watch",
+      summary: "Wishlist order watch batch checked locally.",
+      afterDetail: "Open watch rules checked: \(beforeWaiting)\nMatched local orders: \(matched)\nStill waiting: \(stillWaiting)\nIndividual watch rules were checked against local orders only. No mailbox fetch, background polling, retailer access, checkout, payment, purchase, or external service call occurred."
+    )
+  }
+
   func markWishlistOrderWatchRecordReviewed(_ record: WishlistOrderWatchRecord) {
     guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
