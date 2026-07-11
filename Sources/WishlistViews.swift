@@ -392,6 +392,7 @@ struct WishlistView: View {
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
         wishlistSellerSafetyRubricPanel
+        wishlistSellerTrustDiligencePanel
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
         wishlistPurchaseRecommendationPanel
@@ -1698,6 +1699,178 @@ struct WishlistView: View {
       store.createWishlistSellerEvidenceReviewTask(entry.item)
     } else {
       store.evaluateWishlistComparisonOptions(entry.item)
+    }
+  }
+
+  private var wishlistSellerTrustDiligenceEntries: [WishlistSellerTrustDiligenceEntry] {
+    store.wishlistItems.flatMap { item in
+      (item.comparisonOptions ?? []).map { option in
+        wishlistSellerTrustDiligenceEntry(item: item, option: option)
+      }
+    }
+    .sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        if first.option.operatorSellerMatrixScore == second.option.operatorSellerMatrixScore {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.option.operatorSellerMatrixScore < second.option.operatorSellerMatrixScore
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
+  private var wishlistSellerTrustDiligencePanel: some View {
+    let entries = wishlistSellerTrustDiligenceEntries
+    let blocked = entries.filter { $0.verdict == "Do not buy yet" }.count
+    let needsEvidence = entries.filter { $0.verdict == "Needs evidence" }.count
+    let liveCheck = entries.filter { $0.verdict == "Ready for live check" }.count
+    let overseas = entries.filter { $0.isOverseas }.count
+
+    return SettingsPanel(title: "Seller trust due diligence", symbol: "person.badge.shield.checkmark.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this checklist before a cheap option becomes the preferred seller. It is intentionally conservative: a seller needs a product link, landed AUD total, postage detail, returns/warranty notes, and explicit trust evidence before purchase.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Do not buy", "\(blocked)", blocked == 0 ? .green : .red),
+          ("Needs evidence", "\(needsEvidence)", needsEvidence == 0 ? .green : .orange),
+          ("Live-check ready", "\(liveCheck)", liveCheck == 0 ? .secondary : .green),
+          ("Overseas", "\(overseas)", overseas == 0 ? .secondary : .purple)
+        ])
+
+        CompactActionRow {
+          Button("Score all", systemImage: "chart.bar.doc.horizontal") {
+            scoreAllWishlistOptions()
+          }
+          .disabled(entries.isEmpty)
+          Button("Focus risks", systemImage: "exclamationmark.shield.fill") {
+            wishlistSearchText = ""
+            selectedSource = nil
+            selectedStatus = nil
+          }
+          .disabled(blocked + needsEvidence == 0)
+        }
+        .buttonStyle(.bordered)
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No sellers to review",
+            detail: "Add seller comparison options to Wishlist items before running seller trust due diligence.",
+            symbol: "person.badge.shield.checkmark.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(10)) { entry in
+              WishlistSellerTrustDiligenceRow(entry: entry) {
+                runWishlistSellerTrustDiligenceAction(for: entry)
+              } onPrefer: {
+                store.markWishlistPreferredOption(entry.item, option: entry.option)
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller option\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only checklist. ParcelOps does not scrape reviews, validate seller identity, check live ABNs/business registrations, convert currencies, request live postage quotes, or verify delivery probability.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistSellerTrustDiligenceEntry(item: WishlistItem, option: WishlistComparisonOption) -> WishlistSellerTrustDiligenceEntry {
+    let gaps = option.operatorSellerEvidenceGaps
+    let score = option.operatorSellerMatrixScore
+    let trustText = [option.trustRating, option.trustNotes, option.recommendation].joined(separator: " ").localizedLowercase
+    let regionText = option.sellerRegion.localizedLowercase
+    let isPreferred = item.preferredOptionID == option.id
+    let isOverseas = regionText.contains("overseas")
+      || regionText.contains("international")
+      || regionText.contains("global")
+      || (!regionText.isEmpty && !regionText.contains("australia") && !regionText.contains(" au"))
+    let hasProductLink = !option.productURL.isPlaceholderValidationValue && option.productURL.localizedCaseInsensitiveContains("http")
+    let hasAUDTotal = option.estimatedAUDTotal.localizedCaseInsensitiveContains("aud")
+      && !option.estimatedAUDTotal.localizedCaseInsensitiveContains("pending")
+    let hasPostage = !option.postageCost.isPlaceholderValidationValue
+      && !option.postageTime.isPlaceholderValidationValue
+      && !option.postageCost.localizedCaseInsensitiveContains("pending")
+      && !option.postageTime.localizedCaseInsensitiveContains("pending")
+    let hasReturns = trustText.contains("return") || trustText.contains("warranty")
+    let trustLooksGood = trustText.contains("trusted")
+      || trustText.contains("high")
+      || trustText.contains("accepted")
+      || trustText.contains("known")
+
+    var checks: [WishlistSellerTrustCheck] = [
+      WishlistSellerTrustCheck(label: "Product link", status: hasProductLink ? "Recorded" : "Missing", tone: hasProductLink ? .green : .orange),
+      WishlistSellerTrustCheck(label: "AUD landed total", status: hasAUDTotal ? "Recorded" : "Missing", tone: hasAUDTotal ? .green : .orange),
+      WishlistSellerTrustCheck(label: "Postage time/cost", status: hasPostage ? "Recorded" : "Missing", tone: hasPostage ? .green : .orange),
+      WishlistSellerTrustCheck(label: "Returns/warranty", status: hasReturns ? "Recorded" : "Missing", tone: hasReturns ? .green : .orange),
+      WishlistSellerTrustCheck(label: "Trust evidence", status: trustLooksGood ? "Acceptable" : "Review", tone: trustLooksGood ? .green : .red)
+    ]
+
+    if isOverseas {
+      checks.append(WishlistSellerTrustCheck(label: "Overseas risk", status: "Manual import check", tone: .purple))
+    }
+
+    let verdict: String
+    let rationale: String
+    let tone: Color
+    let sortPriority: Int
+
+    if score < 55 || gaps.contains("seller trust") || (!trustLooksGood && isOverseas) {
+      verdict = "Do not buy yet"
+      rationale = "Seller trust or delivery reliability is not strong enough for purchase handoff."
+      tone = .red
+      sortPriority = isPreferred ? 0 : 5
+    } else if !gaps.isEmpty || !trustLooksGood || !hasReturns {
+      verdict = "Needs evidence"
+      rationale = "Resolve \(gaps.prefix(3).joined(separator: ", ")) before preferring this seller."
+      tone = .orange
+      sortPriority = isPreferred ? 10 : 20
+    } else {
+      verdict = "Ready for live check"
+      rationale = "Local trust fields are complete. Reconfirm live stock, price, postage, returns, account, and checkout before buying."
+      tone = .green
+      sortPriority = isPreferred ? 30 : 40
+    }
+
+    return WishlistSellerTrustDiligenceEntry(
+      item: item,
+      option: option,
+      isPreferred: isPreferred,
+      isOverseas: isOverseas,
+      verdict: verdict,
+      rationale: rationale,
+      checks: checks,
+      gaps: gaps,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistSellerTrustDiligenceAction(for entry: WishlistSellerTrustDiligenceEntry) {
+    if entry.verdict == "Do not buy yet" || entry.gaps.contains("seller trust") {
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    } else if entry.verdict == "Needs evidence" {
+      store.evaluateWishlistComparisonOptions(entry.item)
+    } else {
+      store.runWishlistPurchaseReadinessCheck(entry.item)
     }
   }
 
@@ -5726,6 +5899,153 @@ private struct WishlistSellerSafetyRubricRow: View {
       .controlSize(.small)
     }
     .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistSellerTrustCheck: Identifiable {
+  var id: String { label }
+  var label: String
+  var status: String
+  var tone: Color
+}
+
+private struct WishlistSellerTrustDiligenceEntry: Identifiable {
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)-trust-diligence"
+  }
+
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var isPreferred: Bool
+  var isOverseas: Bool
+  var verdict: String
+  var rationale: String
+  var checks: [WishlistSellerTrustCheck]
+  var gaps: [String]
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistSellerTrustDiligenceRow: View {
+  var entry: WishlistSellerTrustDiligenceEntry
+  var onPrimary: () -> Void
+  var onPrefer: () -> Void
+  var onScore: () -> Void
+  var onFocus: () -> Void
+
+  private var primaryTitle: String {
+    if entry.verdict == "Do not buy yet" { return "Evidence task" }
+    if entry.verdict == "Needs evidence" { return "Re-score" }
+    return "Readiness"
+  }
+
+  private var primarySymbol: String {
+    if entry.verdict == "Do not buy yet" { return "checklist" }
+    if entry.verdict == "Needs evidence" { return "chart.bar.doc.horizontal" }
+    return "checklist.checked"
+  }
+
+  private var sellerSummary: String {
+    [
+      entry.option.estimatedAUDTotal,
+      "\(entry.option.postageCost), \(entry.option.postageTime)",
+      entry.option.sellerRegion
+    ]
+    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    .joined(separator: " • ")
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.verdict == "Ready for live check" ? "person.badge.shield.checkmark.fill" : "exclamationmark.shield.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.option.sellerName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.item.itemName)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(entry.rationale)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.verdict, color: entry.tone)
+          Badge("\(entry.option.operatorSellerMatrixScore)/100", color: entry.tone)
+          if entry.isPreferred {
+            Badge("Preferred", color: .purple)
+          }
+        }
+      }
+
+      if !sellerSummary.isEmpty {
+        Text(sellerSummary)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(entry.checks) { check in
+          HStack(spacing: 5) {
+            Circle()
+              .fill(check.tone)
+              .frame(width: 6, height: 6)
+            VStack(alignment: .leading, spacing: 1) {
+              Text(check.label)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+              Text(check.status)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+          .padding(7)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(check.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if !entry.gaps.isEmpty {
+        Text("Evidence gaps: \(entry.gaps.prefix(5).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !entry.option.productURL.isPlaceholderValidationValue {
+        Text(entry.option.productURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      Text(entry.option.trustNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+
+      CompactActionRow {
+        Button(primaryTitle, systemImage: primarySymbol, action: onPrimary)
+        Button(entry.isPreferred ? "Preferred" : "Prefer", systemImage: "checkmark.seal", action: onPrefer)
+          .disabled(entry.isPreferred || entry.verdict == "Do not buy yet")
+        Button("Score", systemImage: "chart.bar.doc.horizontal", action: onScore)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
