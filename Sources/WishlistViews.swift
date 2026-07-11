@@ -562,6 +562,7 @@ struct WishlistView: View {
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
         wishlistPurchaseDecisionQueuePanel
+        wishlistPurchaseReadinessBlockerSummaryPanel
         wishlistExternalPurchaseSafetyGatePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPurchaseEvidenceDossierPanel
@@ -3834,6 +3835,116 @@ struct WishlistView: View {
       selectedSource = nil
       selectedStatus = nil
     }
+  }
+
+  private var wishlistPurchaseReadinessBlockerSummaries: [WishlistReadinessBlockerSummary] {
+    store.wishlistItems
+      .compactMap { item -> WishlistReadinessBlockerSummary? in
+        let failedChecks = (item.purchaseChecks ?? []).filter { $0.status != "Passed" }
+        guard !failedChecks.isEmpty else { return nil }
+        let criticalChecks = failedChecks.filter { $0.status == "Blocked" || $0.severity == "High" }
+        let preferred = item.preferredOptionID.flatMap { optionID in
+          item.comparisonOptions?.first { $0.id == optionID }
+        } ?? item.comparisonOptions?.first
+        let primaryCheck = criticalChecks.first ?? failedChecks.first
+        let category = wishlistReadinessCategory(for: primaryCheck?.title ?? "Readiness")
+        let nextAction = wishlistReadinessNextAction(for: primaryCheck?.title ?? "Readiness")
+
+        return WishlistReadinessBlockerSummary(
+          item: item,
+          preferredSeller: preferred?.sellerName ?? item.storefront,
+          category: category,
+          nextAction: nextAction,
+          failedChecks: failedChecks,
+          criticalChecks: criticalChecks,
+          detail: primaryCheck?.detail ?? "Review local purchase readiness before buying externally."
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseReadinessBlockerSummaryPanel: some View {
+    let summaries = wishlistPurchaseReadinessBlockerSummaries
+    let critical = summaries.filter { !$0.criticalChecks.isEmpty }.count
+    let sellerTrust = summaries.filter { $0.category == "Seller trust" }.count
+    let postage = summaries.filter { $0.category == "Postage" }.count
+    let landedCost = summaries.filter { $0.category == "AUD landed cost" }.count
+
+    return SettingsPanel(title: "Readiness blockers", symbol: "checklist.unchecked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this summary after running purchase readiness checks. It groups the local blockers that must be cleared before a human buys externally.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Blocked items", "\(summaries.count)", summaries.isEmpty ? .green : .orange),
+          ("Critical", "\(critical)", critical == 0 ? .green : .red),
+          ("Seller trust", "\(sellerTrust)", sellerTrust == 0 ? .green : .orange),
+          ("Postage", "\(postage)", postage == 0 ? .green : .teal),
+          ("AUD cost", "\(landedCost)", landedCost == 0 ? .green : .brown)
+        ])
+
+        if summaries.isEmpty {
+          MVPEmptyState(
+            title: "No readiness blockers",
+            detail: "Run purchase readiness checks from the decision queue. Items with failed seller trust, postage, landed cost, source, or owner checks will appear here.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(summaries.prefix(8)) { summary in
+              WishlistReadinessBlockerSummaryRow(summary: summary) {
+                store.runWishlistPurchaseReadinessCheck(summary.item)
+              } onTask: {
+                store.createWishlistPurchaseDecisionReviewTask(summary.item)
+              } onFocus: {
+                wishlistSearchText = summary.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(summaries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more readiness-blocked Wishlist item\(remaining == 1 ? "" : "s") are in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This panel is local guidance only. It does not verify live seller stock, price, postage, account access, checkout, payment, or delivery status.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistReadinessCategory(for title: String) -> String {
+    if title.localizedCaseInsensitiveContains("trust") { return "Seller trust" }
+    if title.localizedCaseInsensitiveContains("postage") || title.localizedCaseInsensitiveContains("delivery") { return "Postage" }
+    if title.localizedCaseInsensitiveContains("aud") || title.localizedCaseInsensitiveContains("cost") { return "AUD landed cost" }
+    if title.localizedCaseInsensitiveContains("seller") { return "Seller selection" }
+    if title.localizedCaseInsensitiveContains("owner") || title.localizedCaseInsensitiveContains("account") { return "Owner/account" }
+    if title.localizedCaseInsensitiveContains("source") || title.localizedCaseInsensitiveContains("item") { return "Item/source" }
+    return "Readiness"
+  }
+
+  private func wishlistReadinessNextAction(for title: String) -> String {
+    if title.localizedCaseInsensitiveContains("trust") { return "Confirm seller trust" }
+    if title.localizedCaseInsensitiveContains("postage") || title.localizedCaseInsensitiveContains("delivery") { return "Confirm postage" }
+    if title.localizedCaseInsensitiveContains("aud") || title.localizedCaseInsensitiveContains("cost") { return "Confirm AUD total" }
+    if title.localizedCaseInsensitiveContains("seller") { return "Choose seller" }
+    if title.localizedCaseInsensitiveContains("owner") || title.localizedCaseInsensitiveContains("account") { return "Confirm owner/account" }
+    if title.localizedCaseInsensitiveContains("source") || title.localizedCaseInsensitiveContains("item") { return "Confirm item/source" }
+    return "Review readiness"
   }
 
   private var wishlistExternalPurchaseSafetyGatePanel: some View {
@@ -9557,6 +9668,85 @@ private struct WishlistPurchaseReleaseGate: Identifiable {
 
   var isLinkedOrder: Bool {
     stage == "Linked order released"
+  }
+}
+
+private struct WishlistReadinessBlockerSummary: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var preferredSeller: String
+  var category: String
+  var nextAction: String
+  var failedChecks: [WishlistPurchaseCheck]
+  var criticalChecks: [WishlistPurchaseCheck]
+  var detail: String
+
+  var sortPriority: Int {
+    if !criticalChecks.isEmpty { return 0 }
+    if category == "Seller trust" { return 1 }
+    if category == "Postage" || category == "AUD landed cost" { return 2 }
+    return 3
+  }
+
+  var tone: Color {
+    if !criticalChecks.isEmpty { return .red }
+    if category == "Postage" { return .teal }
+    if category == "AUD landed cost" { return .brown }
+    return .orange
+  }
+}
+
+private struct WishlistReadinessBlockerSummaryRow: View {
+  var summary: WishlistReadinessBlockerSummary
+  var onRunCheck: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: summary.criticalChecks.isEmpty ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(summary.tone)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(summary.item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text("\(summary.preferredSeller) • \(summary.item.owner)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        Badge("\(summary.failedChecks.count) checks", color: summary.tone)
+      }
+
+      HStack(spacing: 6) {
+        Badge(summary.category, color: summary.tone)
+        Badge(summary.nextAction, color: .blue)
+      }
+
+      Text(summary.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if summary.failedChecks.count > 1 {
+        Text("Also review: \(summary.failedChecks.dropFirst().prefix(2).map(\.title).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button("Run check", systemImage: "checklist.checked", action: onRunCheck)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(summary.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
