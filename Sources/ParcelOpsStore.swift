@@ -18845,6 +18845,18 @@ final class ParcelOpsStore {
   }
 
   func createWishlistResearchRequest(from item: WishlistItem) {
+    guard isActiveWishlistItem(item) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Closed Wishlist research request skipped locally.",
+        afterDetail: "The Wishlist item is closed or removed from active work, so no research request was created or refreshed. Reopen the item first if it needs new comparison work. No external research, browser automation, account login, checkout, purchase, or payment action occurred."
+      )
+      return
+    }
+
     if let existingIndex = wishlistResearchRequests.firstIndex(where: { $0.wishlistItemID == item.id }) {
       let beforeDetail = wishlistResearchRequests[existingIndex].auditDetail
       wishlistResearchRequests[existingIndex].requestStatus = "Scope refreshed"
@@ -18893,7 +18905,8 @@ final class ParcelOpsStore {
 
   func createMissingWishlistResearchRequests() {
     let candidates = wishlistItems.filter { item in
-      !wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+      isActiveWishlistItem(item)
+        && !wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
         && (item.comparisonOptions ?? []).isEmpty
     }
     guard !candidates.isEmpty else {
@@ -18903,7 +18916,7 @@ final class ParcelOpsStore {
         entityID: "wishlist-research-batch",
         entityLabel: "Wishlist research runway",
         summary: "Wishlist missing research brief batch checked with no work needed.",
-        afterDetail: "Every current Wishlist item already has a research brief or seller options. No web search, browser automation, retailer access, account login, checkout, purchase, payment, or external agent run occurred."
+        afterDetail: "Every active Wishlist item already has a research brief or seller options. Closed Wishlist items remain historical and were not reactivated. No web search, browser automation, retailer access, account login, checkout, purchase, payment, or external agent run occurred."
       )
       return
     }
@@ -19047,7 +19060,7 @@ final class ParcelOpsStore {
   }
 
   func createWishlistBatchResearchBriefDraft() {
-    let requests = wishlistResearchRequests
+    let requests = wishlistResearchRequests.filter(isActiveWishlistResearchRequest)
     let readyRequests = requests.filter(\.isAgentBriefReady)
     let scopedRequests = readyRequests.isEmpty ? requests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") } : readyRequests
     let includedRequests = Array(scopedRequests.prefix(12))
@@ -19399,7 +19412,7 @@ final class ParcelOpsStore {
 
   var wishlistAgentReadinessSummary: WishlistAgentReadinessSummary {
     let activeItems = wishlistItems.filter(isActiveWishlistItem)
-    let researchRequests = wishlistResearchRequests
+    let researchRequests = wishlistResearchRequests.filter(isActiveWishlistResearchRequest)
     let readyBriefs = researchRequests.filter(\.isAgentBriefReady)
     let scopeGapRequests = researchRequests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let sellerOptions = activeItems.flatMap { $0.comparisonOptions ?? [] }
@@ -21141,14 +21154,16 @@ final class ParcelOpsStore {
         || item.itemName.localizedCaseInsensitiveContains(rule.itemName)
     }
     let snapshots = wishlistPriceSnapshots.filter { snapshot in
-      snapshot.wishlistItemID == rule.wishlistItemID
+      isActiveWishlistPriceSnapshot(snapshot)
+        && (snapshot.wishlistItemID == rule.wishlistItemID
         || snapshot.itemName.localizedCaseInsensitiveContains(rule.itemName)
-        || rule.itemName.localizedCaseInsensitiveContains(snapshot.itemName)
+        || rule.itemName.localizedCaseInsensitiveContains(snapshot.itemName))
     }
     let quotes = wishlistSellerQuotes.filter { quote in
-      quote.wishlistItemID == rule.wishlistItemID
+      isActiveWishlistSellerQuote(quote)
+        && (quote.wishlistItemID == rule.wishlistItemID
         || quote.itemName.localizedCaseInsensitiveContains(rule.itemName)
-        || rule.itemName.localizedCaseInsensitiveContains(quote.itemName)
+        || rule.itemName.localizedCaseInsensitiveContains(quote.itemName))
     }
 
     let candidates = snapshots.map { snapshot in
