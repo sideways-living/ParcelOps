@@ -502,6 +502,7 @@ struct WishlistView: View {
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
         wishlistResearchPasteBackChecklistPanel
+        wishlistResearchPasteBackFieldMapPanel
         wishlistResearchResultQualityPanel
         wishlistSellerComparisonDecisionRunwayPanel
         wishlistResearchRequestsPanel
@@ -6576,6 +6577,116 @@ struct WishlistView: View {
       return "Seller option fields look complete. Run local scoring and choose a preferred purchase route."
     }
     return "Preferred seller exists. Move this into purchase decision review if live price, stock, postage, trust, and account readiness are still acceptable."
+  }
+
+  private var wishlistResearchPasteBackFieldMapPanel: some View {
+    let optionCount = store.wishlistItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
+    let gapCount = store.wishlistItems.reduce(0) { total, item in
+      total + (item.comparisonOptions ?? []).reduce(0) { $0 + $1.operatorSellerEvidenceGaps.count }
+    }
+    let readyCount = store.wishlistItems.reduce(0) { total, item in
+      total + (item.comparisonOptions ?? []).filter { option in
+        option.operatorSellerEvidenceGaps.isEmpty && option.operatorSellerMatrixScore >= 70
+      }.count
+    }
+    let missingAudCount = store.wishlistItems.reduce(0) { total, item in
+      total + (item.comparisonOptions ?? []).filter { option in
+        option.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      }.count
+    }
+
+    return SettingsPanel(title: "Research paste-back field map", symbol: "rectangle.and.pencil.and.ellipsis") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this field map when a human, browser note, or future agent returns retailer comparisons. It shows exactly what has to be copied into local seller options before a purchase route can be trusted.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Seller options", "\(optionCount)", optionCount == 0 ? .secondary : .blue),
+          ("Evidence gaps", "\(gapCount)", gapCount == 0 ? .green : .orange),
+          ("Missing AUD", "\(missingAudCount)", missingAudCount == 0 ? .green : .purple),
+          ("Ready-scored", "\(readyCount)", readyCount == 0 ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 330), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistResearchRunwayStep(
+            number: "1",
+            title: "Identity",
+            detail: "Paste seller name, retailer region, product title, and direct product URL. Reject marketplace listings without a stable product page.",
+            status: "Required",
+            color: .blue
+          )
+          WishlistResearchRunwayStep(
+            number: "2",
+            title: "Price",
+            detail: "Capture listed price, currency, estimated exchange rate note, GST/tax note, postage, and final AUD landed total.",
+            status: missingAudCount == 0 ? "Covered" : "\(missingAudCount) missing",
+            color: missingAudCount == 0 ? .green : .orange
+          )
+          WishlistResearchRunwayStep(
+            number: "3",
+            title: "Delivery",
+            detail: "Record shipping method, postage cost, estimated dispatch window, estimated delivery window, and any stock or backorder warning.",
+            status: "Manual check",
+            color: .teal
+          )
+          WishlistResearchRunwayStep(
+            number: "4",
+            title: "Trust",
+            detail: "Add seller trust evidence: known retailer, public reviews, returns address, warranty clarity, payment safety, and scam-risk notes.",
+            status: gapCount == 0 ? "No gaps" : "Needs evidence",
+            color: gapCount == 0 ? .green : .purple
+          )
+          WishlistResearchRunwayStep(
+            number: "5",
+            title: "Decision",
+            detail: "Paste recommendation, caveats, and rejected alternatives. Local scoring can rank options only after fields are complete.",
+            status: readyCount == 0 ? "Not ready" : "\(readyCount) ready",
+            color: readyCount == 0 ? .secondary : .green
+          )
+          WishlistResearchRunwayStep(
+            number: "6",
+            title: "Boundaries",
+            detail: "Do not paste passwords, card details, session links, checkout pages, private account data, or unverified live-price claims.",
+            status: "No secrets",
+            color: .orange
+          )
+        }
+
+        CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 135 : 170) {
+          Badge("Must include product URL", color: .blue)
+          Badge("Must include AUD total", color: missingAudCount == 0 ? .green : .orange)
+          Badge("Postage time required", color: .teal)
+          Badge("Trust evidence required", color: gapCount == 0 ? .green : .purple)
+          Badge("No checkout/payment", color: .orange)
+        }
+
+        CompactActionRow {
+          Button("Create paste-back task", systemImage: "checklist") {
+            store.createReviewTask(
+              linkedEntityType: .wishlistItem,
+              linkedEntityID: "wishlist-research-paste-back-field-map",
+              label: "Wishlist research paste-back",
+              summary: "Use the Wishlist paste-back field map to enter seller comparison results locally. Required: seller identity, product URL, listed price/currency, AUD landed total, postage cost/time, seller trust evidence, returns/warranty, and recommendation. Do not store credentials, checkout links, payment data, or unverified live-price claims.",
+              priority: .normal,
+              assignee: "Wishlist review"
+            )
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("This is a local field map only. ParcelOps still does not browse retailer sites, compare live prices, convert currency live, quote postage, rate sellers externally, open accounts, buy items, or monitor orders from Wishlist.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   private var wishlistResearchResultQualityEntries: [WishlistResearchResultQualityEntry] {
