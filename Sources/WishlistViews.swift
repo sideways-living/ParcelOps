@@ -486,6 +486,7 @@ struct WishlistView: View {
         wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
+        wishlistPurchaseWatchCommandCentrePanel
         wishlistPostPurchaseMonitorPanel
         wishlistOrderConfirmationMatchingPanel
         wishlistPostPurchaseOrderWatchPanel
@@ -4239,6 +4240,195 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPurchaseWatchCommandCentreEntries: [WishlistPurchaseWatchCommandCentreEntry] {
+    let operationsEntries = Dictionary(uniqueKeysWithValues: wishlistPurchaseOperationsHandoffItems.map { ($0.item.id, $0) })
+    return wishlistPostPurchaseMonitorEntries
+      .map { monitor in
+        wishlistPurchaseWatchCommandCentreEntry(for: monitor, operationsEntry: operationsEntries[monitor.item.id])
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseWatchCommandCentrePanel: some View {
+    let entries = wishlistPurchaseWatchCommandCentreEntries
+    let needHandoff = entries.filter { $0.stage == "Prepare handoff" }.count
+    let readyToBuy = entries.filter { $0.stage == "Ready to record purchase" }.count
+    let awaiting = entries.filter { $0.stage == "Awaiting confirmation" }.count
+    let matches = entries.filter { $0.stage == "Match confirmation" }.count
+    let operations = entries.filter { $0.stage == "Stage operations" }.count
+
+    return SettingsPanel(title: "Purchase watch command centre", symbol: "binoculars.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("One local queue for Wishlist items after seller decision: prepare the purchase handoff, record the manual purchase, match Inbox/order confirmation, then stage receiving and dispatch records. This does not buy, monitor mail in the background, or contact retailers.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Watching", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Need handoff", "\(needHandoff)", needHandoff == 0 ? .green : .purple),
+          ("Ready to buy", "\(readyToBuy)", readyToBuy == 0 ? .green : .blue),
+          ("Awaiting", "\(awaiting)", awaiting == 0 ? .green : .orange),
+          ("Matches", "\(matches)", matches == 0 ? .secondary : .teal),
+          ("Ops setup", "\(operations)", operations == 0 ? .green : .brown)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist purchases are in watch mode",
+            detail: "Accepted purchase decisions and handoffs appear here before and after the manual purchase is made outside ParcelOps.",
+            symbol: "binoculars.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 400), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseWatchCommandCentreRow(entry: entry) {
+                runWishlistPurchaseWatchCommandCentreAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase-watch item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Manual boundary: ParcelOps only records local handoff/watch state here. It does not purchase, pay, store retailer credentials, run background mailbox checks, mutate mailbox messages, or update external order systems.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseWatchCommandCentreEntry(
+    for monitor: WishlistPostPurchaseMonitorEntry,
+    operationsEntry: WishlistPurchaseOperationsHandoffEntry?
+  ) -> WishlistPurchaseWatchCommandCentreEntry {
+    let item = monitor.item
+    let handoff = monitor.handoff
+    let operationsGaps = operationsEntry?.gaps ?? []
+    let operationCount = [
+      operationsEntry?.inspectionCount ?? 0,
+      operationsEntry?.receiptCount ?? 0,
+      operationsEntry?.storageCount ?? 0,
+      operationsEntry?.custodyCount ?? 0,
+      operationsEntry?.labelCount ?? 0,
+      operationsEntry?.scanCount ?? 0,
+      operationsEntry?.manifestCount ?? 0,
+      operationsEntry?.dispatchCount ?? 0
+    ].reduce(0, +)
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if handoff == nil {
+      stage = "Prepare handoff"
+      detail = "Accepted purchase decision needs account, seller, expected order-signal, and manual buy checklist context."
+      nextAction = "Prepare handoff"
+      nextSymbol = "person.crop.circle.badge.checkmark"
+      tone = .purple
+      sortPriority = 0
+    } else if monitor.linkedOrder != nil {
+      if operationsGaps.isEmpty || operationCount >= 8 {
+        stage = "Operations staged"
+        detail = "Wishlist purchase is linked to \(monitor.linkedOrder?.orderNumber ?? "an order") and core local operations records are staged."
+        nextAction = "Focus item"
+        nextSymbol = "scope"
+        tone = .green
+        sortPriority = 50
+      } else {
+        stage = "Stage operations"
+        detail = "Order is linked. Next operations gap: \(operationsGaps.first ?? "local receiving/dispatch setup")."
+        nextAction = wishlistPurchaseOperationsActionTitle(for: operationsGaps)
+        nextSymbol = wishlistPurchaseOperationsActionSymbol(for: operationsGaps)
+        tone = .brown
+        sortPriority = 40
+      }
+    } else if !monitor.matches.isEmpty {
+      stage = "Match confirmation"
+      detail = "\(monitor.matches.count) Inbox confirmation candidate\(monitor.matches.count == 1 ? "" : "s") can link this Wishlist purchase to an order."
+      nextAction = "Use match"
+      nextSymbol = "link.badge.plus"
+      tone = .teal
+      sortPriority = 10
+    } else if handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+                || item.status.localizedCaseInsensitiveContains("awaiting order")
+                || item.status.localizedCaseInsensitiveContains("confirmation") {
+      stage = "Awaiting confirmation"
+      detail = "Manual purchase is recorded; Inbox/order confirmation still needs to be found or marked seen."
+      nextAction = "Mark seen"
+      nextSymbol = "envelope.badge.fill"
+      tone = .orange
+      sortPriority = 20
+    } else {
+      stage = "Ready to record purchase"
+      detail = "Handoff exists. When the external checkout is done, record the purchase locally and watch for confirmation."
+      nextAction = "Purchased"
+      nextSymbol = "bag.fill"
+      tone = .blue
+      sortPriority = 30
+    }
+
+    return WishlistPurchaseWatchCommandCentreEntry(
+      item: item,
+      handoff: handoff,
+      linkedOrder: monitor.linkedOrder,
+      inboxMatchCount: monitor.matches.count,
+      operationsGapCount: operationsGaps.count,
+      operationRecordCount: operationCount,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistPurchaseWatchCommandCentreAction(for entry: WishlistPurchaseWatchCommandCentreEntry) {
+    switch entry.stage {
+    case "Prepare handoff":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Match confirmation":
+      if let email = store.suggestedWishlistOrderConfirmations(for: entry.item).first {
+        store.confirmWishlistOrderFromIntake(entry.item, email: email)
+      } else {
+        store.markWishlistOrderConfirmationSeen(entry.item)
+      }
+    case "Awaiting confirmation":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    case "Ready to record purchase":
+      store.recordWishlistPurchasedExternally(entry.item)
+    case "Stage operations":
+      if let operationsEntry = wishlistPurchaseOperationsHandoffItems.first(where: { $0.item.id == entry.item.id }) {
+        runWishlistPurchaseOperationsHandoffAction(for: operationsEntry)
+      }
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistPurchaseAccountLedgerItems: [WishlistPurchaseAccountLedgerEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPurchaseAccountLedgerEntry? in
@@ -6781,6 +6971,94 @@ private struct WishlistPostPurchaseMonitorEntry: Identifiable {
   var nextSymbol: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistPurchaseWatchCommandCentreEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var handoff: WishlistPurchaseHandoff?
+  var linkedOrder: TrackedOrder?
+  var inboxMatchCount: Int
+  var operationsGapCount: Int
+  var operationRecordCount: Int
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseWatchCommandCentreRow: View {
+  var entry: WishlistPurchaseWatchCommandCentreEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var sellerSummary: String {
+    if let handoff = entry.handoff {
+      return "\(handoff.sellerName) via \(handoff.accountLabel)"
+    }
+    return entry.item.storefront.isPlaceholderValidationValue ? "Seller/account handoff not prepared" : entry.item.storefront
+  }
+
+  private var orderSummary: String {
+    if let linkedOrder = entry.linkedOrder {
+      return "\(linkedOrder.orderNumber) linked"
+    }
+    if entry.inboxMatchCount > 0 {
+      return "\(entry.inboxMatchCount) Inbox candidate\(entry.inboxMatchCount == 1 ? "" : "s")"
+    }
+    return "No order confirmation linked"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        Label(sellerSummary, systemImage: "storefront.fill")
+        Label(orderSummary, systemImage: "envelope.badge.fill")
+        Label("\(entry.operationRecordCount) ops records", systemImage: "shippingbox.fill")
+        Label(entry.operationsGapCount == 0 ? "No ops gaps" : "\(entry.operationsGapCount) ops gaps", systemImage: entry.operationsGapCount == 0 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      if let watchStatus = entry.handoff?.orderWatchStatus, !watchStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(watchStatus)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPostPurchaseMonitorRow: View {
