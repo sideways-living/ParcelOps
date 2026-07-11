@@ -18582,6 +18582,76 @@ final class ParcelOpsStore {
     addWishlistItem(source: .manual, name: "Manual wishlist item", detail: "Manual placeholder item awaiting purchase details.")
   }
 
+  func addManualWishlistItem(
+    itemName: String,
+    storefront: String,
+    storefrontURL: String,
+    estimatedCost: String,
+    owner: String,
+    pool: String,
+    notes: String
+  ) {
+    let cleanName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanStorefront = storefront.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanURL = storefrontURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanCost = estimatedCost.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanOwner = owner.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanPool = pool.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let seller = cleanStorefront.isEmpty ? "Seller needs review" : cleanStorefront
+    let url = cleanURL.isEmpty ? "Product URL needs review" : cleanURL
+    let cost = cleanCost.isEmpty ? "Price needs review" : cleanCost
+    let shouldStageSellerOption = !seller.isPlaceholderValidationValue || !url.isPlaceholderValidationValue || !cost.isPlaceholderValidationValue
+    let stagedOption = shouldStageSellerOption
+      ? WishlistComparisonOption(
+        sellerName: seller,
+        productURL: url,
+        listedPrice: cost,
+        currency: cost.localizedCaseInsensitiveContains("aud") || cost.localizedCaseInsensitiveContains("$") ? "AUD" : "Currency to confirm",
+        estimatedAUDTotal: cost.localizedCaseInsensitiveContains("aud") || cost.localizedCaseInsensitiveContains("$") ? cost : "AUD total needs review",
+        postageCost: "Postage needs review",
+        postageTime: "Delivery time needs review",
+        sellerRegion: "Region needs review",
+        trustRating: "Trust needs review",
+        trustNotes: "Manual entry only. Confirm seller reputation, delivery reliability, returns, warranty, contact details, and live availability before purchase.",
+        recommendation: "Needs comparison",
+        lastChecked: Self.auditTimestamp(),
+        localScore: nil,
+        riskLevel: "Needs review",
+        decisionReason: "Initial seller option staged from manual Wishlist entry."
+      )
+      : nil
+
+    let item = WishlistItem(
+      itemName: cleanName.isEmpty ? "Manual wishlist item" : cleanName,
+      storefront: seller,
+      storefrontURL: url,
+      estimatedCost: cost,
+      owner: cleanOwner.isEmpty ? "Current user" : cleanOwner,
+      pool: cleanPool.isEmpty ? "Personal wishlist" : cleanPool,
+      source: .manual,
+      status: "Needs review",
+      capturedDetail: cleanNotes.isEmpty ? "Manual Wishlist entry. Add purchase context before comparison." : cleanNotes,
+      comparisonStatus: stagedOption == nil ? "Not compared" : "Manual seller option staged",
+      comparisonNotes: stagedOption == nil
+        ? "Add direct product URLs or retailer pages, then create a local comparison plan before purchase."
+        : "Manual entry staged an initial seller option. Confirm AUD landed total, postage, delivery time, seller trust, returns, warranty, and live availability before purchase review.",
+      purchaseReadiness: stagedOption == nil ? "Needs comparison" : "Needs seller evidence review",
+      preferredOptionID: nil,
+      comparisonOptions: stagedOption.map { [$0] } ?? []
+    )
+    wishlistItems.insert(item, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Manual Wishlist item added locally.",
+      afterDetail: "\(item.auditDetail)\nInitial seller option: \(stagedOption == nil ? "none" : "staged from manual entry"). Manual entry only. No browser extension, web search, live retailer comparison, currency conversion, seller trust lookup, account login, checkout, purchase, payment, mailbox fetch, or external service occurred."
+    )
+  }
+
   func addBrowserExtensionWishlistCapturePlaceholder() {
     let capture = WishlistCaptureCandidate(
       source: .browserExtension,

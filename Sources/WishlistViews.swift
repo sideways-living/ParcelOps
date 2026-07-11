@@ -413,6 +413,7 @@ struct WishlistView: View {
   @State private var selectedStatus: String?
   @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
   @State private var editingCaptureCandidate: WishlistCaptureCandidate?
+  @State private var showManualWishlistItemForm = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var statuses: [String] {
@@ -664,7 +665,7 @@ struct WishlistView: View {
           Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
           Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
           Button("Browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
-          Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+          Button("Manual item", systemImage: "plus", action: openManualWishlistItemForm)
         }
         .buttonStyle(.bordered)
 
@@ -757,7 +758,7 @@ struct WishlistView: View {
                 Badge("\(closedWishlistItems.count) closed hidden", color: .green)
               }
               Spacer()
-              Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+              Button("Manual item", systemImage: "plus", action: openManualWishlistItemForm)
                 .buttonStyle(.borderedProminent)
             }
 
@@ -779,7 +780,7 @@ struct WishlistView: View {
           }
 
           if filteredItems.isEmpty {
-            MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : store.addManualWishlistItemPlaceholder)
+            MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : openManualWishlistItemForm)
           } else {
             ForEach(filteredItems) { item in
               WishlistItemRow(
@@ -1077,6 +1078,26 @@ struct WishlistView: View {
         }
       }
     }
+    .sheet(isPresented: $showManualWishlistItemForm) {
+      NavigationStack {
+        WishlistManualItemEditor { draft in
+          store.addManualWishlistItem(
+            itemName: draft.itemName,
+            storefront: draft.storefront,
+            storefrontURL: draft.storefrontURL,
+            estimatedCost: draft.estimatedCost,
+            owner: draft.owner,
+            pool: draft.pool,
+            notes: draft.notes
+          )
+          showManualWishlistItemForm = false
+        }
+      }
+    }
+  }
+
+  private func openManualWishlistItemForm() {
+    showManualWishlistItemForm = true
   }
 
   private var filterBar: some View {
@@ -1726,7 +1747,7 @@ struct WishlistView: View {
             detail: "Add a manual item, browser capture placeholder, PDF placeholder, or screenshot placeholder to start local Wishlist tracking.",
             symbol: "tray.full.fill",
             actionTitle: "Add manual item",
-            action: store.addManualWishlistItemPlaceholder
+            action: openManualWishlistItemForm
           )
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -2254,7 +2275,7 @@ struct WishlistView: View {
             detail: "Add a manual item or capture placeholder to start the local Wishlist workflow.",
             symbol: "star.square.fill",
             actionTitle: "Manual item",
-            action: store.addManualWishlistItemPlaceholder
+            action: openManualWishlistItemForm
           )
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -10012,7 +10033,7 @@ struct WishlistView: View {
         }
 
         CompactActionRow {
-          Button("Add manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+          Button("Add manual item", systemImage: "plus", action: openManualWishlistItemForm)
           Button("Stage browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
           Button("Create capture task", systemImage: "checklist") {
             store.createReviewTask(
@@ -10151,7 +10172,7 @@ struct WishlistView: View {
 
               CompactActionRow {
                 if row.source == .manual {
-                  Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+                  Button("Manual item", systemImage: "plus", action: openManualWishlistItemForm)
                 } else if row.source == .browserExtension {
                   Button("Stage capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
                 }
@@ -10542,7 +10563,7 @@ struct WishlistView: View {
 
           CompactActionRow {
             Button("Manual wishlist item", systemImage: "plus") {
-              store.addManualWishlistItemPlaceholder()
+              openManualWishlistItemForm()
             }
             NavigationLink {
               MailboxView(store: store)
@@ -12535,6 +12556,68 @@ private struct WishlistCaptureCandidateRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistManualItemDraft {
+  var itemName = ""
+  var storefront = ""
+  var storefrontURL = ""
+  var estimatedCost = ""
+  var owner = "Current user"
+  var pool = "Personal wishlist"
+  var notes = ""
+
+  var canSave: Bool {
+    !itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private struct WishlistManualItemEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft = WishlistManualItemDraft()
+  var onSave: (WishlistManualItemDraft) -> Void
+
+  var body: some View {
+    Form {
+      Section("Item") {
+        TextField("Item name", text: $draft.itemName)
+        TextField("Product or retailer URL", text: $draft.storefrontURL)
+        TextField("Seller or retailer", text: $draft.storefront)
+        TextField("Listed price or rough budget", text: $draft.estimatedCost)
+      }
+
+      Section("Local owner") {
+        TextField("Owner/team", text: $draft.owner)
+        TextField("Wishlist pool", text: $draft.pool)
+      }
+
+      Section("Notes") {
+        TextField("Why it is wanted, size/model clues, seller notes, shipping clues, or comparison requirements", text: $draft.notes, axis: .vertical)
+          .lineLimit(4...8)
+      }
+
+      Section("What happens next") {
+        Text("ParcelOps will create a local Wishlist item and, when seller/link/price clues are present, stage an initial seller option for later comparison. It will not open the website, compare prices, convert currency, check stock, rate the seller, log into accounts, buy, pay, or monitor anything in the background.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .navigationTitle("Add Wishlist Item")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") {
+          dismiss()
+        }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Add") {
+          onSave(draft)
+        }
+        .disabled(!draft.canSave)
+      }
+    }
   }
 }
 
