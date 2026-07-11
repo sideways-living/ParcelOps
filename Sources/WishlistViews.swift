@@ -216,6 +216,14 @@ private struct WishlistCaptureSourceReadiness: Identifiable {
   var tone: Color
 }
 
+private struct WishlistExtensionPayloadField: Identifiable {
+  var id: String { name }
+  var name: String
+  var requirement: String
+  var detail: String
+  var tone: Color
+}
+
 private struct WishlistOperatorQueueRow: View {
   var entry: WishlistOperatorQueueEntry
   var onAction: () -> Void
@@ -483,6 +491,7 @@ struct WishlistView: View {
         wishlistPurchaseBlockerQueuePanel
         wishlistCaptureContractPanel
         wishlistCaptureSourceReadinessPanel
+        wishlistBrowserExtensionPayloadPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
@@ -7792,6 +7801,138 @@ struct WishlistView: View {
         }
 
         Text("Only manual entry and local placeholder staging are active. ParcelOps does not install browser extensions, receive share-sheet payloads, read screenshots/PDFs, scrape retailer pages, or validate live product data from this panel.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistBrowserExtensionPayloadFields: [WishlistExtensionPayloadField] {
+    [
+      WishlistExtensionPayloadField(
+        name: "Page title",
+        requirement: "Required",
+        detail: "Used as the first product/item name candidate. Operators must still confirm it before comparison.",
+        tone: .blue
+      ),
+      WishlistExtensionPayloadField(
+        name: "Canonical product URL",
+        requirement: "Required",
+        detail: "Must be a product or seller page URL. Shorteners, login pages, carts, checkout pages, and tracking redirect URLs should be rejected.",
+        tone: .blue
+      ),
+      WishlistExtensionPayloadField(
+        name: "Seller/storefront",
+        requirement: "Required",
+        detail: "Should identify the retailer, marketplace, or direct manufacturer. Unknown sellers stay in capture review.",
+        tone: .orange
+      ),
+      WishlistExtensionPayloadField(
+        name: "Visible price/currency",
+        requirement: "Recommended",
+        detail: "Record exactly what was visible, including currency. AUD landed total is calculated or reviewed later, not at capture time.",
+        tone: .green
+      ),
+      WishlistExtensionPayloadField(
+        name: "Postage clue",
+        requirement: "Recommended",
+        detail: "Capture visible shipping, delivery date, free-postage, pickup, or international-delivery text only as an unverified clue.",
+        tone: .teal
+      ),
+      WishlistExtensionPayloadField(
+        name: "Variant/model clues",
+        requirement: "Recommended",
+        detail: "Size, colour, model, capacity, compatibility, SKU, or option text helps avoid buying the wrong item.",
+        tone: .purple
+      ),
+      WishlistExtensionPayloadField(
+        name: "Trust/returns clue",
+        requirement: "Optional",
+        detail: "Capture visible seller rating, returns, warranty, ABN/contact, marketplace seller, or delivery-risk text as evidence to review later.",
+        tone: .brown
+      ),
+      WishlistExtensionPayloadField(
+        name: "Operator note",
+        requirement: "Optional",
+        detail: "A human reason for wanting the item. This should not contain passwords, payment details, account cookies, or private checkout data.",
+        tone: .secondary
+      )
+    ]
+  }
+
+  private var wishlistBrowserExtensionPayloadPanel: some View {
+    let staged = store.wishlistCaptureCandidates.filter { $0.source == .browserExtension }
+    let gaps = staged.filter { !$0.operatorCaptureGaps.isEmpty }.count
+    let ready = staged.count - gaps
+    let fields = wishlistBrowserExtensionPayloadFields
+
+    return SettingsPanel(title: "Browser extension payload contract", symbol: "puzzlepiece.extension.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("A local contract for a future browser extension. The extension should only create staged capture candidates with safe page metadata. It must not scrape accounts, read checkout pages, capture credentials, purchase items, or sync in the background.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Payload fields", "\(fields.count)", .blue),
+          ("Extension staged", "\(staged.count)", staged.isEmpty ? .secondary : .teal),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("With gaps", "\(gaps)", gaps == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 310), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(fields) { field in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline) {
+                Text(field.name)
+                  .font(.caption.weight(.semibold))
+                Spacer(minLength: 8)
+                Badge(field.requirement, color: field.tone)
+              }
+              Text(field.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(field.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Reject extension payloads when:", systemImage: "hand.raised.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.red)
+          CompactMetadataGrid(minimumWidth: 170) {
+            Badge("Checkout/cart page", color: .red)
+            Badge("Login/account page", color: .red)
+            Badge("Missing product URL", color: .orange)
+            Badge("Unknown seller", color: .orange)
+            Badge("Credential/payment text", color: .red)
+            Badge("Background capture", color: .red)
+          }
+        }
+        .padding(10)
+        .background(Color.red.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
+        CompactActionRow {
+          Button("Stage sample payload", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
+          Button("Create extension task", systemImage: "checklist") {
+            store.createReviewTask(
+              linkedEntityType: .wishlistItem,
+              linkedEntityID: "wishlist-browser-extension-payload",
+              label: "Wishlist browser extension payload contract",
+              summary: "Review the future Wishlist browser extension payload contract. Required safe fields: page title, canonical product URL, seller/storefront, plus optional price, postage, variant, trust/returns, and operator notes. Reject checkout, login, credential, payment, or background-capture payloads.",
+              priority: .normal,
+              assignee: "Wishlist capture"
+            )
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("This panel is only a contract. ParcelOps does not install a browser extension, read browser tabs, scrape pages, collect cookies, access accounts, capture payment details, or send data to an external service.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
