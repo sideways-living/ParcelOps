@@ -670,6 +670,7 @@ struct WishlistView: View {
 
         wishlistNextActionGuidePanel
         wishlistComparisonReadinessLadderPanel
+        wishlistOperatorControlCentrePanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
         wishlistLocalActivityPanel
@@ -1372,6 +1373,202 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var wishlistOperatorControlCentrePanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let captureGaps = store.wishlistCaptureCandidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
+    let missingResearch = activeItems.filter { item in
+      (item.comparisonOptions ?? []).isEmpty
+        && !store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id && store.isActiveWishlistResearchRequest($0) }
+    }.count
+    let comparisonGaps = activeItems.filter { item in
+      (item.comparisonOptions ?? []).contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+        || item.preferredOptionID == nil && (item.comparisonOptions ?? []).isEmpty == false
+    }.count
+    let readinessGaps = activeItems.filter { item in
+      let checks = item.purchaseChecks ?? []
+      return item.purchaseDecision != nil
+        && (checks.isEmpty || checks.contains { $0.status != "Passed" })
+    }.count
+    let handoffGaps = activeItems.filter {
+      $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil
+    }.count
+    let openOrderWatch = store.wishlistOrderWatchRecords.filter {
+      store.isActiveWishlistOrderWatchRecord($0)
+        && $0.linkedOrderID == nil
+        && !$0.watchStatus.localizedCaseInsensitiveContains("blocked")
+    }.count
+    let closureCandidates = activeItems.filter {
+      $0.purchaseHandoff?.linkedOrderID != nil
+        || !store.suggestedReceivingInspections(for: $0).isEmpty
+        || !store.suggestedInventoryReceipts(for: $0).isEmpty
+        || !store.suggestedStorageLocations(for: $0).isEmpty
+        || !store.suggestedCustodyRecords(for: $0).isEmpty
+        || !store.suggestedLabelReferenceRecords(for: $0).isEmpty
+        || !store.suggestedScanSessionRecords(for: $0).isEmpty
+        || !store.suggestedShipmentManifestRecords(for: $0).isEmpty
+        || !store.suggestedDispatchReadinessChecklists(for: $0).isEmpty
+    }.count
+    let operatorWork = captureGaps + missingResearch + comparisonGaps + readinessGaps + handoffGaps + openOrderWatch
+
+    return SettingsPanel(title: "Wishlist operator control centre", symbol: "slider.horizontal.3") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: operatorWork == 0 ? "checkmark.circle.fill" : "scope")
+            .foregroundStyle(operatorWork == 0 ? .green : .blue)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(operatorWork == 0 ? "Wishlist queue is locally tidy" : "Run the next local Wishlist controls from here")
+              .font(.headline)
+            Text(operatorWork == 0
+              ? "No immediate local capture, research, purchase, handoff, or order-watch blockers are counted."
+              : "Use this panel as the short path through the long Wishlist workspace: capture cleanup, research briefs, seller evidence, purchase checks, handoff, then order-watch matching.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(operatorWork == 0 ? "Clear" : "\(operatorWork) work item\(operatorWork == 1 ? "" : "s")", color: operatorWork == 0 ? .green : .blue)
+        }
+
+        MetricStrip(items: [
+          ("Active", "\(activeItems.count)", activeItems.isEmpty ? .secondary : .blue),
+          ("Capture gaps", "\(captureGaps)", captureGaps == 0 ? .green : .orange),
+          ("Need briefs", "\(missingResearch)", missingResearch == 0 ? .green : .purple),
+          ("Seller gaps", "\(comparisonGaps)", comparisonGaps == 0 ? .green : .orange),
+          ("Checks", "\(readinessGaps)", readinessGaps == 0 ? .green : .brown),
+          ("Handoff", "\(handoffGaps)", handoffGaps == 0 ? .green : .purple),
+          ("Order watch", "\(openOrderWatch)", openOrderWatch == 0 ? .secondary : .teal),
+          ("Closure", "\(closureCandidates)", closureCandidates == 0 ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 245 : 320), spacing: 10)], alignment: .leading, spacing: 10) {
+          wishlistOperatorControlCard(
+            title: "1. Capture cleanup",
+            detail: captureGaps == 0 ? "No staged capture gaps are counted." : "Open capture focus and fix item, seller, URL, price, or owner gaps.",
+            count: captureGaps,
+            color: captureGaps == 0 ? .green : .orange,
+            symbol: "square.and.arrow.down.fill",
+            buttonTitle: "Focus capture",
+            action: {
+              selectedWorkflowFocus = .capture
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          )
+
+          wishlistOperatorControlCard(
+            title: "2. Research briefs",
+            detail: missingResearch == 0 ? "Every active unpriced item has a brief or seller option context." : "Create missing local research briefs before comparison work.",
+            count: missingResearch,
+            color: missingResearch == 0 ? .green : .purple,
+            symbol: "doc.text.magnifyingglass",
+            buttonTitle: "Create briefs",
+            action: store.createMissingWishlistResearchRequests
+          )
+
+          wishlistOperatorControlCard(
+            title: "3. Seller evidence",
+            detail: comparisonGaps == 0 ? "No preferred-seller or evidence gaps are counted." : "Focus comparison rows and fill URL, AUD total, postage, trust, returns, or recommendation gaps.",
+            count: comparisonGaps,
+            color: comparisonGaps == 0 ? .green : .orange,
+            symbol: "shield.checkered",
+            buttonTitle: "Focus compare",
+            action: {
+              selectedWorkflowFocus = .compare
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          )
+
+          wishlistOperatorControlCard(
+            title: "4. Purchase checks",
+            detail: readinessGaps == 0 ? "No drafted purchase decision currently needs readiness checks." : "Run local readiness checks for decision queue items.",
+            count: readinessGaps,
+            color: readinessGaps == 0 ? .green : .brown,
+            symbol: "checklist.checked",
+            buttonTitle: "Run checks",
+            action: store.runWishlistPurchaseReadinessChecksForDecisionQueue
+          )
+
+          wishlistOperatorControlCard(
+            title: "5. Purchase handoff",
+            detail: handoffGaps == 0 ? "No accepted decision is missing a local purchase handoff." : "Focus buy rows and prepare account, payment, delivery, and order-watch notes.",
+            count: handoffGaps,
+            color: handoffGaps == 0 ? .green : .purple,
+            symbol: "person.crop.circle.badge.checkmark",
+            buttonTitle: "Focus buy",
+            action: {
+              selectedWorkflowFocus = .buy
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          )
+
+          wishlistOperatorControlCard(
+            title: "6. Order watch",
+            detail: openOrderWatch == 0 ? "No open watch rules are waiting for local order matching." : "Check open Wishlist order-watch records against local Orders.",
+            count: openOrderWatch,
+            color: openOrderWatch == 0 ? .secondary : .teal,
+            symbol: "envelope.badge.fill",
+            buttonTitle: "Check matches",
+            action: store.checkOpenWishlistOrderWatchRecords
+          )
+
+          wishlistOperatorControlCard(
+            title: "7. Closure readiness",
+            detail: closureCandidates == 0 ? "No linked Wishlist item is ready for closure review." : "Check linked operational records for closure blockers.",
+            count: closureCandidates,
+            color: closureCandidates == 0 ? .secondary : .green,
+            symbol: "checkmark.seal.text.page.fill",
+            buttonTitle: "Check closure",
+            action: store.checkWishlistOperationsClosureReadinessBatch
+          )
+        }
+
+        Text("These controls only update local records, review tasks, drafts, and audit events. They do not compare live retailers, open accounts, purchase, pay, mutate mailboxes, scrape pages, run background jobs, or contact external services.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistOperatorControlCard(
+    title: String,
+    detail: String,
+    count: Int,
+    color: Color,
+    symbol: String,
+    buttonTitle: String,
+    action: @escaping () -> Void
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(title, systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+        Spacer(minLength: 8)
+        Badge("\(count)", color: color)
+      }
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Button(buttonTitle, systemImage: "arrow.right.circle") {
+        action()
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .disabled(count == 0 && !["Focus capture", "Focus compare", "Focus buy"].contains(buttonTitle))
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var wishlistClosedItemsPanel: some View {
