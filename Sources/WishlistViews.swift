@@ -492,6 +492,7 @@ struct WishlistView: View {
         wishlistPurchaseOperationsHandoffPanel
         wishlistLinkedOrderOperationsChecklistPanel
         wishlistOperationsClosureReadinessPanel
+        wishlistAgentResearchRunwayPanel
         wishlistAgentHandoffPacketPanel
         wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
@@ -5608,6 +5609,171 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistAgentResearchRunwayPanel: some View {
+    let requests = store.wishlistResearchRequests
+    let readyRequests = requests.filter(\.isAgentBriefReady)
+    let scopeGapRequests = requests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let blockedRequests = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let captureGapCandidates = store.wishlistCaptureCandidates.filter { !$0.operatorCaptureGaps.isEmpty }
+    let unbriefedItems = store.wishlistItems.filter { item in
+      !requests.contains { $0.wishlistItemID == item.id }
+        && (item.comparisonOptions ?? []).isEmpty
+    }
+    let returnedOptionItems = store.wishlistItems.filter { item in
+      let hasRequest = requests.contains { $0.wishlistItemID == item.id }
+      return hasRequest
+        && !(item.comparisonOptions ?? []).isEmpty
+        && item.purchaseDecision == nil
+    }
+    let lastBatchDraft = store.draftMessages.first { draft in
+      draft.linkedEntityType == .wishlistItem
+        && draft.linkedEntityID == "wishlist-research-batch"
+    }
+    let nextItemWithoutBrief = unbriefedItems.first
+
+    return SettingsPanel(title: "Wishlist research runway", symbol: "point.topleft.down.curvedto.point.bottomright.up") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this local runway to prepare Wishlist items for later comparison work. It keeps capture cleanup, research briefs, batch handoff, and returned seller options in one place without running web search, browser automation, checkout, or external agents.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Capture gaps", "\(captureGapCandidates.count)", captureGapCandidates.isEmpty ? .green : .orange),
+          ("Need briefs", "\(unbriefedItems.count)", unbriefedItems.isEmpty ? .green : .blue),
+          ("Brief gaps", "\(scopeGapRequests.count)", scopeGapRequests.isEmpty ? .green : .orange),
+          ("Ready briefs", "\(readyRequests.count)", readyRequests.isEmpty ? .secondary : .green),
+          ("Returned options", "\(returnedOptionItems.count)", returnedOptionItems.isEmpty ? .secondary : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 245 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistResearchRunwayStep(
+            number: "1",
+            title: "Clean capture",
+            detail: captureGapCandidates.isEmpty ? "No staged capture candidates have blocking gaps." : "\(captureGapCandidates.count) staged capture candidate\(captureGapCandidates.count == 1 ? "" : "s") need title, URL, seller, price, summary, or review cleanup.",
+            status: captureGapCandidates.isEmpty ? "Clear" : "Fix gaps",
+            color: captureGapCandidates.isEmpty ? .green : .orange
+          )
+
+          WishlistResearchRunwayStep(
+            number: "2",
+            title: "Create briefs",
+            detail: unbriefedItems.isEmpty ? "Every comparison-stage Wishlist item has a local research brief or seller options." : "\(unbriefedItems.count) item\(unbriefedItems.count == 1 ? "" : "s") still need a comparison brief before future agent handoff.",
+            status: unbriefedItems.isEmpty ? "Covered" : "Brief needed",
+            color: unbriefedItems.isEmpty ? .green : .blue
+          )
+
+          WishlistResearchRunwayStep(
+            number: "3",
+            title: "Quality-control scope",
+            detail: scopeGapRequests.isEmpty ? "No open research brief is missing core agent handoff scope." : "\(scopeGapRequests.count) brief\(scopeGapRequests.count == 1 ? "" : "s") need AUD budget, region, seller, postage, trust, source, or operator review scope.",
+            status: blockedRequests.isEmpty ? (scopeGapRequests.isEmpty ? "Ready" : "Scope gaps") : "\(blockedRequests.count) blocked",
+            color: blockedRequests.isEmpty ? (scopeGapRequests.isEmpty ? .green : .orange) : .red
+          )
+
+          WishlistResearchRunwayStep(
+            number: "4",
+            title: "Review returned options",
+            detail: returnedOptionItems.isEmpty ? "No briefed Wishlist item has un-decided seller options waiting for purchase review." : "\(returnedOptionItems.count) item\(returnedOptionItems.count == 1 ? "" : "s") have seller options but no purchase decision yet.",
+            status: returnedOptionItems.isEmpty ? "No queue" : "Review options",
+            color: returnedOptionItems.isEmpty ? .secondary : .purple
+          )
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Next local action", systemImage: "arrowshape.turn.up.right.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+          if let firstGap = captureGapCandidates.first {
+            Text("Fix capture candidate: \(firstGap.pageTitle.isPlaceholderValidationValue ? "Untitled capture" : firstGap.pageTitle). Missing \(firstGap.operatorCaptureGaps.prefix(3).joined(separator: ", ")).")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if let nextItemWithoutBrief {
+            Text("Create a research brief for \(nextItemWithoutBrief.itemName) so it can enter the comparison handoff queue.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if let firstScopeGap = scopeGapRequests.first {
+            Text("\(firstScopeGap.itemName): \(firstScopeGap.agentBriefNextAction)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if let firstReturned = returnedOptionItems.first {
+            Text("Review seller options for \(firstReturned.itemName) and prepare a purchase decision if the trust, postage, and AUD landed cost evidence is sufficient.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else {
+            Text("The local Wishlist research runway has no immediate blockers. Create a batch brief when you want a handoff packet for future research.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(10)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if let lastBatchDraft {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "doc.text.fill")
+              .foregroundStyle(lastBatchDraft.status.color)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Latest batch handoff draft")
+                .font(.caption.weight(.semibold))
+              Text(lastBatchDraft.subject)
+                .font(.caption)
+                .lineLimit(2)
+              Text("Status: \(lastBatchDraft.status.rawValue). \(wishlistBatchDraftNextAction(lastBatchDraft))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Badge(lastBatchDraft.status.rawValue, color: lastBatchDraft.status.color)
+          }
+          .padding(10)
+          .background(lastBatchDraft.status.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        CompactActionRow {
+          Button("Create missing brief", systemImage: "list.bullet.clipboard") {
+            if let item = nextItemWithoutBrief {
+              store.createWishlistComparisonPlan(item)
+              store.createWishlistResearchRequest(from: item)
+            }
+          }
+          .disabled(nextItemWithoutBrief == nil)
+
+          Button("Create batch brief", systemImage: "doc.badge.plus") {
+            store.createWishlistBatchResearchBriefDraft()
+          }
+          .disabled(requests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }.isEmpty)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Research remains local/manual here. ParcelOps does not compare live retailer sites, convert currencies, quote postage, rate external sellers, open browser pages, log into accounts, purchase, or monitor orders from this section.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistResearchResultIntakeItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
@@ -7611,6 +7777,40 @@ private extension WishlistCaptureCandidate {
     }
 
     return gaps
+  }
+}
+
+private struct WishlistResearchRunwayStep: View {
+  var number: String
+  var title: String
+  var detail: String
+  var status: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        Text(number)
+          .font(.caption.weight(.bold))
+          .foregroundStyle(.white)
+          .frame(width: 22, height: 22)
+          .background(color, in: Circle())
+        VStack(alignment: .leading, spacing: 3) {
+          Text(title)
+            .font(.subheadline.weight(.semibold))
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+      }
+
+      Badge(status, color: color)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
