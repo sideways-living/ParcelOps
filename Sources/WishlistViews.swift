@@ -660,7 +660,7 @@ struct WishlistView: View {
             .foregroundStyle(.secondary)
         }
 
-        HStack {
+        CompactActionRow {
           Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
           Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
           Button("Browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
