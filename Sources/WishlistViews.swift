@@ -201,6 +201,18 @@ private struct WishlistDataQualityEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistNextActionEntry: Identifiable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var count: Int
+  var actionTitle: String
+  var actionSymbol: String
+  var symbol: String
+  var color: Color
+  var sortPriority: Int
+}
+
 private struct WishlistOperatorQueueEntry: Identifiable {
   var id: UUID { item.id }
   var item: WishlistItem
@@ -532,6 +544,112 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistNextActionEntries: [WishlistNextActionEntry] {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let activeResearchRequests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+    let stagedCaptureGaps = store.wishlistCaptureCandidates.filter { !$0.operatorCaptureGaps.isEmpty }
+    let unbriefedItems = activeItems.filter { item in
+      !activeResearchRequests.contains { $0.wishlistItemID == item.id }
+        && (item.comparisonOptions ?? []).isEmpty
+    }
+    let researchScopeGaps = activeResearchRequests.filter {
+      !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked")
+    }
+    let sellerEvidenceGaps = activeItems.filter { item in
+      (item.comparisonOptions ?? []).contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+    }
+    let purchaseBlockers = activeItems.filter { !$0.operatorPurchaseBlockers.isEmpty }
+    let orderWatchItems = activeItems.filter {
+      $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil
+    }
+    let linkedOperationalItems = activeItems.filter {
+      $0.purchaseHandoff?.linkedOrderID != nil
+        || !store.suggestedReceivingInspections(for: $0).isEmpty
+        || !store.suggestedInventoryReceipts(for: $0).isEmpty
+        || !store.suggestedDispatchReadinessChecklists(for: $0).isEmpty
+    }
+
+    let entries = [
+      WishlistNextActionEntry(
+        title: "Clean capture inputs",
+        detail: stagedCaptureGaps.isEmpty ? "No staged capture candidates have blocking capture gaps." : "Review staged captures before they become Wishlist items. Confirm item name, seller, URL, price clues, and source detail.",
+        count: stagedCaptureGaps.count,
+        actionTitle: "Review capture",
+        actionSymbol: "square.and.arrow.down.fill",
+        symbol: "square.and.arrow.down.fill",
+        color: stagedCaptureGaps.isEmpty ? .green : .orange,
+        sortPriority: stagedCaptureGaps.isEmpty ? 80 : 10
+      ),
+      WishlistNextActionEntry(
+        title: "Create comparison briefs",
+        detail: unbriefedItems.isEmpty ? "Every active item has a research brief or seller option context." : "Create local briefs before any human or future agent compares Australian and overseas retailers.",
+        count: unbriefedItems.count,
+        actionTitle: "Create briefs",
+        actionSymbol: "list.bullet.clipboard",
+        symbol: "doc.text.magnifyingglass",
+        color: unbriefedItems.isEmpty ? .green : .blue,
+        sortPriority: unbriefedItems.isEmpty ? 85 : 20
+      ),
+      WishlistNextActionEntry(
+        title: "Fix research scope",
+        detail: researchScopeGaps.isEmpty ? "No open research brief is missing core handoff scope." : "Fill AUD budget, region, seller, postage, trust, source, or operator-review gaps before handoff.",
+        count: researchScopeGaps.count,
+        actionTitle: "Focus compare",
+        actionSymbol: "scope",
+        symbol: "checklist.checked",
+        color: researchScopeGaps.isEmpty ? .green : .orange,
+        sortPriority: researchScopeGaps.isEmpty ? 90 : 30
+      ),
+      WishlistNextActionEntry(
+        title: "Review seller evidence",
+        detail: sellerEvidenceGaps.isEmpty ? "No captured seller option currently has required evidence gaps." : "Check product links, AUD landed totals, postage timing, returns/warranty, trust notes, and recommendation quality.",
+        count: sellerEvidenceGaps.count,
+        actionTitle: "Review sellers",
+        actionSymbol: "storefront.fill",
+        symbol: "shield.checkered",
+        color: sellerEvidenceGaps.isEmpty ? .green : .purple,
+        sortPriority: sellerEvidenceGaps.isEmpty ? 95 : 40
+      ),
+      WishlistNextActionEntry(
+        title: "Clear purchase blockers",
+        detail: purchaseBlockers.isEmpty ? "No active item has local purchase blockers." : "Resolve missing seller choice, price, postage, trust, approval, account, or order-watch checks before buying externally.",
+        count: purchaseBlockers.count,
+        actionTitle: "Focus buy",
+        actionSymbol: "cart.badge.plus",
+        symbol: "exclamationmark.triangle.fill",
+        color: purchaseBlockers.isEmpty ? .green : .orange,
+        sortPriority: purchaseBlockers.isEmpty ? 100 : 50
+      ),
+      WishlistNextActionEntry(
+        title: "Match order confirmations",
+        detail: orderWatchItems.isEmpty ? "No Wishlist purchase handoff is waiting for an order confirmation match." : "Match purchase handoffs to Inbox confirmations or Orders once the external purchase is complete.",
+        count: orderWatchItems.count,
+        actionTitle: "Focus watch",
+        actionSymbol: "envelope.badge.fill",
+        symbol: "link.badge.plus",
+        color: orderWatchItems.isEmpty ? .green : .teal,
+        sortPriority: orderWatchItems.isEmpty ? 105 : 60
+      ),
+      WishlistNextActionEntry(
+        title: "Operational handoff",
+        detail: linkedOperationalItems.isEmpty ? "No Wishlist item has moved into receiving, storage, dispatch, or linked order operations yet." : "Check linked-order, receiving, inventory, storage, custody, and dispatch context for purchased items.",
+        count: linkedOperationalItems.count,
+        actionTitle: "Focus operations",
+        actionSymbol: "shippingbox.fill",
+        symbol: "shippingbox.fill",
+        color: linkedOperationalItems.isEmpty ? .secondary : .green,
+        sortPriority: linkedOperationalItems.isEmpty ? 110 : 70
+      )
+    ]
+
+    return entries.sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        return first.title.localizedCaseInsensitiveCompare(second.title) == .orderedAscending
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -550,6 +668,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
+        wishlistNextActionGuidePanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
         wishlistLocalActivityPanel
@@ -992,6 +1111,112 @@ struct WishlistView: View {
     selectedStatus = nil
     selectedWorkflowFocus = .all
     showClosedItems = false
+  }
+
+  private var wishlistNextActionGuidePanel: some View {
+    let entries = wishlistNextActionEntries
+    let attentionCount = entries.filter { $0.count > 0 && $0.sortPriority < 80 }.count
+    let leadingEntry = entries.first { $0.count > 0 } ?? entries.first
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let sellerOptionCount = activeItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
+    let openCaptureCount = store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+    let activeBriefCount = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest).count
+    let activeOrderWatchCount = store.wishlistOrderWatchRecords.filter(store.isActiveWishlistOrderWatchRecord).count
+
+    return SettingsPanel(title: "Wishlist next actions", symbol: "arrowshape.turn.up.right.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: leadingEntry?.symbol ?? "checkmark.seal.fill")
+            .foregroundStyle(leadingEntry?.color ?? .green)
+            .frame(width: 24, height: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(leadingEntry.map { $0.count > 0 ? $0.title : "Wishlist workflow has no immediate blockers" } ?? "Wishlist workflow has no immediate blockers")
+              .font(.headline)
+            Text(leadingEntry?.detail ?? "Add a manual item or staged capture when there is a new wanted product to compare.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(attentionCount == 0 ? "Clear" : "\(attentionCount) focus area\(attentionCount == 1 ? "" : "s")", color: attentionCount == 0 ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Items", "\(activeItems.count)", activeItems.isEmpty ? .secondary : .purple),
+          ("Captures", "\(openCaptureCount)", openCaptureCount == 0 ? .green : .orange),
+          ("Briefs", "\(activeBriefCount)", activeBriefCount == 0 ? .secondary : .blue),
+          ("Seller options", "\(sellerOptionCount)", sellerOptionCount == 0 ? .secondary : .teal),
+          ("Order watch", "\(activeOrderWatchCount)", activeOrderWatchCount == 0 ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 280), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(entries.prefix(6)) { entry in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(entry.title, systemImage: entry.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(entry.color)
+                Spacer(minLength: 8)
+                Badge("\(entry.count)", color: entry.color)
+              }
+              Text(entry.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Button(entry.actionTitle, systemImage: entry.actionSymbol) {
+                runWishlistNextAction(entry)
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+              .disabled(entry.count == 0 && entry.title != "Create comparison briefs")
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(entry.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Boundary: this guide only reads and updates local Wishlist records. It does not browse retailer pages, compare live prices, convert currencies, quote postage, rate sellers externally, log into accounts, purchase, pay, or monitor order pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistNextAction(_ entry: WishlistNextActionEntry) {
+    switch entry.title {
+    case "Clean capture inputs":
+      wishlistSearchText = ""
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .capture
+    case "Create comparison briefs":
+      store.createMissingWishlistResearchRequests()
+      selectedWorkflowFocus = .compare
+    case "Fix research scope", "Review seller evidence":
+      wishlistSearchText = ""
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .compare
+    case "Clear purchase blockers":
+      wishlistSearchText = ""
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .buy
+    case "Match order confirmations":
+      wishlistSearchText = ""
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .watch
+    case "Operational handoff":
+      wishlistSearchText = ""
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .operations
+    default:
+      break
+    }
   }
 
   private var wishlistClosedItemsPanel: some View {
