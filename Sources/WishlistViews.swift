@@ -395,6 +395,7 @@ struct WishlistView: View {
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
         wishlistPurchaseRecommendationPanel
+        wishlistPurchaseShortlistPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPrePurchaseOperatorChecklistPanel
@@ -2150,6 +2151,143 @@ struct WishlistView: View {
       preferredOption: preferred,
       warningLabels: Array(Set(warnings)).sorted(),
       rationale: rationale,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private var wishlistPurchaseShortlistEntries: [WishlistPurchaseShortlistEntry] {
+    wishlistPurchaseRecommendationEntries
+      .map(wishlistPurchaseShortlistEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseShortlistPanel: some View {
+    let entries = wishlistPurchaseShortlistEntries
+    let readyCount = entries.filter { $0.stage == "Ready for decision" }.count
+    let checkCount = entries.filter { $0.stage == "Needs checks" }.count
+    let preferredCount = entries.filter { $0.entry.preferredOption?.id == $0.entry.recommendedOption.id }.count
+    let blockedCount = entries.filter { $0.stage == "Blocked" }.count
+
+    return SettingsPanel(title: "Purchase shortlist", symbol: "list.bullet.rectangle.portrait.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This is the small operator queue for items that have seller options. It separates ready-to-decide items from cheaper-but-riskier, missing-preference, and blocked cases before any external purchase.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Shortlisted", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(readyCount)", readyCount == 0 ? .secondary : .green),
+          ("Need checks", "\(checkCount)", checkCount == 0 ? .green : .orange),
+          ("Preferred", "\(preferredCount)", preferredCount == 0 ? .secondary : .purple),
+          ("Blocked", "\(blockedCount)", blockedCount == 0 ? .green : .red)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist items are ready for the shortlist",
+            detail: "Add seller options or run local comparison scoring first. The shortlist appears once ParcelOps has enough local seller data to suggest a purchase route.",
+            symbol: "list.bullet.rectangle.portrait.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 255 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { shortlist in
+              WishlistPurchaseShortlistRow(shortlist: shortlist) {
+                store.runWishlistPurchaseReadinessCheck(shortlist.item)
+              } onDecision: {
+                store.createWishlistPurchaseDecision(shortlist.item)
+              } onPrefer: {
+                store.markWishlistPreferredOption(shortlist.item, option: shortlist.entry.recommendedOption)
+              } onTask: {
+                store.createWishlistPurchaseDecisionReviewTask(shortlist.item)
+              } onFocus: {
+                wishlistSearchText = shortlist.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more shortlist candidate\(remaining == 1 ? "" : "s") are available in the detailed Wishlist rows below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Shortlist actions only update local review state, preferred seller, tasks, and decision drafts. They do not open retailer sites, compare live prices, authenticate accounts, buy, pay, or monitor external pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseShortlistEntry(for entry: WishlistPurchaseRecommendationEntry) -> WishlistPurchaseShortlistEntry {
+    let item = entry.item
+    let gaps = entry.warningLabels
+    let hasReadinessCheck = !(item.purchaseChecks ?? []).isEmpty
+    let hasDecision = item.purchaseDecision != nil
+
+    let stage: String
+    let nextAction: String
+    let nextSymbol: String
+    let detail: String
+    let tone: Color
+    let sortPriority: Int
+
+    if entry.recommendedOption.operatorSellerMatrixScore < 55 || gaps.contains("trust needs review") {
+      stage = "Blocked"
+      nextAction = "Review task"
+      nextSymbol = "checklist"
+      detail = "Trust, seller evidence, or local score is too weak for purchase decision. Create a task before buying externally."
+      tone = .red
+      sortPriority = 5
+    } else if entry.preferredOption?.id != entry.recommendedOption.id {
+      stage = "Set preferred"
+      nextAction = "Prefer seller"
+      nextSymbol = "checkmark.seal"
+      detail = "The safest local recommendation is not the selected preferred seller yet."
+      tone = .purple
+      sortPriority = 10
+    } else if !gaps.isEmpty || !hasReadinessCheck {
+      stage = "Needs checks"
+      nextAction = "Readiness"
+      nextSymbol = "checklist.checked"
+      detail = gaps.isEmpty
+        ? "Run the local readiness checklist before drafting the purchase decision."
+        : "Resolve \(gaps.prefix(3).joined(separator: ", ")) before drafting the purchase decision."
+      tone = .orange
+      sortPriority = 20
+    } else if !hasDecision {
+      stage = "Ready for decision"
+      nextAction = "Decision"
+      nextSymbol = "doc.text.magnifyingglass"
+      detail = "Seller route looks locally complete enough to draft a human-reviewed purchase decision."
+      tone = .green
+      sortPriority = 30
+    } else {
+      stage = "Decision drafted"
+      nextAction = "Focus"
+      nextSymbol = "line.3.horizontal.decrease.circle"
+      detail = "Purchase decision exists. Continue review, handoff, and order-watch work in the decision panels."
+      tone = .teal
+      sortPriority = 40
+    }
+
+    return WishlistPurchaseShortlistEntry(
+      entry: entry,
+      stage: stage,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      detail: detail,
       tone: tone,
       sortPriority: sortPriority
     )
@@ -5248,6 +5386,24 @@ private struct WishlistPurchaseRecommendationEntry: Identifiable {
   }
 }
 
+private struct WishlistPurchaseShortlistEntry: Identifiable {
+  var entry: WishlistPurchaseRecommendationEntry
+  var stage: String
+  var nextAction: String
+  var nextSymbol: String
+  var detail: String
+  var tone: Color
+  var sortPriority: Int
+
+  var item: WishlistItem {
+    entry.item
+  }
+
+  var id: String {
+    "\(item.id.uuidString)-purchase-shortlist"
+  }
+}
+
 private struct WishlistPurchaseRecommendationRow: View {
   var entry: WishlistPurchaseRecommendationEntry
   var onPreferRecommended: () -> Void
@@ -5347,6 +5503,102 @@ private struct WishlistPurchaseRecommendationRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseShortlistRow: View {
+  var shortlist: WishlistPurchaseShortlistEntry
+  var onReadiness: () -> Void
+  var onDecision: () -> Void
+  var onPrefer: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var option: WishlistComparisonOption {
+    shortlist.entry.recommendedOption
+  }
+
+  private var preferredMatches: Bool {
+    shortlist.entry.preferredOption?.id == option.id
+  }
+
+  private var warningsText: String {
+    let warnings = shortlist.entry.warningLabels
+    if warnings.isEmpty { return "No local recommendation warnings." }
+    return warnings.prefix(4).joined(separator: ", ")
+  }
+
+  private func runPrimaryAction() {
+    switch shortlist.stage {
+    case "Set preferred":
+      onPrefer()
+    case "Needs checks":
+      onReadiness()
+    case "Ready for decision":
+      onDecision()
+    case "Blocked":
+      onTask()
+    default:
+      onFocus()
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "list.bullet.rectangle.portrait.fill")
+          .foregroundStyle(shortlist.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(shortlist.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(option.sellerName) • \(option.estimatedAUDTotal)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(shortlist.tone)
+            .lineLimit(2)
+          Text(shortlist.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(shortlist.stage, color: shortlist.tone)
+          if preferredMatches {
+            Badge("Preferred", color: .purple)
+          }
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Recommended", value: "\(option.operatorSellerMatrixScore)/100", symbol: "chart.bar.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(option.postageCost), \(option.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: option.trustRating, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Warnings", value: warningsText, symbol: "exclamationmark.triangle.fill")
+      }
+
+      if !option.productURL.isPlaceholderValidationValue {
+        Text(option.productURL)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      CompactActionRow {
+        Button(shortlist.nextAction, systemImage: shortlist.nextSymbol, action: runPrimaryAction)
+        Button("Readiness", systemImage: "checklist.checked", action: onReadiness)
+        Button("Decision", systemImage: "doc.text.magnifyingglass", action: onDecision)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(shortlist.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
