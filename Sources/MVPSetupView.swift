@@ -310,6 +310,10 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
     store.spaceMailIntakeHealthSummaries.first
   }
 
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.gmailIntakeHealthSummaries.first
+  }
+
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -318,11 +322,30 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
     store.spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+      }
+  }
+
+  private var hasGmailSetup: Bool {
+    !store.gmailMailboxConnections.isEmpty
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
     }
+  }
+
+  private var hasManualMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup
+  }
+
+  private var hasManualMailboxReady: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
   }
 
   private var hasLiveRefreshEvidence: Bool {
     (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+      || (latestGmailSummary?.fetchedCount ?? 0) > 0
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -335,12 +358,12 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
   }
 
   private var qaEvidenceReady: Bool {
-    hasSpaceMailSetup && hasSpaceMailCredential && hasLiveRefreshEvidence && hasInboxOrderHandoff && !store.auditEvents.isEmpty
+    hasManualMailboxSetup && hasManualMailboxReady && hasLiveRefreshEvidence && hasInboxOrderHandoff && !store.auditEvents.isEmpty
   }
 
   private var currentPriorityTitle: String {
-    if !hasSpaceMailSetup { return "Priority: finish SpaceMail setup" }
-    if !hasSpaceMailCredential { return "Priority: confirm SpaceMail credential" }
+    if !hasManualMailboxSetup { return "Priority: choose the active mailbox provider" }
+    if !hasManualMailboxReady { return "Priority: finish mailbox credential or sign-in" }
     if !hasLiveRefreshEvidence { return "Priority: capture one refresh result" }
     if !hasInboxOrderHandoff { return "Priority: prove Inbox-to-order handoff" }
     if !qaEvidenceReady { return "Priority: complete QA evidence" }
@@ -348,14 +371,14 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
   }
 
   private var currentPriorityDetail: String {
-    if !hasSpaceMailSetup {
-      return "Add the non-secret SpaceMail IMAP setup and keep Microsoft 365 as an advanced provider option."
+    if !hasManualMailboxSetup {
+      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep Microsoft 365 as an advanced provider option unless a licensed Microsoft mailbox is available."
     }
-    if !hasSpaceMailCredential {
-      return "Use Keychain-backed SpaceMail credential storage; do not place passwords in JSON fields or notes."
+    if !hasManualMailboxReady {
+      return "Use Keychain-backed SpaceMail credential storage or the explicit Gmail sign-in test. Do not place passwords, tokens, client secrets, or auth details in JSON fields or setup notes."
     }
     if !hasLiveRefreshEvidence {
-      return "Run one manual read-only refresh so the app has real fetched/imported/filtered/uncertain evidence."
+      return "Run one manual read-only refresh from the active provider so the app has real fetched/imported/filtered/uncertain evidence."
     }
     if !hasInboxOrderHandoff {
       return "Create or link one order from a confirmed Inbox row so Orders, Workbench, Dispatch, Tasks, and Audit have real context."
@@ -392,7 +415,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
           priorityBlock(
             title: "1. Prove repeatability",
-            detail: "Run the same local flow several times: refresh or demo import, triage, create/link order, Workbench follow-up, Dispatch setup, task, Audit, quit/reopen.",
+            detail: "Run the same local flow several times: SpaceMail or Gmail refresh, triage, create/link order, Workbench follow-up, Dispatch setup, task, Audit, quit/reopen.",
             symbol: "repeat.circle.fill",
             color: qaEvidenceReady ? .green : .orange
           )
@@ -404,7 +427,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
           )
           priorityBlock(
             title: "3. Harden intake parsing",
-            detail: "Use saved diagnostics, classifier tests, uncertain examples, and local hints to improve real mixed-mailbox intake without external AI or mailbox mutation.",
+            detail: "Use saved diagnostics, classifier tests, uncertain examples, and local hints to improve real mixed-mailbox intake for SpaceMail and Gmail without external AI or mailbox mutation.",
             symbol: "text.magnifyingglass",
             color: .purple
           )
