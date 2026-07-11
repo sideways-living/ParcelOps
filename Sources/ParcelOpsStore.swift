@@ -18888,6 +18888,43 @@ final class ParcelOpsStore {
     )
   }
 
+  func createMissingWishlistResearchRequests() {
+    let candidates = wishlistItems.filter { item in
+      !wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+        && (item.comparisonOptions ?? []).isEmpty
+    }
+    guard !candidates.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: "wishlist-research-batch",
+        entityLabel: "Wishlist research runway",
+        summary: "Wishlist missing research brief batch checked with no work needed.",
+        afterDetail: "Every current Wishlist item already has a research brief or seller options. No web search, browser automation, retailer access, account login, checkout, purchase, payment, or external agent run occurred."
+      )
+      return
+    }
+
+    for item in candidates {
+      createWishlistComparisonPlan(item)
+      let refreshedItem = wishlistItems.first { $0.id == item.id } ?? item
+      createWishlistResearchRequest(from: refreshedItem)
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: "wishlist-research-batch",
+      entityLabel: "Wishlist research runway",
+      summary: "Missing Wishlist research briefs staged locally.",
+      afterDetail: """
+      Created or refreshed \(candidates.count) local Wishlist research brief\(candidates.count == 1 ? "" : "s").
+      Each brief remains local and prepares future comparison work only.
+      No web search, browser automation, retailer access, account login, checkout, purchase, payment, mailbox fetch, or external agent run occurred.
+      """
+    )
+  }
+
   func markWishlistResearchRequestReviewed(_ request: WishlistResearchRequest) {
     guard let index = wishlistResearchRequests.firstIndex(where: { $0.id == request.id }) else { return }
     let beforeDetail = wishlistResearchRequests[index].auditDetail

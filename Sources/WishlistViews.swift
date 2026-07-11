@@ -7759,6 +7759,11 @@ struct WishlistView: View {
           }
           .disabled(nextItemWithoutBrief == nil)
 
+          Button("Create all missing", systemImage: "square.stack.3d.up.fill") {
+            store.createMissingWishlistResearchRequests()
+          }
+          .disabled(unbriefedItems.isEmpty)
+
           Button("Create batch brief", systemImage: "doc.badge.plus") {
             store.createWishlistBatchResearchBriefDraft()
           }
