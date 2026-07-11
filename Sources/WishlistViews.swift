@@ -7011,6 +7011,20 @@ struct WishlistView: View {
           ("Dispatch gaps", "\(dispatchGaps)", dispatchGaps == 0 ? .green : .brown)
         ])
 
+        CompactActionRow {
+          Button("Check closure gaps", systemImage: "checkmark.seal.text.page.fill") {
+            store.checkWishlistOperationsClosureReadinessBatch()
+          }
+          .disabled(entries.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
         if entries.isEmpty {
           MVPEmptyState(
             title: "No Wishlist operations trail to close",

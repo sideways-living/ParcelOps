@@ -21851,6 +21851,92 @@ final class ParcelOpsStore {
     )
   }
 
+  func checkWishlistOperationsClosureReadinessBatch() {
+    let candidates = wishlistItems.filter { item in
+      item.purchaseHandoff?.linkedOrderID != nil
+        || !suggestedReceivingInspections(for: item).isEmpty
+        || !suggestedInventoryReceipts(for: item).isEmpty
+        || !suggestedStorageLocations(for: item).isEmpty
+        || !suggestedCustodyRecords(for: item).isEmpty
+        || !suggestedLabelReferenceRecords(for: item).isEmpty
+        || !suggestedScanSessionRecords(for: item).isEmpty
+        || !suggestedShipmentManifestRecords(for: item).isEmpty
+        || !suggestedDispatchReadinessChecklists(for: item).isEmpty
+    }
+    guard !candidates.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: "wishlist-closure-readiness-batch",
+        entityLabel: "Wishlist closure readiness",
+        summary: "Wishlist closure readiness checked with no linked operations trail.",
+        afterDetail: "No Wishlist items currently have linked order or downstream operations records to close. No order, receiving, inventory, dispatch, mailbox, retailer, payment, purchase, or external service action occurred."
+      )
+      return
+    }
+
+    let results = candidates.map { item -> (WishlistItem, [String]) in
+      var gaps: [String] = []
+      if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+      if suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+      if suggestedInventoryReceipts(for: item).isEmpty { gaps.append("inventory") }
+      if suggestedStorageLocations(for: item).isEmpty { gaps.append("storage") }
+      if suggestedCustodyRecords(for: item).isEmpty { gaps.append("custody") }
+      if suggestedLabelReferenceRecords(for: item).isEmpty { gaps.append("label") }
+      if suggestedScanSessionRecords(for: item).isEmpty { gaps.append("manual check") }
+      if suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+      if suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("dispatch") }
+      let openTasks = reviewTasks.filter { task in
+        task.linkedEntityType == .wishlistItem
+          && task.linkedEntityID == item.id.uuidString
+          && task.status != .completed
+      }
+      if !openTasks.isEmpty { gaps.append("open task") }
+      return (item, gaps)
+    }
+    let blocked = results.filter { !$0.1.isEmpty }
+    let ready = results.filter { $0.1.isEmpty }
+    let groupedGapCounts = Dictionary(grouping: blocked.flatMap(\.1), by: { $0 })
+      .mapValues(\.count)
+      .sorted { first, second in
+        if first.value == second.value {
+          return first.key < second.key
+        }
+        return first.value > second.value
+      }
+    let topBlocked = blocked
+      .prefix(5)
+      .map { "\($0.0.itemName): \($0.1.prefix(4).joined(separator: ", "))" }
+
+    if !blocked.isEmpty {
+      createReviewTask(
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: "wishlist-closure-readiness-batch",
+        label: "Wishlist closure readiness",
+        summary: "Review Wishlist operations closure readiness. \(blocked.count) item\(blocked.count == 1 ? "" : "s") still have local closure gaps: \(groupedGapCounts.prefix(6).map { "\($0.key) \($0.value)" }.joined(separator: "; ")). This task is local only and does not close orders, receive stock, book dispatch, mutate mailboxes, contact retailers, purchase, or pay.",
+        priority: blocked.count > 3 ? .high : .normal,
+        assignee: "Wishlist review"
+      )
+    }
+
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: "wishlist-closure-readiness-batch",
+      entityLabel: "Wishlist closure readiness",
+      summary: blocked.isEmpty ? "Wishlist closure readiness checked with no gaps." : "Wishlist closure readiness checked with gaps.",
+      afterDetail: """
+      Checked Wishlist operations trails: \(candidates.count)
+      Ready to close locally: \(ready.count)
+      With closure gaps: \(blocked.count)
+      Gap counts: \(groupedGapCounts.isEmpty ? "none" : groupedGapCounts.map { "\($0.key): \($0.value)" }.joined(separator: ", "))
+      Top gap examples: \(topBlocked.isEmpty ? "none" : topBlocked.joined(separator: " | "))
+      \(blocked.isEmpty ? "No task was needed." : "One local review task was created for the closure gap summary.")
+      Local closure readiness only. ParcelOps did not close orders externally, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay.
+      """
+    )
+  }
+
   func markWishlistOrderWatchRecordReviewed(_ record: WishlistOrderWatchRecord) {
     guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
