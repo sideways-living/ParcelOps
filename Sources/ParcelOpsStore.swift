@@ -19478,6 +19478,69 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistAgentReadinessReviewTask() {
+    let summary = wishlistAgentReadinessSummary
+    let openItems = summary.items.filter { $0.tone != "success" }
+    let taskTitle = summary.tone == "success"
+      ? "Confirm Wishlist agent readiness"
+      : "Review Wishlist agent readiness blockers"
+    let taskPriority: TaskPriority = summary.tone == "warning" ? .high : summary.tone == "attention" ? .normal : .low
+    let openSummary = openItems.isEmpty
+      ? "No current readiness gaps are flagged. Confirm the local no-purchase boundary before any future agent or manual research handoff."
+      : openItems
+        .map { "\($0.title): \($0.status). Next: \($0.nextAction)" }
+        .joined(separator: " | ")
+    let taskSummary = [
+      summary.verdict,
+      summary.detail,
+      "Open readiness areas: \(openSummary)",
+      "Boundary: this is a local planning task only. It does not browse websites, compare live prices, convert currencies, rate sellers, open accounts, buy items, pay, or monitor orders."
+    ].joined(separator: " ")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == "wishlist-agent-readiness"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Wishlist operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Wishlist agent readiness review task refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from the current Wishlist agent readiness verdict. No duplicate task was created and no external research, browsing, purchase, payment, account, retailer, mailbox, or background monitoring action occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: taskSummary,
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: "wishlist-agent-readiness",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "Wishlist operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from Wishlist agent readiness verdict."
+    )
+  }
+
   func runWishlistPurchaseReadinessCheck(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

@@ -1880,6 +1880,27 @@ struct WishlistView: View {
           }
         }
 
+        CompactActionRow {
+          Button("Create readiness task", systemImage: "checklist") {
+            store.createWishlistAgentReadinessReviewTask()
+          }
+          Button("Create batch brief", systemImage: "doc.badge.plus") {
+            store.createWishlistBatchResearchBriefDraft()
+          }
+          .disabled(store.wishlistResearchRequests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit trail", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
         Text("Boundary: this verdict is computed from local Wishlist records only. It does not browse websites, compare live prices, convert currencies, quote postage, rate external sellers, open accounts, buy items, pay, or monitor orders in the background.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
