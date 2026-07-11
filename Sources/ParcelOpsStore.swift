@@ -19196,6 +19196,59 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistComparisonBriefDraft(from item: WishlistItem) {
+    guard isActiveWishlistItem(item) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Closed Wishlist brief draft skipped locally.",
+        afterDetail: "The Wishlist item is closed or removed from active work, so no research brief draft was created. Reopen the item first if it needs comparison work. No web search, browser automation, retailer access, account login, purchase, payment, or external agent run occurred."
+      )
+      return
+    }
+
+    if let existingDraft = draftMessages.first(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.subject.localizedCaseInsensitiveContains("wishlist research brief")
+    }) {
+      reopenDraftMessage(existingDraft)
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Existing Wishlist research brief draft reused locally.",
+        afterDetail: "An existing research brief draft was reopened instead of creating a duplicate. Draft: \(existingDraft.subject). No web search, browser automation, retailer access, account login, checkout, purchase, payment, mailbox mutation, or background monitoring occurred."
+      )
+      return
+    }
+
+    var currentItem = wishlistItems.first { $0.id == item.id } ?? item
+    if (currentItem.comparisonOptions ?? []).isEmpty {
+      createWishlistComparisonPlan(currentItem)
+      currentItem = wishlistItems.first { $0.id == item.id } ?? currentItem
+    }
+
+    createWishlistResearchRequest(from: currentItem)
+
+    guard let request = wishlistResearchRequests.first(where: { $0.wishlistItemID == item.id }) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Wishlist research brief draft could not be created locally.",
+        afterDetail: "No matching local research request was available after staging. No web search, browser automation, retailer access, account login, checkout, purchase, payment, mailbox mutation, or background monitoring occurred."
+      )
+      return
+    }
+
+    createWishlistResearchBriefDraft(request)
+  }
+
   func createWishlistBatchResearchBriefDraft() {
     let requests = wishlistResearchRequests.filter(isActiveWishlistResearchRequest)
     let readyRequests = requests.filter(\.isAgentBriefReady)

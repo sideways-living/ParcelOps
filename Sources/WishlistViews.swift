@@ -672,6 +672,7 @@ struct WishlistView: View {
         wishlistNextActionGuidePanel
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
+        wishlistComparisonBriefShortcutPanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
         wishlistLocalActivityPanel
@@ -1557,6 +1558,101 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var wishlistComparisonBriefShortcutPanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let itemsNeedingDraft = activeItems.filter { item in
+      !store.draftMessages.contains {
+        $0.linkedEntityType == .wishlistItem
+          && $0.linkedEntityID == item.id.uuidString
+          && $0.subject.localizedCaseInsensitiveContains("wishlist research brief")
+      }
+    }
+    let missingResearch = itemsNeedingDraft.filter { item in
+      !store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id && store.isActiveWishlistResearchRequest($0) }
+    }.count
+    let existingRequests = itemsNeedingDraft.count - missingResearch
+    let displayedItems = Swift.Array(itemsNeedingDraft.prefix(6))
+
+    return SettingsPanel(title: "Wishlist comparison brief shortcut", symbol: "doc.text.magnifyingglass") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: itemsNeedingDraft.isEmpty ? "checkmark.circle.fill" : "doc.badge.plus")
+            .foregroundStyle(itemsNeedingDraft.isEmpty ? .green : .purple)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(itemsNeedingDraft.isEmpty ? "Comparison brief drafts are staged" : "Prepare local research packets from Wishlist items")
+              .font(.headline)
+            Text(itemsNeedingDraft.isEmpty
+              ? "Every active Wishlist item already has a local research brief draft or no longer needs one."
+              : "Use this after manual entry to turn an item into a local comparison brief: Australian and overseas sellers, AUD landed cost, postage, delivery time, seller trust, and direct product links.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(itemsNeedingDraft.isEmpty ? "Clear" : "\(itemsNeedingDraft.count) need draft", color: itemsNeedingDraft.isEmpty ? .green : .purple)
+        }
+
+        MetricStrip(items: [
+          ("Need draft", "\(itemsNeedingDraft.count)", itemsNeedingDraft.isEmpty ? .green : .purple),
+          ("Need request", "\(missingResearch)", missingResearch == 0 ? .green : .orange),
+          ("Request ready", "\(existingRequests)", existingRequests == 0 ? .secondary : .blue)
+        ])
+
+        Text("Creates or refreshes a local research request, then creates a draft comparison packet. It does not browse websites, compare live prices, convert currency, rate sellers externally, log into retailer accounts, buy, pay, or monitor orders.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if itemsNeedingDraft.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist brief drafts needed",
+            detail: "Manual items and captured items already have draft packets ready for future comparison work.",
+            symbol: "doc.text.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 245 : 340), spacing: 10)], alignment: .leading, spacing: 10) {
+            if displayedItems.count > 0 { wishlistComparisonBriefShortcutRow(displayedItems[0]) }
+            if displayedItems.count > 1 { wishlistComparisonBriefShortcutRow(displayedItems[1]) }
+            if displayedItems.count > 2 { wishlistComparisonBriefShortcutRow(displayedItems[2]) }
+            if displayedItems.count > 3 { wishlistComparisonBriefShortcutRow(displayedItems[3]) }
+            if displayedItems.count > 4 { wishlistComparisonBriefShortcutRow(displayedItems[4]) }
+            if displayedItems.count > 5 { wishlistComparisonBriefShortcutRow(displayedItems[5]) }
+          }
+        }
+      }
+    }
+  }
+
+  private func wishlistComparisonBriefShortcutRow(_ item: WishlistItem) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: item.source.symbol)
+          .foregroundStyle(.purple)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text([item.storefront, item.estimatedCost, item.owner].filter { !$0.isPlaceholderValidationValue }.joined(separator: " | "))
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        Badge(store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id && store.isActiveWishlistResearchRequest($0) } ? "Request ready" : "Needs request", color: .purple)
+      }
+      Button("Create brief draft", systemImage: "doc.badge.plus") {
+        store.createWishlistComparisonBriefDraft(from: item)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private func wishlistOperatorControlCard(
