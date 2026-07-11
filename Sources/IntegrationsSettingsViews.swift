@@ -223,6 +223,38 @@ struct IntegrationsView: View {
     ].filter(\.self).count
   }
 
+  private func focusSetupSection(_ query: String, message: String) {
+    setupSearchText = query
+    setupFeedbackMessage = message
+  }
+
+  private func addOrFocusSpaceMailSetup() {
+    if hasSpaceMailSetup {
+      focusSetupSection("SpaceMail", message: "Showing existing SpaceMail setup. Add another setup only if you are configuring a second IMAP mailbox.")
+    } else {
+      store.addSpaceMailIMAPConnectionPlaceholder()
+      focusSetupSection("SpaceMail", message: "SpaceMail IMAP setup placeholder added locally. Add the Keychain credential before running real manual refresh.")
+    }
+  }
+
+  private func addOrFocusGmailSetup() {
+    if hasGmailSetup {
+      focusSetupSection("Gmail", message: "Showing existing Gmail setup. Add another setup only if you are configuring a second Gmail or Google Workspace mailbox.")
+    } else {
+      store.addGmailMailboxConnectionPlaceholder()
+      focusSetupSection("Gmail", message: "Gmail setup added locally. Save non-secret app details, test Google sign-in, then run manual read-only refresh.")
+    }
+  }
+
+  private func addOrFocusMicrosoft365Setup() {
+    if store.microsoft365MailboxConnections.isEmpty {
+      store.addMicrosoft365MailboxConnectionPlaceholder()
+      focusSetupSection("Microsoft", message: "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here.")
+    } else {
+      focusSetupSection("Microsoft", message: "Showing existing Microsoft 365 setup. Keep this as an advanced path unless the mailbox is Microsoft-hosted.")
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -233,17 +265,14 @@ struct IntegrationsView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
-            Button("SpaceMail IMAP setup", systemImage: "server.rack") {
-              store.addSpaceMailIMAPConnectionPlaceholder()
-              setupFeedbackMessage = "SpaceMail IMAP setup placeholder added locally. Add the Keychain credential before running real manual refresh."
+            Button(hasSpaceMailSetup ? "Show SpaceMail setup" : "SpaceMail IMAP setup", systemImage: "server.rack") {
+              addOrFocusSpaceMailSetup()
             }
-            Button("Microsoft 365 setup", systemImage: "mail.stack.fill") {
-              store.addMicrosoft365MailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here."
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Microsoft 365 setup" : "Show Microsoft 365 setup", systemImage: "mail.stack.fill") {
+              addOrFocusMicrosoft365Setup()
             }
-            Button("Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
-              store.addGmailMailboxConnectionPlaceholder()
-              setupFeedbackMessage = "Gmail setup added locally. Save non-secret app details, test Google sign-in, then run manual read-only refresh."
+            Button(hasGmailSetup ? "Show Gmail setup" : "Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
+              addOrFocusGmailSetup()
             }
             Button("Mailbox setup", systemImage: "envelope.badge.fill") {
               store.addTrackedMailboxPlaceholder()
