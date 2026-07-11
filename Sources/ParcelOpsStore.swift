@@ -18654,6 +18654,22 @@ final class ParcelOpsStore {
     )
   }
 
+  func updateWishlistCaptureCandidate(_ capture: WishlistCaptureCandidate) {
+    guard let index = wishlistCaptureCandidates.firstIndex(where: { $0.id == capture.id }) else { return }
+    let beforeDetail = wishlistCaptureCandidates[index].auditDetail
+    wishlistCaptureCandidates[index] = capture
+    persistWishlist()
+    logAudit(
+      action: .edited,
+      entityType: .wishlistItem,
+      entityID: capture.id.uuidString,
+      entityLabel: capture.pageTitle,
+      summary: "Wishlist capture candidate updated locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(capture.auditDetail)\nCapture candidate edit only. No browser extension sync, page scraping, account login, checkout, purchase, payment, or external service action occurred."
+    )
+  }
+
   func convertWishlistToOrder(_ item: WishlistItem) {
     let beforeDetail = item.auditDetail
     let order = TrackedOrder(

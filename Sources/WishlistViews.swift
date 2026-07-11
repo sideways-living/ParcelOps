@@ -400,6 +400,7 @@ struct WishlistView: View {
   @State private var selectedSource: WishlistSource?
   @State private var selectedStatus: String?
   @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
+  @State private var editingCaptureCandidate: WishlistCaptureCandidate?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var statuses: [String] {
@@ -944,6 +945,14 @@ struct WishlistView: View {
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+    .sheet(item: $editingCaptureCandidate) { capture in
+      NavigationStack {
+        WishlistCaptureCandidateEditor(capture: capture) { updated in
+          store.updateWishlistCaptureCandidate(updated)
+          editingCaptureCandidate = nil
+        }
+      }
     }
   }
 
@@ -9551,6 +9560,8 @@ struct WishlistView: View {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 320), spacing: 10)], spacing: 10) {
             ForEach(candidates) { capture in
               WishlistCaptureCandidateRow(capture: capture) {
+                editingCaptureCandidate = capture
+              } onPromote: {
                 store.promoteWishlistCaptureToItem(capture)
               } onDismiss: {
                 store.dismissWishlistCapture(capture)
@@ -11542,6 +11553,7 @@ private struct WishlistSellerOptionIssueRow: View {
 
 private struct WishlistCaptureCandidateRow: View {
   var capture: WishlistCaptureCandidate
+  var onEdit: () -> Void
   var onPromote: () -> Void
   var onDismiss: () -> Void
   var onTask: () -> Void
@@ -11607,6 +11619,8 @@ private struct WishlistCaptureCandidateRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
+        Button("Edit", systemImage: "pencil", action: onEdit)
+          .buttonStyle(.bordered)
         Button(readyForPromotion ? "Promote to Wishlist" : "Promote anyway", systemImage: "star.square.fill", action: onPromote)
           .buttonStyle(.borderedProminent)
         Button("Task", systemImage: "checklist", action: onTask)
@@ -11618,6 +11632,73 @@ private struct WishlistCaptureCandidateRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistCaptureCandidateEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: WishlistCaptureCandidate
+  var onSave: (WishlistCaptureCandidate) -> Void
+
+  private let sources: [WishlistSource] = [.manual, .browserExtension, .shareSheet, .screenshot, .pdf]
+  private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
+
+  init(capture: WishlistCaptureCandidate, onSave: @escaping (WishlistCaptureCandidate) -> Void) {
+    _draft = State(initialValue: capture)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    Form {
+      Section("Capture source") {
+        Picker("Source", selection: $draft.source) {
+          ForEach(sources, id: \.self) { source in
+            Label(source.rawValue, systemImage: source.symbol)
+              .tag(source)
+          }
+        }
+        TextField("Page title or item name", text: $draft.pageTitle)
+        TextField("Product URL", text: $draft.pageURL)
+      }
+
+      Section("Detected product details") {
+        TextField("Seller or storefront", text: $draft.detectedStorefront)
+        TextField("Visible price and currency", text: $draft.detectedPrice)
+        TextField("Product summary", text: $draft.productSummary, axis: .vertical)
+          .lineLimit(3...6)
+      }
+
+      Section("Local review") {
+        TextField("Capture status", text: $draft.captureStatus)
+        Picker("Review state", selection: $draft.reviewState) {
+          ForEach(reviewStates, id: \.self) { state in
+            Text(state.rawValue).tag(state)
+          }
+        }
+        TextField("Notes", text: $draft.notes, axis: .vertical)
+          .lineLimit(3...6)
+      }
+
+      Section("Boundary") {
+        Text("This edits the local staged capture only. It does not install a browser extension, read browser tabs, scrape pages, check live prices, log into accounts, purchase, pay, or contact external services.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .navigationTitle("Edit Capture")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") {
+          dismiss()
+        }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Save") {
+          onSave(draft)
+        }
+      }
+    }
   }
 }
 
