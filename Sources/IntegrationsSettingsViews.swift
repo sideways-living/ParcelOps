@@ -5754,6 +5754,76 @@ struct SettingsView: View {
       + store.watchedFolders.count
   }
 
+  private var activeWishlistItems: [WishlistItem] {
+    store.wishlistItems.filter(store.isActiveWishlistItem)
+  }
+
+  private var wishlistManualItemCount: Int {
+    activeWishlistItems.filter { $0.source == .manual }.count
+  }
+
+  private var wishlistCapturedItemCount: Int {
+    activeWishlistItems.filter { $0.source != .manual }.count
+  }
+
+  private var wishlistItemsWithSellerOptionsCount: Int {
+    activeWishlistItems.filter { $0.comparisonOptions?.isEmpty == false }.count
+  }
+
+  private var wishlistItemsWaitingForAgentScopeCount: Int {
+    store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest).count
+  }
+
+  private var wishlistItemsWithPurchaseHandoffCount: Int {
+    activeWishlistItems.filter { $0.purchaseHandoff != nil }.count
+  }
+
+  private var wishlistOrderWatchRecordCount: Int {
+    store.wishlistOrderWatchRecords.count
+  }
+
+  private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
+    store.wishlistAgentReadinessSummary
+  }
+
+  private var wishlistWorkflowBlockerCount: Int {
+    wishlistAgentReadiness.scopeGapCount
+      + wishlistAgentReadiness.sellerOptionGapCount
+      + wishlistAgentReadiness.trustReviewCount
+      + wishlistAgentReadiness.purchaseHandoffGapCount
+      + wishlistAgentReadiness.orderWatchGapCount
+  }
+
+  private var wishlistSettingsTone: Color {
+    switch wishlistAgentReadiness.tone {
+    case "success": return .green
+    case "warning": return .orange
+    case "attention": return .orange
+    default: return activeWishlistItems.isEmpty ? .secondary : .purple
+    }
+  }
+
+  private var wishlistSettingsTitle: String {
+    if activeWishlistItems.isEmpty { return "Wishlist is ready for first manual items" }
+    if wishlistWorkflowBlockerCount > 0 { return "Wishlist purchase planning needs local checks" }
+    if wishlistItemsWithPurchaseHandoffCount > 0 { return "Wishlist handoff trail is active" }
+    if wishlistItemsWithSellerOptionsCount > 0 { return "Wishlist comparison planning is active" }
+    return "Wishlist items need comparison detail"
+  }
+
+  private var wishlistSettingsDetail: String {
+    if activeWishlistItems.isEmpty {
+      return "Add wanted items manually first. Browser extension, retailer research agents, live price comparison, currency lookup, postage lookup, account monitoring, and checkout automation are not active."
+    }
+    if wishlistWorkflowBlockerCount > 0 {
+      return "\(wishlistAgentReadiness.verdict). Clear seller option, trust, handoff, and order-watch gaps in Wishlist before treating any item as ready to buy."
+    }
+    if wishlistItemsWithPurchaseHandoffCount > 0 {
+      return "Wishlist has local purchase handoff records. Continue in Wishlist, Orders, Tasks, Workbench, and Audit to keep manual purchase follow-up traceable."
+    }
+    return "Use Wishlist to add seller options, AUD landed cost notes, postage timing, trust evidence, and a manual purchase decision before handoff."
+  }
+
   private var setupUncertainReviewCount: Int {
     store.spaceMailIMAPConnections.reduce(0) { total, connection in
       total + connection.uncertainMessages.count
@@ -6028,6 +6098,10 @@ struct SettingsView: View {
     matchesSettingsSection("mailbox", "intake", "forwarded", "email", "order creation", "confidence", "review")
   }
 
+  private var showsWishlistPlanning: Bool {
+    matchesSettingsSection("wishlist", "wanted", "items", "manual", "browser", "extension", "agent", "comparison", "AUD", "postage", "trust", "seller", "handoff", "order watch")
+  }
+
   private var showsTrackedMailboxes: Bool {
     matchesSettingsSection("tracked", "mailboxes", "email", "placeholder")
   }
@@ -6053,6 +6127,7 @@ struct SettingsView: View {
       showsActiveSetup,
       showsLocalOnlyStatus,
       showsMailboxIntake,
+      showsWishlistPlanning,
       showsTrackedMailboxes,
       showsShopifyAccounts,
       showsWatchedFolders,
@@ -6179,6 +6254,160 @@ struct SettingsView: View {
     }
   }
 
+  private var wishlistPlanningSettingsPanel: some View {
+    SettingsPanel(title: "Wishlist planning boundary", symbol: "star.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: wishlistWorkflowBlockerCount == 0 && !activeWishlistItems.isEmpty ? "checkmark.seal.fill" : "star.square.on.square.fill")
+            .font(.title3)
+            .foregroundStyle(wishlistSettingsTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(wishlistSettingsTitle)
+              .font(.headline)
+            Text(wishlistSettingsDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(activeWishlistItems.isEmpty ? "Not started" : "\(activeWishlistItems.count) active", color: wishlistSettingsTone)
+        }
+
+        MetricStrip(items: [
+          ("Active items", "\(activeWishlistItems.count)", activeWishlistItems.isEmpty ? .secondary : .purple),
+          ("Manual", "\(wishlistManualItemCount)", wishlistManualItemCount == 0 ? .secondary : .blue),
+          ("Captured", "\(wishlistCapturedItemCount)", wishlistCapturedItemCount == 0 ? .secondary : .teal),
+          ("Seller options", "\(wishlistItemsWithSellerOptionsCount)", wishlistItemsWithSellerOptionsCount == 0 ? .orange : .green),
+          ("Agent scopes", "\(wishlistItemsWaitingForAgentScopeCount)", wishlistItemsWaitingForAgentScopeCount == 0 ? .secondary : .purple),
+          ("Handoffs", "\(wishlistItemsWithPurchaseHandoffCount)", wishlistItemsWithPurchaseHandoffCount == 0 ? .secondary : .orange),
+          ("Order watch", "\(wishlistOrderWatchRecordCount)", wishlistOrderWatchRecordCount == 0 ? .secondary : .teal),
+          ("Open gaps", "\(wishlistWorkflowBlockerCount)", wishlistWorkflowBlockerCount == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistSettingsBoundaryStep(
+            number: "1",
+            title: "Add wanted item",
+            detail: "Manual entry is live. Browser extension/share capture is represented as local placeholders until a real extension is built.",
+            symbol: "square.and.pencil",
+            color: .blue
+          )
+          WishlistSettingsBoundaryStep(
+            number: "2",
+            title: "Compare sellers",
+            detail: "Record seller URLs, AUD landed cost, postage cost/time, trust notes, and returns manually. No live web search, scraping, or currency API runs.",
+            symbol: "list.bullet.rectangle.portrait.fill",
+            color: .purple
+          )
+          WishlistSettingsBoundaryStep(
+            number: "3",
+            title: "Prepare agent packet",
+            detail: "Agent-ready briefs are local packets only. They do not launch an external research agent or browse retailer sites from ParcelOps.",
+            symbol: "sparkles.rectangle.stack.fill",
+            color: .teal
+          )
+          WishlistSettingsBoundaryStep(
+            number: "4",
+            title: "Manual purchase handoff",
+            detail: "Use handoff, account, cost, procurement, receiving, and order-watch records before buying outside ParcelOps.",
+            symbol: "person.crop.circle.badge.checkmark",
+            color: .orange
+          )
+          WishlistSettingsBoundaryStep(
+            number: "5",
+            title: "Watch for order",
+            detail: "Order confirmation matching uses imported Inbox mail and local order links. ParcelOps does not monitor retailer accounts in the background.",
+            symbol: "envelope.badge.fill",
+            color: .green
+          )
+        }
+
+        if !wishlistAgentReadiness.items.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Current Wishlist readiness signals", systemImage: "checklist")
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(wishlistSettingsTone)
+
+            ForEach(wishlistAgentReadiness.items.prefix(4)) { item in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: wishlistReadinessSymbol(for: item.tone))
+                  .foregroundStyle(wishlistReadinessColor(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.title)
+                      .font(.caption.weight(.semibold))
+                    Badge(item.status, color: wishlistReadinessColor(for: item.tone))
+                  }
+                  Text(item.nextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(wishlistReadinessColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Local boundary: Wishlist does not run browser extensions, live retailer comparison, currency conversion APIs, postage APIs, trust-score services, account login, checkout, payment, background order watching, or outbound messages. It stores local planning records, handoff context, and audit evidence.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func wishlistReadinessColor(for tone: String) -> Color {
+    switch tone {
+    case "success": return .green
+    case "warning", "attention": return .orange
+    default: return .secondary
+    }
+  }
+
+  private func wishlistReadinessSymbol(for tone: String) -> String {
+    switch tone {
+    case "success": return "checkmark.circle.fill"
+    case "warning", "attention": return "exclamationmark.triangle.fill"
+    default: return "circle"
+    }
+  }
+
   var body: some View {
     @Bindable var store = store
 
@@ -6189,11 +6418,12 @@ struct SettingsView: View {
 
         settingsReadinessPanel
         setupCompletionLadderPanel
+        wishlistPlanningSettingsPanel
 
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
-              TextField("Search settings, mailbox, SpaceMail, Gmail, Shopify, folders, review, carrier", text: $settingsSearchText)
+              TextField("Search settings, mailbox, Wishlist, SpaceMail, Gmail, Shopify, folders, review, carrier", text: $settingsSearchText)
                 .textFieldStyle(.roundedBorder)
 
               Button("Clear", systemImage: "xmark.circle") {
@@ -6212,7 +6442,7 @@ struct SettingsView: View {
         }
 
         if visibleSettingsSectionCount == 0 {
-          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, SpaceMail, Gmail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, Wishlist, SpaceMail, Gmail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
         }
 
         if showsActiveSetup {
@@ -6429,6 +6659,42 @@ struct SettingsView: View {
       }
       .padding(isCompact ? 14 : 24)
     }
+  }
+}
+
+private struct WishlistSettingsBoundaryStep: View {
+  var number: String
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        ZStack {
+          Circle()
+            .fill(color.opacity(0.18))
+          Text(number)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(color)
+        }
+        .frame(width: 24, height: 24)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Label(title, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
