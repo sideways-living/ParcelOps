@@ -69,6 +69,19 @@ private enum WishlistWorkflowFocus: String, CaseIterable, Identifiable {
   }
 }
 
+private struct WishlistPriceWatchDecisionEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var bestSnapshot: WishlistPriceSnapshot?
+  var snapshotCount: Int
+  var blockers: [String]
+  var stage: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistLocalActivityRow: View {
   var event: AuditEvent
   var onCreateTask: () -> Void
@@ -501,6 +514,7 @@ struct WishlistView: View {
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
         wishlistPriceWatchSnapshotPanel
+        wishlistPriceWatchDecisionBoardPanel
         wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
@@ -2834,6 +2848,205 @@ struct WishlistView: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var wishlistPriceWatchDecisionEntries: [WishlistPriceWatchDecisionEntry] {
+    store.wishlistItems
+      .map(wishlistPriceWatchDecisionEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPriceWatchDecisionBoardPanel: some View {
+    let entries = wishlistPriceWatchDecisionEntries
+    let ready = entries.filter { $0.stage == "Ready to verify" }.count
+    let missingSnapshots = entries.filter { $0.bestSnapshot == nil }.count
+    let blocked = entries.filter { $0.stage == "Blocked" }.count
+    let review = entries.filter { $0.stage == "Needs review" }.count
+
+    return SettingsPanel(title: "Price/watch decision board", symbol: "chart.line.uptrend.xyaxis") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this board before purchase decisions. It rolls local price/watch snapshots up by Wishlist item so operators can see whether the current best recorded option has AUD total, postage, availability, and seller trust evidence.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready to verify", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Needs review", "\(review)", review == 0 ? .green : .orange),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red),
+          ("No snapshot", "\(missingSnapshots)", missingSnapshots == 0 ? .green : .purple)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist items to assess",
+            detail: "Add a Wishlist item, create a seller option, then capture a local price/watch snapshot before purchase review.",
+            symbol: "chart.line.uptrend.xyaxis"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 430), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(10)) { entry in
+              WishlistPriceWatchDecisionRow(entry: entry) {
+                runWishlistPriceWatchDecisionAction(for: entry)
+              } onSnapshot: {
+                store.addWishlistPriceSnapshot(entry.item)
+              } onReview: {
+                if let snapshot = entry.bestSnapshot {
+                  store.markWishlistPriceSnapshotReviewed(snapshot)
+                }
+              } onTask: {
+                if let snapshot = entry.bestSnapshot {
+                  store.createWishlistPriceSnapshotReviewTask(snapshot)
+                } else {
+                  store.createReviewTask(from: entry.item)
+                }
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist item\(remaining == 1 ? "" : "s") have price/watch decision state below the fold.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Decision board is local guidance only. It does not poll prices, convert currency, verify trust ratings, open retailer pages, log in to accounts, buy items, or watch external sites.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPriceWatchDecisionEntry(for item: WishlistItem) -> WishlistPriceWatchDecisionEntry {
+    let snapshots = store.wishlistPriceSnapshots(for: item)
+    let bestSnapshot = wishlistBestPriceSnapshot(from: snapshots)
+    var blockers: [String] = []
+
+    if snapshots.isEmpty {
+      blockers.append("price snapshot")
+    }
+    if let bestSnapshot {
+      if wishlistAUDValue(bestSnapshot.estimatedAUDTotal) == nil {
+        blockers.append("AUD total")
+      }
+      if wishlistPostageDays(bestSnapshot.postageTime) == nil || wishlistPriceSnapshotTextNeedsReview(bestSnapshot.postageCost) || wishlistPriceSnapshotTextNeedsReview(bestSnapshot.postageTime) {
+        blockers.append("postage")
+      }
+      if wishlistPriceSnapshotTextNeedsReview(bestSnapshot.trustSignal) {
+        blockers.append("seller trust")
+      }
+      if wishlistPriceSnapshotTextNeedsReview(bestSnapshot.availabilityStatus) {
+        blockers.append("availability")
+      }
+      if bestSnapshot.reviewState != .accepted {
+        blockers.append("snapshot review")
+      }
+    }
+
+    let uniqueBlockers = Array(Set(blockers)).sorted()
+    let stage: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if bestSnapshot == nil {
+      stage = "No snapshot"
+      nextAction = "Add snapshot"
+      nextSymbol = "tag.badge.plus"
+      tone = .purple
+      sortPriority = 0
+    } else if uniqueBlockers.contains("seller trust") || uniqueBlockers.contains("AUD total") || uniqueBlockers.contains("postage") {
+      stage = "Blocked"
+      nextAction = "Create task"
+      nextSymbol = "checklist"
+      tone = .red
+      sortPriority = 1
+    } else if !uniqueBlockers.isEmpty {
+      stage = "Needs review"
+      nextAction = "Mark reviewed"
+      nextSymbol = "checkmark.seal"
+      tone = .orange
+      sortPriority = 2
+    } else {
+      stage = "Ready to verify"
+      nextAction = "Focus item"
+      nextSymbol = "scope"
+      tone = .green
+      sortPriority = 4
+    }
+
+    return WishlistPriceWatchDecisionEntry(
+      item: item,
+      bestSnapshot: bestSnapshot,
+      snapshotCount: snapshots.count,
+      blockers: uniqueBlockers,
+      stage: stage,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func wishlistBestPriceSnapshot(from snapshots: [WishlistPriceSnapshot]) -> WishlistPriceSnapshot? {
+    snapshots
+      .sorted { first, second in
+        let firstAUD = wishlistAUDValue(first.estimatedAUDTotal)
+        let secondAUD = wishlistAUDValue(second.estimatedAUDTotal)
+        let firstScore = (first.reviewState == .accepted ? 0 : 1000)
+          + (wishlistPriceSnapshotHasGaps(first) ? 100 : 0)
+          + Int((firstAUD ?? 999_999).rounded())
+        let secondScore = (second.reviewState == .accepted ? 0 : 1000)
+          + (wishlistPriceSnapshotHasGaps(second) ? 100 : 0)
+          + Int((secondAUD ?? 999_999).rounded())
+        if firstScore == secondScore {
+          return first.capturedDate > second.capturedDate
+        }
+        return firstScore < secondScore
+      }
+      .first
+  }
+
+  private func wishlistPriceSnapshotTextNeedsReview(_ value: String) -> Bool {
+    let lower = value.localizedLowercase
+    return lower.isEmpty
+      || lower.contains("pending")
+      || lower.contains("confirm")
+      || lower.contains("unknown")
+      || lower.contains("missing")
+      || lower.contains("review")
+  }
+
+  private func runWishlistPriceWatchDecisionAction(for entry: WishlistPriceWatchDecisionEntry) {
+    if entry.bestSnapshot == nil {
+      store.addWishlistPriceSnapshot(entry.item)
+    } else if entry.stage == "Blocked" {
+      if let snapshot = entry.bestSnapshot {
+        store.createWishlistPriceSnapshotReviewTask(snapshot)
+      }
+    } else if entry.stage == "Needs review" {
+      if let snapshot = entry.bestSnapshot {
+        store.markWishlistPriceSnapshotReviewed(snapshot)
+      }
+    } else {
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
   }
 
   private var wishlistPurchaseRecommendationEntries: [WishlistPurchaseRecommendationEntry] {
@@ -10527,6 +10740,95 @@ private struct WishlistResearchResultQualityRow: View {
         Button(entry.primaryActionTitle, systemImage: entry.primaryActionSymbol, action: onPrimary)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPriceWatchDecisionRow: View {
+  var entry: WishlistPriceWatchDecisionEntry
+  var onPrimary: () -> Void
+  var onSnapshot: () -> Void
+  var onReview: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var snapshot: WishlistPriceSnapshot? {
+    entry.bestSnapshot
+  }
+
+  private var blockerText: String {
+    entry.blockers.isEmpty ? "No local blockers in the latest selected snapshot." : entry.blockers.prefix(4).joined(separator: ", ")
+  }
+
+  private var sellerSummary: String {
+    guard let snapshot else { return "No recorded seller snapshot yet." }
+    return "\(snapshot.sellerName) • \(snapshot.estimatedAUDTotal)"
+  }
+
+  private var postureDetail: String {
+    guard let snapshot else {
+      return "Create a manual snapshot from the current preferred seller option before purchase decision work continues."
+    }
+    if entry.stage == "Ready to verify" {
+      return "Best local snapshot has no obvious field gaps. Reconfirm live price, stock, postage, returns, and trust outside ParcelOps before buying."
+    }
+    return "Resolve \(blockerText) before using this as a purchase candidate. Snapshot source: \(snapshot.snapshotSource)."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.stage == "Ready to verify" ? "checkmark.seal.fill" : "chart.line.uptrend.xyaxis")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(sellerSummary)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .lineLimit(2)
+          Text(postureDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge("\(entry.snapshotCount) snapshot\(entry.snapshotCount == 1 ? "" : "s")", color: .secondary)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "AUD total", value: snapshot?.estimatedAUDTotal ?? "Missing", symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: snapshot.map { "\($0.postageCost), \($0.postageTime)" } ?? "Missing", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: snapshot?.trustSignal ?? "Missing", symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Review", value: snapshot?.reviewState.rawValue ?? "No snapshot", symbol: "checkmark.seal")
+      }
+
+      if let url = snapshot?.productURL, !url.isPlaceholderValidationValue {
+        Text(url)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onPrimary)
+        Button("Snapshot", systemImage: "tag.badge.plus", action: onSnapshot)
+        Button("Reviewed", systemImage: "checkmark.seal", action: onReview)
+          .disabled(snapshot == nil || snapshot?.reviewState == .accepted)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
       }
       .buttonStyle(.bordered)
       .controlSize(.small)
