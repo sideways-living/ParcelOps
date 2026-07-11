@@ -5591,6 +5591,30 @@ struct SettingsReleaseCandidateCard: View {
         }
       }
 
+      CompactActionRow {
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          Label(manualRefreshCount == 0 ? "Run mailbox refresh" : "Open Mailbox Monitor", systemImage: "server.rack")
+        }
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label(inboxCreatedOrdersCount == 0 ? "Create/link order" : "Open Inbox", systemImage: "tray.full.fill")
+        }
+        NavigationLink {
+          OrdersView(store: store)
+        } label: {
+          Label("Open Orders", systemImage: "shippingbox.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Verify Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+
       Text("Local boundary: manual read-only mailbox intake, local JSON records, provider credentials kept out of JSON, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
         .font(.caption2)
         .foregroundStyle(.secondary)
