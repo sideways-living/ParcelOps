@@ -428,6 +428,37 @@ enum SampleData {
     )
   ]
 
+  static var wishlistPriceWatchRules: [WishlistPriceWatchRule] = [
+    WishlistPriceWatchRule(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      targetAUDTotal: "AUD 220",
+      maxPostageCost: "AUD 20",
+      maximumDeliveryTime: "7 business days",
+      requiredTrustLevel: "Known seller or clear warranty/returns",
+      allowedRegions: "Australia preferred; overseas only if trust and delivery evidence are strong",
+      ruleStatus: "Watching locally",
+      createdDate: "Sample only",
+      lastEvaluatedDate: "Not evaluated",
+      reviewState: .monitor,
+      notes: "Local rule sample only. ParcelOps evaluates stored quotes and snapshots; it does not browse retailers or watch prices online."
+    ),
+    WishlistPriceWatchRule(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      targetAUDTotal: "AUD 70",
+      maxPostageCost: "AUD 12",
+      maximumDeliveryTime: "5 business days",
+      requiredTrustLevel: "Australian supplier or office retailer",
+      allowedRegions: "Australia",
+      ruleStatus: "Needs review",
+      createdDate: "Sample only",
+      lastEvaluatedDate: "Not evaluated",
+      reviewState: .needsReview,
+      notes: "Use as a template for deciding when a manually researched offer is worth operator attention."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]

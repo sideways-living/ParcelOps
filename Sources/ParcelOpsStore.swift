@@ -28,6 +28,7 @@ final class ParcelOpsStore {
   var wishlistResearchRequests: [WishlistResearchRequest]
   var wishlistPriceSnapshots: [WishlistPriceSnapshot]
   var wishlistSellerQuotes: [WishlistSellerQuote]
+  var wishlistPriceWatchRules: [WishlistPriceWatchRule]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -245,6 +246,7 @@ final class ParcelOpsStore {
     self.wishlistResearchRequests = repository.loadWishlistResearchRequests()
     self.wishlistPriceSnapshots = repository.loadWishlistPriceSnapshots()
     self.wishlistSellerQuotes = repository.loadWishlistSellerQuotes()
+    self.wishlistPriceWatchRules = repository.loadWishlistPriceWatchRules()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -20709,6 +20711,184 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistPriceWatchRules(for item: WishlistItem) -> [WishlistPriceWatchRule] {
+    wishlistPriceWatchRules
+      .filter { rule in
+        rule.wishlistItemID == item.id
+          || rule.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(rule.itemName)
+      }
+      .sorted { first, second in
+        if first.reviewState == second.reviewState {
+          return first.createdDate > second.createdDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistPriceWatchRule(_ item: WishlistItem) {
+    let timestamp = Self.auditTimestamp()
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    } ?? item.comparisonOptions?.first
+    let rule = WishlistPriceWatchRule(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      targetAUDTotal: preferredOption?.estimatedAUDTotal ?? item.estimatedCost,
+      maxPostageCost: preferredOption?.postageCost ?? "Postage threshold to set",
+      maximumDeliveryTime: preferredOption?.postageTime ?? "Delivery threshold to set",
+      requiredTrustLevel: preferredOption?.trustRating ?? "Trusted seller or clear warranty/returns",
+      allowedRegions: preferredOption?.sellerRegion ?? "Australia preferred",
+      ruleStatus: "Watching locally",
+      createdDate: timestamp,
+      lastEvaluatedDate: "Not evaluated",
+      reviewState: .needsReview,
+      notes: "Local watch rule only. It evaluates saved quotes and snapshots; no retailer page, price feed, currency API, postage API, seller trust service, notification, or background job is active."
+    )
+    wishlistPriceWatchRules.insert(rule, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist price watch rule added locally.",
+      afterDetail: "\(rule.auditDetail)\nSource item: \(item.auditDetail)\nNo live price watch, retailer lookup, currency conversion, postage quote, notification, checkout, purchase, or payment occurred."
+    )
+  }
+
+  func evaluateWishlistPriceWatchRule(_ rule: WishlistPriceWatchRule) {
+    guard let index = wishlistPriceWatchRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = wishlistPriceWatchRules[index].auditDetail
+    let matchedItem = wishlistItems.first { item in
+      rule.wishlistItemID == item.id
+        || rule.itemName.localizedCaseInsensitiveContains(item.itemName)
+        || item.itemName.localizedCaseInsensitiveContains(rule.itemName)
+    }
+    let snapshots = wishlistPriceSnapshots.filter { snapshot in
+      snapshot.wishlistItemID == rule.wishlistItemID
+        || snapshot.itemName.localizedCaseInsensitiveContains(rule.itemName)
+        || rule.itemName.localizedCaseInsensitiveContains(snapshot.itemName)
+    }
+    let quotes = wishlistSellerQuotes.filter { quote in
+      quote.wishlistItemID == rule.wishlistItemID
+        || quote.itemName.localizedCaseInsensitiveContains(rule.itemName)
+        || rule.itemName.localizedCaseInsensitiveContains(quote.itemName)
+    }
+
+    let candidates = snapshots.map { snapshot in
+      (
+        seller: snapshot.sellerName,
+        total: snapshot.estimatedAUDTotal,
+        postage: snapshot.postageCost,
+        delivery: snapshot.postageTime,
+        trust: snapshot.trustSignal,
+        region: "",
+        source: "Snapshot"
+      )
+    } + quotes.map { quote in
+      (
+        seller: quote.sellerName,
+        total: quote.estimatedAUDTotal,
+        postage: quote.postageCost,
+        delivery: quote.postageTime,
+        trust: quote.trustSummary,
+        region: quote.sellerRegion,
+        source: "Quote"
+      )
+    }
+
+    let target = Self.firstNumber(in: rule.targetAUDTotal)
+    let maxPostage = Self.firstNumber(in: rule.maxPostageCost)
+    let matchedCandidates = candidates.filter { candidate in
+      let total = Self.firstNumber(in: candidate.total)
+      let postage = Self.firstNumber(in: candidate.postage)
+      let totalOK = target == nil || (total != nil && total! <= target!)
+      let postageOK = maxPostage == nil || (postage != nil && postage! <= maxPostage!)
+      let trustOK = Self.watchText(candidate.trust, appearsToMeet: rule.requiredTrustLevel)
+      let regionOK = rule.allowedRegions.isPlaceholderValidationValue
+        || rule.allowedRegions.localizedCaseInsensitiveContains("any")
+        || candidate.region.isEmpty
+        || Self.watchText(candidate.region, appearsToMeet: rule.allowedRegions)
+      return totalOK && postageOK && trustOK && regionOK
+    }
+
+    wishlistPriceWatchRules[index].lastEvaluatedDate = Self.auditTimestamp()
+    if let best = matchedCandidates.first {
+      wishlistPriceWatchRules[index].ruleStatus = "Matched locally: \(best.seller)"
+      wishlistPriceWatchRules[index].reviewState = .needsReview
+      if let itemIndex = matchedItem.flatMap({ matched in wishlistItems.firstIndex(where: { $0.id == matched.id }) }) {
+        wishlistItems[itemIndex].purchaseReadiness = "Price watch rule matched locally; review before purchase"
+      }
+    } else if candidates.isEmpty {
+      wishlistPriceWatchRules[index].ruleStatus = "No local quotes or snapshots"
+      wishlistPriceWatchRules[index].reviewState = .needsReview
+    } else {
+      wishlistPriceWatchRules[index].ruleStatus = "Watching locally; no match"
+      wishlistPriceWatchRules[index].reviewState = .monitor
+    }
+    wishlistPriceWatchRules[index].notes = "\(wishlistPriceWatchRules[index].notes) Evaluated \(candidates.count) local candidate\(candidates.count == 1 ? "" : "s") at \(Self.auditTimestamp())."
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPriceWatchRules[index].wishlistItemID?.uuidString ?? wishlistPriceWatchRules[index].id.uuidString,
+      entityLabel: wishlistPriceWatchRules[index].itemName,
+      summary: "Wishlist price watch rule evaluated locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPriceWatchRules[index].auditDetail)\nLocal candidates checked: \(candidates.count). Matched candidates: \(matchedCandidates.map { "\($0.source): \($0.seller) \($0.total)" }.joined(separator: " | ")). This evaluation used saved quotes and snapshots only. No retailer lookup, live price feed, currency conversion, postage quote, notification, checkout, purchase, payment, or background job occurred."
+    )
+  }
+
+  func markWishlistPriceWatchRuleReviewed(_ rule: WishlistPriceWatchRule) {
+    guard let index = wishlistPriceWatchRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = wishlistPriceWatchRules[index].auditDetail
+    wishlistPriceWatchRules[index].reviewState = .accepted
+    wishlistPriceWatchRules[index].ruleStatus = wishlistPriceWatchRules[index].ruleStatus.localizedCaseInsensitiveContains("matched")
+      ? "Matched and reviewed locally"
+      : "Reviewed locally"
+    wishlistPriceWatchRules[index].lastEvaluatedDate = Self.auditTimestamp()
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPriceWatchRules[index].wishlistItemID?.uuidString ?? wishlistPriceWatchRules[index].id.uuidString,
+      entityLabel: wishlistPriceWatchRules[index].itemName,
+      summary: "Wishlist price watch rule reviewed locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPriceWatchRules[index].auditDetail)\nReview only. The operator must still confirm live seller price, stock, delivery, trust, account, payment, and order confirmation outside this local rule."
+    )
+  }
+
+  func disableWishlistPriceWatchRule(_ rule: WishlistPriceWatchRule) {
+    guard let index = wishlistPriceWatchRules.firstIndex(where: { $0.id == rule.id }) else { return }
+    let beforeDetail = wishlistPriceWatchRules[index].auditDetail
+    wishlistPriceWatchRules[index].ruleStatus = "Disabled locally"
+    wishlistPriceWatchRules[index].reviewState = .accepted
+    wishlistPriceWatchRules[index].lastEvaluatedDate = Self.auditTimestamp()
+    persistWishlist()
+    logAudit(
+      action: .ignored,
+      entityType: .wishlistItem,
+      entityID: wishlistPriceWatchRules[index].wishlistItemID?.uuidString ?? wishlistPriceWatchRules[index].id.uuidString,
+      entityLabel: wishlistPriceWatchRules[index].itemName,
+      summary: "Wishlist price watch rule disabled locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPriceWatchRules[index].auditDetail)\nDisabled only in local JSON. No external watch, notification, retailer page, account, checkout, or purchase changed."
+    )
+  }
+
+  func createWishlistPriceWatchRuleReviewTask(_ rule: WishlistPriceWatchRule) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: rule.wishlistItemID?.uuidString ?? rule.id.uuidString,
+      label: "Review price watch rule: \(rule.itemName)",
+      summary: "Review Wishlist price watch rule. Target \(rule.targetAUDTotal), postage \(rule.maxPostageCost), delivery \(rule.maximumDeliveryTime), trust \(rule.requiredTrustLevel), regions \(rule.allowedRegions). Evaluate against saved seller quotes and snapshots before purchase. No live price monitoring is active.",
+      priority: rule.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -21908,6 +22088,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistResearchRequests(wishlistResearchRequests)
     wishlistRepository.saveWishlistPriceSnapshots(wishlistPriceSnapshots)
     wishlistRepository.saveWishlistSellerQuotes(wishlistSellerQuotes)
+    wishlistRepository.saveWishlistPriceWatchRules(wishlistPriceWatchRules)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -22118,6 +22299,31 @@ final class ParcelOpsStore {
     formatter.dateStyle = .medium
     formatter.timeStyle = .short
     return formatter.string(from: Date())
+  }
+
+  private static func firstNumber(in text: String) -> Double? {
+    let pattern = #"([0-9]+(?:[\.,][0-9]+)?)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+          let range = Range(match.range(at: 1), in: text) else {
+      return nil
+    }
+    return Double(text[range].replacingOccurrences(of: ",", with: "."))
+  }
+
+  private static func watchText(_ candidate: String, appearsToMeet requirement: String) -> Bool {
+    let normalizedCandidate = candidate.localizedLowercase
+    let normalizedRequirement = requirement.localizedLowercase
+    if normalizedRequirement.isPlaceholderValidationValue
+      || normalizedRequirement.contains("confirm")
+      || normalizedRequirement.contains("review") {
+      return true
+    }
+    let tokens = normalizedRequirement
+      .components(separatedBy: CharacterSet.alphanumerics.inverted)
+      .filter { $0.count >= 4 }
+    if tokens.isEmpty { return true }
+    return tokens.contains { normalizedCandidate.contains($0) }
   }
 }
 
@@ -22839,6 +23045,12 @@ private extension WishlistPriceSnapshot {
 private extension WishlistSellerQuote {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); URL: \(productURL); listed price: \(listedPrice); currency: \(currency); estimated AUD total: \(estimatedAUDTotal); postage: \(postageCost), \(postageTime); region: \(sellerRegion); trust: \(trustSummary); returns/warranty: \(returnsWarrantySummary); source: \(quoteSource); status: \(quoteStatus); captured: \(capturedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistPriceWatchRule {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); target AUD total: \(targetAUDTotal); max postage: \(maxPostageCost); delivery threshold: \(maximumDeliveryTime); required trust: \(requiredTrustLevel); allowed regions: \(allowedRegions); status: \(ruleStatus); created: \(createdDate); last evaluated: \(lastEvaluatedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

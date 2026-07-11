@@ -3007,6 +3007,22 @@ struct WishlistSellerQuote: Identifiable, Hashable, Codable {
   var notes: String
 }
 
+struct WishlistPriceWatchRule: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var wishlistItemID: UUID?
+  var itemName: String
+  var targetAUDTotal: String
+  var maxPostageCost: String
+  var maximumDeliveryTime: String
+  var requiredTrustLevel: String
+  var allowedRegions: String
+  var ruleStatus: String
+  var createdDate: String
+  var lastEvaluatedDate: String
+  var reviewState: ReviewState
+  var notes: String
+}
+
 extension WishlistResearchRequest {
   var agentBriefGaps: [String] {
     var gaps: [String] = []

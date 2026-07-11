@@ -515,6 +515,7 @@ struct WishlistView: View {
         wishlistLandedCostReviewPanel
         wishlistPriceWatchSnapshotPanel
         wishlistPriceWatchDecisionBoardPanel
+        wishlistPriceWatchRulesPanel
         wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
@@ -7549,6 +7550,91 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistPriceWatchRulesPanel: some View {
+    let rules = store.wishlistPriceWatchRules.sorted { first, second in
+      if first.reviewState == second.reviewState {
+        return first.lastEvaluatedDate > second.lastEvaluatedDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let matched = rules.filter { $0.ruleStatus.localizedCaseInsensitiveContains("matched") }.count
+    let watching = rules.filter { $0.ruleStatus.localizedCaseInsensitiveContains("watching") }.count
+    let disabled = rules.filter { $0.ruleStatus.localizedCaseInsensitiveContains("disabled") }.count
+    let unevaluated = rules.filter { $0.lastEvaluatedDate.localizedCaseInsensitiveContains("not evaluated") }.count
+
+    return SettingsPanel(title: "Price watch rules", symbol: "bell.badge.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Define the local buying conditions that should make a Wishlist item worth attention. Rules evaluate saved seller quotes and price snapshots only; no web monitoring, alerts, or background jobs run.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Rules", "\(rules.count)", rules.isEmpty ? .secondary : .blue),
+          ("Matched", "\(matched)", matched == 0 ? .secondary : .green),
+          ("Watching", "\(watching)", watching == 0 ? .secondary : .teal),
+          ("Unevaluated", "\(unevaluated)", unevaluated == 0 ? .green : .orange),
+          ("Disabled", "\(disabled)", disabled == 0 ? .secondary : .red)
+        ])
+
+        CompactActionRow {
+          Button("Add rule for first item", systemImage: "bell.badge.fill") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistPriceWatchRule(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if rules.isEmpty {
+          MVPEmptyState(
+            title: "No price watch rules yet",
+            detail: "Add a rule to capture a target AUD total, postage threshold, trust requirement, and region preference for a Wishlist item.",
+            symbol: "bell.badge"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(rules.prefix(8)) { rule in
+              WishlistPriceWatchRuleRow(rule: rule) {
+                store.evaluateWishlistPriceWatchRule(rule)
+              } onReview: {
+                store.markWishlistPriceWatchRuleReviewed(rule)
+              } onDisable: {
+                store.disableWishlistPriceWatchRule(rule)
+              } onTask: {
+                store.createWishlistPriceWatchRuleReviewTask(rule)
+              } onFocus: {
+                wishlistSearchText = rule.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .buy
+              }
+            }
+          }
+
+          let remaining = max(rules.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more price watch rule\(remaining == 1 ? "" : "s") are available in the local rules ledger.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Operator boundary: rule matches are prompts to review. They are not live price alerts and do not buy, pay, log into retailers, send notifications, or mutate mailbox/order data.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistResearchPasteBackChecklistPanel: some View {
     let briefedItems = store.wishlistItems.filter { item in
       store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
@@ -11017,6 +11103,99 @@ private struct WishlistSellerQuoteRow: View {
           .disabled(isPromoted || isRejected || linkedItem == nil)
         Button("Reject", systemImage: "xmark.circle", action: onReject)
           .disabled(isRejected)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPriceWatchRuleRow: View {
+  var rule: WishlistPriceWatchRule
+  var onEvaluate: () -> Void
+  var onReview: () -> Void
+  var onDisable: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isMatched: Bool {
+    rule.ruleStatus.localizedCaseInsensitiveContains("matched")
+  }
+
+  private var isDisabled: Bool {
+    rule.ruleStatus.localizedCaseInsensitiveContains("disabled")
+  }
+
+  private var tone: Color {
+    if isDisabled { return .red }
+    if isMatched { return .green }
+    if rule.reviewState == .needsReview { return .orange }
+    return .teal
+  }
+
+  private var detail: String {
+    if isMatched {
+      return "A saved quote or snapshot appears to meet the local watch rule. Review live seller details before buying."
+    }
+    if isDisabled {
+      return "Rule is disabled locally and will not be treated as active operator work."
+    }
+    if rule.lastEvaluatedDate.localizedCaseInsensitiveContains("not evaluated") {
+      return "Rule has not been evaluated against saved quotes and snapshots yet."
+    }
+    return "No saved quote or snapshot currently satisfies the target, postage, trust, and region criteria."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isMatched ? "bell.and.waves.left.and.right.fill" : "bell.badge.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(rule.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(rule.ruleStatus)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(rule.reviewState.rawValue, color: rule.reviewState == .accepted ? .green : .orange)
+          Badge(rule.lastEvaluatedDate, color: .secondary)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Target", value: rule.targetAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: rule.maxPostageCost, symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Delivery", value: rule.maximumDeliveryTime, symbol: "clock.fill")
+        WishlistMatrixMetric(title: "Trust", value: rule.requiredTrustLevel, symbol: "shield.checkered")
+      }
+
+      Text("Regions: \(rule.allowedRegions)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Evaluate", systemImage: "checklist.checked", action: onEvaluate)
+          .disabled(isDisabled)
+        Button("Reviewed", systemImage: "checkmark.seal", action: onReview)
+          .disabled(rule.reviewState == .accepted)
+        Button("Disable", systemImage: "bell.slash", action: onDisable)
+          .disabled(isDisabled)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
       }

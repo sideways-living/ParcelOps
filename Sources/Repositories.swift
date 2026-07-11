@@ -50,6 +50,8 @@ protocol WishlistRepository {
   func saveWishlistPriceSnapshots(_ snapshots: [WishlistPriceSnapshot])
   func loadWishlistSellerQuotes() -> [WishlistSellerQuote]
   func saveWishlistSellerQuotes(_ quotes: [WishlistSellerQuote])
+  func loadWishlistPriceWatchRules() -> [WishlistPriceWatchRule]
+  func saveWishlistPriceWatchRules(_ rules: [WishlistPriceWatchRule])
 }
 
 protocol SettingsRepository {
@@ -374,6 +376,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
 
   func saveWishlistSellerQuotes(_ quotes: [WishlistSellerQuote]) {
     save(quotes, to: .wishlistSellerQuotes)
+  }
+
+  func loadWishlistPriceWatchRules() -> [WishlistPriceWatchRule] {
+    load([WishlistPriceWatchRule].self, from: .wishlistPriceWatchRules, defaultValue: SampleData.wishlistPriceWatchRules)
+  }
+
+  func saveWishlistPriceWatchRules(_ rules: [WishlistPriceWatchRule]) {
+    save(rules, to: .wishlistPriceWatchRules)
   }
 
   func loadSettings() -> ParcelOpsSettings {
@@ -713,6 +723,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case wishlistResearchRequests = "wishlist-research-requests.json"
     case wishlistPriceSnapshots = "wishlist-price-snapshots.json"
     case wishlistSellerQuotes = "wishlist-seller-quotes.json"
+    case wishlistPriceWatchRules = "wishlist-price-watch-rules.json"
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
     case evidenceAttachments = "evidence-attachments.json"
@@ -767,6 +778,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var wishlistResearchRequests = SampleData.wishlistResearchRequests
   private var wishlistPriceSnapshots = SampleData.wishlistPriceSnapshots
   private var wishlistSellerQuotes = SampleData.wishlistSellerQuotes
+  private var wishlistPriceWatchRules = SampleData.wishlistPriceWatchRules
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
   private var evidenceAttachments = SampleData.evidenceAttachments
@@ -843,6 +855,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   func saveWishlistPriceSnapshots(_ snapshots: [WishlistPriceSnapshot]) { wishlistPriceSnapshots = snapshots }
   func loadWishlistSellerQuotes() -> [WishlistSellerQuote] { wishlistSellerQuotes }
   func saveWishlistSellerQuotes(_ quotes: [WishlistSellerQuote]) { wishlistSellerQuotes = quotes }
+  func loadWishlistPriceWatchRules() -> [WishlistPriceWatchRule] { wishlistPriceWatchRules }
+  func saveWishlistPriceWatchRules(_ rules: [WishlistPriceWatchRule]) { wishlistPriceWatchRules = rules }
 
   func loadSettings() -> ParcelOpsSettings { settings }
   func saveSettings(_ settings: ParcelOpsSettings) { self.settings = settings }
