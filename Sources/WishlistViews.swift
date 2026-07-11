@@ -188,6 +188,78 @@ private struct WishlistDataQualityEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistOperatorQueueEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var workflow: WishlistWorkflowFocus
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var sellerSummary: String
+  var statusSummary: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistOperatorQueueRow: View {
+  var entry: WishlistOperatorQueueEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.workflow == .operations ? "shippingbox.fill" : entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24, height: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge(entry.workflow.title, color: entry.workflow.color)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        Label(entry.sellerSummary, systemImage: "storefront.fill")
+        Label(entry.statusSummary, systemImage: "checkmark.seal.fill")
+        Label(entry.item.owner, systemImage: "person.crop.circle")
+        Label(entry.item.source.rawValue, systemImage: "square.and.arrow.down.fill")
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      if !entry.item.operatorPurchaseBlockers.isEmpty {
+        Text("Blockers: \(entry.item.operatorPurchaseBlockers.prefix(3).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct WishlistDataQualityRow: View {
   var entry: WishlistDataQualityEntry
   var onFocus: () -> Void
@@ -383,6 +455,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistWorkflowFocusPanel
+        wishlistOperatorQueuePanel
         wishlistLocalActivityPanel
         wishlistDataQualityPanel
         wishlistReadinessPanel
@@ -819,6 +892,229 @@ struct WishlistView: View {
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var wishlistOperatorQueueEntries: [WishlistOperatorQueueEntry] {
+    store.wishlistItems
+      .map(wishlistOperatorQueueEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistOperatorQueuePanel: some View {
+    let entries = wishlistOperatorQueueEntries
+    let capture = entries.filter { $0.workflow == .capture }.count
+    let compare = entries.filter { $0.workflow == .compare }.count
+    let buy = entries.filter { $0.workflow == .buy }.count
+    let watch = entries.filter { $0.workflow == .watch }.count
+    let operations = entries.filter { $0.workflow == .operations }.count
+
+    return SettingsPanel(title: "Wishlist operator queue", symbol: "tray.full.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the primary daily Wishlist queue. It collapses capture, comparison, purchase decision, handoff, and order-watch work into one next-action list.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Capture", "\(capture)", capture == 0 ? .secondary : .blue),
+          ("Compare", "\(compare)", compare == 0 ? .secondary : .orange),
+          ("Buy", "\(buy)", buy == 0 ? .secondary : .purple),
+          ("Watch", "\(watch)", watch == 0 ? .secondary : .green),
+          ("Ops", "\(operations)", operations == 0 ? .secondary : .teal)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist work queued",
+            detail: "Add a manual item, browser capture placeholder, PDF placeholder, or screenshot placeholder to start local Wishlist tracking.",
+            symbol: "tray.full.fill",
+            actionTitle: "Add manual item",
+            action: store.addManualWishlistItemPlaceholder
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 380), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(10)) { entry in
+              WishlistOperatorQueueRow(entry: entry) {
+                runWishlistOperatorQueueAction(for: entry)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: entry.item.id.uuidString,
+                  label: entry.item.itemName,
+                  summary: "Wishlist follow-up: \(entry.nextAction). \(entry.detail)",
+                  priority: entry.sortPriority < 40 ? .high : .normal,
+                  assignee: "Wishlist review"
+                )
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = entry.workflow
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist queue item\(remaining == 1 ? "" : "s") are available in the detailed panels below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Queue actions are local workflow actions only. ParcelOps does not browse retailers, log in, purchase, pay, fetch live stock, quote postage, or mutate external mailboxes from this queue.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistOperatorQueueEntry(for item: WishlistItem) -> WishlistOperatorQueueEntry {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let checks = item.purchaseChecks ?? []
+    let failedChecks = checks.filter { $0.status != "Passed" }
+
+    let workflow: WishlistWorkflowFocus
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if item.itemName.isPlaceholderValidationValue
+      || item.storefront.isPlaceholderValidationValue
+      || item.storefrontURL.isPlaceholderValidationValue
+      || item.owner.isPlaceholderValidationValue {
+      workflow = .capture
+      stage = "Capture cleanup"
+      detail = "Confirm item, retailer/source, product link, owner, and why it is needed."
+      nextAction = "Run readiness"
+      nextSymbol = "checklist.checked"
+      tone = .blue
+      sortPriority = 10
+    } else if options.isEmpty {
+      workflow = .compare
+      stage = "Need comparison"
+      detail = "No seller options are recorded. Create a local comparison plan before deciding where to buy."
+      nextAction = "Create plan"
+      nextSymbol = "magnifyingglass.circle"
+      tone = .orange
+      sortPriority = 20
+    } else if options.contains(where: { !$0.operatorSellerEvidenceGaps.isEmpty }) {
+      workflow = .compare
+      stage = "Seller evidence gaps"
+      detail = "Seller options need product link, AUD total, postage, trust, or returns/warranty cleanup."
+      nextAction = "Score options"
+      nextSymbol = "chart.bar.doc.horizontal"
+      tone = .orange
+      sortPriority = 30
+    } else if item.preferredOptionID == nil || preferred == nil {
+      workflow = .compare
+      stage = "Choose seller"
+      detail = "Options are recorded. Select a preferred seller before purchase review."
+      nextAction = "Score options"
+      nextSymbol = "chart.bar.doc.horizontal"
+      tone = .purple
+      sortPriority = 40
+    } else if checks.isEmpty || !failedChecks.isEmpty {
+      workflow = .buy
+      stage = checks.isEmpty ? "Readiness not run" : "Readiness blocked"
+      detail = checks.isEmpty ? "Run local purchase checks before drafting a decision." : "\(failedChecks.count) purchase check\(failedChecks.count == 1 ? "" : "s") need attention."
+      nextAction = "Run checks"
+      nextSymbol = "checklist.checked"
+      tone = .purple
+      sortPriority = 50
+    } else if item.purchaseDecision == nil {
+      workflow = .buy
+      stage = "Decision needed"
+      detail = "Seller comparison and readiness are ready for a local purchase decision draft."
+      nextAction = "Draft decision"
+      nextSymbol = "doc.badge.plus"
+      tone = .purple
+      sortPriority = 60
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      workflow = .buy
+      stage = "Decision review"
+      detail = "Purchase decision exists but still needs local operator review."
+      nextAction = "Review task"
+      nextSymbol = "checklist"
+      tone = .brown
+      sortPriority = 70
+    } else if item.purchaseHandoff == nil {
+      workflow = .watch
+      stage = "Handoff needed"
+      detail = "Prepare account, payment, delivery, and order-watch notes before buying outside ParcelOps."
+      nextAction = "Prepare handoff"
+      nextSymbol = "person.crop.circle.badge.checkmark"
+      tone = .green
+      sortPriority = 80
+    } else if item.purchaseHandoff?.linkedOrderID == nil {
+      workflow = .watch
+      stage = "Watch confirmation"
+      detail = "After external purchase, watch Inbox/Orders for confirmation and link the order."
+      nextAction = "Order seen"
+      nextSymbol = "envelope.badge.fill"
+      tone = .green
+      sortPriority = 90
+    } else {
+      workflow = .operations
+      stage = "Operations follow-up"
+      detail = "Order is linked. Continue receiving, storage, custody, labels, dispatch, and closure checks."
+      nextAction = "Focus item"
+      nextSymbol = "scope"
+      tone = .teal
+      sortPriority = 100
+    }
+
+    return WishlistOperatorQueueEntry(
+      item: item,
+      workflow: workflow,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      sellerSummary: preferred.map { "\($0.sellerName) • \($0.estimatedAUDTotal) • \($0.trustRating)" } ?? item.storefront,
+      statusSummary: item.purchaseReadiness ?? item.status,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistOperatorQueueAction(for entry: WishlistOperatorQueueEntry) {
+    switch entry.stage {
+    case "Capture cleanup":
+      store.runWishlistPurchaseReadinessCheck(entry.item)
+    case "Need comparison":
+      store.createWishlistComparisonPlan(entry.item)
+      store.createWishlistResearchRequest(from: entry.item)
+    case "Seller evidence gaps", "Choose seller":
+      store.evaluateWishlistComparisonOptions(entry.item)
+    case "Readiness not run", "Readiness blocked":
+      store.runWishlistPurchaseReadinessCheck(entry.item)
+    case "Decision needed":
+      store.createWishlistPurchaseDecision(entry.item)
+    case "Decision review":
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    case "Handoff needed":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Watch confirmation":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = entry.workflow
     }
   }
 
