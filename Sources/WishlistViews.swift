@@ -469,6 +469,7 @@ struct WishlistView: View {
         wishlistReadinessPanel
         wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
+        wishlistCaptureContractPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
@@ -6988,6 +6989,115 @@ struct WishlistView: View {
       selectedStatus = nil
       selectedWorkflowFocus = .compare
     }
+  }
+
+  private var wishlistCaptureContractPanel: some View {
+    let candidates = store.wishlistCaptureCandidates
+    let extensionCandidates = candidates.filter { $0.source == .browserExtension }.count
+    let manualReady = store.wishlistItems.filter { $0.source == .manual && !$0.itemName.isPlaceholderValidationValue }.count
+    let stagedWithGaps = candidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
+
+    return SettingsPanel(title: "Wishlist capture contract", symbol: "square.and.arrow.down.on.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this as the local contract for manual entry, future browser extension capture, share-sheet capture, screenshots, and PDF captures. Captures should stage a product idea first; seller comparison and purchase decisions happen later.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Staged", "\(candidates.count)", candidates.isEmpty ? .secondary : .blue),
+          ("Extension", "\(extensionCandidates)", extensionCandidates == 0 ? .secondary : .teal),
+          ("Manual ready", "\(manualReady)", manualReady == 0 ? .secondary : .green),
+          ("Capture gaps", "\(stagedWithGaps)", stagedWithGaps == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 280), spacing: 10)], alignment: .leading, spacing: 10) {
+          wishlistCaptureContractCard(
+            title: "Minimum capture",
+            symbol: "doc.text.magnifyingglass",
+            tone: .blue,
+            lines: [
+              "Product or item name",
+              "Source URL or capture note",
+              "Retailer or website label",
+              "Why it is wanted or needed"
+            ]
+          )
+          wishlistCaptureContractCard(
+            title: "Comparison-ready fields",
+            symbol: "chart.bar.doc.horizontal",
+            tone: .orange,
+            lines: [
+              "Listed price and currency",
+              "Shipping/postage clue",
+              "Seller region if visible",
+              "Variant, size, model, or compatibility"
+            ]
+          )
+          wishlistCaptureContractCard(
+            title: "Trust cues",
+            symbol: "shield.checkered",
+            tone: .purple,
+            lines: [
+              "Seller identity and contact clues",
+              "Returns or warranty text",
+              "Marketplace versus direct seller",
+              "Evidence gaps to verify later"
+            ]
+          )
+          wishlistCaptureContractCard(
+            title: "Strict boundary",
+            symbol: "hand.raised.fill",
+            tone: .red,
+            lines: [
+              "No checkout or payment",
+              "No account login or credentials",
+              "No live scraping or background sync",
+              "No automatic seller trust claims"
+            ]
+          )
+        }
+
+        CompactActionRow {
+          Button("Add manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+          Button("Stage browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
+          Button("Create capture task", systemImage: "checklist") {
+            store.createReviewTask(
+              linkedEntityType: .wishlistItem,
+              linkedEntityID: "wishlist-capture-contract",
+              label: "Wishlist capture contract",
+              summary: "Review Wishlist capture contract before using manual entry, share-sheet, browser extension, screenshot, or PDF capture paths. Confirm item name, source URL, retailer, price/currency clues, shipping clues, and trust evidence boundaries.",
+              priority: .normal,
+              assignee: "Wishlist capture"
+            )
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Future extension output should write only staged capture candidates. ParcelOps should not buy, log in, scrape retailer pages, convert currency, quote postage, validate seller trust, or monitor orders from the capture step.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func wishlistCaptureContractCard(title: String, symbol: String, tone: Color, lines: [String]) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tone)
+      ForEach(lines, id: \.self) { line in
+        Label(line, systemImage: "checkmark.circle")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var wishlistCaptureCandidatesPanel: some View {
