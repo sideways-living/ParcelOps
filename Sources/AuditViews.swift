@@ -1095,7 +1095,7 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Wishlist purchase trail", detail: "Local comparison, purchase packet, handoff, task, draft, and order-watch activity for Wishlist items.", events: visibleWishlistPurchaseTrailEvents, onCreateTask: { event in
+          AuditFeedSection(title: "Wishlist purchase trail", detail: "Local comparison, purchase packet, handoff, closure, reopen, task, draft, and order-watch activity for Wishlist items.", events: visibleWishlistPurchaseTrailEvents, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1745,6 +1745,10 @@ private extension AuditEvent {
         || searchableText.localizedCaseInsensitiveContains("purchase decision")
         || searchableText.localizedCaseInsensitiveContains("order confirmation")
         || searchableText.localizedCaseInsensitiveContains("order watch")
+        || searchableText.localizedCaseInsensitiveContains("closed wishlist")
+        || searchableText.localizedCaseInsensitiveContains("closed locally")
+        || searchableText.localizedCaseInsensitiveContains("closure readiness")
+        || searchableText.localizedCaseInsensitiveContains("reopened locally")
         || searchableText.localizedCaseInsensitiveContains("wishlist purchase cost")
         || searchableText.localizedCaseInsensitiveContains("wishlist procurement")
         || searchableText.localizedCaseInsensitiveContains("wishlist receiving")
@@ -1757,6 +1761,9 @@ private extension AuditEvent {
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "Purchase packet" }
     if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "Handoff pack" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
+    if searchableText.localizedCaseInsensitiveContains("closure readiness") { return "Closure readiness" }
+    if searchableText.localizedCaseInsensitiveContains("closed wishlist") || searchableText.localizedCaseInsensitiveContains("closed locally") { return "Wishlist closed" }
+    if searchableText.localizedCaseInsensitiveContains("reopened locally") { return "Wishlist reopened" }
     if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "Purchase decision" }
     if searchableText.localizedCaseInsensitiveContains("wishlist purchase cost") || entityType == .costRecord { return "Wishlist cost" }
     if searchableText.localizedCaseInsensitiveContains("wishlist procurement") || entityType == .procurementRequest { return "Wishlist procurement" }
@@ -1778,6 +1785,15 @@ private extension AuditEvent {
     }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") {
       return "The item has moved into manual handoff follow-up. Confirm account, payment method, delivery address, returns, warranty, and order confirmation outside ParcelOps."
+    }
+    if searchableText.localizedCaseInsensitiveContains("closure readiness") {
+      return "This local check verifies whether the Wishlist item has enough linked operational evidence to leave the active queue. It does not close external orders, inventory, dispatch, payments, or seller activity."
+    }
+    if searchableText.localizedCaseInsensitiveContains("closed wishlist") || searchableText.localizedCaseInsensitiveContains("closed locally") {
+      return "The Wishlist item was closed inside ParcelOps and should no longer count as active work. Its JSON record and audit trail remain available for linked order and handoff history."
+    }
+    if searchableText.localizedCaseInsensitiveContains("reopened locally") {
+      return "The closed Wishlist item was returned to local follow-up. Review the linked order and handoff state before treating it as active purchase or dispatch work."
     }
     if searchableText.localizedCaseInsensitiveContains("purchase decision") {
       return "The seller decision changed locally. Check that live price, stock, postage, trust, returns, and AUD total are still current before handoff."
@@ -1805,6 +1821,9 @@ private extension AuditEvent {
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "doc.text.image.fill" }
     if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "shippingbox.and.arrow.backward.fill" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
+    if searchableText.localizedCaseInsensitiveContains("closure readiness") { return "checklist.checked" }
+    if searchableText.localizedCaseInsensitiveContains("closed wishlist") || searchableText.localizedCaseInsensitiveContains("closed locally") { return "checkmark.circle.fill" }
+    if searchableText.localizedCaseInsensitiveContains("reopened locally") { return "arrow.uturn.backward.circle.fill" }
     if searchableText.localizedCaseInsensitiveContains("purchase decision") { return "doc.text.magnifyingglass" }
     if searchableText.localizedCaseInsensitiveContains("wishlist purchase cost") || entityType == .costRecord { return "dollarsign.circle.fill" }
     if searchableText.localizedCaseInsensitiveContains("wishlist procurement") || entityType == .procurementRequest { return "cart.badge.plus" }
@@ -1821,6 +1840,12 @@ private extension AuditEvent {
     }
     if searchableText.localizedCaseInsensitiveContains("linked") || searchableText.localizedCaseInsensitiveContains("reviewed") {
       return .green
+    }
+    if searchableText.localizedCaseInsensitiveContains("closed locally") {
+      return .green
+    }
+    if searchableText.localizedCaseInsensitiveContains("reopened") {
+      return .orange
     }
     if searchableText.localizedCaseInsensitiveContains("draft") {
       return .blue
