@@ -507,6 +507,7 @@ struct WishlistView: View {
         wishlistExternalPurchaseSafetyGatePanel
         wishlistPurchaseDecisionSummaryPanel
         wishlistPurchaseEvidenceDossierPanel
+        wishlistPurchaseDecisionEvidencePackPanel
         wishlistPrePurchaseOperatorChecklistPanel
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
@@ -3848,6 +3849,155 @@ struct WishlistView: View {
       store.runWishlistPurchaseReadinessCheck(dossier.item)
     } else {
       wishlistSearchText = dossier.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private var wishlistPurchaseDecisionEvidencePacks: [WishlistPurchaseDecisionEvidencePack] {
+    wishlistPurchaseDecisionSummaries
+      .map { summary in
+        let dossier = wishlistPurchaseEvidenceDossier(for: summary.item, summary: summary)
+        let decision = summary.item.purchaseDecision
+        let handoff = summary.item.purchaseHandoff
+        let unresolved = Array(Set(summary.verificationGaps + dossier.gaps)).sorted()
+        let readyEvidence = dossier.checks.filter(\.isReady).count
+        let totalEvidence = dossier.checks.count
+        let isSignedOff = decision?.reviewState == .accepted && unresolved.isEmpty && handoff != nil
+
+        let status: String
+        let detail: String
+        let tone: Color
+        let sortPriority: Int
+
+        if decision == nil {
+          status = "Decision missing"
+          detail = "No purchase decision exists yet. Draft the selected seller, AUD total, postage, trust rationale, and rejected alternatives."
+          tone = .brown
+          sortPriority = 10
+        } else if decision?.reviewState != .accepted {
+          status = "Review required"
+          detail = "Decision exists but has not been accepted. Confirm the seller route and evidence before preparing purchase handoff."
+          tone = .orange
+          sortPriority = 20
+        } else if !unresolved.isEmpty {
+          status = "Evidence gaps"
+          detail = "Decision is accepted, but unresolved evidence remains: \(unresolved.prefix(3).joined(separator: ", "))."
+          tone = .orange
+          sortPriority = 30
+        } else if handoff == nil {
+          status = "Handoff missing"
+          detail = "Decision evidence is acceptable locally. Prepare account, delivery, payment-method, and order-watch handoff before buying."
+          tone = .purple
+          sortPriority = 40
+        } else if handoff?.linkedOrderID == nil {
+          status = "Ready for external buy"
+          detail = "Local evidence pack is signed off. Buy outside ParcelOps only after final live checks, then watch for order confirmation."
+          tone = .green
+          sortPriority = 50
+        } else {
+          status = "Order linked"
+          detail = "Purchase decision evidence is linked to a local order. Continue operational tracking through Orders, Dispatch, Tasks, and Audit."
+          tone = .teal
+          sortPriority = 60
+        }
+
+        return WishlistPurchaseDecisionEvidencePack(
+          item: summary.item,
+          summary: summary,
+          dossier: dossier,
+          status: status,
+          detail: detail,
+          unresolvedEvidence: unresolved,
+          readyEvidence: readyEvidence,
+          totalEvidence: totalEvidence,
+          isSignedOff: isSignedOff,
+          tone: tone,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseDecisionEvidencePackPanel: some View {
+    let packs = wishlistPurchaseDecisionEvidencePacks
+    let missingDecision = packs.filter { $0.status == "Decision missing" }.count
+    let needsReview = packs.filter { $0.status == "Review required" || $0.status == "Evidence gaps" }.count
+    let ready = packs.filter { $0.status == "Ready for external buy" }.count
+    let linked = packs.filter { $0.status == "Order linked" }.count
+
+    return SettingsPanel(title: "Purchase decision evidence pack", symbol: "doc.badge.gearshape.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("A final local sign-off view for Wishlist purchase decisions. It connects selected seller, rejected alternatives, AUD total, postage, trust, evidence gaps, handoff, and order-watch state before any external purchase.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Packs", "\(packs.count)", packs.isEmpty ? .secondary : .blue),
+          ("Missing decision", "\(missingDecision)", missingDecision == 0 ? .green : .brown),
+          ("Need review", "\(needsReview)", needsReview == 0 ? .green : .orange),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Linked", "\(linked)", linked == 0 ? .secondary : .teal)
+        ])
+
+        if packs.isEmpty {
+          MVPEmptyState(
+            title: "No decision evidence packs",
+            detail: "Wishlist items appear here once they have seller options or enter the purchase decision flow.",
+            symbol: "doc.badge.gearshape.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(packs.prefix(8)) { pack in
+              WishlistPurchaseDecisionEvidencePackRow(pack: pack) {
+                runWishlistPurchaseDecisionEvidencePackAction(for: pack)
+              } onTask: {
+                store.createWishlistPurchaseDecisionReviewTask(pack.item)
+              } onFocus: {
+                wishlistSearchText = pack.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(packs.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more decision evidence pack\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Evidence pack sign-off is local only. ParcelOps does not verify live stock, current seller reputation, checkout availability, account login, payment, delivery address, returns, warranty, or order placement.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistPurchaseDecisionEvidencePackAction(for pack: WishlistPurchaseDecisionEvidencePack) {
+    switch pack.status {
+    case "Decision missing":
+      store.createWishlistPurchaseDecision(pack.item)
+    case "Review required":
+      store.markWishlistPurchaseDecisionReviewed(pack.item)
+    case "Evidence gaps":
+      store.runWishlistPurchaseReadinessCheck(pack.item)
+      store.createWishlistPurchaseDecisionReviewTask(pack.item)
+    case "Handoff missing":
+      store.prepareWishlistPurchaseHandoff(pack.item)
+    case "Ready for external buy":
+      store.markWishlistOrderConfirmationSeen(pack.item)
+    default:
+      wishlistSearchText = pack.item.itemName
       selectedSource = nil
       selectedStatus = nil
     }
@@ -10956,6 +11106,145 @@ private struct WishlistPurchaseEvidenceDossier: Identifiable {
   var detail: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistPurchaseDecisionEvidencePack: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var summary: WishlistPurchaseDecisionSummary
+  var dossier: WishlistPurchaseEvidenceDossier
+  var status: String
+  var detail: String
+  var unresolvedEvidence: [String]
+  var readyEvidence: Int
+  var totalEvidence: Int
+  var isSignedOff: Bool
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistPurchaseDecisionEvidencePackRow: View {
+  var pack: WishlistPurchaseDecisionEvidencePack
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var decision: WishlistPurchaseDecision? {
+    pack.item.purchaseDecision
+  }
+
+  private var actionTitle: String {
+    switch pack.status {
+    case "Decision missing": return "Draft decision"
+    case "Review required": return "Accept decision"
+    case "Evidence gaps": return "Run checks"
+    case "Handoff missing": return "Prepare handoff"
+    case "Ready for external buy": return "Order seen"
+    default: return "Focus"
+    }
+  }
+
+  private var actionSymbol: String {
+    switch pack.status {
+    case "Decision missing": return "doc.text.magnifyingglass"
+    case "Review required": return "checkmark.seal"
+    case "Evidence gaps": return "checklist.checked"
+    case "Handoff missing": return "person.crop.circle.badge.checkmark"
+    case "Ready for external buy": return "envelope.badge.fill"
+    default: return "scope"
+    }
+  }
+
+  private var safeNotes: String {
+    let notes = decision?.decisionNotes.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return notes.isEmpty ? "No decision notes recorded yet." : notes
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: pack.isSignedOff ? "doc.badge.checkmark.fill" : "doc.badge.gearshape.fill")
+          .foregroundStyle(pack.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(pack.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(pack.summary.selectedSeller)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(pack.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(pack.status, color: pack.tone)
+          Badge("\(pack.readyEvidence)/\(pack.totalEvidence) evidence", color: pack.readyEvidence == pack.totalEvidence ? .green : .orange)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "AUD total", value: pack.summary.totalAUD, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: pack.summary.postage, symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: pack.summary.trust, symbol: "shield.checkered")
+        WishlistMatrixMetric(title: "Decision", value: decision?.reviewState.rawValue ?? "Not drafted", symbol: "checkmark.seal")
+      }
+
+      if !pack.summary.rejectedOptions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        VStack(alignment: .leading, spacing: 3) {
+          Label("Rejected/alternate seller evidence", systemImage: "arrow.triangle.branch")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          Text(pack.summary.rejectedOptions)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+        }
+      }
+
+      if pack.unresolvedEvidence.isEmpty {
+        Label("No unresolved local evidence gaps. Final live verification still happens outside ParcelOps.", systemImage: "checkmark.seal.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        VStack(alignment: .leading, spacing: 5) {
+          Label("Unresolved evidence", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(pack.unresolvedEvidence.prefix(8), id: \.self) { gap in
+              Badge(gap, color: .orange)
+            }
+          }
+        }
+      }
+
+      Text(safeNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text("Before buying externally, manually confirm live stock, current price, landed AUD total, postage, returns, warranty, account access, payment method, and delivery address.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(pack.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPurchaseEvidenceDossierRow: View {
