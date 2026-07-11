@@ -19664,6 +19664,57 @@ final class ParcelOpsStore {
     )
   }
 
+  func runWishlistPurchaseReadinessChecksForDecisionQueue() {
+    let candidates = wishlistItems.filter { item in
+      let options = item.comparisonOptions ?? []
+      let checks = item.purchaseChecks ?? []
+      return !options.isEmpty
+        && item.preferredOptionID != nil
+        && !options.contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+        && (checks.isEmpty || checks.contains { $0.status != "Passed" })
+    }
+    guard !candidates.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: "wishlist-purchase-readiness-batch",
+        entityLabel: "Wishlist purchase readiness",
+        summary: "Wishlist purchase readiness batch checked with no work needed.",
+        afterDetail: "No Wishlist purchase decision queue items currently need local readiness checks. No retailer, browser, account, checkout, payment, mailbox, or external service action occurred."
+      )
+      return
+    }
+
+    for item in candidates {
+      runWishlistPurchaseReadinessCheck(item)
+    }
+
+    let refreshed = candidates.compactMap { candidate in
+      wishlistItems.first { $0.id == candidate.id }
+    }
+    let blockerCount = refreshed.reduce(0) { total, item in
+      total + (item.purchaseChecks ?? []).filter { $0.status == "Blocked" || $0.severity == "High" }.count
+    }
+    let readyCount = refreshed.filter { item in
+      let checks = item.purchaseChecks ?? []
+      return !checks.isEmpty && checks.allSatisfy { $0.status == "Passed" }
+    }.count
+
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: "wishlist-purchase-readiness-batch",
+      entityLabel: "Wishlist purchase readiness",
+      summary: "Wishlist purchase readiness checks ran in batch locally.",
+      afterDetail: """
+      Checked \(candidates.count) Wishlist purchase decision queue item\(candidates.count == 1 ? "" : "s").
+      Ready after check: \(readyCount).
+      Remaining blocker count: \(blockerCount).
+      Local readiness only. No live retailer, currency, postage, seller trust, account, checkout, purchase, payment, browser automation, mailbox, or external service action occurred.
+      """
+    )
+  }
+
   func createWishlistPurchaseDecision(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

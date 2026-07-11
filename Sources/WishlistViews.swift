@@ -3651,6 +3651,7 @@ struct WishlistView: View {
     let reviewNeeded = queueItems.filter { $0.purchaseDecision?.reviewState == .needsReview }.count
     let handoffNeeded = queueItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }.count
     let orderWatch = queueItems.filter { $0.purchaseHandoff?.linkedOrderID == nil && $0.purchaseHandoff != nil }.count
+    let readinessBatchItems = queueItems.filter { wishlistPurchaseDecisionPriority(for: $0) == 3 }
 
     return SettingsPanel(title: "Purchase decision queue", symbol: "bag.badge.questionmark.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -3666,6 +3667,14 @@ struct WishlistView: View {
           ("Need handoff", "\(handoffNeeded)", handoffNeeded == 0 ? .green : .purple),
           ("Order watch", "\(orderWatch)", orderWatch == 0 ? .secondary : .teal)
         ])
+
+        CompactActionRow {
+          Button("Run readiness checks", systemImage: "checklist.checked") {
+            store.runWishlistPurchaseReadinessChecksForDecisionQueue()
+          }
+          .disabled(readinessBatchItems.isEmpty)
+          Badge("\(readinessBatchItems.count) need checks", color: readinessBatchItems.isEmpty ? .green : .orange)
+        }
 
         if queueItems.isEmpty {
           MVPEmptyState(
