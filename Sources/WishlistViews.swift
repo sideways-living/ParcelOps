@@ -412,6 +412,7 @@ struct WishlistView: View {
         wishlistLinkedOrderOperationsChecklistPanel
         wishlistOperationsClosureReadinessPanel
         wishlistAgentHandoffPacketPanel
+        wishlistAgentBriefQualityPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
         wishlistResearchRequestsPanel
@@ -5120,6 +5121,159 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistAgentBriefQualityEntries: [WishlistAgentBriefQualityEntry] {
+    store.wishlistResearchRequests
+      .map(wishlistAgentBriefQualityEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.request.itemName.localizedCaseInsensitiveCompare(second.request.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistAgentBriefQualityPanel: some View {
+    let entries = wishlistAgentBriefQualityEntries
+    let ready = entries.filter { $0.stage == "Ready for future agent" }.count
+    let missingScope = entries.filter { $0.stage == "Scope gaps" }.count
+    let reviewNeeded = entries.filter { $0.stage == "Needs operator review" }.count
+    let blocked = entries.filter { $0.stage == "Blocked" }.count
+
+    return SettingsPanel(title: "Agent brief quality control", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Quality-control each comparison brief before handing it to a future agent or human researcher. A usable brief must specify item/source, AU and overseas scope, AUD budget, postage expectations, seller trust requirements, required output fields, and no-purchase boundaries.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Briefs", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Scope gaps", "\(missingScope)", missingScope == 0 ? .green : .orange),
+          ("Need review", "\(reviewNeeded)", reviewNeeded == 0 ? .green : .brown),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No research briefs to quality-control",
+            detail: "Use Compare on a Wishlist item to create a local research request, then review its agent-ready scope here.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistAgentBriefQualityRow(entry: entry) {
+                runWishlistAgentBriefQualityAction(for: entry)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: entry.request.wishlistItemID?.uuidString ?? entry.request.id.uuidString,
+                  label: entry.request.itemName,
+                  summary: "Quality-control wishlist comparison brief. Resolve: \(entry.gaps.isEmpty ? "no current gaps" : entry.gaps.joined(separator: ", ")). Keep boundaries: no checkout, payment, login, credential capture, mailbox mutation, or background monitoring.",
+                  priority: entry.gaps.isEmpty ? .normal : .high,
+                  assignee: "Wishlist review"
+                )
+              } onDraft: {
+                store.createWishlistResearchBriefDraft(entry.request)
+              } onFocus: {
+                wishlistSearchText = entry.request.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more brief quality item\(remaining == 1 ? "" : "s") are available in the research requests panel.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This is planning only. ParcelOps still does not run a live agent, scrape retailer sites, convert currencies, request postage quotes, score external sellers, log in, check out, pay, or monitor web pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistAgentBriefQualityEntry(for request: WishlistResearchRequest) -> WishlistAgentBriefQualityEntry {
+    let gaps = request.agentBriefGaps
+    let isBlocked = request.requestStatus.localizedCaseInsensitiveContains("blocked")
+    let outputContractPresent = request.agentInstructionPacket.localizedCaseInsensitiveContains("estimated AUD landed total")
+      && request.agentInstructionPacket.localizedCaseInsensitiveContains("postage cost/time")
+      && request.agentInstructionPacket.localizedCaseInsensitiveContains("trust evidence")
+      && request.agentInstructionPacket.localizedCaseInsensitiveContains("do not buy")
+
+    let checks: [WishlistAgentBriefQualityCheck] = [
+      WishlistAgentBriefQualityCheck(label: "Item/source", detail: request.sourceURL, isReady: !gaps.contains("item name") && !gaps.contains("source URL")),
+      WishlistAgentBriefQualityCheck(label: "Region scope", detail: request.regionScope, isReady: !gaps.contains("region scope")),
+      WishlistAgentBriefQualityCheck(label: "AUD budget", detail: request.maxBudgetAUD, isReady: !gaps.contains("AUD budget")),
+      WishlistAgentBriefQualityCheck(label: "Seller criteria", detail: request.sellerCriteria, isReady: !gaps.contains("seller criteria")),
+      WishlistAgentBriefQualityCheck(label: "Postage rules", detail: request.postageRequirements, isReady: !gaps.contains("postage requirements")),
+      WishlistAgentBriefQualityCheck(label: "Trust rules", detail: request.trustRequirements, isReady: !gaps.contains("seller trust requirements")),
+      WishlistAgentBriefQualityCheck(label: "Output contract", detail: "URL, seller, AUD total, postage, trust, recommendation", isReady: outputContractPresent),
+      WishlistAgentBriefQualityCheck(label: "Operator review", detail: request.reviewState.rawValue, isReady: request.reviewState == .accepted)
+    ]
+
+    let stage: String
+    let detail: String
+    let tone: Color
+    let sortPriority: Int
+
+    if isBlocked {
+      stage = "Blocked"
+      detail = "Research brief is blocked. Reopen or replace the request before handoff."
+      tone = .red
+      sortPriority = 0
+    } else if gaps.contains("operator review") && gaps.count == 1 {
+      stage = "Needs operator review"
+      detail = "Scope looks complete; mark reviewed before future agent handoff."
+      tone = .brown
+      sortPriority = 10
+    } else if !gaps.isEmpty {
+      stage = "Scope gaps"
+      detail = "Clarify \(gaps.prefix(3).joined(separator: ", ")) before using this brief."
+      tone = .orange
+      sortPriority = 20
+    } else {
+      stage = "Ready for future agent"
+      detail = "Brief has the local scope and safety boundaries needed for a future research handoff."
+      tone = .green
+      sortPriority = 30
+    }
+
+    return WishlistAgentBriefQualityEntry(
+      request: request,
+      checks: checks,
+      gaps: gaps,
+      stage: stage,
+      detail: detail,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistAgentBriefQualityAction(for entry: WishlistAgentBriefQualityEntry) {
+    if entry.stage == "Needs operator review" || entry.stage == "Ready for future agent" {
+      store.markWishlistResearchRequestReviewed(entry.request)
+    } else if entry.stage == "Blocked" {
+      store.createWishlistResearchBriefDraft(entry.request)
+    } else {
+      store.createReviewTask(
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: entry.request.wishlistItemID?.uuidString ?? entry.request.id.uuidString,
+        label: entry.request.itemName,
+        summary: "Resolve wishlist research brief gaps: \(entry.gaps.prefix(5).joined(separator: ", ")).",
+        priority: .high,
+        assignee: "Wishlist review"
+      )
+    }
+  }
+
   private func wishlistBatchDraftNextAction(_ draft: DraftMessage) -> String {
     switch draft.status {
     case .draft:
@@ -7013,6 +7167,124 @@ private struct WishlistAgentHandoffPacketRow: View {
     }
     .padding(10)
     .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistAgentBriefQualityCheck: Identifiable {
+  var id: String { label }
+  var label: String
+  var detail: String
+  var isReady: Bool
+}
+
+private struct WishlistAgentBriefQualityEntry: Identifiable {
+  var id: UUID { request.id }
+  var request: WishlistResearchRequest
+  var checks: [WishlistAgentBriefQualityCheck]
+  var gaps: [String]
+  var stage: String
+  var detail: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistAgentBriefQualityRow: View {
+  var entry: WishlistAgentBriefQualityEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onDraft: () -> Void
+  var onFocus: () -> Void
+
+  private var readyCount: Int {
+    entry.checks.filter(\.isReady).count
+  }
+
+  private var actionTitle: String {
+    switch entry.stage {
+    case "Ready for future agent", "Needs operator review":
+      return "Reviewed"
+    case "Blocked":
+      return "Draft"
+    default:
+      return "Task"
+    }
+  }
+
+  private var actionSymbol: String {
+    switch entry.stage {
+    case "Ready for future agent", "Needs operator review":
+      return "checkmark.seal"
+    case "Blocked":
+      return "doc.text"
+    default:
+      return "checklist"
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.stage == "Ready for future agent" ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.request.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge("\(readyCount)/\(entry.checks.count)", color: readyCount == entry.checks.count ? .green : entry.tone)
+        }
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(entry.checks) { check in
+          VStack(alignment: .leading, spacing: 3) {
+            Label(check.label, systemImage: check.isReady ? "checkmark.circle.fill" : "circle")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(check.isReady ? .green : .orange)
+              .lineLimit(1)
+            Text(check.detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Not recorded" : check.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
+          .padding(7)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background((check.isReady ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if !entry.gaps.isEmpty {
+        Text("Scope gaps: \(entry.gaps.prefix(6).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("No-purchase boundary: future research must not log in, check out, pay, store credentials, mutate mailboxes, book carriers, or run background monitoring.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(actionTitle, systemImage: actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Brief draft", systemImage: "doc.text", action: onDraft)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
