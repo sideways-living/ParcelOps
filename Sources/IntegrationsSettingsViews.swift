@@ -2458,6 +2458,33 @@ struct GmailMailboxConnectionRow: View {
           compiledValueRow(label: "GIDClientID", value: gmailExpectedCompiledClientID)
           compiledValueRow(label: "Gmail URL scheme", value: gmailExpectedCompiledCallbackScheme)
         }
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Operator handoff checklist", systemImage: "checklist")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+          gmailCompiledHandoffStep(
+            number: "1",
+            title: "Google Cloud",
+            detail: "Create an iOS OAuth client for bundle ID app.bitrig.parcelops. Do not create or paste a client secret."
+          )
+          gmailCompiledHandoffStep(
+            number: "2",
+            title: "App config",
+            detail: "Compile the saved GIDClientID and reversed URL scheme into App/Info.plist through Project.json."
+          )
+          gmailCompiledHandoffStep(
+            number: "3",
+            title: "Rebuild",
+            detail: "Regenerate the Xcode project if needed, build the app, then rerun Check readiness in this row."
+          )
+          gmailCompiledHandoffStep(
+            number: "4",
+            title: "Manual test",
+            detail: "Use Test real Google sign-in first. Run real Gmail refresh only after sign-in and read-only scope consent are clear."
+          )
+        }
+        .padding(8)
+        .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
         Text("After these values are updated in Project.json/App Info.plist and the Xcode project is regenerated, rerun Check readiness before testing real Google sign-in.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(gmailCompiledHandoffColor)
@@ -2513,6 +2540,25 @@ struct GmailMailboxConnectionRow: View {
       return "These are the non-secret values the compiled app should contain for this saved Gmail setup."
     }
     return "Finish the saved Google iOS OAuth client ID and reversed URL scheme first; then this handoff will show exact compile-time values."
+  }
+
+  @ViewBuilder
+  private func gmailCompiledHandoffStep(number: String, title: String, detail: String) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Text(number)
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(.white)
+        .frame(width: 18, height: 18)
+        .background(gmailCompiledHandoffColor, in: Circle())
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   @ViewBuilder
