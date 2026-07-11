@@ -18,6 +18,17 @@ struct MVPSetupView: View {
         MVPCompletionRoadmapPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
         MVPMailboxProviderStatusPanel(store: store)
+        if !store.gmailMailboxConnections.isEmpty {
+          GmailReleaseBoundaryPanel(
+            store: store,
+            title: "Gmail MVP readiness",
+            lead: "Use this when a mailbox is hosted by Gmail or Google Workspace. It checks saved setup, callback values, sign-in state, manual refresh evidence, classifier review, Inbox handoff, and Audit evidence before Gmail becomes a daily intake path.",
+            sourceMetricTitle: "Gmail summaries",
+            sourceCount: store.gmailIntakeHealthSummaries.count,
+            boundaryDetail: "MVP boundary: this panel reads local Gmail readiness only. It does not start Google sign-in, fetch Gmail, store token values, mutate mailbox messages, or create hidden workflow actions.",
+            showTasksLink: false
+          )
+        }
         MVPMailboxProviderReleasePanel(store: store)
         MVPNextDevelopmentPrioritiesPanel(store: store)
         MVPWishlistWorkflowReadinessPanel(store: store)
