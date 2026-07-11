@@ -1650,6 +1650,8 @@ struct GmailMailboxConnectionRow: View {
               draft = connection
               isEditing = true
             }
+          } else if !readiness.isReady {
+            Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
           } else if authState.status != .connected {
             Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
           } else if connection.lastRefreshUncertainCount ?? 0 > 0 || !(connection.uncertainMessages ?? []).isEmpty {
@@ -2341,6 +2343,12 @@ struct GmailMailboxConnectionRow: View {
             Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
             Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
             Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
+              .disabled(!canRunRealGmailRefresh)
+          }
+          if !canRunRealGmailRefresh {
+            Label(gmailRealRefreshDisabledReason, systemImage: "lock.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
           }
         }
         VStack(alignment: .leading, spacing: 6) {
@@ -2442,6 +2450,17 @@ struct GmailMailboxConnectionRow: View {
       || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var canRunRealGmailRefresh: Bool {
+    readiness.isReady && authState.status == .connected
+  }
+
+  private var gmailRealRefreshDisabledReason: String {
+    if hasMissingCoreGmailSetup { return "Real refresh waits for saved Gmail setup fields." }
+    if !readiness.isReady { return "Real refresh waits for callback/readiness to match the compiled app." }
+    if authState.status != .connected { return "Real refresh waits for a successful Google sign-in." }
+    return "Real refresh is available."
   }
 
   private var gmailCompiledConfigurationCard: some View {
@@ -2966,6 +2985,7 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailOperatorNextTitle: String {
     if hasMissingCoreGmailSetup { return "Finish Gmail setup details" }
+    if !readiness.isReady { return "Check Gmail callback readiness before sign-in" }
     if authState.status != .connected { return "Test Google sign-in before real refresh" }
     if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") { return "Gmail auth needs a fresh sign-in" }
     if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") { return "Gmail consent needs review" }
@@ -2980,6 +3000,9 @@ struct GmailMailboxConnectionRow: View {
   private var gmailOperatorNextDetail: String {
     if hasMissingCoreGmailSetup {
       return "Add the mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not enter client secrets or token values."
+    }
+    if !readiness.isReady {
+      return "Saved Gmail setup values and compiled app callback configuration need to match before real Google sign-in or real refresh should be used."
     }
     if authState.status != .connected {
       return "Use the explicit sign-in test. ParcelOps should only keep non-secret session status in JSON; token values remain outside app persistence."
@@ -3010,6 +3033,7 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailOperatorNextSymbol: String {
     if hasMissingCoreGmailSetup { return "gearshape.2.fill" }
+    if !readiness.isReady { return "app.badge.checkmark" }
     if authState.status != .connected ||
       connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
       connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
@@ -3024,6 +3048,7 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailOperatorNextColor: Color {
     if hasMissingCoreGmailSetup ||
+      !readiness.isReady ||
       authState.status != .connected ||
       connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
       connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") ||
