@@ -125,6 +125,7 @@ struct OperationsWorkbenchView: View {
         || wishlistSellerEvidenceGapCount(for: item) > 0
         || wishlistNeedsPurchaseDecision(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
+        || !wishlistHandoffSanityGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
       )
     }
@@ -177,6 +178,9 @@ struct OperationsWorkbenchView: View {
   private var wishlistReleaseOrderWatchItems: [WishlistItem] {
     wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
   }
+  private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistHandoffSanityGaps(for: $0).isEmpty }
+  }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
     store.wishlistItems.filter { item in
       store.isActiveWishlistItem(item) && (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
@@ -216,6 +220,36 @@ struct OperationsWorkbenchView: View {
     if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
     if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
     if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
+  }
+
+  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
     return gaps
   }
 
@@ -1967,6 +2001,7 @@ struct OperationsWorkbenchView: View {
           ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? .green : .orange),
           ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? .green : .red),
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
+          ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? .green : .orange),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
           ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
@@ -2694,6 +2729,35 @@ private struct WishlistWorkbenchFollowUpRow: View {
     return gaps
   }
 
+  private var handoffSanityGaps: [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let linkedOrder = item.purchaseHandoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = item.purchaseHandoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if item.purchaseHandoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if item.purchaseHandoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
+  }
+
   private var failedReadinessChecks: [WishlistPurchaseCheck] {
     (item.purchaseChecks ?? []).filter { $0.status != "Passed" }
   }
@@ -2713,6 +2777,9 @@ private struct WishlistWorkbenchFollowUpRow: View {
     }
     if !handoffGaps.isEmpty {
       return "Complete handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))."
+    }
+    if !handoffSanityGaps.isEmpty {
+      return "Resolve handoff sanity gaps: \(handoffSanityGaps.prefix(3).joined(separator: ", "))."
     }
     if handoff != nil && handoff?.linkedOrderID == nil {
       return "Ready for manual purchase handoff; watch for the order confirmation and link it locally."
@@ -2776,6 +2843,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Handoff pack gaps: \(handoffGaps.prefix(4).joined(separator: ", "))")
             .font(.caption2)
             .foregroundStyle(.purple)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !handoffSanityGaps.isEmpty {
+          Text("Handoff sanity gaps: \(handoffSanityGaps.prefix(4).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.orange)
             .fixedSize(horizontal: false, vertical: true)
         }
         if handoff != nil && handoff?.linkedOrderID == nil && handoffGaps.isEmpty {
