@@ -403,6 +403,7 @@ struct WishlistView: View {
         wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
         wishlistPurchaseAccountLedgerPanel
+        wishlistOrderConfirmationMatchingPanel
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
         wishlistAgentHandoffPacketPanel
@@ -3576,6 +3577,87 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistOrderConfirmationMatchingEntries: [WishlistPostPurchaseOrderWatchEntry] {
+    wishlistPostPurchaseOrderWatchEntries
+      .filter { entry in
+        !entry.matches.isEmpty
+          || entry.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased")
+          || entry.item.status.localizedCaseInsensitiveContains("awaiting order")
+          || entry.item.status.localizedCaseInsensitiveContains("confirmation")
+      }
+      .sorted { first, second in
+        if first.matches.count == second.matches.count {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.matches.count > second.matches.count
+      }
+  }
+
+  private var wishlistOrderConfirmationMatchingPanel: some View {
+    let entries = wishlistOrderConfirmationMatchingEntries
+    let withMatches = entries.filter { !$0.matches.isEmpty }.count
+    let awaiting = entries.filter { $0.matches.isEmpty }.count
+    let totalMatches = entries.reduce(0) { $0 + $1.matches.count }
+    let purchased = entries.filter { $0.handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased") }.count
+
+    return SettingsPanel(title: "Wishlist order confirmation matching", symbol: "link.badge.plus") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Review imported Inbox confirmations against Wishlist purchases. Use a matching intake row to create or link the local order, or mark confirmation seen when the purchase was checked outside ParcelOps.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Purchases", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("With matches", "\(withMatches)", withMatches == 0 ? .secondary : .green),
+          ("Match rows", "\(totalMatches)", totalMatches == 0 ? .secondary : .teal),
+          ("Awaiting", "\(awaiting)", awaiting == 0 ? .green : .orange),
+          ("Purchased", "\(purchased)", purchased == 0 ? .secondary : .purple)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist confirmations need matching",
+            detail: "After an external Wishlist purchase is recorded, matching Inbox confirmations will appear here for local order linking.",
+            symbol: "link.badge.plus"
+          )
+        } else {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(6)) { entry in
+              WishlistOrderConfirmationMatchReviewRow(entry: entry) { email in
+                store.confirmWishlistOrderFromIntake(entry.item, email: email)
+              } onMarkSeen: {
+                if let email = entry.matches.first {
+                  store.confirmWishlistOrderFromIntake(entry.item, email: email)
+                } else {
+                  store.markWishlistOrderConfirmationSeen(entry.item)
+                }
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 6, 0)
+          if remaining > 0 {
+            Text("\(remaining) more confirmation matching item\(remaining == 1 ? "" : "s") are available in the post-purchase watch below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Matching is local-only. It does not fetch mail, mark messages read, contact sellers, log in, mutate orders externally, or monitor in the background.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistPostPurchaseOrderWatchEntries: [WishlistPostPurchaseOrderWatchEntry] {
     store.wishlistItems
       .compactMap { item -> WishlistPostPurchaseOrderWatchEntry? in
@@ -4817,6 +4899,66 @@ private struct WishlistPostPurchaseOrderWatchEntry: Identifiable {
   var detail: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistOrderConfirmationMatchReviewRow: View {
+  var entry: WishlistPostPurchaseOrderWatchEntry
+  var onUseConfirmation: (ForwardedEmailIntake) -> Void
+  var onMarkSeen: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var matchSummary: String {
+    if entry.matches.isEmpty {
+      return "No imported Inbox match yet"
+    }
+    let first = entry.matches[0]
+    let order = first.detectedOrderNumber.isPlaceholderValidationValue ? "order pending" : "order \(first.detectedOrderNumber)"
+    let tracking = first.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking pending" : "tracking \(first.detectedTrackingNumber)"
+    return "\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es") • \(order) • \(tracking)"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.matches.isEmpty ? "envelope.badge.clock" : "link.badge.plus")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(entry.handoff.sellerName) • \(entry.handoff.accountLabel)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(matchSummary)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      WishlistOrderWatchMatchRow(
+        item: entry.item,
+        matches: Array(entry.matches.prefix(3)),
+        onUseConfirmation: onUseConfirmation,
+        onMarkSeen: onMarkSeen
+      )
+
+      CompactActionRow {
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPurchaseOperationsHandoffEntry: Identifiable {
