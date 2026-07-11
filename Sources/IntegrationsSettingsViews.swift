@@ -5407,12 +5407,40 @@ struct SettingsReleaseCandidateCard: View {
     !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
   }
 
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      store.gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
+  private var hasManualCredentialOrAuth: Bool {
+    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+  }
+
   private var latestManualFetchedCount: Int {
     max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
   }
 
   private var latestManualImportedCount: Int {
     (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+  }
+
+  private var latestManualFilteredCount: Int {
+    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+  }
+
+  private var latestManualUncertainCount: Int {
+    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestSpaceMailSummary?.uncertainCount ?? 0)
+      + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestGmailSummary?.uncertainCount ?? 0)
   }
 
   private var inboxCreatedOrdersCount: Int {
@@ -5454,6 +5482,9 @@ struct SettingsReleaseCandidateCard: View {
     if !hasMailboxSetup {
       return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before judging the daily operator flow."
     }
+    if !hasManualCredentialOrAuth {
+      return "Finish the active provider credential or sign-in before relying on real manual mailbox refresh."
+    }
     if manualRefreshCount == 0 {
       return "Run one explicit manual mailbox refresh from Mailbox Monitor. Active providers feed the same local Inbox intake path."
     }
@@ -5464,6 +5495,47 @@ struct SettingsReleaseCandidateCard: View {
       return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
     }
     return "Core local workflow has refresh evidence, Inbox-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
+  }
+
+  private var readinessChecklistRows: [(title: String, detail: String, isReady: Bool, symbol: String)] {
+    [
+      (
+        "Active mailbox path",
+        hasMailboxSetup ? "SpaceMail or Gmail setup exists for manual intake." : "Add SpaceMail for IMAP or Gmail for Google-hosted mailboxes.",
+        hasMailboxSetup,
+        "tray.full.fill"
+      ),
+      (
+        "Credential or sign-in",
+        hasManualCredentialOrAuth ? "A provider can be used for explicit manual refresh." : "Add the SpaceMail Keychain credential or complete Gmail sign-in.",
+        hasManualCredentialOrAuth,
+        "key.fill"
+      ),
+      (
+        "Refresh evidence",
+        manualRefreshCount > 0 ? "\(manualRefreshCount) manual refresh run\(manualRefreshCount == 1 ? "" : "s") recorded." : "Run one manual read-only refresh from Mailbox Monitor.",
+        manualRefreshCount > 0,
+        "arrow.triangle.2.circlepath"
+      ),
+      (
+        "Mailbox classifier result",
+        latestManualFetchedCount > 0 ? "\(latestManualFetchedCount) fetched, \(latestManualImportedCount) imported, \(latestManualFilteredCount) filtered, \(latestManualUncertainCount) uncertain." : "No real refresh result is available yet.",
+        latestManualFetchedCount > 0,
+        "line.3.horizontal.decrease.circle.fill"
+      ),
+      (
+        "Inbox-to-order handoff",
+        inboxCreatedOrdersCount > 0 ? "\(inboxCreatedOrdersCount) order\(inboxCreatedOrdersCount == 1 ? "" : "s") linked to forwarded mailbox intake." : "Create or link one order from a confirmed Inbox row.",
+        inboxCreatedOrdersCount > 0,
+        "shippingbox.fill"
+      ),
+      (
+        "Operator backlog visible",
+        unresolvedOperatorCount > 0 ? "\(unresolvedOperatorCount) review, task, dispatch, or workbench item\(unresolvedOperatorCount == 1 ? "" : "s") are visible for triage." : "No immediate operator backlog is blocking the checklist.",
+        true,
+        "checklist"
+      )
+    ]
   }
 
   var body: some View {
@@ -5491,6 +5563,33 @@ struct SettingsReleaseCandidateCard: View {
         ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
         ("Open work", "\(unresolvedOperatorCount)", unresolvedOperatorCount == 0 ? .green : .teal)
       ])
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Operator readiness checklist", systemImage: "checklist.checked")
+          .font(.caption.weight(.semibold))
+
+        CompactMetadataGrid(minimumWidth: 220) {
+          ForEach(readinessChecklistRows, id: \.title) { row in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: row.isReady ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(row.isReady ? .green : .orange)
+                .frame(width: 18)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                  .font(.caption.weight(.semibold))
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+          }
+        }
+      }
 
       Text("Local boundary: manual read-only mailbox intake, local JSON records, provider credentials kept out of JSON, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
         .font(.caption2)
