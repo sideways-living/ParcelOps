@@ -5970,7 +5970,12 @@ struct WishlistView: View {
   }
 
   private var wishlistCaptureCandidatesPanel: some View {
-    SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
+    let candidates = store.wishlistCaptureCandidates
+    let readyCount = candidates.filter { $0.operatorCaptureGaps.isEmpty }.count
+    let gapCount = candidates.count - readyCount
+    let shareOrExtensionCount = candidates.filter { $0.source == .browserExtension || $0.source == .shareSheet }.count
+
+    return SettingsPanel(title: "Capture candidate staging", symbol: "puzzlepiece.extension.fill") {
       VStack(alignment: .leading, spacing: 12) {
         Text("Review local product-page capture candidates before they become Wishlist items. This is the boundary a future browser extension or share flow can write into; this screen does not install an extension, scrape pages, or sync with a browser.")
           .font(.callout)
@@ -5978,9 +5983,11 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         CompactMetadataGrid(minimumWidth: 140) {
-          Badge("\(store.wishlistCaptureCandidates.count) staged", color: store.wishlistCaptureCandidates.isEmpty ? .secondary : .blue)
-          Badge("\(store.wishlistCaptureCandidates.filter { $0.reviewState == .needsReview }.count) needs review", color: store.wishlistCaptureCandidates.contains { $0.reviewState == .needsReview } ? .orange : .green)
-          Badge("\(store.wishlistCaptureCandidates.filter { $0.source == .browserExtension }.count) extension path", color: .teal)
+          Badge("\(candidates.count) staged", color: candidates.isEmpty ? .secondary : .blue)
+          Badge("\(readyCount) ready", color: readyCount == 0 ? .secondary : .green)
+          Badge("\(gapCount) with gaps", color: gapCount == 0 ? .green : .orange)
+          Badge("\(candidates.filter { $0.reviewState == .needsReview }.count) needs review", color: candidates.contains { $0.reviewState == .needsReview } ? .orange : .green)
+          Badge("\(shareOrExtensionCount) share/extension", color: shareOrExtensionCount == 0 ? .secondary : .teal)
         }
 
         CompactActionRow {
@@ -5990,7 +5997,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        if store.wishlistCaptureCandidates.isEmpty {
+        if candidates.isEmpty {
           MVPEmptyState(
             title: "No staged capture candidates",
             detail: "Use the browser capture placeholder to test the future extension handoff without reading any browser page or contacting external services.",
@@ -6000,15 +6007,29 @@ struct WishlistView: View {
           )
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 320), spacing: 10)], spacing: 10) {
-            ForEach(store.wishlistCaptureCandidates) { capture in
+            ForEach(candidates) { capture in
               WishlistCaptureCandidateRow(capture: capture) {
                 store.promoteWishlistCaptureToItem(capture)
               } onDismiss: {
                 store.dismissWishlistCapture(capture)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: capture.id.uuidString,
+                  label: capture.pageTitle,
+                  summary: "Review Wishlist capture candidate before promotion. Gaps: \(capture.operatorCaptureGaps.isEmpty ? "none" : capture.operatorCaptureGaps.joined(separator: ", ")). Source: \(capture.source.rawValue).",
+                  priority: capture.operatorCaptureGaps.isEmpty ? .normal : .high,
+                  assignee: "Wishlist capture"
+                )
               }
             }
           }
         }
+
+        Text("Promoting a capture creates a local Wishlist item only. It does not verify the seller, fetch the product page, scrape the browser, check live price, or start a purchase.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -7480,12 +7501,21 @@ private struct WishlistCaptureCandidateRow: View {
   var capture: WishlistCaptureCandidate
   var onPromote: () -> Void
   var onDismiss: () -> Void
+  var onTask: () -> Void
+
+  private var gaps: [String] {
+    capture.operatorCaptureGaps
+  }
+
+  private var readyForPromotion: Bool {
+    gaps.isEmpty
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: capture.source.symbol)
-          .foregroundStyle(.teal)
+          .foregroundStyle(readyForPromotion ? .green : .orange)
           .frame(width: 24)
         VStack(alignment: .leading, spacing: 4) {
           Text(capture.pageTitle.isPlaceholderValidationValue ? "Captured product page" : capture.pageTitle)
@@ -7497,7 +7527,10 @@ private struct WishlistCaptureCandidateRow: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         Spacer(minLength: 8)
-        Badge(capture.reviewState.rawValue, color: capture.reviewState == .needsReview ? .orange : .blue)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(readyForPromotion ? "Ready to promote" : "\(gaps.count) capture gap\(gaps.count == 1 ? "" : "s")", color: readyForPromotion ? .green : .orange)
+          Badge(capture.reviewState.rawValue, color: capture.reviewState == .needsReview ? .orange : .blue)
+        }
       }
 
       CompactMetadataGrid(minimumWidth: 120) {
@@ -7505,9 +7538,17 @@ private struct WishlistCaptureCandidateRow: View {
         Label(capture.detectedStorefront, systemImage: "storefront.fill")
         Label(capture.detectedPrice, systemImage: "dollarsign.circle.fill")
         Label(capture.capturedDate, systemImage: "clock.fill")
+        Label(capture.captureStatus, systemImage: "tray.full.fill")
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      if !gaps.isEmpty {
+        Text("Review before promotion: \(gaps.prefix(4).joined(separator: ", ")).")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
 
       if !capture.pageURL.isPlaceholderValidationValue {
         Text(capture.pageURL)
@@ -7523,8 +7564,10 @@ private struct WishlistCaptureCandidateRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
-        Button("Promote to Wishlist", systemImage: "star.square.fill", action: onPromote)
+        Button(readyForPromotion ? "Promote to Wishlist" : "Promote anyway", systemImage: "star.square.fill", action: onPromote)
           .buttonStyle(.borderedProminent)
+        Button("Task", systemImage: "checklist", action: onTask)
+          .buttonStyle(.bordered)
         Button("Dismiss", systemImage: "xmark.circle", action: onDismiss)
           .buttonStyle(.bordered)
       }
@@ -7532,6 +7575,42 @@ private struct WishlistCaptureCandidateRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private extension WishlistCaptureCandidate {
+  var operatorCaptureGaps: [String] {
+    var gaps: [String] = []
+    let title = pageTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    let url = pageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    let storefront = detectedStorefront.trimmingCharacters(in: .whitespacesAndNewlines)
+    let price = detectedPrice.trimmingCharacters(in: .whitespacesAndNewlines)
+    let summary = productSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if title.isPlaceholderValidationValue || title.localizedCaseInsensitiveContains("captured product page") {
+      gaps.append("item title")
+    }
+    if url.isPlaceholderValidationValue || !url.localizedCaseInsensitiveContains("http") || url.localizedCaseInsensitiveContains("example.com") {
+      gaps.append("product URL")
+    }
+    if storefront.isPlaceholderValidationValue
+      || storefront.localizedCaseInsensitiveContains("needs review")
+      || storefront.localizedCaseInsensitiveContains("pending") {
+      gaps.append("seller")
+    }
+    if price.isPlaceholderValidationValue
+      || price.localizedCaseInsensitiveContains("needs review")
+      || price.localizedCaseInsensitiveContains("pending") {
+      gaps.append("price")
+    }
+    if summary.isPlaceholderValidationValue || summary.count < 24 {
+      gaps.append("summary")
+    }
+    if reviewState == .needsReview {
+      gaps.append("review state")
+    }
+
+    return gaps
   }
 }
 
