@@ -589,6 +589,7 @@ struct WishlistView: View {
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
+        wishlistPurchaseHandoffSanityPanel
         wishlistPurchaseAccountReadinessPanel
         wishlistPurchaseAccountLedgerPanel
         wishlistPurchaseWatchCommandCentrePanel
@@ -5560,6 +5561,133 @@ struct WishlistView: View {
       store.markWishlistOrderConfirmationSeen(item)
     } else {
       store.createWishlistPurchaseHandoffReviewTask(item)
+    }
+  }
+
+  private var wishlistPurchaseHandoffSanityEntries: [WishlistPurchaseHandoffSanityEntry] {
+    wishlistPurchaseHandoffPackItems.map { item in
+      let handoff = item.purchaseHandoff
+      let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+        store.orders.first { $0.id == orderID }
+      }
+      let accountCount = store.suggestedAccounts(for: item).count
+      let costCount = store.suggestedCostRecords(for: item).count
+      let procurementCount = store.suggestedProcurementRequests(for: item).count
+      let receivingCount = store.suggestedReceivingInspections(for: item).count
+      var checks: [WishlistPurchaseHandoffSanityCheck] = []
+
+      func addCheck(_ title: String, detail: String, ready: Bool, symbol: String) {
+        checks.append(WishlistPurchaseHandoffSanityCheck(title: title, detail: detail, ready: ready, symbol: symbol))
+      }
+
+      let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+      addCheck("Seller route", detail: seller.isPlaceholderValidationValue ? "Seller still needs confirmation" : seller, ready: !seller.isPlaceholderValidationValue, symbol: "storefront.fill")
+      addCheck("Account label", detail: handoff?.accountLabel ?? "No handoff account label", ready: handoff?.accountLabel.isPlaceholderValidationValue == false || accountCount > 0, symbol: "person.crop.circle.badge.key.fill")
+      addCheck("Order watch", detail: handoff?.expectedOrderSignals ?? "No expected confirmation signal", ready: handoff?.expectedOrderSignals.isPlaceholderValidationValue == false, symbol: "envelope.badge.fill")
+      addCheck("Local cost", detail: costCount == 0 ? "No local cost placeholder" : "\(costCount) local cost record\(costCount == 1 ? "" : "s")", ready: costCount > 0, symbol: "dollarsign.circle.fill")
+      addCheck("Procurement", detail: procurementCount == 0 ? "No procurement placeholder" : "\(procurementCount) procurement record\(procurementCount == 1 ? "" : "s")", ready: procurementCount > 0, symbol: "cart.badge.plus")
+      addCheck("Receiving", detail: receivingCount == 0 ? "No receiving placeholder" : "\(receivingCount) receiving record\(receivingCount == 1 ? "" : "s")", ready: receivingCount > 0, symbol: "shippingbox.and.arrow.down.fill")
+      addCheck("Order link", detail: linkedOrder?.orderNumber ?? "Not linked yet", ready: linkedOrder != nil || handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") != true, symbol: "link")
+
+      let missingCount = checks.filter { !$0.ready }.count
+      let tone: Color = missingCount == 0 ? .green : (missingCount >= 4 ? .orange : .purple)
+      let nextAction: String
+      let nextSymbol: String
+      if handoff == nil {
+        nextAction = "Prepare handoff"
+        nextSymbol = "person.crop.circle.badge.checkmark"
+      } else if costCount == 0 {
+        nextAction = "Add cost"
+        nextSymbol = "dollarsign.circle.fill"
+      } else if procurementCount == 0 {
+        nextAction = "Procurement"
+        nextSymbol = "cart.badge.plus"
+      } else if receivingCount == 0 {
+        nextAction = "Receiving"
+        nextSymbol = "shippingbox.and.arrow.down.fill"
+      } else if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+        nextAction = "Order seen"
+        nextSymbol = "envelope.badge.fill"
+      } else {
+        nextAction = "Review task"
+        nextSymbol = "checklist"
+      }
+
+      return WishlistPurchaseHandoffSanityEntry(
+        item: item,
+        handoff: handoff,
+        linkedOrder: linkedOrder,
+        checks: checks,
+        tone: tone,
+        nextAction: nextAction,
+        nextSymbol: nextSymbol,
+        missingCount: missingCount
+      )
+    }
+    .sorted { first, second in
+      if first.missingCount == second.missingCount {
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.missingCount > second.missingCount
+    }
+  }
+
+  private var wishlistPurchaseHandoffSanityPanel: some View {
+    let entries = wishlistPurchaseHandoffSanityEntries
+    let readyCount = entries.filter { $0.missingCount == 0 }.count
+    let blockedCount = entries.filter { $0.missingCount >= 4 }.count
+    let needsOrderLink = entries.filter { entry in
+      entry.handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true && entry.linkedOrder == nil
+    }.count
+
+    return SettingsPanel(title: "Purchase handoff sanity check", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this compact check before and after buying outside ParcelOps. It confirms the local handoff has seller, account, order-watch, cost, procurement, receiving, and order-link context for downstream operations.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Checked", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready", "\(readyCount)", readyCount == 0 ? .secondary : .green),
+          ("Blocked", "\(blockedCount)", blockedCount == 0 ? .green : .orange),
+          ("Need order link", "\(needsOrderLink)", needsOrderLink == 0 ? .green : .teal)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No purchase handoffs to sanity-check",
+            detail: "Accepted purchase decisions and prepared handoffs will appear here before external buying or order-confirmation linking.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseHandoffSanityRow(entry: entry) {
+                runWishlistHandoffPackAction(for: entry.item)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase handoff sanity check\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This is a local readiness check. It does not buy, pay, log in, monitor mail in the background, contact retailers, mutate mailbox messages, or create external tasks.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
@@ -13984,6 +14112,99 @@ private struct WishlistPurchaseHandoffPackRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(stageColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseHandoffSanityEntry: Identifiable {
+  var id: String {
+    "\(item.id.uuidString)-handoff-sanity"
+  }
+
+  var item: WishlistItem
+  var handoff: WishlistPurchaseHandoff?
+  var linkedOrder: TrackedOrder?
+  var checks: [WishlistPurchaseHandoffSanityCheck]
+  var tone: Color
+  var nextAction: String
+  var nextSymbol: String
+  var missingCount: Int
+}
+
+private struct WishlistPurchaseHandoffSanityCheck: Identifiable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var ready: Bool
+  var symbol: String
+}
+
+private struct WishlistPurchaseHandoffSanityRow: View {
+  var entry: WishlistPurchaseHandoffSanityEntry
+  var onNext: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var visibleChecks: [WishlistPurchaseHandoffSanityCheck] {
+    let failed = entry.checks.filter { !$0.ready }
+    return failed.isEmpty ? Array(entry.checks.prefix(4)) : Array(failed.prefix(5))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.missingCount == 0 ? "checkmark.seal.fill" : "checklist")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(entry.item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.handoff?.sellerName ?? entry.item.purchaseDecision?.selectedSellerName ?? entry.item.storefront)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Text(entry.missingCount == 0 ? "Local handoff context looks complete enough for manual verification." : "\(entry.missingCount) local handoff detail\(entry.missingCount == 1 ? "" : "s") still need attention.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.missingCount == 0 ? "Ready" : "\(entry.missingCount) gaps", color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        ForEach(visibleChecks) { check in
+          WishlistMatrixMetric(
+            title: check.title,
+            value: check.ready ? "Ready" : check.detail,
+            symbol: check.ready ? "checkmark.circle.fill" : check.symbol
+          )
+        }
+      }
+
+      if let linkedOrder = entry.linkedOrder {
+        Label("Linked to \(linkedOrder.orderNumber). Continue tracking in Orders and downstream operations.", systemImage: "link.circle.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
+      } else if entry.handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+        Label("External purchase is recorded locally, but no order confirmation is linked yet.", systemImage: "envelope.badge.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.teal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onNext)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "line.3.horizontal.decrease.circle", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
