@@ -204,6 +204,18 @@ private struct WishlistOperatorQueueEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistCaptureSourceReadiness: Identifiable {
+  var id: WishlistSource { source }
+  var source: WishlistSource
+  var status: String
+  var detail: String
+  var operatorAction: String
+  var activeItems: Int
+  var stagedCandidates: Int
+  var gaps: Int
+  var tone: Color
+}
+
 private struct WishlistOperatorQueueRow: View {
   var entry: WishlistOperatorQueueEntry
   var onAction: () -> Void
@@ -470,6 +482,7 @@ struct WishlistView: View {
         wishlistPipelineBoardPanel
         wishlistPurchaseBlockerQueuePanel
         wishlistCaptureContractPanel
+        wishlistCaptureSourceReadinessPanel
         wishlistCaptureCandidatesPanel
         wishlistComparisonPlanningPanel
         wishlistSellerOptionReviewPanel
@@ -7632,6 +7645,153 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         Text("Future extension output should write only staged capture candidates. ParcelOps should not buy, log in, scrape retailer pages, convert currency, quote postage, validate seller trust, or monitor orders from the capture step.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistCaptureSourceReadinessRows: [WishlistCaptureSourceReadiness] {
+    let sources: [WishlistSource] = [.manual, .browserExtension, .shareSheet, .screenshot, .pdf]
+    return sources.map { source in
+      let activeItems = store.wishlistItems.filter { $0.source == source }.count
+      let candidates = store.wishlistCaptureCandidates.filter { $0.source == source }
+      let gaps = candidates.filter { !$0.operatorCaptureGaps.isEmpty }.count
+
+      switch source {
+      case .manual:
+        return WishlistCaptureSourceReadiness(
+          source: source,
+          status: "Usable now",
+          detail: "Manual entry is the current dependable path for adding wanted items. It should capture item name, seller/source, URL, estimated cost, owner, and why the item is needed.",
+          operatorAction: activeItems == 0 ? "Add first manual item" : "Review manual item quality",
+          activeItems: activeItems,
+          stagedCandidates: candidates.count,
+          gaps: gaps,
+          tone: activeItems == 0 ? .orange : .green
+        )
+      case .browserExtension:
+        return WishlistCaptureSourceReadiness(
+          source: source,
+          status: "Staging only",
+          detail: "Browser extension capture is represented by local staged candidates. No extension is installed, no browser page is read, and no product data is synced automatically.",
+          operatorAction: candidates.isEmpty ? "Stage placeholder capture" : "Review staged candidates",
+          activeItems: activeItems,
+          stagedCandidates: candidates.count,
+          gaps: gaps,
+          tone: gaps > 0 ? .orange : (candidates.isEmpty ? .secondary : .teal)
+        )
+      case .shareSheet:
+        return WishlistCaptureSourceReadiness(
+          source: source,
+          status: "Future path",
+          detail: "Share-sheet capture is a planned handoff for product pages or retailer links. It should stage a candidate first, not create a trusted purchase record directly.",
+          operatorAction: "Define share payload before implementation",
+          activeItems: activeItems,
+          stagedCandidates: candidates.count,
+          gaps: gaps,
+          tone: candidates.isEmpty ? .secondary : .blue
+        )
+      case .screenshot:
+        return WishlistCaptureSourceReadiness(
+          source: source,
+          status: "Placeholder",
+          detail: "Screenshot capture currently creates local test items only. OCR, file pickers, image import, and product extraction are not connected.",
+          operatorAction: "Use only for workflow testing",
+          activeItems: activeItems,
+          stagedCandidates: candidates.count,
+          gaps: gaps,
+          tone: activeItems == 0 ? .secondary : .purple
+        )
+      case .pdf:
+        return WishlistCaptureSourceReadiness(
+          source: source,
+          status: "Placeholder",
+          detail: "PDF capture currently creates local test items only. PDF picking, parsing, OCR, and supplier document extraction are not connected.",
+          operatorAction: "Use only for workflow testing",
+          activeItems: activeItems,
+          stagedCandidates: candidates.count,
+          gaps: gaps,
+          tone: activeItems == 0 ? .secondary : .brown
+        )
+      }
+    }
+  }
+
+  private var wishlistCaptureSourceReadinessPanel: some View {
+    let rows = wishlistCaptureSourceReadinessRows
+    let usable = rows.filter { $0.status == "Usable now" }.count
+    let staged = rows.reduce(0) { $0 + $1.stagedCandidates }
+    let gaps = rows.reduce(0) { $0 + $1.gaps }
+    let placeholders = rows.filter { $0.status == "Placeholder" || $0.status == "Future path" }.count
+
+    return SettingsPanel(title: "Capture source readiness", symbol: "square.and.arrow.down.badge.clock") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("A practical map of which Wishlist capture paths are usable today and which are still staged or planned. Use this before relying on browser, share, screenshot, or PDF intake for real purchase decisions.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Usable now", "\(usable)", usable == 0 ? .orange : .green),
+          ("Staged candidates", "\(staged)", staged == 0 ? .secondary : .teal),
+          ("Capture gaps", "\(gaps)", gaps == 0 ? .green : .orange),
+          ("Planned paths", "\(placeholders)", placeholders == 0 ? .green : .purple)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 330), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(rows) { row in
+            VStack(alignment: .leading, spacing: 10) {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: row.source.symbol)
+                  .foregroundStyle(row.tone)
+                  .frame(width: 24)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(row.source.rawValue)
+                    .font(.caption.weight(.semibold))
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(row.status, color: row.tone)
+              }
+
+              CompactMetadataGrid(minimumWidth: 115) {
+                Badge("\(row.activeItems) items", color: row.activeItems == 0 ? .secondary : .blue)
+                Badge("\(row.stagedCandidates) staged", color: row.stagedCandidates == 0 ? .secondary : .teal)
+                Badge("\(row.gaps) gaps", color: row.gaps == 0 ? .green : .orange)
+                Badge(row.operatorAction, color: row.tone)
+              }
+
+              CompactActionRow {
+                if row.source == .manual {
+                  Button("Manual item", systemImage: "plus", action: store.addManualWishlistItemPlaceholder)
+                } else if row.source == .browserExtension {
+                  Button("Stage capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
+                }
+                Button("Task", systemImage: "checklist") {
+                  store.createReviewTask(
+                    linkedEntityType: .wishlistItem,
+                    linkedEntityID: "wishlist-capture-\(row.source.rawValue)",
+                    label: "Wishlist \(row.source.rawValue) capture readiness",
+                    summary: "Review Wishlist \(row.source.rawValue) capture readiness. Status: \(row.status). Action: \(row.operatorAction). Confirm the source captures item, URL, seller, price, postage clues, and trust evidence before it feeds comparison or purchase decisions.",
+                    priority: row.gaps > 0 ? .high : .normal,
+                    assignee: "Wishlist capture"
+                  )
+                }
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+            .padding(10)
+            .background(row.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Only manual entry and local placeholder staging are active. ParcelOps does not install browser extensions, receive share-sheet payloads, read screenshots/PDFs, scrape retailer pages, or validate live product data from this panel.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
