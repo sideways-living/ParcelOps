@@ -406,6 +406,7 @@ struct WishlistView: View {
         wishlistOrderConfirmationMatchingPanel
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
+        wishlistLinkedOrderOperationsChecklistPanel
         wishlistAgentHandoffPacketPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
@@ -3975,6 +3976,198 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistLinkedOrderOperationsChecklistEntries: [WishlistLinkedOrderOperationsChecklistEntry] {
+    wishlistPurchaseOperationsHandoffItems
+      .filter { $0.linkedOrder != nil || !$0.gaps.contains("order") }
+      .map(wishlistLinkedOrderOperationsChecklistEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistLinkedOrderOperationsChecklistPanel: some View {
+    let entries = wishlistLinkedOrderOperationsChecklistEntries
+    let receiving = entries.filter { $0.stage == "Receiving setup" }.count
+    let inventory = entries.filter { $0.stage == "Inventory and storage" }.count
+    let custody = entries.filter { $0.stage == "Custody and verification" }.count
+    let dispatch = entries.filter { $0.stage == "Dispatch setup" }.count
+    let complete = entries.filter { $0.stage == "Operations trail staged" }.count
+
+    return SettingsPanel(title: "Linked order operations checklist", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Once a Wishlist purchase has a local order trail, this checklist shows the next local operations record to stage: receiving, inventory, storage, custody, labels, manual verification, manifest, and dispatch readiness.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Receiving", "\(receiving)", receiving == 0 ? .green : .teal),
+          ("Inventory", "\(inventory)", inventory == 0 ? .green : .purple),
+          ("Custody", "\(custody)", custody == 0 ? .green : .orange),
+          ("Dispatch", "\(dispatch)", dispatch == 0 ? .green : .brown),
+          ("Complete", "\(complete)", complete == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No linked Wishlist orders need operations setup",
+            detail: "Link or mark a Wishlist order confirmation first. Then receiving, storage, custody, label, manual check, and dispatch setup appears here.",
+            symbol: "checklist.checked"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 410), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistLinkedOrderOperationsChecklistRow(entry: entry) {
+                runWishlistLinkedOrderOperationsChecklistAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more linked-order operations item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Checklist actions create local records only. They do not receive stock, scan hardware, print labels, book carriers, contact sellers, update external systems, or mutate mailboxes.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistLinkedOrderOperationsChecklistEntry(for entry: WishlistPurchaseOperationsHandoffEntry) -> WishlistLinkedOrderOperationsChecklistEntry {
+    let receivingDone = entry.inspectionCount > 0
+    let inventoryDone = entry.receiptCount > 0
+    let storageDone = entry.storageCount > 0
+    let custodyDone = entry.custodyCount > 0
+    let labelDone = entry.labelCount > 0
+    let manualCheckDone = entry.scanCount > 0
+    let manifestDone = entry.manifestCount > 0
+    let dispatchDone = entry.dispatchCount > 0
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if !receivingDone {
+      stage = "Receiving setup"
+      detail = "Stage a local receiving inspection before stock, storage, custody, or dispatch work."
+      nextAction = "Receiving"
+      nextSymbol = "checkmark.seal.fill"
+      tone = .teal
+      sortPriority = 10
+    } else if !inventoryDone || !storageDone {
+      stage = "Inventory and storage"
+      detail = !inventoryDone ? "Create the inventory receipt next." : "Create the storage location/bin reference next."
+      nextAction = !inventoryDone ? "Inventory" : "Storage"
+      nextSymbol = !inventoryDone ? "shippingbox.and.arrow.backward.fill" : "archivebox.fill"
+      tone = .purple
+      sortPriority = 20
+    } else if !custodyDone || !labelDone || !manualCheckDone {
+      stage = "Custody and verification"
+      if !custodyDone {
+        detail = "Create the local custody chain record."
+        nextAction = "Custody"
+        nextSymbol = "person.2.badge.gearshape.fill"
+      } else if !labelDone {
+        detail = "Create the local label/reference placeholder."
+        nextAction = "Label"
+        nextSymbol = "tag.square.fill"
+      } else {
+        detail = "Create the local manual verification/scan-session placeholder."
+        nextAction = "Manual check"
+        nextSymbol = "checklist.checked"
+      }
+      tone = .orange
+      sortPriority = 30
+    } else if !manifestDone || !dispatchDone {
+      stage = "Dispatch setup"
+      detail = !manifestDone ? "Create the shipment manifest next." : "Create the dispatch readiness checklist next."
+      nextAction = !manifestDone ? "Manifest" : "Dispatch"
+      nextSymbol = !manifestDone ? "paperplane.fill" : "checkmark.rectangle.stack.fill"
+      tone = .brown
+      sortPriority = 40
+    } else {
+      stage = "Operations trail staged"
+      detail = "Core local receiving, stock, custody, label, manual check, manifest, and dispatch records are staged."
+      nextAction = "Focus item"
+      nextSymbol = "scope"
+      tone = .green
+      sortPriority = 50
+    }
+
+    let phaseChecks: [(String, Bool)] = [
+      ("Receiving", receivingDone),
+      ("Inventory", inventoryDone),
+      ("Storage", storageDone),
+      ("Custody", custodyDone),
+      ("Label", labelDone),
+      ("Manual check", manualCheckDone),
+      ("Manifest", manifestDone),
+      ("Dispatch", dispatchDone)
+    ]
+
+    return WishlistLinkedOrderOperationsChecklistEntry(
+      item: entry.item,
+      linkedOrder: entry.linkedOrder,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      phaseChecks: phaseChecks,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistLinkedOrderOperationsChecklistAction(for entry: WishlistLinkedOrderOperationsChecklistEntry) {
+    switch entry.stage {
+    case "Receiving setup":
+      store.createWishlistReceivingInspection(entry.item)
+    case "Inventory and storage":
+      if entry.phaseChecks.first(where: { $0.0 == "Inventory" })?.1 == false {
+        store.createWishlistInventoryReceipt(entry.item)
+      } else {
+        store.createWishlistStorageLocation(entry.item)
+      }
+    case "Custody and verification":
+      if entry.phaseChecks.first(where: { $0.0 == "Custody" })?.1 == false {
+        store.createWishlistCustodyRecord(entry.item)
+      } else if entry.phaseChecks.first(where: { $0.0 == "Label" })?.1 == false {
+        store.createWishlistLabelReference(entry.item)
+      } else {
+        store.createWishlistScanSession(entry.item)
+      }
+    case "Dispatch setup":
+      if entry.phaseChecks.first(where: { $0.0 == "Manifest" })?.1 == false {
+        store.createWishlistShipmentManifest(entry.item)
+      } else {
+        store.createWishlistDispatchReadinessChecklist(entry.item)
+      }
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistAgentHandoffPacketPanel: some View {
     let requests = store.wishlistResearchRequests
     let ready = requests.filter(\.isAgentBriefReady)
@@ -4982,6 +5175,19 @@ private struct WishlistPurchaseOperationsHandoffEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistLinkedOrderOperationsChecklistEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var linkedOrder: TrackedOrder?
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var phaseChecks: [(String, Bool)]
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistPurchaseOperationsHandoffRow: View {
   var entry: WishlistPurchaseOperationsHandoffEntry
   var onAction: () -> Void
@@ -5049,6 +5255,74 @@ private struct WishlistPurchaseOperationsHandoffRow: View {
       .controlSize(.small)
     }
     .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistLinkedOrderOperationsChecklistRow: View {
+  var entry: WishlistLinkedOrderOperationsChecklistEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var orderSummary: String {
+    entry.linkedOrder.map { "\($0.orderNumber) • \($0.latestStatus)" } ?? "Order link pending"
+  }
+
+  private var completedCount: Int {
+    entry.phaseChecks.filter(\.1).count
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(orderSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge("\(completedCount)/\(entry.phaseChecks.count)", color: completedCount == entry.phaseChecks.count ? .green : entry.tone)
+        }
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(entry.phaseChecks, id: \.0) { check in
+          Label(check.0, systemImage: check.1 ? "checkmark.circle.fill" : "circle")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(check.1 ? Color.green : Color.secondary)
+            .lineLimit(1)
+        }
+      }
+
+      Text("Local setup checklist only. These records help operators track downstream work after the order exists; they do not interact with stock systems, scanners, carriers, sellers, or mailboxes.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
