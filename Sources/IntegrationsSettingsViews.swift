@@ -1503,6 +1503,12 @@ struct GmailMailboxConnectionRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
           CompactMetadataGrid(minimumWidth: 130) {
+            Badge(readiness.isReady ? "Setup ready" : "Setup blocked", color: readiness.isReady ? .green : .orange)
+            Badge(authState.status == .connected ? "Google signed in" : "Sign-in needed", color: authState.status == .connected ? .green : .orange)
+            Badge(connection.lastManualRefreshDate == "Never" ? "No refresh" : "Refresh recorded", color: connection.lastManualRefreshDate == "Never" ? .secondary : .blue)
+            Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+            Badge("\((connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count) uncertain", color: ((connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count) > 0 ? .orange : .secondary)
+            Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
             Badge("\((connection.trustedSenderHints ?? []).count) trusted", color: (connection.trustedSenderHints ?? []).isEmpty ? .secondary : .purple)
             Badge("\((connection.importKeywordHints ?? []).count) import hints", color: (connection.importKeywordHints ?? []).isEmpty ? .secondary : .green)
             Badge("\((connection.uncertainKeywordHints ?? []).count) uncertain hints", color: (connection.uncertainKeywordHints ?? []).isEmpty ? .secondary : .orange)
