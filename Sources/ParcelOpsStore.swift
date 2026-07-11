@@ -20421,6 +20421,7 @@ final class ParcelOpsStore {
     wishlistItems[index].status = "Purchase handoff ready"
     wishlistItems[index].purchaseReadiness = "Manual purchase handoff prepared"
     persistWishlist()
+    addWishlistOrderWatchRecord(wishlistItems[index])
     logAudit(
       action: .evaluated,
       entityType: .wishlistItem,
@@ -20522,6 +20523,7 @@ final class ParcelOpsStore {
     wishlistItems[index].status = "Awaiting order confirmation"
     wishlistItems[index].purchaseReadiness = "Purchased externally; watch for confirmation"
     persistWishlist()
+    addWishlistOrderWatchRecord(wishlistItems[index])
     logAudit(
       action: .reviewed,
       entityType: .wishlistItem,
@@ -21689,10 +21691,58 @@ final class ParcelOpsStore {
   }
 
   func addWishlistOrderWatchRecord(_ item: WishlistItem) {
+    let record = wishlistOrderWatchRecordTemplate(for: item)
+    if let existingIndex = wishlistOrderWatchRecords.firstIndex(where: {
+      $0.wishlistItemID == item.id
+        && $0.linkedOrderID == nil
+    }) {
+      let beforeDetail = wishlistOrderWatchRecords[existingIndex].auditDetail
+      wishlistOrderWatchRecords[existingIndex].linkedOrderID = record.linkedOrderID
+      wishlistOrderWatchRecords[existingIndex].sellerName = record.sellerName
+      wishlistOrderWatchRecords[existingIndex].accountLabel = record.accountLabel
+      wishlistOrderWatchRecords[existingIndex].expectedOrderSignals = record.expectedOrderSignals
+      wishlistOrderWatchRecords[existingIndex].expectedMailboxOrSource = record.expectedMailboxOrSource
+      wishlistOrderWatchRecords[existingIndex].watchStatus = record.watchStatus
+      wishlistOrderWatchRecords[existingIndex].matchedOrderSummary = record.matchedOrderSummary
+      wishlistOrderWatchRecords[existingIndex].nextCheckSummary = record.nextCheckSummary
+      wishlistOrderWatchRecords[existingIndex].lastCheckedDate = Self.auditTimestamp()
+      wishlistOrderWatchRecords[existingIndex].reviewState = record.reviewState
+      wishlistOrderWatchRecords[existingIndex].notes = record.notes
+      if let itemIndex = wishlistItems.firstIndex(where: { $0.id == item.id }) {
+        wishlistItems[itemIndex].purchaseReadiness = "Order watch rule refreshed locally"
+      }
+      persistWishlist()
+      logAudit(
+        action: .edited,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Wishlist order watch record refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(wishlistOrderWatchRecords[existingIndex].auditDetail)\nSource item: \(item.auditDetail)\nExisting watch record was updated rather than duplicated. No mailbox polling, background job, retailer monitoring, browser automation, checkout, payment, or purchase occurred."
+      )
+      return
+    }
+    wishlistOrderWatchRecords.insert(record, at: 0)
+    if let itemIndex = wishlistItems.firstIndex(where: { $0.id == item.id }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Order watch rule staged locally"
+    }
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist order watch record added locally.",
+      afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo mailbox polling, background job, retailer monitoring, browser automation, checkout, payment, or purchase occurred."
+    )
+  }
+
+  private func wishlistOrderWatchRecordTemplate(for item: WishlistItem) -> WishlistOrderWatchRecord {
     let handoff = item.purchaseHandoff
     let selectedLink = wishlistPurchaseLinkRecords(for: item).first { $0.selectedForPurchase } ?? wishlistPurchaseLinkRecords(for: item).first
     let sellerName = handoff?.sellerName ?? selectedLink?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
-    let record = WishlistOrderWatchRecord(
+    return WishlistOrderWatchRecord(
       wishlistItemID: item.id,
       linkedOrderID: handoff?.linkedOrderID,
       itemName: item.itemName,
@@ -21707,19 +21757,6 @@ final class ParcelOpsStore {
       lastCheckedDate: "Not checked",
       reviewState: .needsReview,
       notes: "Local watch rule only. No background polling, retailer monitoring, mailbox mutation, order placement, or purchase automation occurs."
-    )
-    wishlistOrderWatchRecords.insert(record, at: 0)
-    if let itemIndex = wishlistItems.firstIndex(where: { $0.id == item.id }) {
-      wishlistItems[itemIndex].purchaseReadiness = "Order watch rule staged locally"
-    }
-    persistWishlist()
-    logAudit(
-      action: .created,
-      entityType: .wishlistItem,
-      entityID: item.id.uuidString,
-      entityLabel: item.itemName,
-      summary: "Wishlist order watch record added locally.",
-      afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo mailbox polling, background job, retailer monitoring, browser automation, checkout, payment, or purchase occurred."
     )
   }
 
