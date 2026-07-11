@@ -279,7 +279,7 @@ struct TasksView: View {
   }
 
   private var pendingMailboxReviewCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    spaceMailUncertainCount
       + pendingFilteredSpaceMailCount
       + pendingUncertainGmailCount
       + pendingFilteredGmailCount
