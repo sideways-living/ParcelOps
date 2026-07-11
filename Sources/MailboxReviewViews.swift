@@ -257,6 +257,45 @@ struct MailboxView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          if latestMailboxImportedCount > 0 {
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Review Inbox intake", systemImage: "tray.full.fill")
+            }
+            .buttonStyle(.borderedProminent)
+          } else {
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Open Inbox", systemImage: "tray.full.fill")
+            }
+            .buttonStyle(.bordered)
+          }
+
+          NavigationLink {
+            IntegrationsView(store: store)
+          } label: {
+            Label("Provider setup", systemImage: "gearshape.2.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit evidence", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+          MailboxProviderStepCard(number: "1", title: "Confirm provider", detail: "Use SpaceMail for IMAP mailboxes and Gmail only for Google-hosted mailboxes.")
+          MailboxProviderStepCard(number: "2", title: "Run manual refresh", detail: "Refresh is explicit and read-only. No background mailbox watching starts here.")
+          MailboxProviderStepCard(number: "3", title: "Review results", detail: "Imported rows go to Inbox; uncertain and filtered previews stay out until reviewed.")
+          MailboxProviderStepCard(number: "4", title: "Create or link order", detail: "Only confirmed Inbox rows should become Orders or linked source evidence.")
+        }
       }
     }
   }
@@ -881,6 +920,33 @@ struct WishlistOrderWatchMatchRow: View {
       parts.append("Imported \(email.receivedDate)")
     }
     return parts.joined(separator: " • ")
+  }
+}
+
+private struct MailboxProviderStepCard: View {
+  var number: String
+  var title: String
+  var detail: String
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Text(number)
+        .font(.caption.bold())
+        .foregroundStyle(.white)
+        .frame(width: 24, height: 24)
+        .background(.teal, in: Circle())
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
