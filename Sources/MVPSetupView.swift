@@ -20,6 +20,7 @@ struct MVPSetupView: View {
         MVPMailboxProviderStatusPanel(store: store)
         MVPMailboxProviderReleasePanel(store: store)
         MVPNextDevelopmentPrioritiesPanel(store: store)
+        MVPWishlistWorkflowReadinessPanel(store: store)
         OperatorMVPReadinessCard(store: store)
         OperatorSupportSnapshotCard(store: store, detail: "Use this snapshot to confirm setup, mailbox intake, source trails, and audit state before deeper QA.")
         OperatorTestSessionChecklistCard(store: store, detail: "Use this evidence checklist for one complete hands-on MVP validation pass.")
@@ -62,6 +63,7 @@ struct MVPSetupView: View {
           MVPStatusCard(title: "SpaceMail intake", detail: "SpaceMail IMAP can run a manual read-only refresh, filter mixed mailbox mail, and import likely order messages into local Inbox review.", status: "Manual", symbol: "envelope.badge.fill", color: .green)
           MVPStatusCard(title: "Gmail intake", detail: "Gmail can use explicit sign-in and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
           MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available, but it is no longer the primary mailbox path for this MVP.", status: "Advanced", symbol: "building.2.crop.circle", color: .teal)
+          MVPStatusCard(title: "Wishlist", detail: "Wishlist supports local manual capture, comparison planning, seller trust notes, purchase handoff, and order-watch records. Agent research and browser extension capture remain planning/local handoff work.", status: "Local", symbol: "star.square.fill", color: .purple)
           MVPStatusCard(title: "Shopify", detail: "Shopify records and account placeholders exist, but no Shopify API or OAuth flow is connected.", status: "Placeholder", symbol: "cart.badge.plus", color: .orange)
           MVPStatusCard(title: "Carrier tracking", detail: "Tracking events are local records only. Carrier APIs and live refresh are not connected.", status: "Placeholder", symbol: "location.fill.viewfinder", color: .orange)
           MVPStatusCard(title: "Store logins", detail: "Account records are placeholders only. No browser automation or credential sync is active.", status: "Placeholder", symbol: "key.horizontal.fill", color: .orange)
@@ -442,6 +444,186 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
   }
 
   private func priorityBlock(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct MVPWishlistWorkflowReadinessPanel: View {
+  var store: ParcelOpsStore
+
+  private var activeItems: [WishlistItem] {
+    store.wishlistItems.filter(store.isActiveWishlistItem)
+  }
+
+  private var stagedCaptures: [WishlistCaptureCandidate] {
+    store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }
+  }
+
+  private var activeResearchRequests: [WishlistResearchRequest] {
+    store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+  }
+
+  private var agentReadyResearchRequests: [WishlistResearchRequest] {
+    activeResearchRequests.filter(\.isAgentBriefReady)
+  }
+
+  private var blockedResearchRequests: [WishlistResearchRequest] {
+    activeResearchRequests.filter { !$0.agentBriefGaps.isEmpty }
+  }
+
+  private var comparisonReadyItems: [WishlistItem] {
+    activeItems.filter { item in
+      (item.comparisonOptions ?? []).contains { option in
+        option.productURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+          && option.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+          && option.postageTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+          && option.trustRating.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+      }
+    }
+  }
+
+  private var readyForPurchaseItems: [WishlistItem] {
+    activeItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("ready to purchase")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var openOrderWatchRecords: [WishlistOrderWatchRecord] {
+    store.wishlistOrderWatchRecords.filter {
+      store.isActiveWishlistOrderWatchRecord($0)
+        && !$0.watchStatus.localizedCaseInsensitiveContains("closed")
+        && !$0.watchStatus.localizedCaseInsensitiveContains("matched")
+    }
+  }
+
+  private var linkedWishlistOrderCount: Int {
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }.count
+  }
+
+  private var readinessTone: Color {
+    if !stagedCaptures.isEmpty || !blockedResearchRequests.isEmpty { return .orange }
+    if !readyForPurchaseItems.isEmpty || !agentReadyResearchRequests.isEmpty || !openOrderWatchRecords.isEmpty { return .purple }
+    if !activeItems.isEmpty { return .teal }
+    return .secondary
+  }
+
+  private var readinessTitle: String {
+    if activeItems.isEmpty && stagedCaptures.isEmpty { return "Wishlist workflow is ready for first local capture" }
+    if !stagedCaptures.isEmpty { return "Wishlist has staged captures to review" }
+    if !blockedResearchRequests.isEmpty { return "Wishlist research scope needs cleanup" }
+    if !agentReadyResearchRequests.isEmpty { return "Wishlist research briefs are agent-ready" }
+    if !readyForPurchaseItems.isEmpty { return "Wishlist has purchase-ready items" }
+    if !openOrderWatchRecords.isEmpty { return "Wishlist order watch is active" }
+    return "Wishlist is ready for local comparison planning"
+  }
+
+  private var readinessDetail: String {
+    if activeItems.isEmpty && stagedCaptures.isEmpty {
+      return "Add a manual Wishlist item or stage a browser-extension placeholder, then prepare comparison criteria before any external research."
+    }
+    if !stagedCaptures.isEmpty {
+      return "\(stagedCaptures.count) staged capture\(stagedCaptures.count == 1 ? "" : "s") need promotion or dismissal before they become purchase planning records."
+    }
+    if !blockedResearchRequests.isEmpty {
+      return "\(blockedResearchRequests.count) research request\(blockedResearchRequests.count == 1 ? "" : "s") need item, source URL, budget, postage, or seller trust detail before agent research."
+    }
+    if !agentReadyResearchRequests.isEmpty {
+      return "\(agentReadyResearchRequests.count) research brief\(agentReadyResearchRequests.count == 1 ? "" : "s") have enough local scope for an external comparison pass. ParcelOps still does not browse or buy automatically."
+    }
+    if !readyForPurchaseItems.isEmpty {
+      return "\(readyForPurchaseItems.count) item\(readyForPurchaseItems.count == 1 ? "" : "s") look ready for manual purchase handoff. Confirm account, seller trust, postage timing, and order-watch expectations."
+    }
+    if !openOrderWatchRecords.isEmpty {
+      return "\(openOrderWatchRecords.count) order-watch record\(openOrderWatchRecords.count == 1 ? "" : "s") should be checked against Inbox and Orders after purchase confirmation arrives."
+    }
+    return "\(activeItems.count) active Wishlist item\(activeItems.count == 1 ? "" : "s") can be scoped for comparison, seller trust review, purchase handoff, or order watch."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Wishlist workflow readiness", symbol: "star.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "star.square.fill")
+            .foregroundStyle(readinessTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(readinessTitle)
+              .font(.headline)
+            Text(readinessDetail)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(activeItems.isEmpty ? "Capture" : "Local workflow", color: readinessTone)
+        }
+
+        MetricStrip(items: [
+          ("Active items", "\(activeItems.count)", activeItems.isEmpty ? .secondary : .purple),
+          ("Staged", "\(stagedCaptures.count)", stagedCaptures.isEmpty ? .green : .orange),
+          ("Agent-ready", "\(agentReadyResearchRequests.count)", agentReadyResearchRequests.isEmpty ? .secondary : .blue),
+          ("Blocked scope", "\(blockedResearchRequests.count)", blockedResearchRequests.isEmpty ? .green : .orange),
+          ("Compared", "\(comparisonReadyItems.count)", comparisonReadyItems.isEmpty ? .secondary : .teal),
+          ("Order watch", "\(openOrderWatchRecords.count)", openOrderWatchRecords.isEmpty ? .secondary : .purple),
+          ("Linked orders", "\(linkedWishlistOrderCount)", linkedWishlistOrderCount == 0 ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
+          wishlistBlock(
+            title: "Capture stays local",
+            detail: "Manual entry and browser-extension placeholders create local records only. No product page scraping, file picking, OCR, checkout, or retailer login runs from this MVP panel.",
+            symbol: "hand.tap.fill",
+            color: .teal
+          )
+          wishlistBlock(
+            title: "Comparison needs evidence",
+            detail: "Before purchase, confirm AUD total, postage cost/time, seller region, trust rating, and why weaker sellers were rejected.",
+            symbol: "list.bullet.clipboard.fill",
+            color: .purple
+          )
+          wishlistBlock(
+            title: "Purchase handoff is manual",
+            detail: "Ready means the operator can open the selected link outside ParcelOps, buy manually, then let Inbox/Orders watch for confirmation. ParcelOps does not purchase automatically.",
+            symbol: "cart.badge.plus",
+            color: .orange
+          )
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Wishlist", systemImage: "star.square.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func wishlistBlock(title: String, detail: String, symbol: String, color: Color) -> some View {
     VStack(alignment: .leading, spacing: 7) {
       Label(title, systemImage: symbol)
         .font(.caption.weight(.semibold))
