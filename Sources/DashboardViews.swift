@@ -658,6 +658,15 @@ struct DashboardView: View {
   private var wishlistReleaseOrderWatchItems: [WishlistItem] {
     wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
   }
+  private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistHandoffSanityGaps(for: $0).isEmpty }
+  }
+  private var wishlistPurchasedNeedsOrderLinkItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+        && item.purchaseHandoff?.linkedOrderID == nil
+    }
+  }
   private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
     store.wishlistResearchRequests.filter {
       store.isActiveWishlistResearchRequest($0)
@@ -726,6 +735,35 @@ struct DashboardView: View {
     if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
     return gaps
   }
+  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
+  }
   private func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
     let options = item.comparisonOptions ?? []
     let preferred = item.preferredOptionID.flatMap { preferredID in
@@ -763,6 +801,21 @@ struct DashboardView: View {
     if !wishlistReadinessBlockedItems.isEmpty {
       let criticalPrefix = wishlistReadinessCriticalItems.isEmpty ? "" : "\(wishlistReadinessCriticalItems.count) critical, "
       return "\(criticalPrefix)\(wishlistReadinessBlockedItems.count) readiness-blocked"
+    }
+    if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
+      return "purchased needs order link (\(wishlistPurchasedNeedsOrderLinkItems.count))"
+    }
+    if !wishlistHandoffSanityBlockedItems.isEmpty {
+      let grouped = Dictionary(grouping: wishlistHandoffSanityBlockedItems.flatMap(wishlistHandoffSanityGaps), by: { $0 })
+        .map { (label: $0.key, count: $0.value.count) }
+        .sorted {
+          if $0.count == $1.count { return $0.label < $1.label }
+          return $0.count > $1.count
+        }
+        .prefix(2)
+        .map { "\($0.label) (\($0.count))" }
+        .joined(separator: ", ")
+      return grouped.isEmpty ? "handoff sanity check" : "handoff sanity: \(grouped)"
     }
     let blockers = wishlistAttentionItems.flatMap { item -> [String] in
       var labels = item.operatorPurchaseBlockers
@@ -806,13 +859,15 @@ struct DashboardView: View {
   private var wishlistDashboardNextAction: String {
     if wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty {
       if wishlistBatchBriefNeeded { return "Create batch research brief" }
+      if !wishlistPurchasedNeedsOrderLinkItems.isEmpty { return "Link purchased Wishlist orders" }
+      if !wishlistHandoffSanityBlockedItems.isEmpty { return "Complete purchase handoff sanity checks" }
       if !wishlistReleaseReadyItems.isEmpty { return "Review ready purchase handoffs" }
       return wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
     }
     return "Clear: \(wishlistAttentionBlockerSummary)"
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + (wishlistBatchBriefNeeded ? 1 : 0)
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistHandoffSanityBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0)
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -985,10 +1040,10 @@ struct DashboardView: View {
       (
         "Wishlist",
         "Review purchase ideas, seller comparison, release checklist, manual handoff, and order-confirmation follow-up.",
-        wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count,
+        wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistHandoffSanityBlockedItems.count,
         "Wishlist",
         "star.square.fill",
-        wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
+        wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
       ),
       (
         "Tasks",
@@ -2107,15 +2162,15 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistReadinessBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
-              detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty
+              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistReadinessBlockedItems.count + wishlistHandoffSanityBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
+              detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty
                 ? (wishlistBatchBriefNeeded
                   ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
                   : "\(wishlistAgentReadiness.verdict). Readiness blockers: \(wishlistReadinessBlockedItems.count), release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
                 : "Top blockers: \(wishlistAttentionBlockerSummary). Agent verdict: \(wishlistAgentReadiness.verdict).",
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
-              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && !wishlistBatchBriefNeeded ? wishlistAgentReadinessTint : .purple
+              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty && !wishlistBatchBriefNeeded ? wishlistAgentReadinessTint : .purple
             ) {
               WishlistView(store: store)
             }
