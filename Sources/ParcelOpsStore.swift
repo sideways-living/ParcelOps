@@ -30,6 +30,7 @@ final class ParcelOpsStore {
   var wishlistSellerQuotes: [WishlistSellerQuote]
   var wishlistPriceWatchRules: [WishlistPriceWatchRule]
   var wishlistSellerTrustRecords: [WishlistSellerTrustRecord]
+  var wishlistPurchaseAccountRecords: [WishlistPurchaseAccountRecord]
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
@@ -249,6 +250,7 @@ final class ParcelOpsStore {
     self.wishlistSellerQuotes = repository.loadWishlistSellerQuotes()
     self.wishlistPriceWatchRules = repository.loadWishlistPriceWatchRules()
     self.wishlistSellerTrustRecords = repository.loadWishlistSellerTrustRecords()
+    self.wishlistPurchaseAccountRecords = repository.loadWishlistPurchaseAccountRecords()
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
@@ -21001,6 +21003,129 @@ final class ParcelOpsStore {
     )
   }
 
+  func wishlistPurchaseAccountRecords(for item: WishlistItem) -> [WishlistPurchaseAccountRecord] {
+    wishlistPurchaseAccountRecords
+      .filter { record in
+        record.wishlistItemID == item.id
+          || record.itemName.localizedCaseInsensitiveContains(item.itemName)
+          || item.itemName.localizedCaseInsensitiveContains(record.itemName)
+      }
+      .sorted { first, second in
+        if first.reviewState == second.reviewState {
+          return first.createdDate > second.createdDate
+        }
+        return first.reviewState == .needsReview
+      }
+  }
+
+  func addWishlistPurchaseAccountRecord(_ item: WishlistItem) {
+    let preferredOption = item.preferredOptionID.flatMap { optionID in
+      item.comparisonOptions?.first { $0.id == optionID }
+    } ?? item.comparisonOptions?.first
+    let handoff = item.purchaseHandoff
+    let sellerName = handoff?.sellerName ?? preferredOption?.sellerName ?? item.storefront
+    let record = WishlistPurchaseAccountRecord(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: sellerName,
+      accountLabel: handoff?.accountLabel ?? "\(item.owner) account to confirm",
+      accountReadinessStatus: "Needs operator confirmation",
+      paymentReadinessStatus: "Payment method not stored",
+      deliveryAddressStatus: "Delivery address and instructions to confirm",
+      expectedOrderEmailSignals: handoff?.expectedOrderSignals ?? "\(sellerName), \(item.itemName), order confirmation, tracking",
+      credentialStorageNote: "No credentials stored. Confirm account access outside ParcelOps.",
+      purchaseBoundaryNote: "Manual purchase only. ParcelOps does not log in, checkout, pay, or submit orders.",
+      createdDate: Self.auditTimestamp(),
+      lastReviewedDate: "Not reviewed",
+      reviewState: .needsReview,
+      notes: "Local purchase account readiness record only. No credential, password, payment card, seller login, checkout, purchase, or account access occurred."
+    )
+    wishlistPurchaseAccountRecords.insert(record, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: item.id.uuidString,
+      entityLabel: item.itemName,
+      summary: "Wishlist purchase account readiness record added locally.",
+      afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo credential, password, payment method, account login, checkout, purchase, seller API, or network call occurred."
+    )
+  }
+
+  func markWishlistPurchaseAccountReady(_ record: WishlistPurchaseAccountRecord) {
+    guard let index = wishlistPurchaseAccountRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistPurchaseAccountRecords[index].auditDetail
+    wishlistPurchaseAccountRecords[index].accountReadinessStatus = "Ready for manual purchase"
+    wishlistPurchaseAccountRecords[index].paymentReadinessStatus = "Confirmed outside ParcelOps"
+    wishlistPurchaseAccountRecords[index].deliveryAddressStatus = "Confirmed outside ParcelOps"
+    wishlistPurchaseAccountRecords[index].reviewState = .accepted
+    wishlistPurchaseAccountRecords[index].lastReviewedDate = Self.auditTimestamp()
+    if let itemIndex = wishlistPurchaseAccountRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Account readiness confirmed locally"
+      if wishlistItems[itemIndex].purchaseHandoff == nil {
+        prepareWishlistPurchaseHandoff(wishlistItems[itemIndex])
+      }
+    }
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPurchaseAccountRecords[index].wishlistItemID?.uuidString ?? wishlistPurchaseAccountRecords[index].id.uuidString,
+      entityLabel: wishlistPurchaseAccountRecords[index].itemName,
+      summary: "Wishlist purchase account readiness accepted locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPurchaseAccountRecords[index].auditDetail)\nAcceptance means the operator confirmed readiness outside ParcelOps. No credentials, payment details, account login, checkout, purchase, or seller action occurred in ParcelOps."
+    )
+  }
+
+  func blockWishlistPurchaseAccountRecord(_ record: WishlistPurchaseAccountRecord) {
+    guard let index = wishlistPurchaseAccountRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let beforeDetail = wishlistPurchaseAccountRecords[index].auditDetail
+    wishlistPurchaseAccountRecords[index].accountReadinessStatus = "Blocked locally"
+    wishlistPurchaseAccountRecords[index].paymentReadinessStatus = "Do not purchase until resolved"
+    wishlistPurchaseAccountRecords[index].reviewState = .needsReview
+    wishlistPurchaseAccountRecords[index].lastReviewedDate = Self.auditTimestamp()
+    if let itemIndex = wishlistPurchaseAccountRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
+      wishlistItems[itemIndex].purchaseReadiness = "Blocked by purchase account readiness"
+    }
+    persistWishlist()
+    logAudit(
+      action: .reviewed,
+      entityType: .wishlistItem,
+      entityID: wishlistPurchaseAccountRecords[index].wishlistItemID?.uuidString ?? wishlistPurchaseAccountRecords[index].id.uuidString,
+      entityLabel: wishlistPurchaseAccountRecords[index].itemName,
+      summary: "Wishlist purchase account readiness blocked locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(wishlistPurchaseAccountRecords[index].auditDetail)\nBlocked only in local JSON. No credential, payment method, account login, seller page, checkout, purchase, or network call changed."
+    )
+  }
+
+  func removeWishlistPurchaseAccountRecord(_ record: WishlistPurchaseAccountRecord) {
+    guard let index = wishlistPurchaseAccountRecords.firstIndex(where: { $0.id == record.id }) else { return }
+    let removed = wishlistPurchaseAccountRecords.remove(at: index)
+    persistWishlist()
+    logAudit(
+      action: .removed,
+      entityType: .wishlistItem,
+      entityID: removed.wishlistItemID?.uuidString ?? removed.id.uuidString,
+      entityLabel: removed.itemName,
+      summary: "Wishlist purchase account readiness record removed locally.",
+      beforeDetail: removed.auditDetail,
+      afterDetail: "Local account readiness record removed only. No wishlist item, credential, payment method, seller account, checkout, purchase, or external service was changed."
+    )
+  }
+
+  func createWishlistPurchaseAccountRecordReviewTask(_ record: WishlistPurchaseAccountRecord) {
+    createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
+      label: "Review purchase account: \(record.sellerName)",
+      summary: "Review Wishlist purchase account readiness for \(record.itemName). Account \(record.accountLabel), seller \(record.sellerName), payment \(record.paymentReadinessStatus), delivery \(record.deliveryAddressStatus), expected order signals \(record.expectedOrderEmailSignals). No credentials or payment details should be stored.",
+      priority: record.reviewState == .accepted ? .normal : .high,
+      assignee: "Wishlist review"
+    )
+  }
+
   func createReviewTask(from item: WishlistItem) {
     let optionCount = item.comparisonOptions?.count ?? 0
     let trustIssueCount = (item.comparisonOptions ?? []).filter {
@@ -22202,6 +22327,7 @@ final class ParcelOpsStore {
     wishlistRepository.saveWishlistSellerQuotes(wishlistSellerQuotes)
     wishlistRepository.saveWishlistPriceWatchRules(wishlistPriceWatchRules)
     wishlistRepository.saveWishlistSellerTrustRecords(wishlistSellerTrustRecords)
+    wishlistRepository.saveWishlistPurchaseAccountRecords(wishlistPurchaseAccountRecords)
     wishlistRepository.saveDeletedWishlistItems(deletedWishlistItems)
   }
 
@@ -23170,6 +23296,12 @@ private extension WishlistPriceWatchRule {
 private extension WishlistSellerTrustRecord {
   var auditDetail: String {
     "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller quote: \(sellerQuoteID?.uuidString ?? "none"); seller: \(sellerName); check: \(checkType); evidence: \(evidenceSummary); result: \(resultStatus); risk: \(riskLevel); source URL: \(sourceURL); checked: \(checkedDate); review: \(reviewState.rawValue); notes: \(notes)."
+  }
+}
+
+private extension WishlistPurchaseAccountRecord {
+  var auditDetail: String {
+    "Item: \(itemName); linked wishlist item: \(wishlistItemID?.uuidString ?? "none"); seller: \(sellerName); account label: \(accountLabel); account readiness: \(accountReadinessStatus); payment readiness: \(paymentReadinessStatus); delivery address: \(deliveryAddressStatus); expected order signals: \(expectedOrderEmailSignals); credential note: \(credentialStorageNote); purchase boundary: \(purchaseBoundaryNote); created: \(createdDate); last reviewed: \(lastReviewedDate); review: \(reviewState.rawValue); notes: \(notes)."
   }
 }
 

@@ -529,6 +529,7 @@ struct WishlistView: View {
         wishlistPurchaseReleaseChecklistPanel
         wishlistManualPurchaseDayPlanPanel
         wishlistPurchaseHandoffPackPanel
+        wishlistPurchaseAccountReadinessPanel
         wishlistPurchaseAccountLedgerPanel
         wishlistPurchaseWatchCommandCentrePanel
         wishlistPostPurchaseMonitorPanel
@@ -5556,6 +5557,91 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistPurchaseAccountReadinessPanel: some View {
+    let records = store.wishlistPurchaseAccountRecords.sorted { first, second in
+      if first.reviewState == second.reviewState {
+        return first.createdDate > second.createdDate
+      }
+      return first.reviewState == .needsReview
+    }
+    let ready = records.filter { $0.reviewState == .accepted }.count
+    let blocked = records.filter { $0.accountReadinessStatus.localizedCaseInsensitiveContains("blocked") }.count
+    let missingPayment = records.filter { $0.paymentReadinessStatus.localizedCaseInsensitiveContains("not stored") || $0.paymentReadinessStatus.localizedCaseInsensitiveContains("confirm") }.count
+    let needsReview = records.filter { $0.reviewState != .accepted }.count
+
+    return SettingsPanel(title: "Purchase account readiness", symbol: "person.crop.circle.badge.checkmark") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Confirm the non-secret purchase context before buying outside ParcelOps: seller account label, payment readiness, delivery address, and expected order confirmation signals. No passwords, cards, checkout, or retailer login are stored.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Records", "\(records.count)", records.isEmpty ? .secondary : .blue),
+          ("Need review", "\(needsReview)", needsReview == 0 ? .green : .orange),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
+          ("Payment check", "\(missingPayment)", missingPayment == 0 ? .green : .purple)
+        ])
+
+        CompactActionRow {
+          Button("Add account record", systemImage: "person.badge.plus") {
+            if let item = store.wishlistItems.first {
+              store.addWishlistPurchaseAccountRecord(item)
+            }
+          }
+          .disabled(store.wishlistItems.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        if records.isEmpty {
+          MVPEmptyState(
+            title: "No purchase account records yet",
+            detail: "Add one when a Wishlist item has a likely seller. This records non-secret readiness only; credentials and payment details stay outside ParcelOps.",
+            symbol: "person.crop.circle.badge.checkmark"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(records.prefix(8)) { record in
+              WishlistPurchaseAccountReadinessRow(record: record) {
+                store.markWishlistPurchaseAccountReady(record)
+              } onBlock: {
+                store.blockWishlistPurchaseAccountRecord(record)
+              } onRemove: {
+                store.removeWishlistPurchaseAccountRecord(record)
+              } onTask: {
+                store.createWishlistPurchaseAccountRecordReviewTask(record)
+              } onFocus: {
+                wishlistSearchText = record.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .buy
+              }
+            }
+          }
+
+          let remaining = max(records.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase account record\(remaining == 1 ? "" : "s") are available in the local readiness ledger.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Local-only boundary: this does not store passwords, app passwords, payment cards, billing credentials, auth tokens, retailer sessions, checkout data, or purchase actions.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var wishlistPurchaseAccountLedgerPanel: some View {
     let entries = wishlistPurchaseAccountLedgerItems
     let needHandoff = entries.filter { $0.handoff == nil }.count
@@ -9183,6 +9269,85 @@ private struct WishlistPurchaseAccountLedgerEntry: Identifiable {
   var actionTitle: String
   var actionSymbol: String
   var sortPriority: Int
+}
+
+private struct WishlistPurchaseAccountReadinessRow: View {
+  var record: WishlistPurchaseAccountRecord
+  var onReady: () -> Void
+  var onBlock: () -> Void
+  var onRemove: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var isReady: Bool {
+    record.reviewState == .accepted && record.accountReadinessStatus.localizedCaseInsensitiveContains("ready")
+  }
+
+  private var isBlocked: Bool {
+    record.accountReadinessStatus.localizedCaseInsensitiveContains("blocked")
+      || record.paymentReadinessStatus.localizedCaseInsensitiveContains("do not")
+  }
+
+  private var tone: Color {
+    if isBlocked { return .red }
+    if isReady { return .green }
+    if record.reviewState == .needsReview { return .orange }
+    return .purple
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isReady ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(record.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(record.sellerName) • \(record.accountLabel)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+          Text(record.accountReadinessStatus)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(record.reviewState.rawValue, color: record.reviewState == .accepted ? .green : .orange)
+          Badge(record.lastReviewedDate, color: .secondary)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Payment", value: record.paymentReadinessStatus, symbol: "creditcard.fill")
+        WishlistMatrixMetric(title: "Delivery", value: record.deliveryAddressStatus, symbol: "mappin.and.ellipse")
+        WishlistMatrixMetric(title: "Signals", value: record.expectedOrderEmailSignals, symbol: "envelope.badge.fill")
+        WishlistMatrixMetric(title: "Credential", value: record.credentialStorageNote, symbol: "key.slash.fill")
+      }
+
+      Text(record.purchaseBoundaryNote)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Ready", systemImage: "checkmark.seal", action: onReady)
+          .disabled(isReady)
+        Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+        Button("Remove", systemImage: "trash", action: onRemove)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPostPurchaseMonitorEntry: Identifiable {

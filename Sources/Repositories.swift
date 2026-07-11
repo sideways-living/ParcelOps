@@ -54,6 +54,8 @@ protocol WishlistRepository {
   func saveWishlistPriceWatchRules(_ rules: [WishlistPriceWatchRule])
   func loadWishlistSellerTrustRecords() -> [WishlistSellerTrustRecord]
   func saveWishlistSellerTrustRecords(_ checks: [WishlistSellerTrustRecord])
+  func loadWishlistPurchaseAccountRecords() -> [WishlistPurchaseAccountRecord]
+  func saveWishlistPurchaseAccountRecords(_ records: [WishlistPurchaseAccountRecord])
 }
 
 protocol SettingsRepository {
@@ -396,6 +398,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     save(checks, to: .wishlistSellerTrustRecords)
   }
 
+  func loadWishlistPurchaseAccountRecords() -> [WishlistPurchaseAccountRecord] {
+    load([WishlistPurchaseAccountRecord].self, from: .wishlistPurchaseAccountRecords, defaultValue: SampleData.wishlistPurchaseAccountRecords)
+  }
+
+  func saveWishlistPurchaseAccountRecords(_ records: [WishlistPurchaseAccountRecord]) {
+    save(records, to: .wishlistPurchaseAccountRecords)
+  }
+
   func loadSettings() -> ParcelOpsSettings {
     load(ParcelOpsSettings.self, from: .settings, defaultValue: ParcelOpsSettings())
   }
@@ -735,6 +745,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case wishlistSellerQuotes = "wishlist-seller-quotes.json"
     case wishlistPriceWatchRules = "wishlist-price-watch-rules.json"
     case wishlistSellerTrustRecords = "wishlist-seller-trust-checks.json"
+    case wishlistPurchaseAccountRecords = "wishlist-purchase-account-records.json"
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
     case evidenceAttachments = "evidence-attachments.json"
@@ -791,6 +802,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var wishlistSellerQuotes = SampleData.wishlistSellerQuotes
   private var wishlistPriceWatchRules = SampleData.wishlistPriceWatchRules
   private var wishlistSellerTrustRecords = SampleData.wishlistSellerTrustRecords
+  private var wishlistPurchaseAccountRecords = SampleData.wishlistPurchaseAccountRecords
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
   private var evidenceAttachments = SampleData.evidenceAttachments
@@ -871,6 +883,8 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   func saveWishlistPriceWatchRules(_ rules: [WishlistPriceWatchRule]) { wishlistPriceWatchRules = rules }
   func loadWishlistSellerTrustRecords() -> [WishlistSellerTrustRecord] { wishlistSellerTrustRecords }
   func saveWishlistSellerTrustRecords(_ checks: [WishlistSellerTrustRecord]) { wishlistSellerTrustRecords = checks }
+  func loadWishlistPurchaseAccountRecords() -> [WishlistPurchaseAccountRecord] { wishlistPurchaseAccountRecords }
+  func saveWishlistPurchaseAccountRecords(_ records: [WishlistPurchaseAccountRecord]) { wishlistPurchaseAccountRecords = records }
 
   func loadSettings() -> ParcelOpsSettings { settings }
   func saveSettings(_ settings: ParcelOpsSettings) { self.settings = settings }

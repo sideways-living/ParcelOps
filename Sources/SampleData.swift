@@ -490,6 +490,41 @@ enum SampleData {
     )
   ]
 
+  static var wishlistPurchaseAccountRecords: [WishlistPurchaseAccountRecord] = [
+    WishlistPurchaseAccountRecord(
+      wishlistItemID: nil,
+      itemName: "Compact barcode scanner",
+      sellerName: "SafetyPro Direct AU",
+      accountLabel: "Ops purchasing account",
+      accountReadinessStatus: "Needs operator confirmation",
+      paymentReadinessStatus: "Payment method not stored",
+      deliveryAddressStatus: "Delivery address to confirm",
+      expectedOrderEmailSignals: "SafetyPro, barcode scanner, order confirmation, tracking",
+      credentialStorageNote: "No credentials stored. Confirm account access outside ParcelOps.",
+      purchaseBoundaryNote: "Manual purchase only. ParcelOps does not log in, checkout, pay, or submit orders.",
+      createdDate: "Sample only",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .needsReview,
+      notes: "Local sample record for account readiness before manual purchase."
+    ),
+    WishlistPurchaseAccountRecord(
+      wishlistItemID: nil,
+      itemName: "Thermal label rolls",
+      sellerName: "OfficeKit Store",
+      accountLabel: "Shared admin account to confirm",
+      accountReadinessStatus: "Unknown",
+      paymentReadinessStatus: "Payment method must be confirmed externally",
+      deliveryAddressStatus: "Needs delivery instruction review",
+      expectedOrderEmailSignals: "OfficeKit, thermal rolls, invoice, shipped",
+      credentialStorageNote: "Credential reference not stored in Wishlist.",
+      purchaseBoundaryNote: "Use this only as a local readiness note before buying outside ParcelOps.",
+      createdDate: "Sample only",
+      lastReviewedDate: "Not reviewed",
+      reviewState: .monitor,
+      notes: "Shows an account-readiness placeholder for future purchase handoff."
+    )
+  ]
+
   static var deletedWishlistItems: [WishlistItem] = [
     WishlistItem(itemName: "Old label printer cable", storefront: "Office Kit Store", storefrontURL: "https://officekit.example/old-cable", estimatedCost: "$18.40", owner: "Jordan Lee", pool: "Personal wishlist", source: .manual, status: "Deleted 12 days ago", capturedDetail: "Moved to deleted items. It will be retained for 90 days before permanent removal.")
   ]
