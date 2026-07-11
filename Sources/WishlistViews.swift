@@ -1042,7 +1042,7 @@ struct WishlistView: View {
   }
 
   private var wishlistWorkflowFocusPanel: some View {
-    let all = store.wishlistItems
+    let all = store.wishlistItems.filter(store.isActiveWishlistItem)
     let capture = all.filter { WishlistWorkflowFocus.capture.matches(item: $0, in: store) }.count
     let compare = all.filter { WishlistWorkflowFocus.compare.matches(item: $0, in: store) }.count
     let buy = all.filter { WishlistWorkflowFocus.buy.matches(item: $0, in: store) }.count
@@ -1099,6 +1099,7 @@ struct WishlistView: View {
 
   private var wishlistOperatorQueueEntries: [WishlistOperatorQueueEntry] {
     store.wishlistItems
+      .filter(store.isActiveWishlistItem)
       .map(wishlistOperatorQueueEntry(for:))
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
@@ -2093,7 +2094,7 @@ struct WishlistView: View {
   }
 
   private var wishlistSellerOptionIssues: [WishlistSellerOptionIssue] {
-    store.wishlistItems.flatMap { item in
+    store.wishlistItems.filter(store.isActiveWishlistItem).flatMap { item in
       (item.comparisonOptions ?? []).flatMap { option -> [WishlistSellerOptionIssue] in
         var issues: [WishlistSellerOptionIssue] = []
         let audText = option.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2142,7 +2143,7 @@ struct WishlistView: View {
   }
 
   private var wishlistReadySellerOptions: [WishlistSellerOptionIssue] {
-    store.wishlistItems.flatMap { item in
+    store.wishlistItems.filter(store.isActiveWishlistItem).flatMap { item in
       (item.comparisonOptions ?? []).compactMap { option in
         let searchable = [
           option.estimatedAUDTotal,
@@ -2172,7 +2173,7 @@ struct WishlistView: View {
   }
 
   private var wishlistSellerSafetyRubricEntries: [WishlistSellerSafetyRubricEntry] {
-    store.wishlistItems.flatMap { item in
+    store.wishlistItems.filter(store.isActiveWishlistItem).flatMap { item in
       (item.comparisonOptions ?? []).map { option in
         wishlistSellerSafetyRubricEntry(item: item, option: option)
       }

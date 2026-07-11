@@ -19690,7 +19690,8 @@ final class ParcelOpsStore {
     let candidates = wishlistItems.filter { item in
       let options = item.comparisonOptions ?? []
       let checks = item.purchaseChecks ?? []
-      return !options.isEmpty
+      return isActiveWishlistItem(item)
+        && !options.isEmpty
         && item.preferredOptionID != nil
         && !options.contains { !$0.operatorSellerEvidenceGaps.isEmpty }
         && (checks.isEmpty || checks.contains { $0.status != "Passed" })
@@ -21960,7 +21961,8 @@ final class ParcelOpsStore {
 
   func checkWishlistOperationsClosureReadinessBatch() {
     let candidates = wishlistItems.filter { item in
-      item.purchaseHandoff?.linkedOrderID != nil
+      isActiveWishlistItem(item)
+        && (item.purchaseHandoff?.linkedOrderID != nil
         || !suggestedReceivingInspections(for: item).isEmpty
         || !suggestedInventoryReceipts(for: item).isEmpty
         || !suggestedStorageLocations(for: item).isEmpty
@@ -21968,7 +21970,7 @@ final class ParcelOpsStore {
         || !suggestedLabelReferenceRecords(for: item).isEmpty
         || !suggestedScanSessionRecords(for: item).isEmpty
         || !suggestedShipmentManifestRecords(for: item).isEmpty
-        || !suggestedDispatchReadinessChecklists(for: item).isEmpty
+        || !suggestedDispatchReadinessChecklists(for: item).isEmpty)
     }
     guard !candidates.isEmpty else {
       logAudit(
@@ -22116,7 +22118,7 @@ final class ParcelOpsStore {
 
   func closeReadyWishlistItemsLocally() {
     let candidates = wishlistItems.filter { item in
-      item.status != "Closed locally"
+      isActiveWishlistItem(item)
         && (item.purchaseHandoff?.linkedOrderID != nil
           || !suggestedReceivingInspections(for: item).isEmpty
           || !suggestedInventoryReceipts(for: item).isEmpty
