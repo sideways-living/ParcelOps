@@ -2584,6 +2584,12 @@ struct DispatchView: View {
     inboxDispatchSetupOrders.filter(orderHasWishlistSource).count
   }
 
+  private var wishlistDispatchHandoffSanityGapCount: Int {
+    inboxDispatchSetupOrders.reduce(0) { total, order in
+      total + store.activeWishlistItemsLinked(to: order).filter { !wishlistDispatchHandoffSanityGaps(for: $0).isEmpty }.count
+    }
+  }
+
   private var blockedDispatchCount: Int {
     store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
   }
@@ -2895,6 +2901,7 @@ struct DispatchView: View {
           ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .orange),
           ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
           ("Wishlist", "\(wishlistDispatchSetupOrderCount)", wishlistDispatchSetupOrderCount == 0 ? .green : .pink),
+          ("Wishlist handoff gaps", "\(wishlistDispatchHandoffSanityGapCount)", wishlistDispatchHandoffSanityGapCount == 0 ? .green : .orange),
           ("Queue rows", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .blue)
         ])
 
@@ -3076,6 +3083,7 @@ struct DispatchView: View {
         ("Verify first", "\(partialInboxDispatchBlockerCount)", partialInboxDispatchBlockerCount == 0 ? .green : .orange),
         ("Inbox setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal),
         ("Wishlist", "\(wishlistDispatchSetupOrderCount)", wishlistDispatchSetupOrderCount == 0 ? .green : .pink),
+        ("Wishlist gaps", "\(wishlistDispatchHandoffSanityGapCount)", wishlistDispatchHandoffSanityGapCount == 0 ? .green : .orange),
         ("Undispatched", "\(store.undispatchedShipmentManifests.count)", store.undispatchedShipmentManifests.isEmpty ? .green : .purple),
         ("Blocked", "\(store.blockedShipmentManifests.count)", store.blockedShipmentManifests.isEmpty ? .green : .red),
         ("Incomplete", "\(store.incompleteDispatchChecklists.count)", store.incompleteDispatchChecklists.isEmpty ? .green : .orange),
@@ -3129,6 +3137,36 @@ struct DispatchView: View {
   private func orderHasWishlistSource(_ order: TrackedOrder) -> Bool {
     !store.activeWishlistItemsLinked(to: order).isEmpty
   }
+
+  private func wishlistDispatchHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
+  }
 }
 
 private struct DispatchInboxOrderRow: View {
@@ -3149,6 +3187,12 @@ private struct DispatchInboxOrderRow: View {
   }
   private var linkedWishlistItems: [WishlistItem] {
     store.activeWishlistItemsLinked(to: order)
+  }
+  private var wishlistHandoffSanityGaps: [(item: WishlistItem, gaps: [String])] {
+    linkedWishlistItems.compactMap { item in
+      let gaps = wishlistDispatchHandoffSanityGaps(for: item)
+      return gaps.isEmpty ? nil : (item, gaps)
+    }
   }
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3192,6 +3236,9 @@ private struct DispatchInboxOrderRow: View {
             if !linkedWishlistItems.isEmpty {
               Badge("\(linkedWishlistItems.count) Wishlist", color: .pink)
             }
+            if !wishlistHandoffSanityGaps.isEmpty {
+              Badge("\(wishlistHandoffSanityGaps.count) handoff gap", color: .orange)
+            }
             if !partialFollowUpTasks.isEmpty {
               Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
             }
@@ -3227,6 +3274,12 @@ private struct DispatchInboxOrderRow: View {
             Text("\(item.itemName) • \(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status)")
               .font(.caption2)
               .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          ForEach(wishlistHandoffSanityGaps.prefix(2), id: \.item.id) { entry in
+            Text("Handoff sanity gaps for \(entry.item.itemName): \(entry.gaps.prefix(4).joined(separator: ", "))")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
@@ -3286,6 +3339,7 @@ private struct DispatchInboxOrderRow: View {
 
   private var rowColor: Color {
     if needsPreDispatchVerification { return .orange }
+    if !wishlistHandoffSanityGaps.isEmpty { return .orange }
     if !linkedWishlistItems.isEmpty { return .pink }
     return order.status == .exception ? .orange : .teal
   }
@@ -3304,9 +3358,43 @@ private struct DispatchInboxOrderRow: View {
       return "Next: confirm the Inbox, Import Queue, Acceptance, or Wishlist source trail before creating dispatch setup."
     }
     if !linkedWishlistItems.isEmpty {
+      if !wishlistHandoffSanityGaps.isEmpty {
+        let gapSummary = wishlistHandoffSanityGaps.flatMap(\.gaps).prefix(3).joined(separator: ", ")
+        return "Next: resolve Wishlist handoff sanity gaps before manifest or readiness setup: \(gapSummary)."
+      }
       return "Next: confirm the Wishlist purchase handoff, then decide whether this order needs manifest or readiness setup."
     }
     return "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist."
+  }
+
+  private func wishlistDispatchHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
   }
 }
 
