@@ -595,7 +595,7 @@ struct OrdersView: View {
     linkedIntakeEmails(for: order).count
       + store.importQueueItems(for: order).count
       + store.acceptanceRecords(for: order).count
-      + store.wishlistItemsLinked(to: order).count
+      + store.activeWishlistItemsLinked(to: order).count
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {

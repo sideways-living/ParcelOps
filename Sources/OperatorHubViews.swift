@@ -3148,7 +3148,7 @@ private struct DispatchInboxOrderRow: View {
     linkedIntakeEmails.count + store.importQueueItems(for: order).count + store.acceptanceRecords(for: order).count + linkedWishlistItems.count
   }
   private var linkedWishlistItems: [WishlistItem] {
-    store.wishlistItemsLinked(to: order)
+    store.activeWishlistItemsLinked(to: order)
   }
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
