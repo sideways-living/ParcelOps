@@ -1517,10 +1517,10 @@ struct TasksView: View {
       return "Finish Gmail setup and callback readiness before assigning refresh follow-up."
     }
     if gmailConnectedAuthCount == 0 {
-      return "Run Test real Google sign-in in Mailbox Monitor before assigning real Gmail refresh work."
+      return "Run Check readiness and Test real Google sign-in in Mailbox Monitor before assigning real Gmail refresh work."
     }
     if gmailManualRefreshCount == 0 {
-      return "Run one manual read-only Gmail refresh before treating Gmail as a live intake source."
+      return "Run one manual read-only Gmail refresh after readiness and sign-in are clear before treating Gmail as a live intake source."
     }
     return "Review Gmail setup and refresh evidence in Mailbox Monitor before assigning follow-up."
   }

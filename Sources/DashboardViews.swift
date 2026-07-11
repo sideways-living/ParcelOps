@@ -929,7 +929,7 @@ struct DashboardView: View {
       return "Use the secure SpaceMail credential action. Do not put passwords or app passwords into setup notes or JSON-backed fields."
     }
     if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup {
-      return "Use the explicit Google sign-in test before Gmail refresh. Token values stay out of JSON and Audit."
+      return "Use Check readiness and the explicit Google sign-in test before Gmail refresh. Token values stay out of JSON and Audit."
     }
     if !hasReadyMailboxProviderPath {
       return "Run one explicit read-only refresh for the active mailbox provider so Dashboard, Mailbox Monitor, and Audit have a real refresh result."

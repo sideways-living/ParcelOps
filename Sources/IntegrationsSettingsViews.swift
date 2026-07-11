@@ -71,9 +71,9 @@ struct IntegrationsView: View {
       return "Update Project.json and App/Info.plist to match the saved Google iOS client ID and reversed callback scheme, then rebuild."
     }
     if !hasGmailConnectedAuth {
-      return "Run Test real Google sign-in before running real Gmail refresh."
+      return "Run Check readiness and Test real Google sign-in before running real Gmail refresh."
     }
-    return "Run real Gmail refresh manually when checking a Google-hosted mailbox."
+    return "Run real Gmail refresh manually only after setup readiness and Google sign-in are clear."
   }
   private var providerChoiceRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {
     [
@@ -138,7 +138,7 @@ struct IntegrationsView: View {
       return "Add Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes. Do not enter client secrets or token values."
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
-      return "Use the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
+      return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
     }
     if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
       return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
@@ -3026,7 +3026,7 @@ struct GmailMailboxConnectionRow: View {
       return "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered and not imported. Check examples only if an order email was missed."
     }
     if connection.lastManualRefreshDate == "Never" {
-      return "Run real Gmail refresh when sign-in is ready, or use mock refresh to test the local intake path without Google access."
+      return "Run real Gmail refresh when setup readiness and sign-in are clear, or use mock refresh to test the local intake path without Google access."
     }
     return "Run manual refresh when you want to check Gmail again. Background sync and mailbox mutation are still not enabled."
   }
@@ -3149,7 +3149,7 @@ struct GmailMailboxConnectionRow: View {
       return "The read-only Gmail request succeeded but returned no messages for the configured label/filter. Check the label or try again after new mail arrives."
     }
     if connection.connectionStatus.localizedCaseInsensitiveContains("Ready") {
-      return "Setup fields are present. Run Test real Google sign-in first, then Run real Gmail refresh when you are ready to fetch up to 10 read-only message previews."
+      return "Setup fields are present. Run Check readiness and Test real Google sign-in first, then Run real Gmail refresh when you are ready to fetch up to 10 read-only message previews."
     }
     return "Use mock refresh for local testing, or complete Google setup and sign-in before real refresh. Gmail refresh remains manual and read-only."
   }
@@ -3370,7 +3370,7 @@ struct GmailMailboxConnectionRow: View {
     if steps.isEmpty {
       steps.append((
         "Ready for the next manual check",
-        "Run real Gmail refresh when you want to fetch up to 10 read-only message previews, or run mock refresh for local workflow testing.",
+        "Run real Gmail refresh only after setup readiness and sign-in are clear, or run mock refresh for local workflow testing.",
         "checkmark.seal.fill",
         .green
       ))
