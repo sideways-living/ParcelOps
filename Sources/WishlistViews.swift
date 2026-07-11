@@ -561,6 +561,7 @@ struct WishlistView: View {
         wishlistCaptureSourceReadinessPanel
         wishlistBrowserExtensionPayloadPanel
         wishlistCaptureCandidatesPanel
+        wishlistCapturedOptionCleanupPanel
         wishlistComparisonPlanningPanel
         wishlistAgentReadinessVerdictPanel
         wishlistSellerOptionReviewPanel
@@ -2100,6 +2101,112 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var wishlistCapturedOptionCleanupPanel: some View {
+    let entries = wishlistCapturedOptionCleanupEntries
+    let highPriorityCount = entries.filter { $0.priorityColor == .red || $0.priorityColor == .orange }.count
+    let trustGapCount = entries.filter { $0.gaps.contains("seller trust") }.count
+
+    return SettingsPanel(title: "Captured seller option cleanup", symbol: "puzzlepiece.extension.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Seller options created from staged capture clues need manual cleanup before purchase comparison. Confirm the product link, AUD total, postage, trust evidence, returns, warranty, and availability before making one preferred.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Captured options", "\(entries.count)", entries.isEmpty ? .secondary : .purple),
+          ("High priority", "\(highPriorityCount)", highPriorityCount == 0 ? .green : .orange),
+          ("Trust gaps", "\(trustGapCount)", trustGapCount == 0 ? .green : .red),
+          ("Ready to score", "\(entries.filter { $0.gaps.isEmpty }.count)", entries.contains { $0.gaps.isEmpty } ? .green : .secondary)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No captured seller options need cleanup",
+            detail: "When a staged capture becomes a Wishlist item, any carried-over seller option with missing evidence will appear here before purchase comparison.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 330), spacing: 10)], spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistCapturedOptionCleanupRow(entry: entry) {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .all
+                showClosedItems = false
+              } onTask: {
+                store.createWishlistSellerEvidenceReviewTask(entry.item)
+              } onScore: {
+                store.evaluateWishlistComparisonOptions(entry.item)
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more captured seller option\(remaining == 1 ? "" : "s") need cleanup in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This is a local cleanup queue only. ParcelOps does not scrape seller pages, verify live stock, convert exchange rates, calculate postage, inspect reviews, or start checkout.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistCapturedOptionCleanupEntries: [WishlistCapturedOptionCleanupEntry] {
+    store.wishlistItems
+      .filter(store.isActiveWishlistItem)
+      .flatMap { item in
+        (item.comparisonOptions ?? []).compactMap { option -> WishlistCapturedOptionCleanupEntry? in
+          guard wishlistIsCaptureStagedOption(option) else { return nil }
+          let gaps = option.operatorSellerEvidenceGaps
+          let score = option.operatorSellerMatrixScore
+          let priorityColor: Color
+          let priorityLabel: String
+
+          if gaps.contains("seller trust") || gaps.contains("product link") {
+            priorityColor = .red
+            priorityLabel = "Evidence first"
+          } else if gaps.contains("AUD total") || gaps.contains("postage cost") || gaps.contains("postage time") || score < 55 {
+            priorityColor = .orange
+            priorityLabel = "Cleanup needed"
+          } else if gaps.isEmpty {
+            priorityColor = .green
+            priorityLabel = "Ready to score"
+          } else {
+            priorityColor = .purple
+            priorityLabel = "Captured"
+          }
+
+          return WishlistCapturedOptionCleanupEntry(
+            item: item,
+            option: option,
+            gaps: gaps,
+            priorityLabel: priorityLabel,
+            priorityColor: priorityColor
+          )
+        }
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private func wishlistIsCaptureStagedOption(_ option: WishlistComparisonOption) -> Bool {
+    option.recommendation.localizedCaseInsensitiveContains("captured")
+      || option.decisionReason?.localizedCaseInsensitiveContains("capture metadata") == true
+      || option.trustNotes.localizedCaseInsensitiveContains("Wishlist staging")
   }
 
   private var wishlistSellerOptionIssues: [WishlistSellerOptionIssue] {
@@ -11282,6 +11389,25 @@ private struct WishlistSellerOptionIssue: Identifiable {
   var color: Color
 }
 
+private struct WishlistCapturedOptionCleanupEntry: Identifiable {
+  var id: String {
+    "\(item.id.uuidString)-\(option.id.uuidString)-captured-cleanup"
+  }
+
+  var item: WishlistItem
+  var option: WishlistComparisonOption
+  var gaps: [String]
+  var priorityLabel: String
+  var priorityColor: Color
+
+  var sortPriority: Int {
+    if priorityColor == .red { return 0 }
+    if priorityColor == .orange { return 1 }
+    if priorityColor == .purple { return 2 }
+    return 3
+  }
+}
+
 private struct WishlistSellerSafetyRubricEntry: Identifiable {
   var id: String {
     "\(item.id.uuidString)-\(option.id.uuidString)-safety"
@@ -11548,6 +11674,78 @@ private struct WishlistSellerOptionIssueRow: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(issue.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistCapturedOptionCleanupRow: View {
+  var entry: WishlistCapturedOptionCleanupEntry
+  var onFocus: () -> Void
+  var onTask: () -> Void
+  var onScore: () -> Void
+
+  private var gapSummary: String {
+    entry.gaps.isEmpty ? "No obvious evidence gaps. Re-score and confirm manually before preferring." : "Needs \(entry.gaps.prefix(4).joined(separator: ", "))"
+  }
+
+  private var linkSummary: String {
+    entry.option.productURL.isPlaceholderValidationValue ? "Product link needs confirmation" : entry.option.productURL
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "puzzlepiece.extension.fill")
+          .foregroundStyle(entry.priorityColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.option.sellerName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.item.itemName)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(gapSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge("Captured", color: .purple)
+          Badge(entry.priorityLabel, color: entry.priorityColor)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 125) {
+        WishlistMatrixMetric(title: "AUD", value: entry.option.estimatedAUDTotal, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: "\(entry.option.postageCost), \(entry.option.postageTime)", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Trust", value: entry.option.trustRating, symbol: "shield.lefthalf.filled")
+        WishlistMatrixMetric(title: "Score", value: "\(entry.option.operatorSellerMatrixScore)/100", symbol: "chart.bar.fill")
+      }
+
+      Text(linkSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .truncationMode(.middle)
+
+      Text("Captured from staged metadata. Confirm seller evidence before selecting as preferred.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.purple)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Focus item", systemImage: "scope", action: onFocus)
+        Button("Evidence task", systemImage: "checklist", action: onTask)
+        Button("Score", systemImage: "chart.bar.doc.horizontal", action: onScore)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.priorityColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
