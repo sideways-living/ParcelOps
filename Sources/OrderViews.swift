@@ -657,6 +657,44 @@ private struct OrderWishlistSourceRow: View {
   }
 }
 
+private struct OrderClosedWishlistSourceRow: View {
+  var item: WishlistItem
+
+  private var handoff: WishlistPurchaseHandoff? {
+    item.purchaseHandoff
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "archivebox.fill")
+        .foregroundStyle(.secondary)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(item.itemName)
+          .font(.caption.weight(.semibold))
+        Text("\(handoff?.sellerName ?? item.storefront) • \(handoff?.purchaseStatus ?? item.status)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        if let handoff {
+          Text("Historical order watch: \(handoff.orderWatchStatus)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text("Closed Wishlist link retained for provenance only. It is not counted as active order follow-up.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: 8)
+      Badge("Closed history", color: .secondary)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct OrdersInboxHandoffEmptyState: View {
   var fetchedCount: Int
   var importedCount: Int
@@ -1901,11 +1939,12 @@ struct OrderDetailView: View {
     let emails = linkedIntakeEmails(for: order)
     let imports = store.importQueueItems(for: order)
     let acceptance = store.acceptanceRecords(for: order)
-    let wishlistItems = store.wishlistItemsLinked(to: order)
+    let wishlistItems = store.activeWishlistItemsLinked(to: order)
+    let closedWishlistItems = store.wishlistItemsLinked(to: order).filter { !store.isActiveWishlistItem($0) }
 
     return Panel(title: "Inbox source trail", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Trace the local intake, import, acceptance, and Wishlist records that led to this order. Use this before editing operational details or marking the handoff reviewed.")
+        Text("Trace the local intake, import, acceptance, and active Wishlist records that led to this order. Closed Wishlist links are retained as read-only history below so they do not look like active follow-up.")
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -1913,10 +1952,13 @@ struct OrderDetailView: View {
           Badge("\(emails.count) intake emails", color: emails.isEmpty ? .secondary : .teal)
           Badge("\(imports.count) import items", color: imports.isEmpty ? .secondary : .blue)
           Badge("\(acceptance.count) acceptance records", color: acceptance.isEmpty ? .secondary : .purple)
-          Badge("\(wishlistItems.count) wishlist", color: wishlistItems.isEmpty ? .secondary : .pink)
+          Badge("\(wishlistItems.count) active wishlist", color: wishlistItems.isEmpty ? .secondary : .pink)
+          if !closedWishlistItems.isEmpty {
+            Badge("\(closedWishlistItems.count) closed history", color: .secondary)
+          }
         }
 
-        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty && wishlistItems.isEmpty {
+        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty && wishlistItems.isEmpty && closedWishlistItems.isEmpty {
           MVPEmptyState(
             title: "No source records matched",
             detail: "This order still looks Inbox-created, but no linked intake, import, acceptance, or Wishlist handoff records matched the current order number.",
@@ -1936,6 +1978,17 @@ struct OrderDetailView: View {
                   store.createDraftMessage(from: item)
                   feedbackMessage = "Wishlist review draft created locally from order source trail. No message was sent."
                 }
+              }
+            }
+          }
+
+          if !closedWishlistItems.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Closed Wishlist history")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(closedWishlistItems) { item in
+                OrderClosedWishlistSourceRow(item: item)
               }
             }
           }
