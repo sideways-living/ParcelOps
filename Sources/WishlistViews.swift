@@ -498,6 +498,7 @@ struct WishlistView: View {
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
         wishlistResearchResultQualityPanel
+        wishlistSellerComparisonDecisionRunwayPanel
         wishlistResearchRequestsPanel
         gmailWishlistFocusPanel
         filterBar
@@ -6135,6 +6136,218 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistSellerComparisonDecisionRunwayEntries: [WishlistComparisonDecisionRunwayEntry] {
+    store.wishlistItems.compactMap(wishlistSellerComparisonDecisionRunwayEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistSellerComparisonDecisionRunwayPanel: some View {
+    let entries = wishlistSellerComparisonDecisionRunwayEntries
+    let needsOptions = entries.filter { $0.stage == "Need seller option" }.count
+    let evidenceGaps = entries.filter { $0.stage == "Evidence gaps" }.count
+    let needsPreferred = entries.filter { $0.stage == "Choose seller" }.count
+    let needsDecision = entries.filter { $0.stage == "Draft decision" }.count
+    let handoffReady = entries.filter { $0.stage == "Ready for handoff" }.count
+
+    return SettingsPanel(title: "Seller comparison decision runway", symbol: "arrow.triangle.branch") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("A local operator queue for turning captured seller comparisons into a safe purchase handoff. It favours complete evidence over cheap-looking sellers: product link, AUD landed total, postage time/cost, seller trust, returns/warranty, preferred seller, decision review, then handoff.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Need options", "\(needsOptions)", needsOptions == 0 ? .green : .orange),
+          ("Evidence gaps", "\(evidenceGaps)", evidenceGaps == 0 ? .green : .orange),
+          ("Choose seller", "\(needsPreferred)", needsPreferred == 0 ? .green : .blue),
+          ("Draft decision", "\(needsDecision)", needsDecision == 0 ? .green : .purple),
+          ("Handoff-ready", "\(handoffReady)", handoffReady == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller comparison decisions waiting",
+            detail: "Create research briefs or seller options from Wishlist items first. This queue stays local and does not browse retailers, quote postage, or buy anything.",
+            symbol: "arrow.triangle.branch"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistComparisonDecisionRunwayRow(entry: entry) {
+                runWishlistSellerComparisonDecisionRunwayAction(for: entry)
+              } onTask: {
+                store.createReviewTask(
+                  linkedEntityType: .wishlistItem,
+                  linkedEntityID: entry.item.id.uuidString,
+                  label: entry.item.itemName,
+                  summary: "Advance Wishlist seller comparison decision. Current stage: \(entry.stage). Next action: \(entry.nextAction)",
+                  priority: entry.stage == "Ready for handoff" ? .normal : .high,
+                  assignee: "Wishlist review"
+                )
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .compare
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller comparison item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist list.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Still manual/local: no live retailer validation, exchange-rate lookup, postage quote, seller trust API, account login, checkout, payment, order monitoring, or mailbox mutation happens from this queue.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistSellerComparisonDecisionRunwayEntry(for item: WishlistItem) -> WishlistComparisonDecisionRunwayEntry? {
+    let hasResearchContext = store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
+      || store.draftMessages.contains {
+        $0.linkedEntityType == .wishlistItem
+          && $0.linkedEntityID == "wishlist-research-batch"
+          && $0.body.localizedCaseInsensitiveContains(item.itemName)
+      }
+    let options = item.comparisonOptions ?? []
+    guard hasResearchContext || !options.isEmpty else { return nil }
+    guard item.purchaseHandoff == nil else { return nil }
+
+    let bestOption = options.sorted { first, second in
+      first.operatorSellerMatrixScore > second.operatorSellerMatrixScore
+    }.first
+    let preferredOption = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    }
+    let preferredGaps = preferredOption?.operatorSellerEvidenceGaps ?? []
+    let allGapLabels = Array(Set(options.flatMap(\.operatorSellerEvidenceGaps))).sorted()
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let primaryAction: String
+    let primarySymbol: String
+    let tone: Color
+    let sortPriority: Int
+    let blockers: [String]
+
+    if options.isEmpty {
+      stage = "Need seller option"
+      detail = "Research context exists, but no seller option is captured locally."
+      nextAction = "Add a seller option with product URL, landed AUD total, postage, trust, and returns/warranty notes."
+      primaryAction = "Add option"
+      primarySymbol = "storefront.fill"
+      tone = .orange
+      sortPriority = 0
+      blockers = ["seller option"]
+    } else if !allGapLabels.isEmpty {
+      stage = "Evidence gaps"
+      detail = "Seller options are present but still missing \(allGapLabels.prefix(4).joined(separator: ", "))."
+      nextAction = "Edit seller evidence or re-score options before choosing a preferred seller."
+      primaryAction = "Score"
+      primarySymbol = "chart.bar.doc.horizontal"
+      tone = .orange
+      sortPriority = 10
+      blockers = allGapLabels
+    } else if preferredOption == nil {
+      stage = "Choose seller"
+      detail = "Seller evidence is complete enough for a local preferred-seller choice."
+      nextAction = "Mark the strongest local seller as preferred before drafting a purchase decision."
+      primaryAction = "Prefer best"
+      primarySymbol = "star.circle.fill"
+      tone = .blue
+      sortPriority = 20
+      blockers = []
+    } else if !preferredGaps.isEmpty || (preferredOption?.operatorSellerMatrixScore ?? 0) < 65 {
+      stage = "Preferred review"
+      detail = "The preferred seller still needs evidence or risk review."
+      nextAction = "Re-score and confirm the preferred seller has acceptable trust, postage, and AUD landed cost evidence."
+      primaryAction = "Score"
+      primarySymbol = "chart.bar.doc.horizontal"
+      tone = .purple
+      sortPriority = 30
+      blockers = preferredGaps.isEmpty ? ["seller risk"] : preferredGaps
+    } else if item.purchaseDecision == nil {
+      stage = "Draft decision"
+      detail = "A preferred seller exists with enough local evidence for a purchase decision draft."
+      nextAction = "Draft a local purchase decision, then review it before real checkout outside ParcelOps."
+      primaryAction = "Draft decision"
+      primarySymbol = "doc.badge.plus"
+      tone = .green
+      sortPriority = 40
+      blockers = []
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      stage = "Decision review"
+      detail = "The purchase decision exists but still needs operator review."
+      nextAction = "Review the purchase decision or create a follow-up task if seller evidence is still weak."
+      primaryAction = "Review task"
+      primarySymbol = "checklist"
+      tone = .teal
+      sortPriority = 50
+      blockers = ["decision review"]
+    } else {
+      stage = "Ready for handoff"
+      detail = "Decision is accepted. Prepare account/order-watch handoff before any manual purchase."
+      nextAction = "Prepare a local purchase handoff with account label and expected order-confirmation signals."
+      primaryAction = "Prepare handoff"
+      primarySymbol = "person.crop.circle.badge.checkmark"
+      tone = .green
+      sortPriority = 60
+      blockers = []
+    }
+
+    return WishlistComparisonDecisionRunwayEntry(
+      item: item,
+      bestOption: bestOption,
+      preferredOption: preferredOption,
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      primaryAction: primaryAction,
+      primarySymbol: primarySymbol,
+      blockers: blockers,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func runWishlistSellerComparisonDecisionRunwayAction(for entry: WishlistComparisonDecisionRunwayEntry) {
+    switch entry.stage {
+    case "Need seller option":
+      store.addManualWishlistSellerOptionPlaceholder(entry.item)
+    case "Evidence gaps", "Preferred review":
+      store.evaluateWishlistComparisonOptions(entry.item)
+    case "Choose seller":
+      if let option = entry.bestOption {
+        store.markWishlistPreferredOption(entry.item, option: option)
+      }
+    case "Draft decision":
+      store.createWishlistPurchaseDecision(entry.item)
+    case "Decision review":
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    case "Ready for handoff":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .compare
+    }
+  }
+
   private var wishlistCaptureCandidatesPanel: some View {
     let candidates = store.wishlistCaptureCandidates
     let readyCount = candidates.filter { $0.operatorCaptureGaps.isEmpty }.count
@@ -7811,6 +8024,98 @@ private struct WishlistResearchRunwayStep: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistComparisonDecisionRunwayEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var bestOption: WishlistComparisonOption?
+  var preferredOption: WishlistComparisonOption?
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var primaryAction: String
+  var primarySymbol: String
+  var blockers: [String]
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistComparisonDecisionRunwayRow: View {
+  var entry: WishlistComparisonDecisionRunwayEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var optionSummary: String {
+    if let preferred = entry.preferredOption {
+      return "Preferred: \(preferred.sellerName), \(preferred.estimatedAUDTotal), score \(preferred.operatorSellerMatrixScore)/100."
+    }
+    if let best = entry.bestOption {
+      return "Best local candidate: \(best.sellerName), \(best.estimatedAUDTotal), score \(best.operatorSellerMatrixScore)/100."
+    }
+    return "No seller option captured yet."
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.primarySymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        Label(optionSummary, systemImage: "storefront.fill")
+        Label(entry.item.owner, systemImage: "person.crop.circle")
+        Label(entry.item.source.rawValue, systemImage: "square.and.arrow.down.fill")
+        if let preferred = entry.preferredOption {
+          Label(preferred.postageTime, systemImage: "shippingbox.fill")
+          Label(preferred.trustRating, systemImage: "shield.checkered")
+        } else if let best = entry.bestOption {
+          Label(best.postageTime, systemImage: "shippingbox.fill")
+          Label(best.trustRating, systemImage: "shield.checkered")
+        }
+      }
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+
+      if !entry.blockers.isEmpty {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 6)], alignment: .leading, spacing: 6) {
+          ForEach(entry.blockers.prefix(5), id: \.self) { blocker in
+            Badge(blocker, color: .orange)
+          }
+        }
+      }
+
+      Text(entry.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(entry.tone)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.primaryAction, systemImage: entry.primarySymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
