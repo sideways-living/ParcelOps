@@ -20717,6 +20717,26 @@ final class ParcelOpsStore {
     return isActiveWishlistItem(item)
   }
 
+  func isActiveWishlistResearchRequest(_ request: WishlistResearchRequest) -> Bool {
+    guard let item = wishlistItem(id: request.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistPriceSnapshot(_ snapshot: WishlistPriceSnapshot) -> Bool {
+    guard let item = wishlistItem(id: snapshot.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistSellerQuote(_ quote: WishlistSellerQuote) -> Bool {
+    guard let item = wishlistItem(id: quote.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
+  func isActiveWishlistPriceWatchRule(_ rule: WishlistPriceWatchRule) -> Bool {
+    guard let item = wishlistItem(id: rule.wishlistItemID) else { return true }
+    return isActiveWishlistItem(item)
+  }
+
   func activeWishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {
     wishlistItemsLinked(to: order).filter(isActiveWishlistItem)
   }

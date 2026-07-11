@@ -480,7 +480,7 @@ struct WishlistView: View {
 
   private var wishlistPurchaseBlockerQueueItems: [WishlistItem] {
     store.wishlistItems
-      .filter { !$0.operatorPurchaseBlockers.isEmpty }
+      .filter { store.isActiveWishlistItem($0) && !$0.operatorPurchaseBlockers.isEmpty }
       .sorted { first, second in
         if first.operatorPurchaseBlockers.count == second.operatorPurchaseBlockers.count {
           return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
@@ -491,6 +491,7 @@ struct WishlistView: View {
 
   private var wishlistPipelineItems: [WishlistPipelineItem] {
     store.wishlistItems
+      .filter(store.isActiveWishlistItem)
       .map(wishlistPipelineItem(for:))
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
@@ -502,6 +503,7 @@ struct WishlistView: View {
 
   private var wishlistDataQualityEntries: [WishlistDataQualityEntry] {
     store.wishlistItems
+      .filter(store.isActiveWishlistItem)
       .compactMap { item in
         let issues = wishlistDataQualityIssues(for: item)
         guard !issues.isEmpty else { return nil }
@@ -1576,7 +1578,7 @@ struct WishlistView: View {
   }
 
   private var wishlistReadinessPanel: some View {
-    let activeItems = store.wishlistItems
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
     let readyItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("ready") }
     let reviewItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("review") }
     let linkedItems = activeItems.filter { $0.status.localizedCaseInsensitiveContains("linked") }
@@ -1892,7 +1894,7 @@ struct WishlistView: View {
   }
 
   private var wishlistComparisonPlanningPanel: some View {
-    let activeItems = store.wishlistItems
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
     let comparedItems = activeItems.filter { !($0.comparisonOptions ?? []).isEmpty }
     let purchaseReadyItems = activeItems.filter {
       $0.status.localizedCaseInsensitiveContains("ready to purchase")
@@ -1982,7 +1984,7 @@ struct WishlistView: View {
           Button("Create batch brief", systemImage: "doc.badge.plus") {
             store.createWishlistBatchResearchBriefDraft()
           }
-          .disabled(store.wishlistResearchRequests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }.isEmpty)
+          .disabled(store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }.isEmpty)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -2020,7 +2022,7 @@ struct WishlistView: View {
   private var wishlistSellerOptionReviewPanel: some View {
     let issues = wishlistSellerOptionIssues
     let readyOptions = wishlistReadySellerOptions
-    let totalOptions = store.wishlistItems.reduce(0) { count, item in
+    let totalOptions = store.wishlistItems.filter(store.isActiveWishlistItem).reduce(0) { count, item in
       count + (item.comparisonOptions?.count ?? 0)
     }
     let missingAUD = issues.filter { $0.kind == "AUD total" }.count
@@ -2962,7 +2964,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPriceWatchSnapshots: [WishlistPriceSnapshot] {
-    store.wishlistPriceSnapshots.sorted { first, second in
+    store.wishlistPriceSnapshots.filter(store.isActiveWishlistPriceSnapshot).sorted { first, second in
       let firstPriority = wishlistPriceSnapshotPriority(first)
       let secondPriority = wishlistPriceSnapshotPriority(second)
       if firstPriority == secondPriority {
@@ -3276,7 +3278,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPurchaseRecommendationEntries: [WishlistPurchaseRecommendationEntry] {
-    store.wishlistItems.compactMap(wishlistPurchaseRecommendationEntry(for:))
+    store.wishlistItems.filter(store.isActiveWishlistItem).compactMap(wishlistPurchaseRecommendationEntry(for:))
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
           return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
@@ -7286,7 +7288,7 @@ struct WishlistView: View {
   }
 
   private var wishlistAgentHandoffPacketPanel: some View {
-    let requests = store.wishlistResearchRequests
+    let requests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
     let ready = requests.filter(\.isAgentBriefReady)
     let needsScope = requests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let blocked = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
@@ -7389,7 +7391,7 @@ struct WishlistView: View {
   }
 
   private var wishlistAgentBatchBriefPanel: some View {
-    let requests = store.wishlistResearchRequests
+    let requests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
     let ready = requests.filter(\.isAgentBriefReady)
     let usable = ready.isEmpty ? requests.filter { !$0.requestStatus.localizedCaseInsensitiveContains("blocked") } : ready
     let scopeGaps = requests.reduce(0) { $0 + $1.agentBriefGaps.count }
@@ -7541,6 +7543,7 @@ struct WishlistView: View {
 
   private var wishlistAgentOutputContractEntries: [WishlistAgentOutputContractEntry] {
     store.wishlistResearchRequests
+      .filter(store.isActiveWishlistResearchRequest)
       .map { request in
         let gaps = request.agentBriefGaps
         let isBlocked = request.requestStatus.localizedCaseInsensitiveContains("blocked")
@@ -7695,6 +7698,7 @@ struct WishlistView: View {
 
   private var wishlistAgentBriefQualityEntries: [WishlistAgentBriefQualityEntry] {
     store.wishlistResearchRequests
+      .filter(store.isActiveWishlistResearchRequest)
       .map(wishlistAgentBriefQualityEntry(for:))
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
@@ -7860,7 +7864,7 @@ struct WishlistView: View {
   }
 
   private var wishlistAgentResearchRunwayPanel: some View {
-    let requests = store.wishlistResearchRequests
+    let requests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
     let readyRequests = requests.filter(\.isAgentBriefReady)
     let scopeGapRequests = requests.filter { !$0.isAgentBriefReady && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let blockedRequests = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
@@ -8034,6 +8038,7 @@ struct WishlistView: View {
   private var wishlistResearchResultIntakeItems: [WishlistItem] {
     store.wishlistItems
       .filter { item in
+        guard store.isActiveWishlistItem(item) else { return false }
         let hasRequest = store.wishlistResearchRequests.contains { $0.wishlistItemID == item.id }
         let hasBatchDraft = store.draftMessages.contains {
           $0.linkedEntityType == .wishlistItem
@@ -8068,7 +8073,7 @@ struct WishlistView: View {
 
   private var wishlistResearchResultIntakePanel: some View {
     let intakeItems = wishlistResearchResultIntakeItems
-    let sellerOptionCount = store.wishlistItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
+    let sellerOptionCount = store.wishlistItems.filter(store.isActiveWishlistItem).reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
     let batchDraftCount = store.draftMessages.filter {
       $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
     }.count
@@ -8192,7 +8197,7 @@ struct WishlistView: View {
   }
 
   private var wishlistSellerQuoteIntakePanel: some View {
-    let quotes = store.wishlistSellerQuotes.sorted { first, second in
+    let quotes = store.wishlistSellerQuotes.filter(store.isActiveWishlistSellerQuote).sorted { first, second in
       if first.reviewState == second.reviewState {
         return first.capturedDate > second.capturedDate
       }
@@ -8203,9 +8208,11 @@ struct WishlistView: View {
     let rejected = quotes.filter { $0.quoteStatus.localizedCaseInsensitiveContains("rejected") }.count
     let linked = quotes.filter { quote in
       store.wishlistItems.contains { item in
+        store.isActiveWishlistItem(item) && (
         quote.wishlistItemID == item.id
           || quote.itemName.localizedCaseInsensitiveContains(item.itemName)
           || item.itemName.localizedCaseInsensitiveContains(quote.itemName)
+        )
       }
     }.count
 
@@ -8290,7 +8297,7 @@ struct WishlistView: View {
   }
 
   private var wishlistPriceWatchRulesPanel: some View {
-    let rules = store.wishlistPriceWatchRules.sorted { first, second in
+    let rules = store.wishlistPriceWatchRules.filter(store.isActiveWishlistPriceWatchRule).sorted { first, second in
       if first.reviewState == second.reviewState {
         return first.lastEvaluatedDate > second.lastEvaluatedDate
       }
@@ -8592,16 +8599,17 @@ struct WishlistView: View {
   }
 
   private var wishlistResearchPasteBackFieldMapPanel: some View {
-    let optionCount = store.wishlistItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
-    let gapCount = store.wishlistItems.reduce(0) { total, item in
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let optionCount = activeItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
+    let gapCount = activeItems.reduce(0) { total, item in
       total + (item.comparisonOptions ?? []).reduce(0) { $0 + $1.operatorSellerEvidenceGaps.count }
     }
-    let readyCount = store.wishlistItems.reduce(0) { total, item in
+    let readyCount = activeItems.reduce(0) { total, item in
       total + (item.comparisonOptions ?? []).filter { option in
         option.operatorSellerEvidenceGaps.isEmpty && option.operatorSellerMatrixScore >= 70
       }.count
     }
-    let missingAudCount = store.wishlistItems.reduce(0) { total, item in
+    let missingAudCount = activeItems.reduce(0) { total, item in
       total + (item.comparisonOptions ?? []).filter { option in
         option.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       }.count
@@ -8702,7 +8710,7 @@ struct WishlistView: View {
   }
 
   private var wishlistResearchResultQualityEntries: [WishlistResearchResultQualityEntry] {
-    store.wishlistItems.compactMap { item in
+    store.wishlistItems.filter(store.isActiveWishlistItem).compactMap { item in
       wishlistResearchResultQualityEntry(for: item)
     }
     .sorted { first, second in
@@ -8903,7 +8911,7 @@ struct WishlistView: View {
   }
 
   private var wishlistSellerComparisonDecisionRunwayEntries: [WishlistComparisonDecisionRunwayEntry] {
-    store.wishlistItems.compactMap(wishlistSellerComparisonDecisionRunwayEntry(for:))
+    store.wishlistItems.filter(store.isActiveWishlistItem).compactMap(wishlistSellerComparisonDecisionRunwayEntry(for:))
       .sorted { first, second in
         if first.sortPriority == second.sortPriority {
           return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
@@ -9568,10 +9576,11 @@ struct WishlistView: View {
   }
 
   private var wishlistResearchRequestsPanel: some View {
-    let openRequests = store.wishlistResearchRequests.filter { $0.reviewState != .accepted }
-    let blockedRequests = store.wishlistResearchRequests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
-    let readyRequests = store.wishlistResearchRequests.filter(\.isAgentBriefReady)
-    let scopeGapRequests = store.wishlistResearchRequests.filter { !$0.isAgentBriefReady }
+    let requests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+    let openRequests = requests.filter { $0.reviewState != .accepted }
+    let blockedRequests = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    let readyRequests = requests.filter(\.isAgentBriefReady)
+    let scopeGapRequests = requests.filter { !$0.isAgentBriefReady }
 
     return SettingsPanel(title: "Future agent research queue", symbol: "list.bullet.clipboard.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -9581,7 +9590,7 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Research briefs", "\(store.wishlistResearchRequests.count)", store.wishlistResearchRequests.isEmpty ? .secondary : .blue),
+          ("Research briefs", "\(requests.count)", requests.isEmpty ? .secondary : .blue),
           ("Open", "\(openRequests.count)", openRequests.isEmpty ? .green : .orange),
           ("Agent-ready", "\(readyRequests.count)", readyRequests.isEmpty ? .secondary : .green),
           ("Scope gaps", "\(scopeGapRequests.count)", scopeGapRequests.isEmpty ? .green : .orange),
@@ -9616,7 +9625,7 @@ struct WishlistView: View {
           }
         }
 
-        if store.wishlistResearchRequests.isEmpty {
+        if requests.isEmpty {
           MVPEmptyState(
             title: "No research briefs yet",
             detail: "Use Compare on a Wishlist item to create a local brief for future seller research. No live web search or external agent runs from this screen.",
@@ -9624,7 +9633,7 @@ struct WishlistView: View {
           )
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 340), spacing: 10)], spacing: 10) {
-            ForEach(store.wishlistResearchRequests) { request in
+            ForEach(requests) { request in
               WishlistResearchRequestRow(request: request) {
                 store.markWishlistResearchRequestReviewed(request)
               } onBlock: {

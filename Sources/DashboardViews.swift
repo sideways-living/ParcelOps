@@ -630,10 +630,13 @@ struct DashboardView: View {
     wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
   }
   private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
-    store.wishlistResearchRequests.filter { !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
+    store.wishlistResearchRequests.filter {
+      store.isActiveWishlistResearchRequest($0)
+        && (!$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked"))
+    }
   }
   private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
-    store.wishlistResearchRequests.filter(\.isAgentBriefReady)
+    store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && $0.isAgentBriefReady }
   }
   private var wishlistBatchResearchDrafts: [DraftMessage] {
     store.draftMessages.filter {

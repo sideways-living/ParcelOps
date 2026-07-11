@@ -224,6 +224,7 @@ struct ParcelOpsRootView: View {
 
   private var wishlistAttentionCount: Int {
     store.wishlistItems.filter { item in
+      guard store.isActiveWishlistItem(item) else { return false }
       let options = item.comparisonOptions ?? []
       let snapshots = store.wishlistPriceSnapshots(for: item)
       let preferred = item.preferredOptionID.flatMap { preferredID in
