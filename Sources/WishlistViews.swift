@@ -477,6 +477,7 @@ struct WishlistView: View {
         wishlistComparisonMatrixPanel
         wishlistLandedCostReviewPanel
         wishlistPurchaseRecommendationPanel
+        wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseDecisionSummaryPanel
@@ -2660,6 +2661,153 @@ struct WishlistView: View {
       tone: tone,
       sortPriority: sortPriority
     )
+  }
+
+  private var wishlistPurchaseDecisionRiskGateEntries: [WishlistPurchaseRecommendationEntry] {
+    wishlistPurchaseRecommendationEntries
+      .filter { entry in
+        !entry.warningLabels.isEmpty
+          || entry.recommendedOption.operatorSellerMatrixScore < 70
+          || !entry.recommendedOption.operatorSellerEvidenceGaps.isEmpty
+          || entry.preferredOption == nil
+          || entry.preferredOption?.id != entry.recommendedOption.id
+      }
+  }
+
+  private var wishlistPurchaseDecisionRiskGatePanel: some View {
+    let entries = wishlistPurchaseDecisionRiskGateEntries
+    let blocked = entries.filter { $0.recommendedOption.operatorSellerMatrixScore < 55 || $0.warningLabels.contains("trust needs review") }.count
+    let cheaperRisk = entries.filter { $0.warningLabels.contains("cheapest differs from safest") }.count
+    let preferredConflict = entries.filter { $0.warningLabels.contains("preferred differs from safest") || $0.warningLabels.contains("preferred seller missing") }.count
+    let evidenceGaps = entries.filter { !$0.recommendedOption.operatorSellerEvidenceGaps.isEmpty }.count
+
+    return SettingsPanel(title: "Purchase decision risk gate", symbol: "shield.lefthalf.filled.badge.checkmark") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("This gate catches the cases that should not move straight from seller comparison into a purchase decision: cheap-but-risky sellers, missing preferred routes, trust gaps, postage uncertainty, and incomplete AUD landed cost evidence.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Risk items", "\(entries.count)", entries.isEmpty ? .green : .orange),
+          ("Blocked", "\(blocked)", blocked == 0 ? .green : .red),
+          ("Cheaper risk", "\(cheaperRisk)", cheaperRisk == 0 ? .green : .orange),
+          ("Preferred issue", "\(preferredConflict)", preferredConflict == 0 ? .green : .purple),
+          ("Evidence gaps", "\(evidenceGaps)", evidenceGaps == 0 ? .green : .red)
+        ])
+
+        if entries.isEmpty {
+          Label("No purchase decision risk gates are currently blocking seller recommendations. Continue to shortlist and decision review, then manually confirm live details before buying.", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: entry.recommendedOption.operatorSellerMatrixScore < 55 ? "xmark.shield.fill" : "exclamationmark.shield.fill")
+                    .foregroundStyle(entry.recommendedOption.operatorSellerMatrixScore < 55 ? .red : .orange)
+                    .frame(width: 24)
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.item.itemName)
+                      .font(.subheadline.weight(.semibold))
+                      .lineLimit(2)
+                    Text(wishlistPurchaseDecisionRiskGateDetail(for: entry))
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 8)
+                  VStack(alignment: .trailing, spacing: 6) {
+                    Badge("Score \(entry.recommendedOption.operatorSellerMatrixScore)", color: entry.recommendedOption.operatorSellerMatrixScore < 55 ? .red : .orange)
+                    Badge(entry.warningLabels.isEmpty ? "Check live" : "\(entry.warningLabels.count) warning\(entry.warningLabels.count == 1 ? "" : "s")", color: entry.warningLabels.isEmpty ? .teal : .orange)
+                  }
+                }
+
+                CompactMetadataGrid(minimumWidth: 145) {
+                  Label(entry.recommendedOption.sellerName, systemImage: "storefront.fill")
+                  Label(entry.recommendedOption.estimatedAUDTotal, systemImage: "dollarsign.circle.fill")
+                  Label("\(entry.recommendedOption.postageCost) / \(entry.recommendedOption.postageTime)", systemImage: "shippingbox.fill")
+                  Label(entry.recommendedOption.trustRating, systemImage: "shield.checkered")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if !entry.warningLabels.isEmpty {
+                  Text("Warnings: \(entry.warningLabels.joined(separator: ", ")).")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !entry.recommendedOption.operatorSellerEvidenceGaps.isEmpty {
+                  Text("Evidence gaps: \(entry.recommendedOption.operatorSellerEvidenceGaps.joined(separator: ", ")).")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                CompactActionRow {
+                  Button("Use safest", systemImage: "checkmark.shield.fill") {
+                    store.markWishlistPreferredOption(entry.item, option: entry.recommendedOption)
+                  }
+                  Button("Score", systemImage: "chart.bar.doc.horizontal") {
+                    store.evaluateWishlistComparisonOptions(entry.item)
+                  }
+                  Button("Task", systemImage: "checklist") {
+                    store.createWishlistPurchaseDecisionReviewTask(entry.item)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = entry.item.itemName
+                    selectedSource = nil
+                    selectedStatus = nil
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(12)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(entry.recommendedOption.operatorSellerMatrixScore < 55 ? Color.red.opacity(0.08) : Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more risk-gated item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist rows below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This gate is advisory and local only. It does not verify live price, stock, seller reputation, exchange rates, postage quotes, account access, checkout, payment, or delivery probability.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistPurchaseDecisionRiskGateDetail(for entry: WishlistPurchaseRecommendationEntry) -> String {
+    if entry.recommendedOption.operatorSellerMatrixScore < 55 {
+      return "\(entry.recommendedOption.sellerName) is below the local safety threshold. Do not move to purchase decision until trust, postage, returns, and landed cost evidence are improved."
+    }
+    if entry.warningLabels.contains("trust needs review") {
+      return "Seller trust is still unresolved. Confirm reputation, returns, warranty, delivery evidence, and contact details before purchase review."
+    }
+    if entry.warningLabels.contains("cheapest differs from safest") {
+      return "A cheaper option exists, but the safest local recommendation differs. Review whether the saving is worth the trust, postage, warranty, and delivery risk."
+    }
+    if entry.warningLabels.contains("preferred differs from safest") {
+      return "The preferred seller does not match the safest local recommendation. Reconfirm why the preferred route is acceptable."
+    }
+    if entry.warningLabels.contains("preferred seller missing") {
+      return "Choose a preferred seller before drafting the purchase decision."
+    }
+    if !entry.recommendedOption.operatorSellerEvidenceGaps.isEmpty {
+      return "The recommended seller is missing required evidence before purchase decision review."
+    }
+    return "Reconfirm live stock, final AUD total, postage time, seller trust, returns, warranty, and account readiness before purchase handoff."
   }
 
   private var wishlistPurchaseShortlistEntries: [WishlistPurchaseShortlistEntry] {
