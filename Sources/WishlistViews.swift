@@ -410,6 +410,7 @@ struct WishlistView: View {
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
         wishlistLinkedOrderOperationsChecklistPanel
+        wishlistOperationsClosureReadinessPanel
         wishlistAgentHandoffPacketPanel
         wishlistAgentBatchBriefPanel
         wishlistResearchResultIntakePanel
@@ -4672,6 +4673,200 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistOperationsClosureReadinessEntries: [WishlistOperationsClosureReadinessEntry] {
+    wishlistLinkedOrderOperationsChecklistEntries
+      .map(wishlistOperationsClosureReadinessEntry(for:))
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistOperationsClosureReadinessPanel: some View {
+    let entries = wishlistOperationsClosureReadinessEntries
+    let ready = entries.filter { $0.stage == "Ready to close" }.count
+    let orderGaps = entries.filter { $0.gaps.contains("order link") }.count
+    let receivingGaps = entries.filter { $0.gaps.contains("receiving") || $0.gaps.contains("inventory") || $0.gaps.contains("storage") }.count
+    let dispatchGaps = entries.filter { $0.gaps.contains("manifest") || $0.gaps.contains("dispatch") }.count
+
+    return SettingsPanel(title: "Wishlist operations closure readiness", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this final local checklist before treating a Wishlist purchase as handed over to operations. It confirms the order trail, receiving, stock/storage, custody, label/manual check, manifest, dispatch, and follow-up task state.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Items", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Ready to close", "\(ready)", ready == 0 ? .secondary : .green),
+          ("Order gaps", "\(orderGaps)", orderGaps == 0 ? .green : .orange),
+          ("Receiving gaps", "\(receivingGaps)", receivingGaps == 0 ? .green : .teal),
+          ("Dispatch gaps", "\(dispatchGaps)", dispatchGaps == 0 ? .green : .brown)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist operations trail to close",
+            detail: "Link a Wishlist purchase to an order and stage downstream records before closure readiness appears here.",
+            symbol: "checkmark.seal.text.page.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistOperationsClosureReadinessRow(entry: entry) {
+                runWishlistOperationsClosureReadinessAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.item)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more closure readiness item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Closure readiness is local only. It does not close orders externally, receive stock, update inventory systems, book dispatch, print labels, scan hardware, or contact sellers.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistOperationsClosureReadinessEntry(for entry: WishlistLinkedOrderOperationsChecklistEntry) -> WishlistOperationsClosureReadinessEntry {
+    let orderLinked = entry.linkedOrder != nil
+    let checks = entry.phaseChecks
+    let missing = checks.filter { !$0.1 }.map { $0.0.localizedLowercase }
+    var gaps = missing
+    if !orderLinked { gaps.append("order link") }
+
+    let openTasks = store.reviewTasks.filter { task in
+      task.linkedEntityType == .wishlistItem
+        && task.linkedEntityID == entry.item.id.uuidString
+        && task.status != .completed
+    }
+    if !openTasks.isEmpty {
+      gaps.append("open task")
+    }
+
+    let stage: String
+    let detail: String
+    let nextAction: String
+    let nextSymbol: String
+    let tone: Color
+    let sortPriority: Int
+
+    if !orderLinked {
+      stage = "Order link needed"
+      detail = "Link the order confirmation before closing the Wishlist purchase trail."
+      nextAction = "Order seen"
+      nextSymbol = "envelope.badge.fill"
+      tone = .orange
+      sortPriority = 10
+    } else if !missing.isEmpty {
+      stage = "Ops records missing"
+      detail = "Stage \(missing.prefix(3).joined(separator: ", ")) before closure."
+      nextAction = wishlistClosureActionTitle(for: missing)
+      nextSymbol = wishlistClosureActionSymbol(for: missing)
+      tone = .teal
+      sortPriority = 20
+    } else if !openTasks.isEmpty {
+      stage = "Follow-up tasks open"
+      detail = "\(openTasks.count) local follow-up task\(openTasks.count == 1 ? "" : "s") still need review before closure."
+      nextAction = "Task"
+      nextSymbol = "checklist"
+      tone = .purple
+      sortPriority = 30
+    } else {
+      stage = "Ready to close"
+      detail = "Local order and operations records are staged. Continue operational execution in Orders, Dispatch, and Tasks."
+      nextAction = "Focus item"
+      nextSymbol = "scope"
+      tone = .green
+      sortPriority = 40
+    }
+
+    return WishlistOperationsClosureReadinessEntry(
+      item: entry.item,
+      linkedOrder: entry.linkedOrder,
+      phaseChecks: checks,
+      openTaskCount: openTasks.count,
+      gaps: Array(Set(gaps)).sorted(),
+      stage: stage,
+      detail: detail,
+      nextAction: nextAction,
+      nextSymbol: nextSymbol,
+      tone: tone,
+      sortPriority: sortPriority
+    )
+  }
+
+  private func wishlistClosureActionTitle(for gaps: [String]) -> String {
+    if gaps.contains("receiving") { return "Receiving" }
+    if gaps.contains("inventory") { return "Inventory" }
+    if gaps.contains("storage") { return "Storage" }
+    if gaps.contains("custody") { return "Custody" }
+    if gaps.contains("label") { return "Label" }
+    if gaps.contains("manual check") { return "Manual check" }
+    if gaps.contains("manifest") { return "Manifest" }
+    if gaps.contains("dispatch") { return "Dispatch" }
+    return "Task"
+  }
+
+  private func wishlistClosureActionSymbol(for gaps: [String]) -> String {
+    if gaps.contains("receiving") { return "checkmark.seal.fill" }
+    if gaps.contains("inventory") { return "shippingbox.and.arrow.backward.fill" }
+    if gaps.contains("storage") { return "archivebox.fill" }
+    if gaps.contains("custody") { return "person.2.badge.gearshape.fill" }
+    if gaps.contains("label") { return "tag.square.fill" }
+    if gaps.contains("manual check") { return "checklist.checked" }
+    if gaps.contains("manifest") { return "paperplane.fill" }
+    if gaps.contains("dispatch") { return "checkmark.rectangle.stack.fill" }
+    return "checklist"
+  }
+
+  private func runWishlistOperationsClosureReadinessAction(for entry: WishlistOperationsClosureReadinessEntry) {
+    if entry.gaps.contains("order link") {
+      if let email = store.suggestedWishlistOrderConfirmations(for: entry.item).first {
+        store.confirmWishlistOrderFromIntake(entry.item, email: email)
+      } else {
+        store.markWishlistOrderConfirmationSeen(entry.item)
+      }
+    } else if entry.gaps.contains("receiving") {
+      store.createWishlistReceivingInspection(entry.item)
+    } else if entry.gaps.contains("inventory") {
+      store.createWishlistInventoryReceipt(entry.item)
+    } else if entry.gaps.contains("storage") {
+      store.createWishlistStorageLocation(entry.item)
+    } else if entry.gaps.contains("custody") {
+      store.createWishlistCustodyRecord(entry.item)
+    } else if entry.gaps.contains("label") {
+      store.createWishlistLabelReference(entry.item)
+    } else if entry.gaps.contains("manual check") {
+      store.createWishlistScanSession(entry.item)
+    } else if entry.gaps.contains("manifest") {
+      store.createWishlistShipmentManifest(entry.item)
+    } else if entry.gaps.contains("dispatch") {
+      store.createWishlistDispatchReadinessChecklist(entry.item)
+    } else if entry.gaps.contains("open task") {
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    } else {
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
   private var wishlistAgentHandoffPacketPanel: some View {
     let requests = store.wishlistResearchRequests
     let ready = requests.filter(\.isAgentBriefReady)
@@ -5786,6 +5981,21 @@ private struct WishlistLinkedOrderOperationsChecklistEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistOperationsClosureReadinessEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var linkedOrder: TrackedOrder?
+  var phaseChecks: [(String, Bool)]
+  var openTaskCount: Int
+  var gaps: [String]
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistPurchaseOperationsHandoffRow: View {
   var entry: WishlistPurchaseOperationsHandoffEntry
   var onAction: () -> Void
@@ -5853,6 +6063,87 @@ private struct WishlistPurchaseOperationsHandoffRow: View {
       .controlSize(.small)
     }
     .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistOperationsClosureReadinessRow: View {
+  var entry: WishlistOperationsClosureReadinessEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var completedCount: Int {
+    entry.phaseChecks.filter(\.1).count
+  }
+
+  private var orderSummary: String {
+    entry.linkedOrder.map { "\($0.orderNumber) • \($0.latestStatus)" } ?? "Order link pending"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.stage == "Ready to close" ? "checkmark.seal.text.page.fill" : "checklist.unchecked")
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(orderSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Badge("\(completedCount)/\(entry.phaseChecks.count)", color: completedCount == entry.phaseChecks.count ? .green : entry.tone)
+        }
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 6)], alignment: .leading, spacing: 6) {
+        ForEach(entry.phaseChecks, id: \.0) { check in
+          Label(check.0, systemImage: check.1 ? "checkmark.circle.fill" : "circle")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(check.1 ? Color.green : Color.secondary)
+            .lineLimit(1)
+        }
+      }
+
+      if !entry.gaps.isEmpty {
+        Text("Closure gaps: \(entry.gaps.prefix(6).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if entry.openTaskCount > 0 {
+        Label("\(entry.openTaskCount) local follow-up task\(entry.openTaskCount == 1 ? "" : "s") still open", systemImage: "checklist")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.purple)
+      }
+
+      Text("Closure readiness is a local handoff summary. It does not close external orders, receive goods, update stock, book dispatch, or contact retailers.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
