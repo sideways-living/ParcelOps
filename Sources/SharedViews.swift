@@ -2302,10 +2302,21 @@ struct OperatorMVPReadinessCard: View {
       || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let hasInboxEvidence = !store.intakeEmails.isEmpty || !store.importQueueItems.isEmpty || !store.acceptanceRecords.isEmpty
     let hasInboxOrder = store.orders.contains { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder }
+    let hasWishlistItems = !store.wishlistItems.isEmpty
+    let hasWishlistPurchaseFlow = store.wishlistItems.contains { item in
+      item.purchaseDecision != nil
+        || item.purchaseHandoff != nil
+        || !(item.comparisonOptions ?? []).isEmpty
+        || item.status.localizedCaseInsensitiveContains("purchase")
+    }
+    let hasWishlistOrderHandoff = store.wishlistItems.contains { item in
+      guard let linkedOrderID = item.purchaseHandoff?.linkedOrderID else { return false }
+      return store.orders.contains { $0.id == linkedOrderID }
+    }
     let hasDispatchContext = !store.shipmentManifestRecords.isEmpty && !store.dispatchReadinessChecklists.isEmpty
     let hasOpenWorkRouting = !store.openWorkbenchItems.isEmpty || !store.reviewTasks.isEmpty || !store.handoffNotes.isEmpty
     let hasAuditTrail = store.auditEvents.contains { event in
-      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order, .reviewTask, .handoffNote, .shipmentManifest, .dispatchChecklist].contains(event.entityType)
+      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order, .reviewTask, .handoffNote, .shipmentManifest, .dispatchChecklist, .wishlistItem].contains(event.entityType)
     }
 
     return [
@@ -2347,6 +2358,26 @@ struct OperatorMVPReadinessCard: View {
         hasInboxOrder,
         hasInboxOrder ? "success" : "attention",
         "link.badge.plus"
+      ),
+      (
+        "Wishlist capture",
+        hasWishlistItems
+          ? "Wishlist has local items available for manual comparison, purchase planning, and order-watch work."
+          : "Add one Wishlist item manually before testing the purchase planning path.",
+        hasWishlistItems,
+        hasWishlistItems ? "success" : "attention",
+        "star.square.fill"
+      ),
+      (
+        "Wishlist purchase handoff",
+        hasWishlistOrderHandoff
+          ? "At least one Wishlist purchase handoff is linked to a local order."
+          : hasWishlistPurchaseFlow
+            ? "Wishlist purchase planning exists. Link or create an order after a real purchase confirmation arrives."
+            : "Run the local Wishlist comparison and purchase handoff steps before expecting order follow-through.",
+        hasWishlistPurchaseFlow,
+        hasWishlistOrderHandoff ? "success" : hasWishlistPurchaseFlow ? "attention" : "attention",
+        "cart.badge.plus"
       ),
       (
         "Dispatch context",
