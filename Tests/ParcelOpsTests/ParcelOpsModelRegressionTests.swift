@@ -165,6 +165,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(decidedItem.operatorPurchaseBlockers, ["link order after confirmation"])
   }
 
+  func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
+    let repository = InMemoryParcelOpsRepository()
+    let store = ParcelOpsStore(repository: repository)
+    let optionID = UUID()
+    let item = makeReadyWishlistItem(
+      optionID: optionID,
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let intake = ForwardedEmailIntake(
+      sender: "orders@known-retailer.example",
+      subject: "Order TEST-123 shipped tracking ABC123",
+      receivedDate: "Today",
+      rawBodyPreview: "Known Australian retailer confirmed Replacement scanner order TEST-123 shipped with tracking ABC123.",
+      detectedMerchant: "Known Australian retailer",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "Brisbane QLD",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    store.orders = []
+    store.intakeEmails = [intake]
+    store.wishlistItems = [item]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    XCTAssertEqual(store.suggestedWishlistOrderConfirmations(for: item).map(\.id), [intake.id])
+
+    store.confirmWishlistOrderFromIntake(item, email: intake)
+
+    let createdOrder = try XCTUnwrap(store.orders.first)
+    let updatedIntake = try XCTUnwrap(store.intakeEmails.first)
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+    XCTAssertEqual(createdOrder.orderNumber, "TEST-123")
+    XCTAssertEqual(createdOrder.trackingNumber, "ABC123")
+    XCTAssertEqual(updatedIntake.reviewState, .reviewed)
+    XCTAssertEqual(updatedIntake.linkedOrderID, createdOrder.id)
+    XCTAssertEqual(updatedItem.purchaseHandoff?.linkedOrderID, createdOrder.id)
+    XCTAssertEqual(updatedItem.status, "Order confirmation linked")
+    XCTAssertTrue(updatedItem.operatorPurchaseBlockers.isEmpty)
+    XCTAssertEqual(store.activeWishlistItemsLinked(to: createdOrder).map(\.id), [item.id])
+  }
+
   func testSpaceMailConnectionDecodesOldJSONDefaults() throws {
     let json = """
     {
@@ -389,6 +434,75 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       latestStatus: latestStatus,
       timeline: [],
       contactHistory: []
+    )
+  }
+
+  private func makeReadyWishlistItem(
+    optionID: UUID,
+    itemName: String,
+    sellerName: String,
+    linkedOrderID: UUID?
+  ) -> WishlistItem {
+    let option = WishlistComparisonOption(
+      id: optionID,
+      sellerName: sellerName,
+      productURL: "https://example.com/replacement-scanner",
+      listedPrice: "99.00",
+      currency: "AUD",
+      estimatedAUDTotal: "AUD 109 delivered",
+      postageCost: "AUD 10",
+      postageTime: "3-5 business days",
+      sellerRegion: "Australia",
+      trustRating: "Trusted",
+      trustNotes: "Returns and warranty visible.",
+      recommendation: "Preferred seller",
+      lastChecked: "Today",
+      localScore: 90,
+      riskLevel: "Lower risk",
+      decisionReason: "Best landed cost and trust evidence."
+    )
+
+    return WishlistItem(
+      itemName: itemName,
+      storefront: sellerName,
+      storefrontURL: option.productURL,
+      estimatedCost: option.estimatedAUDTotal,
+      owner: "Receiving desk",
+      pool: "Operations",
+      source: .manual,
+      status: linkedOrderID == nil ? "Awaiting order confirmation" : "Order confirmation linked",
+      capturedDetail: "Needed for receiving desk",
+      comparisonStatus: "Options captured",
+      comparisonNotes: "One strong seller option",
+      purchaseReadiness: "Purchased externally; watch for confirmation",
+      preferredOptionID: optionID,
+      comparisonOptions: [option],
+      purchaseChecks: [
+        WishlistPurchaseCheck(title: "Readiness", status: "Passed", detail: "Checked locally", severity: "Low")
+      ],
+      purchaseDecision: WishlistPurchaseDecision(
+        selectedOptionID: optionID,
+        selectedSellerName: sellerName,
+        decisionStatus: "Approved locally",
+        totalAUDSummary: option.estimatedAUDTotal,
+        postageSummary: "\(option.postageCost), \(option.postageTime)",
+        trustSummary: option.trustRating,
+        rejectedOptionsSummary: "None",
+        decisionNotes: "Proceed outside ParcelOps.",
+        decidedBy: "Operator",
+        decidedDate: "Today",
+        reviewState: .accepted
+      ),
+      purchaseHandoff: WishlistPurchaseHandoff(
+        sellerName: sellerName,
+        accountLabel: "Operations account",
+        purchaseStatus: linkedOrderID == nil ? "Purchased externally, awaiting order confirmation" : "Inbox confirmation linked locally",
+        expectedOrderSignals: "\(sellerName) | \(itemName) | order confirmation | order number | shipped | tracking",
+        orderWatchStatus: "Watch Inbox and Orders for local confirmation email or order record.",
+        linkedOrderID: linkedOrderID,
+        notes: "No purchase in ParcelOps.",
+        updatedAt: "Today"
+      )
     )
   }
 
