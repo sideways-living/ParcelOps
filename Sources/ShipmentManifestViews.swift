@@ -496,6 +496,9 @@ struct ShipmentManifestRow: View {
             if record.isInboxDispatchHandoffSetup {
               Badge("Inbox handoff", color: .teal)
             }
+            if record.isWishlistDispatchSetup {
+              Badge("Wishlist dispatch", color: .pink)
+            }
             Badge(record.riskLevel.rawValue, color: record.riskLevel.color)
             Badge(record.reviewState.rawValue, color: record.reviewState.color)
             Label("\(record.includedOrderIDs.count) orders", systemImage: "shippingbox.fill")
@@ -516,6 +519,18 @@ struct ShipmentManifestRow: View {
           emptyDetail: "This manifest was created from Inbox handoff context, but no matching local order was found. Check the manifest before dispatching.",
           linkedDetail: manifestHandoffDetail,
           tone: record.dispatchStatus.color,
+          store: store
+        )
+      }
+
+      if record.isWishlistDispatchSetup {
+        LinkedOrdersContextPanel(
+          title: "Wishlist dispatch source",
+          linkedOrders: linkedOrders,
+          sourceLabel: record.dispatchStatus.rawValue,
+          emptyDetail: "This manifest was staged from a Wishlist item, but no linked local order was found. Confirm the purchase handoff before preparing dispatch.",
+          linkedDetail: "This manifest was staged from a Wishlist purchase handoff. Open the linked order to confirm the source trail, tracking, destination, and local dispatch setup before progressing.",
+          tone: .pink,
           store: store
         )
       }
@@ -657,6 +672,13 @@ private extension ShipmentManifestRecord {
           || manifestReferencePlaceholder.localizedCaseInsensitiveContains("INBOX-")
           || notes.localizedCaseInsensitiveContains("Inbox handoff")
       )
+  }
+
+  var isWishlistDispatchSetup: Bool {
+    linkedEntityType == .wishlistItem
+      || title.localizedCaseInsensitiveContains("Wishlist dispatch")
+      || manifestReferencePlaceholder.localizedCaseInsensitiveContains("WISHLIST-")
+      || notes.localizedCaseInsensitiveContains("Wishlist item")
   }
 }
 

@@ -501,6 +501,9 @@ struct DispatchReadinessRow: View {
             if checklist.isInboxDispatchHandoffSetup {
               Badge("Inbox handoff", color: .teal)
             }
+            if checklist.isWishlistDispatchSetup {
+              Badge("Wishlist dispatch", color: .pink)
+            }
             Badge(checklist.riskLevel.rawValue, color: checklist.riskLevel.color)
             Badge(checklist.reviewState.rawValue, color: checklist.reviewState.color)
             Label(checklist.plannedDispatchDate, systemImage: "calendar")
@@ -521,6 +524,18 @@ struct DispatchReadinessRow: View {
           emptyDetail: "This checklist was created from Inbox handoff context, but no matching local order was found. Check the checklist before completing readiness.",
           linkedDetail: readinessHandoffDetail,
           tone: checklist.checklistStatus.color,
+          store: store
+        )
+      }
+
+      if checklist.isWishlistDispatchSetup {
+        LinkedOrdersContextPanel(
+          title: "Wishlist dispatch source",
+          linkedOrders: linkedOrders,
+          sourceLabel: checklist.checklistStatus.rawValue,
+          emptyDetail: "This readiness checklist was staged from a Wishlist item, but no linked local order was found. Confirm the purchase handoff before marking dispatch ready.",
+          linkedDetail: "This readiness checklist was staged from a Wishlist purchase handoff. Open the linked order to confirm source trail, tracking, destination, labels, scans, and custody before completing readiness.",
+          tone: .pink,
           store: store
         )
       }
@@ -652,6 +667,13 @@ private extension DispatchReadinessChecklist {
           || completedChecksSummary.localizedCaseInsensitiveContains("Inbox handoff")
           || missingRequirementsSummary.localizedCaseInsensitiveContains("handoff location")
       )
+  }
+
+  var isWishlistDispatchSetup: Bool {
+    linkedEntityType == .wishlistItem
+      || title.localizedCaseInsensitiveContains("Wishlist dispatch")
+      || requiredChecksSummary.localizedCaseInsensitiveContains("purchase/order evidence")
+      || missingRequirementsSummary.localizedCaseInsensitiveContains("Wishlist")
   }
 }
 
