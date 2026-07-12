@@ -21,7 +21,15 @@ let package = Package(
         .product(name: "MSAL", package: "microsoft-authentication-library-for-objc"),
         .product(name: "GoogleSignIn", package: "GoogleSignIn-iOS")
       ],
-      path: "Sources"
+      path: "Sources",
+      swiftSettings: [
+        .unsafeFlags(["-enable-bare-slash-regex"])
+      ]
+    ),
+    .testTarget(
+      name: "ParcelOpsTests",
+      dependencies: ["ParcelOps"],
+      path: "Tests/ParcelOpsTests"
     )
   ]
 )
