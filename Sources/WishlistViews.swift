@@ -7314,6 +7314,13 @@ struct WishlistView: View {
     let linked = records.filter { $0.linkedOrderID != nil }.count
     let blocked = records.filter { $0.watchStatus.localizedCaseInsensitiveContains("blocked") }.count
     let needsReview = records.filter { $0.reviewState != .accepted }.count
+    let candidateMatches = records.reduce(0) { total, record in
+      guard let itemID = record.wishlistItemID,
+            let item = store.wishlistItems.first(where: { $0.id == itemID }) else {
+        return total
+      }
+      return total + store.suggestedWishlistOrderConfirmations(for: item).count
+    }
 
     return SettingsPanel(title: "Order watch rules", symbol: "envelope.badge.shield.half.filled") {
       VStack(alignment: .leading, spacing: 12) {
@@ -7326,6 +7333,7 @@ struct WishlistView: View {
           ("Rules", "\(records.count)", records.isEmpty ? .secondary : .blue),
           ("Waiting", "\(waiting)", waiting == 0 ? .secondary : .orange),
           ("Linked", "\(linked)", linked == 0 ? .secondary : .green),
+          ("Inbox candidates", "\(candidateMatches)", candidateMatches == 0 ? .secondary : .teal),
           ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
           ("Need review", "\(needsReview)", needsReview == 0 ? .green : .purple)
         ])
@@ -7359,7 +7367,18 @@ struct WishlistView: View {
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 430), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(records.prefix(8)) { record in
-              WishlistOrderWatchRecordRow(record: record) {
+              let item = record.wishlistItemID.flatMap { itemID in
+                store.wishlistItems.first { $0.id == itemID }
+              }
+              let linkedOrder = record.linkedOrderID.flatMap { orderID in
+                store.orders.first { $0.id == orderID }
+              }
+              WishlistOrderWatchRecordRow(
+                record: record,
+                store: store,
+                linkedOrder: linkedOrder,
+                candidateMatches: item.map { store.suggestedWishlistOrderConfirmations(for: $0) } ?? []
+              ) {
                 store.checkWishlistOrderWatchRecord(record)
               } onReviewed: {
                 store.markWishlistOrderWatchRecordReviewed(record)
@@ -7374,6 +7393,10 @@ struct WishlistView: View {
                 selectedSource = nil
                 selectedStatus = nil
                 selectedWorkflowFocus = .watch
+              } onUseConfirmation: { email in
+                if let item {
+                  store.confirmWishlistOrderFromIntake(item, email: email)
+                }
               }
             }
           }
@@ -11248,12 +11271,16 @@ private struct WishlistPurchaseLinkRow: View {
 
 private struct WishlistOrderWatchRecordRow: View {
   var record: WishlistOrderWatchRecord
+  var store: ParcelOpsStore? = nil
+  var linkedOrder: TrackedOrder? = nil
+  var candidateMatches: [ForwardedEmailIntake] = []
   var onCheck: () -> Void
   var onReviewed: () -> Void
   var onBlock: () -> Void
   var onRemove: () -> Void
   var onTask: () -> Void
   var onFocus: () -> Void
+  var onUseConfirmation: (ForwardedEmailIntake) -> Void = { _ in }
 
   private var isLinked: Bool {
     record.linkedOrderID != nil || record.watchStatus.localizedCaseInsensitiveContains("matched")
@@ -11308,7 +11335,58 @@ private struct WishlistOrderWatchRecordRow: View {
         .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
 
+      if let linkedOrder {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Linked local order", systemImage: "link.badge.plus")
+            .font(.caption.bold())
+            .foregroundStyle(.green)
+          HStack(spacing: 6) {
+            Badge(linkedOrder.orderNumber, color: .green)
+            Badge(linkedOrder.store, color: .secondary)
+            Badge(linkedOrder.status.rawValue, color: linkedOrder.status.color)
+          }
+        }
+      } else if !candidateMatches.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Possible Inbox confirmations", systemImage: "tray.full.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.teal)
+          ForEach(candidateMatches.prefix(2)) { email in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(email.subject)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(1)
+                Text("\(email.detectedOrderNumber.isPlaceholderValidationValue ? "Order needs review" : email.detectedOrderNumber) • \(email.detectedTrackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : email.detectedTrackingNumber)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+              }
+              Spacer(minLength: 8)
+              Button("Use", systemImage: "link") {
+                onUseConfirmation(email)
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.mini)
+            }
+          }
+          Text("Using a match links the existing local Inbox confirmation to this Wishlist item; it does not fetch mail or change the mailbox.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+      }
+
       CompactActionRow {
+        if let store, let linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
         Button("Check local", systemImage: "magnifyingglass", action: onCheck)
         Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)
           .disabled(record.reviewState == .accepted)
