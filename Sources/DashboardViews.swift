@@ -1145,12 +1145,59 @@ struct DashboardView: View {
     }.count
   }
 
+  private var appReadinessTone: Color {
+    if !hasReadyMailboxProviderPath { return .orange }
+    if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return .orange }
+    if readyInboxLinkCount > 0 || !partialInboxOrderBlockers.isEmpty || wishlistDailyAttentionCount > 0 { return .teal }
+    return .green
+  }
+
+  private var appReadinessTitle: String {
+    if !hasReadyMailboxProviderPath { return "Core workflow is built; live mailbox proof still needs a clean pass" }
+    if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Usable MVP path exists; parser and intake cleanup remain" }
+    if readyInboxLinkCount > 0 { return "Ready to prove Inbox-to-Order handoff" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify orders created from Inbox before dispatch" }
+    if wishlistDailyAttentionCount > 0 { return "Wishlist workflow is active and needs review" }
+    return "MVP is ready for focused hands-on testing"
+  }
+
+  private var appReadinessDetail: String {
+    if !hasReadyMailboxProviderPath {
+      return "Navigation, local persistence, Inbox triage, Orders, Workbench, Dispatch, Tasks, Audit, Wishlist, and Settings are present. Finish one provider refresh with SpaceMail or Gmail before judging the live intake flow."
+    }
+    if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 {
+      return "Mailbox refresh is available, but some imported rows still need order/tracking correction or parser diagnostics before they become reliable order handoffs."
+    }
+    if readyInboxLinkCount > 0 {
+      return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") look ready to create or link to an order. Use that as the next end-to-end test."
+    }
+    if !partialInboxOrderBlockers.isEmpty {
+      return "\(partialInboxOrderBlockers.count) Inbox-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") need source, customer, destination, or task cleanup before dispatch readiness should be trusted."
+    }
+    if wishlistDailyAttentionCount > 0 {
+      return "\(wishlistDailyAttentionCount) Wishlist signal\(wishlistDailyAttentionCount == 1 ? "" : "s") need purchase readiness, seller comparison, or order-watch follow-up."
+    }
+    return "The next useful work is not more plumbing. Run the app, refresh mail, create or link one order, complete the follow-up trail, restart, and confirm persistence plus Audit history."
+  }
+
+  private var appNextDevelopmentStep: String {
+    if !hasSpaceMailSetup && !hasGmailSetup { return "Add the active mailbox provider in Settings or Mailbox Monitor." }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailConnectedAuth { return "Set or check the SpaceMail Keychain credential, or connect Gmail if this mailbox is Google-hosted." }
+    if !hasReadyMailboxProviderPath { return "Run one explicit read-only mailbox refresh and inspect the result summary." }
+    if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Fix or reprocess weak Inbox rows before creating new orders." }
+    if readyInboxLinkCount > 0 { return "Create or link one clean Inbox row to an order, then confirm it appears in Orders." }
+    if !partialInboxOrderBlockers.isEmpty { return "Open Orders and clear the Inbox-created order handoff gaps." }
+    if !wishlistDailyAttentionClear { return wishlistDashboardNextAction }
+    return "Run a full hands-on QA pass from Dashboard through Audit, then note only real friction."
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
         DashboardReleaseReadinessSnapshot(store: store)
+        dashboardDevelopmentFocusPanel
         ActiveOperatorQueueFocusCard(store: store)
         RecentOperatorImprovementsCard()
         inboxTriageQualityPanel
@@ -1676,6 +1723,82 @@ struct DashboardView: View {
     }
   }
 
+  private var dashboardDevelopmentFocusPanel: some View {
+    SettingsPanel(title: "Current build focus", symbol: "target") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: appReadinessTone == .green ? "checkmark.seal.fill" : "target")
+            .font(.title3)
+            .foregroundStyle(appReadinessTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(appReadinessTitle)
+              .font(.headline)
+            Text(appReadinessDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(appReadinessTone == .green ? "QA" : "Next", color: appReadinessTone)
+        }
+
+        MetricStrip(items: [
+          ("Provider", dashboardMailboxSetupMetric.value, dashboardMailboxSetupMetric.color),
+          ("Credential", dashboardMailboxAuthMetric.value, dashboardMailboxAuthMetric.color),
+          ("Refresh", dashboardMailboxRefreshMetric.value, dashboardMailboxRefreshMetric.color),
+          ("Ready intake", "\(readyInboxLinkCount)", readyInboxLinkCount == 0 ? .secondary : .teal),
+          ("Order gaps", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
+          ("Wishlist", "\(wishlistDailyAttentionCount)", wishlistDailyAttentionClear ? .green : .purple)
+        ])
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Next development/test step")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(appReadinessTone)
+          Text(appNextDevelopmentStep)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(appReadinessTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        CompactActionRow {
+          NavigationLink {
+            dailyRouteDestination(for: recommendedDailySection)
+          } label: {
+            Label(recommendedDailyActionLabel, systemImage: recommendedDailySection.symbol)
+          }
+          NavigationLink {
+            MVPSetupView(store: store)
+          } label: {
+            Label("Full readiness detail", systemImage: "checklist.checked")
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Scope boundary: this panel only reads existing local JSON-backed state. It does not fetch mail, store credentials, call external services, create orders, or mutate mailbox messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var dailyStartDecisionPanel: some View {
     SettingsPanel(title: "Start here", symbol: "arrow.forward.circle.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1763,6 +1886,8 @@ struct DashboardView: View {
       DispatchView(store: store)
     case .tasks:
       TasksView(store: store)
+    case .wishlist:
+      WishlistView(store: store)
     case .audit:
       AuditView(store: store)
     case .settings:
