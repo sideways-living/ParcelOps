@@ -707,6 +707,7 @@ struct WishlistView: View {
         wishlistPurchaseReadinessBlockerSummaryPanel
         wishlistExternalPurchaseSafetyGatePanel
         wishlistPurchaseDecisionSummaryPanel
+        wishlistManualPurchaseHandoffReadinessPanel
         wishlistPurchaseEvidenceDossierPanel
         wishlistPurchaseDecisionEvidencePackPanel
         wishlistPurchaseApprovalPanel
@@ -5735,6 +5736,235 @@ struct WishlistView: View {
       wishlistSearchText = item.itemName
       selectedSource = nil
       selectedStatus = nil
+    }
+  }
+
+  private var wishlistManualPurchaseHandoffReadinessEntries: [WishlistManualPurchaseHandoffReadinessEntry] {
+    wishlistPurchaseDecisionQueueItems
+      .compactMap { item -> WishlistManualPurchaseHandoffReadinessEntry? in
+        let links = store.wishlistPurchaseLinkRecords(for: item)
+        let approvals = store.wishlistPurchaseApprovalRecords(for: item)
+        let accounts = store.wishlistPurchaseAccountRecords(for: item)
+        let selectedLink = links.first { $0.selectedForPurchase } ?? links.first { $0.reviewState == .accepted } ?? links.first
+        let approval = approvals.first { $0.reviewState == .accepted || $0.approvalStatus.localizedCaseInsensitiveContains("approved") } ?? approvals.first
+        let account = accounts.first { $0.reviewState == .accepted } ?? accounts.first
+        let decision = item.purchaseDecision
+        let handoff = item.purchaseHandoff
+        let linkReady = selectedLink?.reviewState == .accepted || selectedLink?.readinessStatus.localizedCaseInsensitiveContains("ready") == true
+        let approvalReady = approval?.reviewState == .accepted || approval?.approvalStatus.localizedCaseInsensitiveContains("approved") == true
+        let accountReady = account?.reviewState == .accepted
+        let decisionReady = decision?.reviewState == .accepted
+
+        let stage: String
+        let detail: String
+        let actionTitle: String
+        let actionSymbol: String
+        let tone: Color
+        let sortPriority: Int
+
+        if decision == nil {
+          stage = "Decision missing"
+          detail = "Draft a local purchase decision before preparing account, link, approval, and order-watch handoff."
+          actionTitle = "Draft decision"
+          actionSymbol = "doc.text.magnifyingglass"
+          tone = .brown
+          sortPriority = 10
+        } else if !decisionReady {
+          stage = "Decision review"
+          detail = "Accept or reopen the purchase decision locally before moving toward manual buying."
+          actionTitle = "Review decision"
+          actionSymbol = "checkmark.seal"
+          tone = .orange
+          sortPriority = 20
+        } else if selectedLink == nil {
+          stage = "Purchase link missing"
+          detail = "Add the product or retailer link the human should open outside ParcelOps."
+          actionTitle = "Add link"
+          actionSymbol = "link.badge.plus"
+          tone = .purple
+          sortPriority = 30
+        } else if !linkReady {
+          stage = "Link review"
+          detail = "Selected link still needs local readiness review for seller, AUD total, postage, and trust."
+          actionTitle = "Link task"
+          actionSymbol = "checklist"
+          tone = .purple
+          sortPriority = 40
+        } else if approval == nil {
+          stage = "Approval missing"
+          detail = "Add a local approval and budget record before manual purchase."
+          actionTitle = "Add approval"
+          actionSymbol = "checkmark.seal"
+          tone = .indigo
+          sortPriority = 50
+        } else if !approvalReady {
+          stage = "Approval review"
+          detail = "Approval exists but is not accepted locally. Confirm approver, limit, budget, and payment method outside ParcelOps."
+          actionTitle = "Approval task"
+          actionSymbol = "checklist"
+          tone = .indigo
+          sortPriority = 60
+        } else if account == nil {
+          stage = "Account missing"
+          detail = "Add non-secret account readiness: account label, delivery status, and expected order email signals."
+          actionTitle = "Add account"
+          actionSymbol = "person.badge.plus"
+          tone = .teal
+          sortPriority = 70
+        } else if !accountReady {
+          stage = "Account review"
+          detail = "Account readiness is not accepted locally. Confirm access, payment readiness, and delivery details outside ParcelOps."
+          actionTitle = "Account task"
+          actionSymbol = "checklist"
+          tone = .teal
+          sortPriority = 80
+        } else if handoff == nil {
+          stage = "Handoff missing"
+          detail = "Prepare the local handoff so Inbox and Orders know what confirmation to watch for after a human buys externally."
+          actionTitle = "Prepare handoff"
+          actionSymbol = "person.crop.circle.badge.checkmark"
+          tone = .orange
+          sortPriority = 90
+        } else if handoff?.linkedOrderID == nil {
+          stage = "Ready for manual purchase"
+          detail = "Local readiness is assembled. After a human buys externally, watch Inbox for the confirmation and link the order."
+          actionTitle = "Order seen"
+          actionSymbol = "envelope.badge.fill"
+          tone = .green
+          sortPriority = 100
+        } else {
+          stage = "Order linked"
+          detail = "Manual purchase trail is linked to an order. Continue in Orders, Dispatch, Tasks, and Audit."
+          actionTitle = "Focus"
+          actionSymbol = "scope"
+          tone = .green
+          sortPriority = 110
+        }
+
+        return WishlistManualPurchaseHandoffReadinessEntry(
+          item: item,
+          decision: decision,
+          selectedLink: selectedLink,
+          approval: approval,
+          account: account,
+          handoff: handoff,
+          stage: stage,
+          detail: detail,
+          actionTitle: actionTitle,
+          actionSymbol: actionSymbol,
+          tone: tone,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistManualPurchaseHandoffReadinessPanel: some View {
+    let entries = wishlistManualPurchaseHandoffReadinessEntries
+    let linkGaps = entries.filter { $0.stage == "Purchase link missing" || $0.stage == "Link review" }.count
+    let approvalGaps = entries.filter { $0.stage == "Approval missing" || $0.stage == "Approval review" }.count
+    let accountGaps = entries.filter { $0.stage == "Account missing" || $0.stage == "Account review" }.count
+    let ready = entries.filter { $0.stage == "Ready for manual purchase" || $0.stage == "Order linked" }.count
+
+    return SettingsPanel(title: "Manual purchase handoff readiness", symbol: "hand.raised.square.on.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this after the seller decision. It pulls selected link, local approval, account readiness, handoff, and order-watch trail into one operator checklist.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("In handoff", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Link gaps", "\(linkGaps)", linkGaps == 0 ? .green : .purple),
+          ("Approval gaps", "\(approvalGaps)", approvalGaps == 0 ? .green : .indigo),
+          ("Account gaps", "\(accountGaps)", accountGaps == 0 ? .green : .teal),
+          ("Ready/linked", "\(ready)", ready == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No manual purchase handoff work yet",
+            detail: "Items appear here once they have seller options, purchase decisions, approval/link/account records, or handoff activity.",
+            symbol: "hand.raised.square.on.square.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 255 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistManualPurchaseHandoffReadinessRow(entry: entry) {
+                runWishlistManualPurchaseHandoffReadinessAction(for: entry)
+              } onTask: {
+                runWishlistManualPurchaseHandoffReadinessTask(for: entry)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+                selectedWorkflowFocus = .buy
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more manual purchase handoff item\(remaining == 1 ? "" : "s") are available in the detailed panels below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("Boundary: this panel does not browse, log in, store payment details, store passwords, check stock, place orders, pay, send emails, or mutate mailbox messages. It records only local readiness.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistManualPurchaseHandoffReadinessAction(for entry: WishlistManualPurchaseHandoffReadinessEntry) {
+    switch entry.stage {
+    case "Decision missing":
+      store.createWishlistPurchaseDecision(entry.item)
+    case "Decision review":
+      store.markWishlistPurchaseDecisionReviewed(entry.item)
+    case "Purchase link missing":
+      store.addWishlistPurchaseLinkRecord(entry.item)
+    case "Link review":
+      if let link = entry.selectedLink { store.createWishlistPurchaseLinkRecordReviewTask(link) }
+    case "Approval missing":
+      store.addWishlistPurchaseApprovalRecord(entry.item)
+    case "Approval review":
+      if let approval = entry.approval { store.createWishlistPurchaseApprovalRecordReviewTask(approval) }
+    case "Account missing":
+      store.addWishlistPurchaseAccountRecord(entry.item)
+    case "Account review":
+      if let account = entry.account { store.createWishlistPurchaseAccountRecordReviewTask(account) }
+    case "Handoff missing":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Ready for manual purchase":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+      selectedWorkflowFocus = .buy
+    }
+  }
+
+  private func runWishlistManualPurchaseHandoffReadinessTask(for entry: WishlistManualPurchaseHandoffReadinessEntry) {
+    if let link = entry.selectedLink, entry.stage == "Link review" {
+      store.createWishlistPurchaseLinkRecordReviewTask(link)
+    } else if let approval = entry.approval, entry.stage == "Approval review" {
+      store.createWishlistPurchaseApprovalRecordReviewTask(approval)
+    } else if let account = entry.account, entry.stage == "Account review" {
+      store.createWishlistPurchaseAccountRecordReviewTask(account)
+    } else if entry.handoff != nil {
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    } else {
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
     }
   }
 
@@ -15041,6 +15271,122 @@ private struct WishlistPurchaseDecisionSummary: Identifiable {
   var actionTitle: String
   var actionSymbol: String
   var sortPriority: Int
+}
+
+private struct WishlistManualPurchaseHandoffReadinessEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var decision: WishlistPurchaseDecision?
+  var selectedLink: WishlistPurchaseLinkRecord?
+  var approval: WishlistPurchaseApprovalRecord?
+  var account: WishlistPurchaseAccountRecord?
+  var handoff: WishlistPurchaseHandoff?
+  var stage: String
+  var detail: String
+  var actionTitle: String
+  var actionSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistManualPurchaseHandoffReadinessRow: View {
+  var entry: WishlistManualPurchaseHandoffReadinessEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var sellerSummary: String {
+    entry.handoff?.sellerName
+      ?? entry.decision?.selectedSellerName
+      ?? entry.selectedLink?.sellerName
+      ?? entry.item.storefront
+  }
+
+  private var linkStatus: (String, Color) {
+    guard let link = entry.selectedLink else { return ("No link", .orange) }
+    if link.readinessStatus.localizedCaseInsensitiveContains("blocked") { return ("Link blocked", .red) }
+    if link.reviewState == .accepted || link.readinessStatus.localizedCaseInsensitiveContains("ready") { return ("Link ready", .green) }
+    return ("Link review", .purple)
+  }
+
+  private var approvalStatus: (String, Color) {
+    guard let approval = entry.approval else { return ("No approval", .orange) }
+    if approval.approvalStatus.localizedCaseInsensitiveContains("blocked") { return ("Approval blocked", .red) }
+    if approval.reviewState == .accepted || approval.approvalStatus.localizedCaseInsensitiveContains("approved") { return ("Approved", .green) }
+    return ("Approval review", .indigo)
+  }
+
+  private var accountStatus: (String, Color) {
+    guard let account = entry.account else { return ("No account", .orange) }
+    if account.accountReadinessStatus.localizedCaseInsensitiveContains("blocked") { return ("Account blocked", .red) }
+    if account.reviewState == .accepted { return ("Account ready", .green) }
+    return ("Account review", .teal)
+  }
+
+  private var handoffStatus: (String, Color) {
+    guard let handoff = entry.handoff else { return ("No handoff", .orange) }
+    if handoff.linkedOrderID != nil { return ("Order linked", .green) }
+    if handoff.orderWatchStatus.localizedCaseInsensitiveContains("seen") { return ("Order watch", .teal) }
+    return ("Watch order", .teal)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.actionSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(sellerSummary)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .lineLimit(1)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 118) {
+        let link = linkStatus
+        let approval = approvalStatus
+        let account = accountStatus
+        let handoff = handoffStatus
+        Badge(link.0, color: link.1)
+        Badge(approval.0, color: approval.1)
+        Badge(account.0, color: account.1)
+        Badge(handoff.0, color: handoff.1)
+      }
+
+      CompactMetadataGrid(minimumWidth: 135) {
+        WishlistMatrixMetric(title: "AUD total", value: entry.decision?.totalAUDSummary ?? entry.selectedLink?.estimatedAUDTotal ?? entry.item.estimatedCost, symbol: "dollarsign.circle.fill")
+        WishlistMatrixMetric(title: "Postage", value: entry.decision?.postageSummary ?? entry.selectedLink?.postageSummary ?? "Postage not recorded", symbol: "shippingbox.fill")
+        WishlistMatrixMetric(title: "Expected email", value: entry.handoff?.expectedOrderSignals ?? entry.account?.expectedOrderEmailSignals ?? "Order confirmation signals not recorded", symbol: "envelope.badge.fill")
+      }
+
+      Text("Manual handoff only. Confirm live stock, seller page, account access, payment, and delivery details outside ParcelOps.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.actionTitle, systemImage: entry.actionSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPurchaseDecisionSummaryRow: View {
