@@ -571,6 +571,103 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertNotEqual(evaluatedRule.lastEvaluatedDate, "Not evaluated")
   }
 
+  func testWishlistPurchaseDecisionUsesPreferredSellerOption() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let preferredOptionID = UUID()
+    var item = makeReadyWishlistItem(
+      optionID: preferredOptionID,
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let alternateOption = WishlistComparisonOption(
+      sellerName: "Unknown overseas seller",
+      productURL: "https://example.net/replacement-scanner",
+      listedPrice: "59.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 145 delivered",
+      postageCost: "AUD 40",
+      postageTime: "14-21 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No warranty evidence.",
+      recommendation: "Backup only",
+      lastChecked: "Today",
+      localScore: 45,
+      riskLevel: "High risk",
+      decisionReason: "Higher risk and slower postage."
+    )
+    item.comparisonOptions?.append(alternateOption)
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.createWishlistPurchaseDecision(item)
+
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+    let decision = try XCTUnwrap(updatedItem.purchaseDecision)
+
+    XCTAssertEqual(decision.selectedOptionID, preferredOptionID)
+    XCTAssertEqual(decision.selectedSellerName, "Known Australian retailer")
+    XCTAssertEqual(decision.decisionStatus, "Draft decision")
+    XCTAssertEqual(decision.reviewState, .needsReview)
+    XCTAssertTrue(decision.rejectedOptionsSummary.contains("Unknown overseas seller"))
+    XCTAssertEqual(updatedItem.status, "Purchase decision drafted")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Decision needs review before purchase")
+  }
+
+  func testWishlistPurchaseDecisionReviewProgressesToManualHandoffReadiness() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.markWishlistPurchaseDecisionReviewed(item)
+
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+    let decision = try XCTUnwrap(updatedItem.purchaseDecision)
+
+    XCTAssertEqual(decision.decisionStatus, "Decision reviewed")
+    XCTAssertEqual(decision.reviewState, .accepted)
+    XCTAssertEqual(updatedItem.status, "Purchase decision reviewed")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Ready for manual purchase handoff")
+  }
+
+  func testWishlistPurchaseHandoffStagesSingleOrderWatchRecord() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistOrderWatchRecords = []
+
+    store.prepareWishlistPurchaseHandoff(item)
+    let preparedItem = try XCTUnwrap(store.wishlistItems.first)
+    store.recordWishlistPurchasedExternally(preparedItem)
+    let purchasedItem = try XCTUnwrap(store.wishlistItems.first)
+    store.recordWishlistPurchasedExternally(purchasedItem)
+
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+    let watchRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+
+    XCTAssertEqual(store.wishlistOrderWatchRecords.count, 1)
+    XCTAssertEqual(watchRecord.wishlistItemID, item.id)
+    XCTAssertTrue(watchRecord.expectedOrderSignals.contains("Known Australian retailer"))
+    XCTAssertTrue(watchRecord.expectedOrderSignals.contains("Replacement scanner"))
+    XCTAssertEqual(updatedItem.status, "Awaiting order confirmation")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Order watch rule refreshed locally")
+    XCTAssertEqual(updatedItem.purchaseHandoff?.purchaseStatus, "Purchased externally, awaiting order confirmation")
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
