@@ -951,6 +951,16 @@ struct DraftMessageRow: View {
   @State private var isEditing = false
   @State private var feedbackMessage: String?
 
+  private var isWishlistPurchasePacketDraft: Bool {
+    draft.linkedEntityType == .wishlistItem
+      && draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+  }
+
+  private var linkedWishlistItem: WishlistItem? {
+    guard let store, draft.linkedEntityType == .wishlistItem else { return nil }
+    return store.wishlistItem(linkedEntityID: draft.linkedEntityID)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -996,6 +1006,23 @@ struct DraftMessageRow: View {
           }
           if !packageContents.isEmpty {
             PackageContentStrip(contents: packageContents)
+          }
+
+          if let linkedWishlistItem {
+            VStack(alignment: .leading, spacing: 6) {
+              Label(isWishlistPurchasePacketDraft ? "Wishlist purchase packet source" : "Wishlist draft source", systemImage: "star.square.fill")
+                .font(.caption.bold())
+                .foregroundStyle(.purple)
+              HStack(spacing: 6) {
+                Badge(linkedWishlistItem.itemName, color: .purple)
+                Badge(linkedWishlistItem.purchaseHandoff == nil ? "No handoff" : "Handoff staged", color: linkedWishlistItem.purchaseHandoff == nil ? .orange : .green)
+                Badge(linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? "No linked order" : "Order linked", color: linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? .orange : .green)
+              }
+              Text("Use the packet to prepare a local handoff and order-watch rule before any manual buying outside ParcelOps.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
 
           if !inboxOrders.isEmpty {
@@ -1078,6 +1105,13 @@ struct DraftMessageRow: View {
           feedbackMessage = "Contact placeholder created from draft."
         }
           .buttonStyle(.bordered)
+        if let store, let linkedWishlistItem, isWishlistPurchasePacketDraft {
+          Button("Prepare handoff/watch", systemImage: "envelope.badge.fill") {
+            store.prepareWishlistPurchaseHandoff(linkedWishlistItem)
+            feedbackMessage = "Wishlist purchase handoff and order-watch record prepared locally."
+          }
+          .buttonStyle(.bordered)
+        }
         Button("Remove", systemImage: "trash") {
           onRemove()
           feedbackMessage = "Draft removed locally."

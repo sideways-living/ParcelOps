@@ -2571,6 +2571,11 @@ private struct TaskDraftFollowUpRow: View {
     return store.orders.first { $0.id == orderID }
   }
 
+  private var linkedWishlistItem: WishlistItem? {
+    guard draft.linkedEntityType == .wishlistItem else { return nil }
+    return store.wishlistItem(linkedEntityID: draft.linkedEntityID)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -2606,6 +2611,17 @@ private struct TaskDraftFollowUpRow: View {
             Label("Local packet only. ParcelOps does not open product links, compare live prices, log in, buy, pay, or monitor orders in the background.", systemImage: "lock.doc.fill")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          if let linkedWishlistItem, isWishlistPurchasePacketDraft {
+            HStack(spacing: 6) {
+              Badge(linkedWishlistItem.purchaseHandoff == nil ? "No handoff" : "Handoff staged", color: linkedWishlistItem.purchaseHandoff == nil ? .orange : .green)
+              Badge(linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? "No linked order" : "Order linked", color: linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? .orange : .green)
+            }
+            Text("Prepare handoff/order-watch after the packet is reviewed, then use Inbox/Orders to link a real confirmation when it arrives.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
           }
 
@@ -2662,6 +2678,14 @@ private struct TaskDraftFollowUpRow: View {
         }
         .buttonStyle(.bordered)
         .disabled(draft.status == .reopened)
+
+        if let linkedWishlistItem, isWishlistPurchasePacketDraft {
+          Button("Prepare watch", systemImage: "envelope.badge.fill") {
+            store.prepareWishlistPurchaseHandoff(linkedWishlistItem)
+            feedbackMessage = "Wishlist purchase handoff and order-watch record prepared locally."
+          }
+          .buttonStyle(.bordered)
+        }
       }
 
       if let feedbackMessage {
