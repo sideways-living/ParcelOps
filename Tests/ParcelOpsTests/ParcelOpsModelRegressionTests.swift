@@ -2080,6 +2080,119 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
   }
 
+  func testMailboxOperationsHandoffFlagsProviderSetupBlockers() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        oauthReadinessStatus: "Needs review",
+        credentialStorageStatus: "GoogleSignIn cache pending",
+        fetched: 0,
+        imported: 0,
+        filtered: 0,
+        uncertain: nil
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+    store.intakeEmails = []
+
+    let summary = store.mailboxOperationsHandoffSummary
+
+    XCTAssertEqual(summary.title, "Mailbox handoff has setup blockers")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "3")
+    XCTAssertEqual(summary.lines.first?.title, "Provider setup blockers")
+    XCTAssertEqual(summary.lines.first?.tone, "warning")
+    XCTAssertEqual(summary.lastEvidenceText, "No real mailbox refresh evidence yet")
+  }
+
+  func testMailboxOperationsHandoffPromotesImportedAndUncertainWork() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let uncertainMessage = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-uncertain-handoff",
+      sourceMailboxID: mailboxID,
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        id: mailboxID,
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 1,
+        filtered: 8,
+        uncertain: 1,
+        uncertainMessages: [uncertainMessage]
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "spacemail-imported-handoff",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported order update"
+      )
+    ]
+
+    let summary = store.mailboxOperationsHandoffSummary
+
+    XCTAssertEqual(summary.title, "Mailbox handoff has operator work")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Open intake" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
+    XCTAssertTrue(summary.lines.contains { $0.title == "Imported intake ready" })
+    XCTAssertTrue(summary.lines.contains { $0.title == "Uncertain mailbox previews" })
+    XCTAssertTrue(summary.lines.contains { $0.title == "Inbox triage still open" })
+  }
+
+  func testMailboxOperationsHandoffTreatsFilteredOnlyRefreshAsStable() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+
+    let summary = store.mailboxOperationsHandoffSummary
+
+    XCTAssertEqual(summary.title, "Mailbox handoff is stable")
+    XCTAssertEqual(summary.tone, "success")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "10")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Open intake" }?.value, "0")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "0")
+    XCTAssertEqual(summary.lines.first?.title, "Mailbox noise controlled")
+    XCTAssertEqual(summary.lines.first?.tone, "success")
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
