@@ -409,6 +409,91 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "3")
   }
 
+  func testSpaceMailHealthSummaryFlagsUncertainReview() {
+    let uncertainMessage = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-uncertain-1",
+      sourceMailboxID: UUID(),
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 8,
+      uncertain: 1,
+      uncertainMessages: [uncertainMessage],
+      reasonBreakdown: [
+        SpaceMailClassifierReasonCount(decision: "Uncertain", reason: "delivery-ish no id", count: 1),
+        SpaceMailClassifierReasonCount(decision: "Filtered", reason: "marketing", count: 8)
+      ]
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let summary = store.spaceMailIntakeHealthSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Uncertain messages need review")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.fetchedCount, 10)
+    XCTAssertEqual(summary.filteredCount, 8)
+    XCTAssertEqual(summary.uncertainCount, 1)
+    XCTAssertEqual(summary.pendingUncertainReviewCount, 1)
+    XCTAssertEqual(summary.topReasonLabels.first, "Uncertain: delivery-ish no id x1")
+  }
+
+  func testSpaceMailHealthSummaryFlagsParserIssuesForLinkedIntake() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order update",
+      receivedDate: "Today",
+      rawBodyPreview: "Order shipped but parser could not determine order or tracking fields.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "Order number needs review",
+      detectedTrackingNumber: "Tracking number needs review",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 1,
+      imported: 1,
+      filtered: 0,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "spacemail-parser-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported parser test message"
+      )
+    ]
+
+    let summary = store.spaceMailIntakeHealthSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Parser review needed")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.importedCount, 1)
+    XCTAssertEqual(summary.linkedIntakeCount, 1)
+    XCTAssertGreaterThan(summary.parserIssueCount, 0)
+    XCTAssertEqual(summary.nextAction, "Open the parser review queue, reprocess if needed, or create a follow-up task.")
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,
@@ -507,20 +592,24 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
   }
 
   private func makeSpaceMailConnection(
+    id: UUID = UUID(),
     credentialStorageStatus: String,
     fetched: Int,
     imported: Int,
     filtered: Int,
-    uncertain: Int
+    uncertain: Int,
+    uncertainMessages: [SpaceMailUncertainMessage] = [],
+    reasonBreakdown: [SpaceMailClassifierReasonCount] = []
   ) -> SpaceMailIMAPConnection {
     SpaceMailIMAPConnection(
+      id: id,
       displayName: "SpaceMail tracking inbox",
       emailAddressUsername: "orders@example.test",
       imapHost: "mail.spacemail.com",
       imapPort: "993",
       securityMode: "SSL/TLS",
       folderName: "INBOX",
-      connectionStatus: "Ready for IMAP",
+      connectionStatus: "Real IMAP: Fetch success",
       lastManualRefreshDate: "Today",
       setupNotes: "Local setup only",
       credentialStorageStatus: credentialStorageStatus,
@@ -528,6 +617,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       lastRefreshImportedCount: imported,
       lastRefreshFilteredNonOrderCount: filtered,
       lastRefreshUncertainCount: uncertain,
+      uncertainMessages: uncertainMessages,
+      lastRefreshReasonBreakdown: reasonBreakdown,
       reviewState: .accepted
     )
   }
