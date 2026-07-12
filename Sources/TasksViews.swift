@@ -106,6 +106,14 @@ struct TasksView: View {
     }
   }
 
+  private var wishlistTaskActionCount: Int {
+    wishlistLinkedQueueItems.count
+      + wishlistDraftItems.count
+      + wishlistPurchasePacketNeededItems.count
+      + wishlistNeedsHandoffItems.count
+      + wishlistAwaitingOrderItems.count
+  }
+
   private var wishlistEvidenceGapCount: Int {
     wishlistTaskContextItems.reduce(0) { total, item in
       total + wishlistSellerEvidenceGapCount(for: item)
@@ -665,6 +673,7 @@ struct TasksView: View {
         ("Blocked", "\(queueItems.filter { $0.status == .blocked }.count)", .red),
         ("Urgent", "\(queueItems.filter { $0.priority == .urgent }.count)", .pink),
         ("Inbox orders", "\(inboxOrderActionCount)", inboxOrderActionCount == 0 ? .green : .teal),
+        ("Wishlist", "\(wishlistTaskActionCount)", wishlistTaskActionCount == 0 ? .green : .purple),
         ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .blue),
         ("Review", "\(queueItems.filter { $0.reviewState != .accepted }.count)", .purple)
       ])
@@ -956,6 +965,14 @@ struct TasksView: View {
         inboxOrderActionCount == 0 ? .green : .teal
       ),
       (
+        "Wishlist purchase follow-up",
+        "Create purchase packets, review Wishlist drafts, prepare manual purchase handoffs, or match order confirmations after an external buy.",
+        wishlistTaskActionCount,
+        "Wishlist",
+        "star.square.fill",
+        wishlistTaskActionCount == 0 ? .green : .purple
+      ),
+      (
         "Shift handoff",
         "Acknowledge the note, complete it when the next owner has the context, or reopen it if the issue comes back.",
         handoffActionCount,
@@ -999,6 +1016,7 @@ struct TasksView: View {
   private var nextActionTone: Color {
     if overdueActionCount > 0 || blockedActionCount > 0 { return .red }
     if urgentActionCount > 0 || inboxOrderActionCount > 0 { return .orange }
+    if wishlistTaskActionCount > 0 { return .purple }
     if reviewActionCount > 0 { return .purple }
     if draftActionCount > 0 { return .blue }
     if !queueItems.isEmpty { return .teal }
@@ -1010,6 +1028,7 @@ struct TasksView: View {
     if blockedActionCount > 0 { return "Clear blocked work first" }
     if urgentActionCount > 0 { return "Handle high-priority work" }
     if inboxOrderActionCount > 0 { return "Finish Inbox-created order handoffs" }
+    if wishlistTaskActionCount > 0 { return "Work Wishlist purchase follow-up" }
     if reviewActionCount > 0 { return "Review open task context" }
     if draftActionCount > 0 { return "Review draft messages" }
     if !queueItems.isEmpty { return "Work the open queue" }
@@ -1028,6 +1047,9 @@ struct TasksView: View {
     }
     if inboxOrderActionCount > 0 {
       return "\(inboxOrderActionCount) task is linked to an Inbox-created order. Open the order, confirm dispatch context, then complete the follow-up."
+    }
+    if wishlistTaskActionCount > 0 {
+      return "\(wishlistTaskActionCount) Wishlist purchase follow-up item needs task attention: purchase packets, drafts, handoff prep, or order confirmation matching."
     }
     if reviewActionCount > 0 {
       return "\(reviewActionCount) item still needs local review. Check the row summary and mark reviewed once the context is clear."
