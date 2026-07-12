@@ -100,6 +100,15 @@ private struct WishlistLinkedOrderSummary: Identifiable {
   var gaps: [String]
 }
 
+private struct WishlistComparisonReadinessEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var status: String
+  var detail: String
+  var tone: Color
+  var actionTitle: String
+}
+
 private struct WishlistPurchaseStateCard: View {
   var title: String
   var detail: String
@@ -1534,6 +1543,167 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistComparisonRunwayPanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let requests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+    let entries = activeItems.map { item -> WishlistComparisonReadinessEntry in
+      let options = item.comparisonOptions ?? []
+      let request = requests.first { $0.wishlistItemID == item.id }
+
+      if !options.isEmpty {
+        let evidenceGaps = options.flatMap(\.operatorSellerEvidenceGaps)
+        if evidenceGaps.isEmpty {
+          return WishlistComparisonReadinessEntry(
+            item: item,
+            status: "Seller options ready",
+            detail: "Seller options have local product links, AUD totals, postage, trust, and returns/warranty fields ready for operator scoring.",
+            tone: .green,
+            actionTitle: "Review sellers"
+          )
+        }
+        return WishlistComparisonReadinessEntry(
+          item: item,
+          status: "Seller evidence gaps",
+          detail: "Fill: \(Array(Set(evidenceGaps)).prefix(4).joined(separator: ", ")).",
+          tone: .orange,
+          actionTitle: "Fix seller evidence"
+        )
+      }
+
+      if let request {
+        if request.isAgentBriefReady {
+          return WishlistComparisonReadinessEntry(
+            item: item,
+            status: "Comparison brief ready",
+            detail: "Ready for manual or future-agent seller research. Compare Australian and overseas retailers, AUD landed cost, postage, delivery time, and seller trust.",
+            tone: .teal,
+            actionTitle: "Use brief"
+          )
+        }
+        return WishlistComparisonReadinessEntry(
+          item: item,
+          status: "Brief needs scope",
+          detail: "Clarify: \(request.agentBriefGaps.prefix(4).joined(separator: ", ")).",
+          tone: .orange,
+          actionTitle: "Fix brief"
+        )
+      }
+
+      return WishlistComparisonReadinessEntry(
+        item: item,
+        status: "Needs comparison brief",
+        detail: "Create a local brief before comparing sellers. This keeps source URL, budget, region, postage needs, and trust requirements together.",
+        tone: .blue,
+        actionTitle: "Create brief"
+      )
+    }
+    let readyBriefs = entries.filter { $0.status == "Comparison brief ready" }.count
+    let readySellerOptions = entries.filter { $0.status == "Seller options ready" }.count
+    let gaps = entries.filter { $0.tone == .orange }.count
+    let missingBriefs = entries.filter { $0.status == "Needs comparison brief" }.count
+    let leadingEntry = entries.first { $0.status == "Needs comparison brief" }
+      ?? entries.first { $0.tone == .orange }
+      ?? entries.first
+
+    return SettingsPanel(title: "Comparison runway", symbol: "magnifyingglass.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: gaps == 0 && missingBriefs == 0 ? "checkmark.seal.fill" : "doc.text.magnifyingglass")
+            .font(.title3)
+            .foregroundStyle(gaps == 0 && missingBriefs == 0 ? .green : .blue)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gaps == 0 && missingBriefs == 0 ? "Comparison inputs are locally ready" : "Prepare items before seller comparison")
+              .font(.headline)
+            Text(leadingEntry.map { "\($0.item.itemName): \($0.detail)" } ?? "Add a Wishlist item, then create a comparison brief or seller option before purchase review.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(gaps == 0 && missingBriefs == 0 ? "Ready" : "\(gaps + missingBriefs) to work", color: gaps == 0 && missingBriefs == 0 ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Items", "\(activeItems.count)", activeItems.isEmpty ? .secondary : .purple),
+          ("Brief ready", "\(readyBriefs)", readyBriefs == 0 ? .secondary : .teal),
+          ("Seller ready", "\(readySellerOptions)", readySellerOptions == 0 ? .secondary : .green),
+          ("Need brief", "\(missingBriefs)", missingBriefs == 0 ? .green : .blue),
+          ("Gaps", "\(gaps)", gaps == 0 ? .green : .orange)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist items yet",
+            detail: "Add a manual item or staged capture before preparing seller comparison work.",
+            symbol: "star.square.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(4)) { entry in
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: entry.status == "Seller options ready" ? "storefront.fill" : "doc.text.magnifyingglass")
+                    .foregroundStyle(entry.tone)
+                    .frame(width: 20, height: 20)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.item.itemName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(entry.status)
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(entry.tone)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(entry.status, color: entry.tone)
+                }
+
+                Text(entry.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactActionRow {
+                  Button(entry.actionTitle, systemImage: entry.status == "Needs comparison brief" ? "list.bullet.clipboard" : "scope") {
+                    if entry.status == "Needs comparison brief" {
+                      store.createWishlistResearchRequest(from: entry.item)
+                    } else {
+                      selectedWorkflowFocus = .compare
+                      wishlistSearchText = entry.item.itemName
+                    }
+                  }
+                  .buttonStyle(.bordered)
+                  .controlSize(.mini)
+                }
+              }
+              .padding(10)
+              .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                  .stroke(entry.tone.opacity(0.16), lineWidth: 1)
+              )
+            }
+          }
+        }
+
+        CompactActionRow {
+          Button("Create missing briefs", systemImage: "list.bullet.clipboard", action: store.createMissingWishlistResearchRequests)
+          Button("Focus comparison", systemImage: "scope") {
+            selectedWorkflowFocus = .compare
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Comparison boundary: this prepares local briefs and seller-review rows only. ParcelOps does not browse retailers, run live web search, convert currencies, quote postage, score seller trust externally, log in, purchase, pay, or monitor retailer pages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -1560,6 +1730,7 @@ struct WishlistView: View {
 
         wishlistNextActionGuidePanel
         wishlistCaptureRunwayPanel
+        wishlistComparisonRunwayPanel
         wishlistPurchaseStatePanel
         wishlistPurchaseTriagePanel
         wishlistPurchaseTimelinePanel
