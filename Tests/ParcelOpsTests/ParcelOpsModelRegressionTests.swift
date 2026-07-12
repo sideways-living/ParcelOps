@@ -403,6 +403,67 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(closureTask.status, .open)
   }
 
+  func testWishlistCloseSucceedsWithCompleteLocalOperationsTrail() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.reviewTasks = []
+    store.wishlistItems = [item]
+    stageWishlistOperationsTrail(store, for: item)
+
+    store.closeWishlistItemLocally(item)
+
+    let closed = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(closed.status, "Closed locally")
+    XCTAssertEqual(closed.purchaseReadiness, "Wishlist operations closed locally")
+    XCTAssertEqual(closed.purchaseHandoff?.purchaseStatus, "Closed locally after operations handoff")
+    XCTAssertEqual(closed.purchaseHandoff?.orderWatchStatus, "Closed against local order and operations trail")
+    XCTAssertTrue(store.reviewTasks.isEmpty)
+  }
+
+  func testWishlistCloseReadyBatchClosesOnlyCompleteItems() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let readyItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    let blockedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Packing bench scale",
+      sellerName: "Warehouse Supplies",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.reviewTasks = []
+    store.wishlistItems = [readyItem, blockedItem]
+    stageWishlistOperationsTrail(store, for: readyItem)
+    store.createReviewTask(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: blockedItem.id.uuidString,
+      label: "Resolve Wishlist closure gap",
+      summary: "Open follow-up blocks local closure until completed."
+    )
+
+    store.closeReadyWishlistItemsLocally()
+
+    let closed = try XCTUnwrap(store.wishlistItems.first { $0.id == readyItem.id })
+    let stillOpen = try XCTUnwrap(store.wishlistItems.first { $0.id == blockedItem.id })
+
+    XCTAssertEqual(closed.status, "Closed locally")
+    XCTAssertNotEqual(stillOpen.status, "Closed locally")
+    XCTAssertEqual(stillOpen.purchaseReadiness, "Purchased externally; watch for confirmation")
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
@@ -1139,6 +1200,17 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     store.scanSessionRecords = []
     store.shipmentManifestRecords = []
     store.dispatchReadinessChecklists = []
+  }
+
+  private func stageWishlistOperationsTrail(_ store: ParcelOpsStore, for item: WishlistItem) {
+    store.createWishlistReceivingInspection(item)
+    store.createWishlistInventoryReceipt(item)
+    store.createWishlistStorageLocation(item)
+    store.createWishlistCustodyRecord(item)
+    store.createWishlistLabelReference(item)
+    store.createWishlistScanSession(item)
+    store.createWishlistShipmentManifest(item)
+    store.createWishlistDispatchReadinessChecklist(item)
   }
 
   private func makeSpaceMailConnection(
