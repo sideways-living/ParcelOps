@@ -440,11 +440,20 @@ struct DashboardView: View {
   private var inboxCreatedOrders: [TrackedOrder] {
     store.orders.filter(\.isInboxCreatedLocalOrder)
   }
+  private var wishlistLinkedOrders: [TrackedOrder] {
+    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
+  }
+  private var operatorSourceOrders: [TrackedOrder] {
+    var seen = Set<UUID>()
+    return (inboxCreatedOrders + wishlistLinkedOrders).filter { order in
+      seen.insert(order.id).inserted
+    }
+  }
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter(hasInboxSourceTrail)
+    operatorSourceOrders.filter(hasOperatorSourceTrail)
   }
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { !hasInboxSourceTrail($0) }
+    operatorSourceOrders.filter { !hasOperatorSourceTrail($0) }
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
     inboxCreatedOrders.filter { order in
@@ -2178,10 +2187,10 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Orders",
               count: problemOrdersCount,
-              detail: "Review-needed orders, exceptions, warning tracking events, and orders newly created from Inbox.",
-              nextAction: partialInboxOrderBlockers.isEmpty ? (inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review Inbox-created orders") : "Verify missing Inbox details",
+              detail: "Review-needed orders, exceptions, warning tracking events, and orders created from Inbox or Wishlist handoff.",
+              nextAction: partialInboxOrderBlockers.isEmpty ? (operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review sourced orders") : "Verify missing Inbox details",
               symbol: "shippingbox.fill",
-              tint: partialInboxOrderBlockers.isEmpty ? (inboxCreatedOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
+              tint: partialInboxOrderBlockers.isEmpty ? (operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
             ) {
               OrdersView(store: store)
             }
@@ -2297,19 +2306,20 @@ struct DashboardView: View {
           }
         }
 
-        if dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination") {
+        if dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "wishlist", "source", "trail", "customer", "destination") {
           AnalyticsSection(title: "Active/problem orders", symbol: "shippingbox.fill") {
             MetricStrip(items: [
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
               ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("From Wishlist", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
               ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
             CompactInboxSourceTrailCoverage(
-              total: inboxCreatedOrders.count,
+              total: operatorSourceOrders.count,
               withSourceTrail: inboxCreatedOrdersWithSourceTrail.count,
               missingSourceTrailOrders: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
               store: store
@@ -2384,6 +2394,10 @@ struct DashboardView: View {
     !linkedIntakeEmails(for: order).isEmpty
       || !store.importQueueItems(for: order).isEmpty
       || !store.acceptanceRecords(for: order).isEmpty
+  }
+
+  private func hasOperatorSourceTrail(_ order: TrackedOrder) -> Bool {
+    hasInboxSourceTrail(order) || !store.activeWishlistItemsLinked(to: order).isEmpty
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
@@ -2665,17 +2679,17 @@ private struct CompactInboxSourceTrailCoverage: View {
 
   private var missingCount: Int { max(total - withSourceTrail, 0) }
   private var coverageLabel: String {
-    guard total > 0 else { return "No Inbox-created orders yet" }
-    return "\(withSourceTrail) of \(total) Inbox-created orders have a local source trail"
+    guard total > 0 else { return "No Inbox or Wishlist-created orders yet" }
+    return "\(withSourceTrail) of \(total) Inbox or Wishlist orders have a local source trail"
   }
 
   var body: some View {
-    CompactList(title: "Inbox source trail coverage", symbol: "link.badge.plus") {
+    CompactList(title: "Inbox and Wishlist source trail coverage", symbol: "link.badge.plus") {
       CompactRow(
         title: coverageLabel,
         detail: missingCount == 0
-          ? "Inbox-created orders are traceable back to intake, import, or acceptance context."
-          : "\(missingCount) Inbox-created order needs source context linked or reviewed before relying on the handoff.",
+          ? "Operator-created orders are traceable back to intake, import, acceptance, or Wishlist purchase context."
+          : "\(missingCount) Inbox or Wishlist order needs source context linked or reviewed before relying on the handoff.",
         badge: missingCount == 0 ? "Covered" : "\(missingCount) gap",
         color: missingCount == 0 ? .green : .orange
       )
