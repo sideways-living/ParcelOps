@@ -668,6 +668,71 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.purchaseHandoff?.purchaseStatus, "Purchased externally, awaiting order confirmation")
   }
 
+  func testWishlistPurchasePacketDraftCreatesLocalOperatorPacket() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.draftMessages = []
+
+    store.createWishlistPurchasePacketDraft(item)
+
+    let draft = try XCTUnwrap(store.draftMessages.first)
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(draft.linkedEntityType, .wishlistItem)
+    XCTAssertEqual(draft.linkedEntityID, item.id.uuidString)
+    XCTAssertEqual(draft.subject, "Wishlist purchase packet: Replacement scanner")
+    XCTAssertEqual(draft.recipient, "Wishlist review")
+    XCTAssertEqual(draft.status, .draft)
+    XCTAssertEqual(draft.reviewState, .needsReview)
+    XCTAssertTrue(draft.body.contains("Manual purchase checklist"))
+    XCTAssertTrue(draft.body.contains("Known Australian retailer"))
+    XCTAssertTrue(draft.body.contains("ParcelOps did not open retailer pages"))
+    XCTAssertNotNil(updatedItem.purchaseDecision)
+  }
+
+  func testWishlistPurchasePacketDraftReopensExistingPacketInsteadOfDuplicating() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let existingDraft = DraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      templateID: nil,
+      recipient: "Wishlist review",
+      subject: "Wishlist purchase packet: Replacement scanner",
+      body: "Existing packet body",
+      channel: .email,
+      createdDate: "Yesterday",
+      status: .ready,
+      reviewState: .accepted
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.draftMessages = [existingDraft]
+
+    store.createWishlistPurchasePacketDraft(item)
+
+    let draft = try XCTUnwrap(store.draftMessages.first)
+
+    XCTAssertEqual(store.draftMessages.count, 1)
+    XCTAssertEqual(draft.id, existingDraft.id)
+    XCTAssertEqual(draft.status, .reopened)
+    XCTAssertEqual(draft.reviewState, .needsReview)
+    XCTAssertEqual(draft.body, "Existing packet body")
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
