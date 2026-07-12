@@ -667,6 +667,15 @@ struct DashboardView: View {
         && item.purchaseHandoff?.linkedOrderID == nil
     }
   }
+  private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      item.purchaseHandoff?.linkedOrderID != nil
+        && (
+          store.suggestedShipmentManifestRecords(for: item).isEmpty
+            || store.suggestedDispatchReadinessChecklists(for: item).isEmpty
+        )
+    }
+  }
   private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
     store.wishlistResearchRequests.filter {
       store.isActiveWishlistResearchRequest($0)
@@ -711,6 +720,7 @@ struct DashboardView: View {
       + wishlistResearchAttentionRequests.count
       + wishlistReadinessBlockedItems.count
       + wishlistHandoffSanityBlockedItems.count
+      + wishlistLinkedOrderDispatchGapItems.count
       + wishlistPurchasePacketNeededItems.count
       + wishlistPurchasedNeedsOrderLinkItems.count
       + (wishlistBatchBriefNeeded ? 1 : 0)
@@ -839,6 +849,11 @@ struct DashboardView: View {
     if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
       return "purchased needs order link (\(wishlistPurchasedNeedsOrderLinkItems.count))"
     }
+    if !wishlistLinkedOrderDispatchGapItems.isEmpty {
+      let manifestGaps = wishlistLinkedOrderDispatchGapItems.filter { store.suggestedShipmentManifestRecords(for: $0).isEmpty }.count
+      let checklistGaps = wishlistLinkedOrderDispatchGapItems.filter { store.suggestedDispatchReadinessChecklists(for: $0).isEmpty }.count
+      return "linked order dispatch setup: manifest \(manifestGaps), readiness \(checklistGaps)"
+    }
     if !wishlistHandoffSanityBlockedItems.isEmpty {
       let grouped = Dictionary(grouping: wishlistHandoffSanityBlockedItems.flatMap(wishlistHandoffSanityGaps), by: { $0 })
         .map { (label: $0.key, count: $0.value.count) }
@@ -895,6 +910,7 @@ struct DashboardView: View {
       if wishlistBatchBriefNeeded { return "Create batch research brief" }
       if !wishlistPurchasePacketNeededItems.isEmpty { return "Create Wishlist purchase packet" }
       if !wishlistPurchasedNeedsOrderLinkItems.isEmpty { return "Link purchased Wishlist orders" }
+      if !wishlistLinkedOrderDispatchGapItems.isEmpty { return "Stage Wishlist dispatch setup" }
       if !wishlistHandoffSanityBlockedItems.isEmpty { return "Complete purchase handoff sanity checks" }
       if !wishlistReleaseReadyItems.isEmpty { return "Review ready purchase handoffs" }
       return wishlistReadyItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
@@ -998,6 +1014,9 @@ struct DashboardView: View {
     }
     if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
       return "\(wishlistPurchasedNeedsOrderLinkItems.count) purchased Wishlist item\(wishlistPurchasedNeedsOrderLinkItems.count == 1 ? "" : "s") need an order link so delivery tracking can continue."
+    }
+    if !wishlistLinkedOrderDispatchGapItems.isEmpty {
+      return "\(wishlistLinkedOrderDispatchGapItems.count) linked Wishlist order\(wishlistLinkedOrderDispatchGapItems.count == 1 ? "" : "s") need local manifest or dispatch readiness setup before outbound handoff is treated as ready."
     }
     if !wishlistHandoffSanityBlockedItems.isEmpty {
       return "\(wishlistHandoffSanityBlockedItems.count) Wishlist purchase handoff\(wishlistHandoffSanityBlockedItems.count == 1 ? "" : "s") need account, cost, receiving, or order-watch context."
@@ -2215,7 +2234,7 @@ struct DashboardView: View {
                 ? (wishlistBatchBriefNeeded
                   ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
                   : "\(wishlistAgentReadiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
-                : "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count).",
+                : "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count).",
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
               tint: wishlistDailyAttentionClear ? wishlistAgentReadinessTint : .purple
