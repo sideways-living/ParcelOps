@@ -1324,6 +1324,101 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.activeWishlistItemsLinked(to: unrelatedOrder).isEmpty)
   }
 
+  func testWishlistPurchaseHandoffPersistsAcrossRepositoryReload() throws {
+    let repository = InMemoryParcelOpsRepository()
+    let store = ParcelOpsStore(repository: repository)
+    let linkedOrderID = UUID()
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: linkedOrderID
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.addWishlistPurchaseLinkRecord(item)
+    let link = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+    store.markWishlistPurchaseLinkReady(link)
+    store.addWishlistOrderWatchRecord(item)
+
+    let reloadedStore = ParcelOpsStore(repository: repository)
+    let reloadedItem = try XCTUnwrap(reloadedStore.wishlistItems.first { $0.id == item.id })
+    let reloadedLink = try XCTUnwrap(reloadedStore.wishlistPurchaseLinkRecords.first { $0.wishlistItemID == item.id })
+    let reloadedWatch = try XCTUnwrap(reloadedStore.wishlistOrderWatchRecords.first { $0.wishlistItemID == item.id })
+
+    XCTAssertEqual(reloadedItem.purchaseHandoff?.linkedOrderID, linkedOrderID)
+    XCTAssertEqual(reloadedItem.purchaseHandoff?.sellerName, "Known Australian retailer")
+    XCTAssertEqual(reloadedLink.productURL, item.storefrontURL)
+    XCTAssertEqual(reloadedLink.readinessStatus, "Ready to open externally")
+    XCTAssertEqual(reloadedLink.reviewState, .accepted)
+    XCTAssertEqual(reloadedWatch.linkedOrderID, linkedOrderID)
+    XCTAssertEqual(reloadedWatch.watchStatus, "Linked to local order")
+    XCTAssertEqual(reloadedWatch.expectedMailboxOrSource, "Inbox triage after manual mailbox refresh")
+  }
+
+  func testWishlistPurchaseHandoffModelsRoundTripJSON() throws {
+    let linkedOrderID = UUID()
+    let optionID = UUID()
+    let item = makeReadyWishlistItem(
+      optionID: optionID,
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: linkedOrderID
+    )
+    let link = WishlistPurchaseLinkRecord(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: "Known Australian retailer",
+      productURL: "https://example.com/replacement-scanner",
+      linkType: "Preferred purchase link",
+      estimatedAUDTotal: "AUD 109 delivered",
+      postageSummary: "AUD 10, 3-5 business days",
+      trustSummary: "Trusted",
+      readinessStatus: "Ready to open externally",
+      accountContext: "Operations account",
+      selectedForPurchase: true,
+      createdDate: "Today",
+      lastCheckedDate: "Today",
+      reviewState: .accepted,
+      notes: "Local link only."
+    )
+    let watch = WishlistOrderWatchRecord(
+      wishlistItemID: item.id,
+      linkedOrderID: linkedOrderID,
+      itemName: item.itemName,
+      sellerName: "Known Australian retailer",
+      accountLabel: "Operations account",
+      expectedOrderSignals: "Known Australian retailer | Replacement scanner | shipped | tracking",
+      expectedMailboxOrSource: "Inbox triage after manual mailbox refresh",
+      watchStatus: "Linked to local order",
+      matchedOrderSummary: "TEST-123",
+      nextCheckSummary: "Review linked order and dispatch handoff.",
+      createdDate: "Today",
+      lastCheckedDate: "Today",
+      reviewState: .accepted,
+      notes: "Local watch only."
+    )
+
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+    let decodedItem = try decoder.decode(WishlistItem.self, from: encoder.encode(item))
+    let decodedLink = try decoder.decode(WishlistPurchaseLinkRecord.self, from: encoder.encode(link))
+    let decodedWatch = try decoder.decode(WishlistOrderWatchRecord.self, from: encoder.encode(watch))
+
+    XCTAssertEqual(decodedItem.id, item.id)
+    XCTAssertEqual(decodedItem.preferredOptionID, optionID)
+    XCTAssertEqual(decodedItem.purchaseHandoff?.linkedOrderID, linkedOrderID)
+    XCTAssertEqual(decodedItem.purchaseDecision?.reviewState, .accepted)
+    XCTAssertEqual(decodedItem.comparisonOptions?.first?.sellerName, "Known Australian retailer")
+    XCTAssertEqual(decodedLink.wishlistItemID, item.id)
+    XCTAssertTrue(decodedLink.selectedForPurchase)
+    XCTAssertEqual(decodedLink.reviewState, .accepted)
+    XCTAssertEqual(decodedWatch.wishlistItemID, item.id)
+    XCTAssertEqual(decodedWatch.linkedOrderID, linkedOrderID)
+    XCTAssertEqual(decodedWatch.reviewState, .accepted)
+  }
+
   func testSpaceMailConnectionDecodesOldJSONDefaults() throws {
     let json = """
     {
