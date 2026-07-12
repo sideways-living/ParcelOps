@@ -82,6 +82,15 @@ private struct WishlistPriceWatchDecisionEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistPurchaseConfirmationCandidate: Identifiable {
+  var id: UUID { email.id }
+  var item: WishlistItem
+  var email: ForwardedEmailIntake
+  var confidence: String
+  var score: Int
+  var reasons: [String]
+}
+
 private struct WishlistPurchaseStateCard: View {
   var title: String
   var detail: String
@@ -109,6 +118,72 @@ private struct WishlistPurchaseStateCard: View {
     .overlay(
       RoundedRectangle(cornerRadius: 8)
         .stroke(color.opacity(0.16), lineWidth: 1)
+    )
+  }
+}
+
+private struct WishlistPurchaseConfirmationCandidateRow: View {
+  var candidate: WishlistPurchaseConfirmationCandidate
+  var onUse: () -> Void
+  var onFocus: () -> Void
+
+  private var orderSummary: String {
+    let order = candidate.email.detectedOrderNumber.isPlaceholderValidationValue ? "order needs review" : candidate.email.detectedOrderNumber
+    let tracking = candidate.email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking needs review" : candidate.email.detectedTrackingNumber
+    return "\(order) • \(tracking)"
+  }
+
+  private var tone: Color {
+    switch candidate.confidence {
+    case "High": return .green
+    case "Medium": return .teal
+    default: return .orange
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.fill")
+          .foregroundStyle(tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(candidate.item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text(candidate.email.subject)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(orderSummary)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tone)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(candidate.confidence, color: tone)
+          Badge("\(candidate.score)", color: tone)
+        }
+      }
+
+      Text("Reasons: \(candidate.reasons.prefix(4).joined(separator: ", "))")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button("Use match", systemImage: "link.badge.plus", action: onUse)
+        Button("Focus item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.mini)
+    }
+    .padding(10)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(tone.opacity(0.16), lineWidth: 1)
     )
   }
 }
@@ -794,6 +869,24 @@ struct WishlistView: View {
     let inboxCandidates = active.reduce(0) { total, item in
       total + store.suggestedWishlistOrderConfirmations(for: item).count
     }
+    let confirmationCandidates = active.flatMap { item in
+      store.suggestedWishlistOrderConfirmations(for: item).prefix(2).map { email in
+        let detail = store.wishlistOrderConfirmationMatchDetail(item: item, email: email)
+        return WishlistPurchaseConfirmationCandidate(
+          item: item,
+          email: email,
+          confidence: detail.confidence,
+          score: detail.score,
+          reasons: detail.reasons
+        )
+      }
+    }
+      .sorted { first, second in
+        if first.score == second.score {
+          return first.email.receivedDate > second.email.receivedDate
+        }
+        return first.score > second.score
+      }
     let blockers = active.filter { !$0.operatorPurchaseBlockers.isEmpty }
     let primaryWaiting = waitingForConfirmation.first
     let primaryReady = readyToBuy.first
@@ -833,6 +926,32 @@ struct WishlistView: View {
             symbol: "exclamationmark.triangle.fill",
             color: blockers.isEmpty ? .green : .orange
           )
+        }
+
+        if !confirmationCandidates.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Inbox confirmations ready to review", systemImage: "tray.full.fill")
+              .font(.caption.bold())
+              .foregroundStyle(.teal)
+            Text("These are the strongest local Inbox matches for Wishlist purchases. Use only when the email clearly confirms the external purchase.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+              ForEach(Array(confirmationCandidates.prefix(3))) { candidate in
+                WishlistPurchaseConfirmationCandidateRow(candidate: candidate) {
+                  store.confirmWishlistOrderFromIntake(candidate.item, email: candidate.email)
+                } onFocus: {
+                  wishlistSearchText = candidate.item.itemName
+                  selectedSource = nil
+                  selectedStatus = nil
+                  selectedWorkflowFocus = .watch
+                }
+              }
+            }
+          }
+          .padding(10)
+          .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         CompactActionRow {
