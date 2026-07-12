@@ -7872,6 +7872,24 @@ struct WishlistView: View {
           ("Dispatch gaps", "\(dispatchGaps)", dispatchGaps == 0 ? .green : .brown)
         ])
 
+        CompactActionRow {
+          Button("Stage next records", systemImage: "wand.and.stars") {
+            stageNextWishlistOperationsRecords(for: Array(entries.prefix(8)))
+          }
+          .disabled(!entries.contains { !$0.gaps.isEmpty })
+          Button("Check closure readiness", systemImage: "checkmark.seal.text.page.fill") {
+            store.checkWishlistOperationsClosureReadinessBatch()
+          }
+          .disabled(entries.isEmpty)
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
         if entries.isEmpty {
           MVPEmptyState(
             title: "No purchase-to-operations handoff items yet",
@@ -7881,7 +7899,7 @@ struct WishlistView: View {
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 252 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(entries.prefix(8)) { entry in
-              WishlistPurchaseOperationsHandoffRow(entry: entry) {
+              WishlistPurchaseOperationsHandoffRow(entry: entry, store: store) {
                 runWishlistPurchaseOperationsHandoffAction(for: entry)
               } onTask: {
                 store.createWishlistPurchaseHandoffReviewTask(entry.item)
@@ -7970,6 +7988,12 @@ struct WishlistView: View {
     }
   }
 
+  private func stageNextWishlistOperationsRecords(for entries: [WishlistPurchaseOperationsHandoffEntry]) {
+    entries
+      .filter { !$0.gaps.isEmpty }
+      .forEach(runWishlistPurchaseOperationsHandoffAction)
+  }
+
   private var wishlistLinkedOrderOperationsChecklistEntries: [WishlistLinkedOrderOperationsChecklistEntry] {
     wishlistPurchaseOperationsHandoffItems
       .filter { $0.linkedOrder != nil || !$0.gaps.contains("order") }
@@ -8006,6 +8030,24 @@ struct WishlistView: View {
           ("Complete", "\(complete)", complete == 0 ? .secondary : .green)
         ])
 
+        CompactActionRow {
+          Button("Stage next records", systemImage: "wand.and.stars") {
+            stageNextWishlistLinkedOrderOperationsRecords(for: Array(entries.prefix(8)))
+          }
+          .disabled(!entries.contains { $0.phaseChecks.contains { !$0.1 } })
+          Button("Closure check", systemImage: "checkmark.seal.text.page.fill") {
+            store.checkWishlistOperationsClosureReadinessBatch()
+          }
+          .disabled(entries.isEmpty)
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
         if entries.isEmpty {
           MVPEmptyState(
             title: "No linked Wishlist orders need operations setup",
@@ -8015,7 +8057,7 @@ struct WishlistView: View {
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 410), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(entries.prefix(8)) { entry in
-              WishlistLinkedOrderOperationsChecklistRow(entry: entry) {
+              WishlistLinkedOrderOperationsChecklistRow(entry: entry, store: store) {
                 runWishlistLinkedOrderOperationsChecklistAction(for: entry)
               } onTask: {
                 store.createWishlistPurchaseHandoffReviewTask(entry.item)
@@ -8162,6 +8204,12 @@ struct WishlistView: View {
     }
   }
 
+  private func stageNextWishlistLinkedOrderOperationsRecords(for entries: [WishlistLinkedOrderOperationsChecklistEntry]) {
+    entries
+      .filter { $0.phaseChecks.contains { !$0.1 } }
+      .forEach(runWishlistLinkedOrderOperationsChecklistAction)
+  }
+
   private var wishlistOperationsClosureReadinessEntries: [WishlistOperationsClosureReadinessEntry] {
     wishlistLinkedOrderOperationsChecklistEntries
       .map(wishlistOperationsClosureReadinessEntry(for:))
@@ -8222,7 +8270,7 @@ struct WishlistView: View {
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 420), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(entries.prefix(8)) { entry in
-              WishlistOperationsClosureReadinessRow(entry: entry) {
+              WishlistOperationsClosureReadinessRow(entry: entry, store: store) {
                 runWishlistOperationsClosureReadinessAction(for: entry)
               } onTask: {
                 store.createWishlistPurchaseHandoffReviewTask(entry.item)
@@ -11879,6 +11927,7 @@ private struct WishlistOperationsClosureReadinessEntry: Identifiable {
 
 private struct WishlistPurchaseOperationsHandoffRow: View {
   var entry: WishlistPurchaseOperationsHandoffEntry
+  var store: ParcelOpsStore
   var onAction: () -> Void
   var onTask: () -> Void
   var onFocus: () -> Void
@@ -11936,6 +11985,13 @@ private struct WishlistPurchaseOperationsHandoffRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
+        if let linkedOrder = entry.linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
         Button(entry.actionTitle, systemImage: entry.actionSymbol, action: onAction)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
@@ -11950,6 +12006,7 @@ private struct WishlistPurchaseOperationsHandoffRow: View {
 
 private struct WishlistOperationsClosureReadinessRow: View {
   var entry: WishlistOperationsClosureReadinessEntry
+  var store: ParcelOpsStore
   var onAction: () -> Void
   var onTask: () -> Void
   var onFocus: () -> Void
@@ -12016,6 +12073,13 @@ private struct WishlistOperationsClosureReadinessRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
+        if let linkedOrder = entry.linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
         Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
@@ -12031,6 +12095,7 @@ private struct WishlistOperationsClosureReadinessRow: View {
 
 private struct WishlistLinkedOrderOperationsChecklistRow: View {
   var entry: WishlistLinkedOrderOperationsChecklistEntry
+  var store: ParcelOpsStore
   var onAction: () -> Void
   var onTask: () -> Void
   var onFocus: () -> Void
