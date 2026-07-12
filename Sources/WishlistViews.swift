@@ -91,6 +91,12 @@ private struct WishlistPurchaseConfirmationCandidate: Identifiable {
   var reasons: [String]
 }
 
+private struct WishlistLinkedOrderSummary: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var order: TrackedOrder
+}
+
 private struct WishlistPurchaseStateCard: View {
   var title: String
   var detail: String
@@ -118,6 +124,50 @@ private struct WishlistPurchaseStateCard: View {
     .overlay(
       RoundedRectangle(cornerRadius: 8)
         .stroke(color.opacity(0.16), lineWidth: 1)
+    )
+  }
+}
+
+private struct WishlistLinkedOrderSummaryRow: View {
+  var summary: WishlistLinkedOrderSummary
+  var store: ParcelOpsStore
+  var onFocus: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "link.badge.plus")
+        .foregroundStyle(.purple)
+        .frame(width: 22, height: 22)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(summary.item.itemName)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Text("\(summary.order.orderNumber) • \(summary.order.store)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+        Text(summary.order.latestStatus)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(summary.order.status.color)
+          .lineLimit(2)
+      }
+      Spacer(minLength: 8)
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: summary.order, store: store)
+        } label: {
+          Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        Button("Focus item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.mini)
+    }
+    .padding(10)
+    .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.purple.opacity(0.16), lineWidth: 1)
     )
   }
 }
@@ -866,6 +916,11 @@ struct WishlistView: View {
           || item.purchaseReadiness?.localizedCaseInsensitiveContains("watch") == true)
     }
     let linkedOrders = active.filter { $0.purchaseHandoff?.linkedOrderID != nil }
+    let linkedOrderSummaries = linkedOrders.compactMap { item -> WishlistLinkedOrderSummary? in
+      guard let orderID = item.purchaseHandoff?.linkedOrderID,
+            let order = store.orders.first(where: { $0.id == orderID }) else { return nil }
+      return WishlistLinkedOrderSummary(item: item, order: order)
+    }
     let inboxCandidates = active.reduce(0) { total, item in
       total + store.suggestedWishlistOrderConfirmations(for: item).count
     }
@@ -952,6 +1007,30 @@ struct WishlistView: View {
           }
           .padding(10)
           .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        if !linkedOrderSummaries.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Wishlist items now linked to Orders", systemImage: "link.badge.plus")
+              .font(.caption.bold())
+              .foregroundStyle(.purple)
+            Text("Use these links after a confirmation match has created or attached the order. Continue fulfilment and dispatch work from the order record.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+              ForEach(Array(linkedOrderSummaries.prefix(3))) { summary in
+                WishlistLinkedOrderSummaryRow(summary: summary, store: store) {
+                  wishlistSearchText = summary.item.itemName
+                  selectedSource = nil
+                  selectedStatus = nil
+                  selectedWorkflowFocus = .operations
+                }
+              }
+            }
+          }
+          .padding(10)
+          .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         CompactActionRow {
