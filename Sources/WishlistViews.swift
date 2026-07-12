@@ -680,6 +680,7 @@ struct WishlistView: View {
   @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
   @State private var editingCaptureCandidate: WishlistCaptureCandidate?
   @State private var showManualWishlistItemForm = false
+  @State private var showPastedLinkCaptureForm = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var statuses: [String] {
@@ -1095,6 +1096,9 @@ struct WishlistView: View {
         }
 
         CompactActionRow {
+          Button("Paste product link", systemImage: "link.badge.plus") {
+            showPastedLinkCaptureForm = true
+          }
           Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
           Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
           Button("Browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
@@ -1534,6 +1538,20 @@ struct WishlistView: View {
             notes: draft.notes
           )
           showManualWishlistItemForm = false
+        }
+      }
+    }
+    .sheet(isPresented: $showPastedLinkCaptureForm) {
+      NavigationStack {
+        WishlistPastedLinkCaptureEditor { draft in
+          store.stageWishlistCaptureFromPastedLink(
+            pastedText: draft.pastedText,
+            itemName: draft.itemName,
+            sellerHint: draft.sellerHint,
+            priceHint: draft.priceHint,
+            notes: draft.notes
+          )
+          showPastedLinkCaptureForm = false
         }
       }
     }
@@ -12417,6 +12435,9 @@ struct WishlistView: View {
         }
 
         CompactActionRow {
+          Button("Paste product link", systemImage: "link.badge.plus") {
+            showPastedLinkCaptureForm = true
+          }
           Button("Add browser capture placeholder", systemImage: "puzzlepiece.extension.fill") {
             store.addBrowserExtensionWishlistCapturePlaceholder()
           }
@@ -14860,6 +14881,65 @@ private struct WishlistCaptureCandidateRow: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPastedLinkCaptureDraft {
+  var pastedText = ""
+  var itemName = ""
+  var sellerHint = ""
+  var priceHint = ""
+  var notes = ""
+
+  var canSave: Bool {
+    !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private struct WishlistPastedLinkCaptureEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft = WishlistPastedLinkCaptureDraft()
+  var onSave: (WishlistPastedLinkCaptureDraft) -> Void
+
+  var body: some View {
+    Form {
+      Section("Paste product link") {
+        TextField("Product URL or copied page text", text: $draft.pastedText, axis: .vertical)
+          .lineLimit(3...8)
+        Text("Paste the direct product link where possible. ParcelOps only stores local hints; it does not open the link or read the website.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Section("Optional hints") {
+        TextField("Item name", text: $draft.itemName)
+        TextField("Seller or retailer", text: $draft.sellerHint)
+        TextField("Visible price or budget", text: $draft.priceHint)
+        TextField("Notes, model, size, shipping clue, or why it is wanted", text: $draft.notes, axis: .vertical)
+          .lineLimit(3...6)
+      }
+
+      Section("What happens next") {
+        Text("This creates a staged capture candidate. Review and promote it before it becomes a Wishlist item. No browser extension, scraping, live price check, currency conversion, seller trust lookup, account login, checkout, purchase, payment, or background monitoring runs from this form.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .navigationTitle("Stage Product Link")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") {
+          dismiss()
+        }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Stage") {
+          onSave(draft)
+        }
+        .disabled(!draft.canSave)
+      }
+    }
   }
 }
 

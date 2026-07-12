@@ -18677,6 +18677,119 @@ final class ParcelOpsStore {
     )
   }
 
+  func stageWishlistCaptureFromPastedLink(
+    pastedText: String,
+    itemName: String,
+    sellerHint: String,
+    priceHint: String,
+    notes: String
+  ) {
+    let cleanText = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanItemName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanSellerHint = sellerHint.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanPriceHint = priceHint.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detectedURL = Self.firstURLString(in: cleanText)
+    let storefront = cleanSellerHint.isEmpty
+      ? Self.storefrontHint(from: detectedURL)
+      : cleanSellerHint
+    let inferredTitle = cleanItemName.isEmpty
+      ? Self.titleHint(from: detectedURL, fallback: cleanText)
+      : cleanItemName
+    let summaryParts = [
+      cleanItemName.isEmpty ? nil : "Item: \(cleanItemName)",
+      detectedURL.isPlaceholderValidationValue ? nil : "URL pasted for later review",
+      cleanPriceHint.isEmpty ? nil : "Price clue: \(cleanPriceHint)",
+      cleanNotes.isEmpty ? nil : cleanNotes
+    ].compactMap { $0 }
+    let summary = summaryParts.isEmpty
+      ? "Pasted product link staged for Wishlist review. Confirm item, seller, price, postage, seller trust, and purchase intent before promotion."
+      : summaryParts.joined(separator: ". ")
+
+    let capture = WishlistCaptureCandidate(
+      source: .shareSheet,
+      pageTitle: inferredTitle,
+      pageURL: detectedURL,
+      detectedStorefront: storefront,
+      detectedPrice: cleanPriceHint.isEmpty ? "Price needs review" : cleanPriceHint,
+      productSummary: summary,
+      captureStatus: "Pasted link staged",
+      reviewState: .needsReview,
+      capturedDate: Self.auditTimestamp(),
+      notes: "Local pasted-link capture only. ParcelOps did not open the page, scrape the website, compare live prices, convert currency, rate the seller, log into accounts, buy, pay, or contact external services."
+    )
+    wishlistCaptureCandidates.insert(capture, at: 0)
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: capture.id.uuidString,
+      entityLabel: capture.pageTitle,
+      summary: "Wishlist pasted product link staged locally.",
+      afterDetail: "\(capture.auditDetail)\nParsed hints: URL \(detectedURL.isPlaceholderValidationValue ? "missing" : "present"), seller \(storefront.isPlaceholderValidationValue ? "needs review" : "hinted"), price \(cleanPriceHint.isEmpty ? "needs review" : "hinted"). No browser extension, web lookup, scraping, account login, checkout, purchase, payment, currency conversion, seller trust lookup, mailbox fetch, or external service occurred."
+    )
+  }
+
+  private static func firstURLString(in text: String) -> String {
+    guard
+      let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue),
+      let match = detector.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)),
+      let range = Range(match.range, in: text)
+    else {
+      return "Product URL needs review"
+    }
+    var url = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+    while let last = url.last, [".", ",", ")", "]"].contains(String(last)) {
+      url.removeLast()
+    }
+    return url
+  }
+
+  private static func storefrontHint(from urlString: String) -> String {
+    guard
+      !urlString.isPlaceholderValidationValue,
+      let url = URL(string: urlString),
+      let host = url.host
+    else {
+      return "Storefront needs review"
+    }
+    let trimmedHost = host
+      .replacingOccurrences(of: "www.", with: "")
+      .split(separator: ".")
+      .first
+      .map(String.init) ?? host
+    let spaced = trimmedHost
+      .replacingOccurrences(of: "-", with: " ")
+      .replacingOccurrences(of: "_", with: " ")
+    return spaced
+      .split(separator: " ")
+      .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+      .joined(separator: " ")
+  }
+
+  private static func titleHint(from urlString: String, fallback: String) -> String {
+    guard
+      !urlString.isPlaceholderValidationValue,
+      let url = URL(string: urlString)
+    else {
+      let cleanFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+      return cleanFallback.isEmpty ? "Pasted Wishlist product" : String(cleanFallback.prefix(80))
+    }
+    let pathPieces = url.path
+      .split(separator: "/")
+      .map(String.init)
+      .filter { !$0.isEmpty }
+    guard let bestPiece = pathPieces.last else {
+      return storefrontHint(from: urlString)
+    }
+    let decoded = bestPiece.removingPercentEncoding ?? bestPiece
+    let cleaned = decoded
+      .replacingOccurrences(of: "-", with: " ")
+      .replacingOccurrences(of: "_", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? storefrontHint(from: urlString) : String(cleaned.prefix(80))
+  }
+
   func promoteWishlistCaptureToItem(_ capture: WishlistCaptureCandidate) {
     guard wishlistCaptureCandidates.contains(where: { $0.id == capture.id }) else { return }
     wishlistCaptureCandidates.removeAll { $0.id == capture.id }
