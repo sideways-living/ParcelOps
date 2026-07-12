@@ -351,6 +351,108 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(waitingRecord.reviewState, .needsReview)
   }
 
+  func testWishlistOrderWatchReviewedAndBlockedStates() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let unlinkedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let linkedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Packing bench scale",
+      sellerName: "Warehouse Supplies",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [unlinkedItem, linkedItem]
+    store.addWishlistOrderWatchRecord(unlinkedItem)
+    store.addWishlistOrderWatchRecord(linkedItem)
+
+    let unlinkedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == unlinkedItem.id })
+    let linkedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == linkedItem.id })
+
+    store.markWishlistOrderWatchRecordReviewed(unlinkedRecord)
+    store.markWishlistOrderWatchRecordReviewed(linkedRecord)
+
+    var reviewedUnlinked = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == unlinkedItem.id })
+    let reviewedLinked = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == linkedItem.id })
+
+    XCTAssertEqual(reviewedUnlinked.watchStatus, "Reviewed; still awaiting order")
+    XCTAssertEqual(reviewedUnlinked.reviewState, .accepted)
+    XCTAssertEqual(reviewedLinked.watchStatus, "Reviewed and linked")
+    XCTAssertEqual(reviewedLinked.reviewState, .accepted)
+
+    store.blockWishlistOrderWatchRecord(reviewedUnlinked)
+
+    reviewedUnlinked = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == unlinkedItem.id })
+    XCTAssertEqual(reviewedUnlinked.watchStatus, "Blocked locally")
+    XCTAssertEqual(reviewedUnlinked.reviewState, .needsReview)
+  }
+
+  func testWishlistOrderWatchRemovalLogsWithoutDeletingItem() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.auditEvents = []
+    store.addWishlistOrderWatchRecord(item)
+    let record = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+
+    store.removeWishlistOrderWatchRecord(record)
+
+    XCTAssertTrue(store.wishlistOrderWatchRecords.isEmpty)
+    XCTAssertEqual(store.wishlistItems.map(\.id), [item.id])
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Wishlist order watch record removed locally." })
+  }
+
+  func testWishlistOrderWatchReviewTaskCreatesAndRefreshesCandidateTask() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let intake = ForwardedEmailIntake(
+      sender: "orders@known-retailer.example",
+      subject: "Order TEST-123 shipped tracking ABC123",
+      receivedDate: "Today",
+      rawBodyPreview: "Known Australian retailer confirmed Replacement scanner order TEST-123 shipped with tracking ABC123.",
+      detectedMerchant: "Known Australian retailer",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "Brisbane QLD",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.intakeEmails = [intake]
+    store.reviewTasks = []
+    store.addWishlistOrderWatchRecord(item)
+    let record = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+
+    store.createWishlistOrderWatchRecordReviewTask(record)
+    store.createWishlistOrderWatchRecordReviewTask(record)
+
+    let task = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(store.reviewTasks.count, 1)
+    XCTAssertEqual(task.title, "Review Wishlist Inbox confirmation candidates: Replacement scanner")
+    XCTAssertEqual(task.linkedEntityType, .wishlistItem)
+    XCTAssertEqual(task.linkedEntityID, item.id.uuidString)
+    XCTAssertEqual(task.priority, .urgent)
+    XCTAssertTrue(task.summary.contains("Inbox candidates: 1"))
+    XCTAssertTrue(task.summary.contains("TEST-123"))
+  }
+
   func testWishlistClosureBlockedByMissingOperationsTrail() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
