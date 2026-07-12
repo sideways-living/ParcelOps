@@ -20069,6 +20069,174 @@ final class ParcelOpsStore {
     )
   }
 
+  func createWishlistPurchasePacketDraft(_ item: WishlistItem) {
+    guard isActiveWishlistItem(item) else {
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Closed Wishlist purchase packet skipped locally.",
+        afterDetail: "The Wishlist item is closed or removed from active work, so no purchase packet draft was created. Reopen it before preparing a purchase packet. No retailer page, browser automation, account login, checkout, payment, purchase, mailbox mutation, or external service action occurred."
+      )
+      return
+    }
+
+    if let existingDraft = draftMessages.first(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }) {
+      reopenDraftMessage(existingDraft)
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Existing Wishlist purchase packet draft reused locally.",
+        afterDetail: "Existing draft reopened instead of creating a duplicate: \(existingDraft.subject). No retailer page, browser automation, account login, checkout, payment, purchase, mailbox mutation, or external service action occurred."
+      )
+      return
+    }
+
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let beforeDetail = wishlistItems[index].auditDetail
+    if (wishlistItems[index].comparisonOptions ?? []).isEmpty {
+      createWishlistComparisonPlan(wishlistItems[index])
+    }
+    evaluateWishlistComparisonOptions(wishlistItems[index])
+
+    let current = wishlistItems.first { $0.id == item.id } ?? item
+    if current.purchaseDecision == nil {
+      createWishlistPurchaseDecision(current)
+    }
+    let refreshed = wishlistItems.first { $0.id == item.id } ?? current
+    let options = (refreshed.comparisonOptions ?? []).sorted {
+      let firstScore = $0.localScore ?? $0.operatorSellerMatrixScore
+      let secondScore = $1.localScore ?? $1.operatorSellerMatrixScore
+      if firstScore == secondScore {
+        return $0.sellerName.localizedCaseInsensitiveCompare($1.sellerName) == .orderedAscending
+      }
+      return firstScore > secondScore
+    }
+    let selectedOption = refreshed.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let sellerQuotes = wishlistSellerQuotes(for: refreshed)
+    let trustRecords = wishlistSellerTrustRecords.filter { record in
+      record.wishlistItemID == refreshed.id
+        || record.itemName.localizedCaseInsensitiveContains(refreshed.itemName)
+        || refreshed.itemName.localizedCaseInsensitiveContains(record.itemName)
+    }
+    let approvalRecords = wishlistPurchaseApprovalRecords(for: refreshed)
+    let linkRecords = wishlistPurchaseLinkRecords(for: refreshed)
+    let watchRecords = wishlistOrderWatchRecords(for: refreshed)
+
+    let optionSummary = options.prefix(8).map { option in
+      "- \(option.sellerName): \(option.listedPrice) \(option.currency), estimated \(option.estimatedAUDTotal), postage \(option.postageCost) / \(option.postageTime), region \(option.sellerRegion), trust \(option.trustRating), score \(option.localScore ?? option.operatorSellerMatrixScore), risk \(option.riskLevel ?? option.operatorSellerMatrixRisk), link \(option.productURL), note \(option.decisionReason ?? option.operatorSellerMatrixRecommendation)"
+    }.joined(separator: "\n")
+    let quoteSummary = sellerQuotes.prefix(6).map { quote in
+      "- \(quote.sellerName): \(quote.listedPrice) \(quote.currency), estimated \(quote.estimatedAUDTotal), postage \(quote.postageCost) / \(quote.postageTime), trust \(quote.trustSummary), status \(quote.quoteStatus), URL \(quote.productURL)"
+    }.joined(separator: "\n")
+    let trustSummary = trustRecords.prefix(6).map { record in
+      "- \(record.sellerName): \(record.checkType), result \(record.resultStatus), risk \(record.riskLevel), evidence \(record.evidenceSummary)"
+    }.joined(separator: "\n")
+    let approvalSummary = approvalRecords.prefix(4).map { record in
+      "- \(record.approvalStatus): limit \(record.approvedAUDLimit), budget \(record.budgetCode), approver \(record.approver), payment \(record.paymentMethodSummary)"
+    }.joined(separator: "\n")
+    let linkSummary = linkRecords.prefix(5).map { record in
+      "- \(record.sellerName): \(record.linkType), total \(record.estimatedAUDTotal), postage \(record.postageSummary), trust \(record.trustSummary), ready \(record.readinessStatus), selected \(record.selectedForPurchase ? "yes" : "no"), URL \(record.productURL)"
+    }.joined(separator: "\n")
+    let watchSummary = watchRecords.prefix(4).map { record in
+      "- \(record.sellerName): account \(record.accountLabel), expected signals \(record.expectedOrderSignals), status \(record.watchStatus), matched \(record.matchedOrderSummary)"
+    }.joined(separator: "\n")
+    let checksSummary = (refreshed.purchaseChecks ?? []).map { check in
+      "- \(check.title): \(check.status) (\(check.severity)) - \(check.detail)"
+    }.joined(separator: "\n")
+
+    let body = """
+    Wishlist purchase packet.
+
+    Item:
+    \(refreshed.itemName)
+
+    Owner / pool:
+    \(refreshed.owner) / \(refreshed.pool)
+
+    Current purchase readiness:
+    \(refreshed.purchaseReadiness ?? "Not assessed")
+
+    Selected seller:
+    \(selectedOption?.sellerName ?? "No seller selected")
+
+    Selected seller details:
+    \(selectedOption.map { "Total \($0.estimatedAUDTotal); postage \($0.postageCost) / \($0.postageTime); trust \($0.trustRating); risk \($0.riskLevel ?? $0.operatorSellerMatrixRisk); URL \($0.productURL)" } ?? "No selected option is available.")
+
+    Local seller shortlist:
+    \(optionSummary.isEmpty ? "- No seller options recorded." : optionSummary)
+
+    Captured seller quotes:
+    \(quoteSummary.isEmpty ? "- No seller quote records captured." : quoteSummary)
+
+    Trust evidence:
+    \(trustSummary.isEmpty ? "- No seller trust records captured." : trustSummary)
+
+    Readiness checks:
+    \(checksSummary.isEmpty ? "- No readiness checks recorded." : checksSummary)
+
+    Local purchase decision:
+    \(refreshed.purchaseDecision?.decisionStatus ?? "No purchase decision recorded")
+    Seller: \(refreshed.purchaseDecision?.selectedSellerName ?? "Not selected")
+    AUD total: \(refreshed.purchaseDecision?.totalAUDSummary ?? "Not recorded")
+    Postage: \(refreshed.purchaseDecision?.postageSummary ?? "Not recorded")
+    Trust: \(refreshed.purchaseDecision?.trustSummary ?? "Not recorded")
+    Alternatives: \(refreshed.purchaseDecision?.rejectedOptionsSummary ?? "No alternatives recorded")
+
+    Approvals:
+    \(approvalSummary.isEmpty ? "- No approval records captured." : approvalSummary)
+
+    Purchase links:
+    \(linkSummary.isEmpty ? "- No purchase link records captured." : linkSummary)
+
+    Order watch after external purchase:
+    \(watchSummary.isEmpty ? "- No order-watch records captured." : watchSummary)
+
+    Manual purchase checklist:
+    - Confirm live price, stock, final landed AUD total, postage cost, delivery ETA, returns, warranty, seller identity, and seller trust outside ParcelOps.
+    - Confirm the account and payment method outside ParcelOps.
+    - If you purchase externally, watch Inbox/Orders for the confirmation and link it back to this Wishlist item.
+    - Do not buy from any seller with unclear delivery, poor trust signals, missing returns/warranty, or suspicious pricing.
+
+    Boundaries:
+    This packet is local only. ParcelOps did not open retailer pages, compare live prices, convert currency, rate sellers externally, log into accounts, store payment details, check out, buy, pay, mutate mailboxes, or monitor orders in the background.
+    """
+
+    let draft = DraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: refreshed.id.uuidString,
+      templateID: nil,
+      recipient: "Wishlist review",
+      subject: "Wishlist purchase packet: \(refreshed.itemName)",
+      body: body,
+      channel: .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Wishlist purchase packet draft created locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(draft.auditDetail)\nSource item: \(refreshed.auditDetail)\nIncluded seller options: \(options.count); seller quotes: \(sellerQuotes.count); trust records: \(trustRecords.count); approval records: \(approvalRecords.count); purchase links: \(linkRecords.count); order-watch records: \(watchRecords.count). Draft only. No retailer, browser, account, checkout, payment, purchase, mailbox mutation, or external service action occurred."
+    )
+  }
+
   func createWishlistSellerEvidenceReviewTask(_ item: WishlistItem) {
     let missingBySeller = (item.comparisonOptions ?? []).compactMap { option -> String? in
       let gaps = option.operatorSellerEvidenceGaps

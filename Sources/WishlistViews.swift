@@ -700,6 +700,7 @@ struct WishlistView: View {
         wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
+        wishlistPurchasePacketPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseReadinessBlockerSummaryPanel
         wishlistExternalPurchaseSafetyGatePanel
@@ -4534,6 +4535,128 @@ struct WishlistView: View {
       tone: tone,
       sortPriority: sortPriority
     )
+  }
+
+  private var wishlistPurchasePacketPanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let itemsWithSellerOptions = activeItems.filter { ($0.comparisonOptions ?? []).isEmpty == false }
+    let itemsNeedingPacket = itemsWithSellerOptions.filter { item in
+      !store.draftMessages.contains {
+        $0.linkedEntityType == .wishlistItem
+          && $0.linkedEntityID == item.id.uuidString
+          && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+      }
+    }
+    let decisionReady = itemsNeedingPacket.filter { $0.purchaseDecision != nil }.count
+    let needingDecision = itemsNeedingPacket.count - decisionReady
+    let purchaseLinksReady = itemsNeedingPacket.filter { item in
+      store.wishlistPurchaseLinkRecords(for: item).contains { $0.selectedForPurchase || $0.reviewState == .accepted }
+    }.count
+    let displayedItems = Swift.Array(itemsNeedingPacket.prefix(6))
+
+    return SettingsPanel(title: "Purchase packet shortcut", symbol: "doc.text.fill.viewfinder") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: itemsNeedingPacket.isEmpty ? "checkmark.circle.fill" : "doc.badge.plus")
+            .foregroundStyle(itemsNeedingPacket.isEmpty ? .green : .indigo)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(itemsNeedingPacket.isEmpty ? "Purchase packets are ready" : "Create local buy/no-buy packets from shortlisted items")
+              .font(.headline)
+            Text(itemsNeedingPacket.isEmpty
+              ? "Every active Wishlist item with seller options already has a local purchase packet draft."
+              : "A packet collects the selected seller, alternatives, AUD total, postage, trust evidence, approvals, purchase links, and order-watch notes into one local draft before any external purchase.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(itemsNeedingPacket.isEmpty ? "Clear" : "\(itemsNeedingPacket.count) need packet", color: itemsNeedingPacket.isEmpty ? .green : .indigo)
+        }
+
+        MetricStrip(items: [
+          ("Need packet", "\(itemsNeedingPacket.count)", itemsNeedingPacket.isEmpty ? .green : .indigo),
+          ("Decision ready", "\(decisionReady)", decisionReady == 0 ? .secondary : .green),
+          ("Need decision", "\(needingDecision)", needingDecision == 0 ? .green : .orange),
+          ("Links ready", "\(purchaseLinksReady)", purchaseLinksReady == 0 ? .secondary : .purple)
+        ])
+
+        Text("This is a local operator packet only. It does not open product links, compare live prices, convert currency, check seller reputation externally, log in, buy, pay, mutate mailboxes, or monitor orders.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if itemsWithSellerOptions.isEmpty {
+          MVPEmptyState(
+            title: "No seller options yet",
+            detail: "Add seller options, promote seller quotes, or create a comparison plan before building a purchase packet.",
+            symbol: "doc.text.fill.viewfinder"
+          )
+        } else if itemsNeedingPacket.isEmpty {
+          MVPEmptyState(
+            title: "No purchase packets needed",
+            detail: "Purchase packet drafts already exist for active Wishlist items with seller options.",
+            symbol: "checkmark.circle.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            if displayedItems.count > 0 { wishlistPurchasePacketShortcutRow(displayedItems[0]) }
+            if displayedItems.count > 1 { wishlistPurchasePacketShortcutRow(displayedItems[1]) }
+            if displayedItems.count > 2 { wishlistPurchasePacketShortcutRow(displayedItems[2]) }
+            if displayedItems.count > 3 { wishlistPurchasePacketShortcutRow(displayedItems[3]) }
+            if displayedItems.count > 4 { wishlistPurchasePacketShortcutRow(displayedItems[4]) }
+            if displayedItems.count > 5 { wishlistPurchasePacketShortcutRow(displayedItems[5]) }
+          }
+        }
+      }
+    }
+  }
+
+  private func wishlistPurchasePacketShortcutRow(_ item: WishlistItem) -> some View {
+    let sellerOptionCount = item.comparisonOptions?.count ?? 0
+    let purchaseLinks = store.wishlistPurchaseLinkRecords(for: item)
+    let approvals = store.wishlistPurchaseApprovalRecords(for: item)
+    let selectedSeller = item.preferredOptionID.flatMap { preferredID in
+      item.comparisonOptions?.first { $0.id == preferredID }
+    }?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "doc.text.fill.viewfinder")
+          .foregroundStyle(.indigo)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text("Seller: \(selectedSeller)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.indigo)
+            .lineLimit(2)
+          Text(item.purchaseReadiness ?? item.operatorPurchaseNextAction)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        Badge(item.purchaseDecision == nil ? "Needs decision" : "Decision staged", color: item.purchaseDecision == nil ? .orange : .green)
+      }
+
+      CompactMetadataGrid(minimumWidth: 115) {
+        WishlistMatrixMetric(title: "Seller options", value: "\(sellerOptionCount)", symbol: "list.bullet.rectangle")
+        WishlistMatrixMetric(title: "Purchase links", value: "\(purchaseLinks.count)", symbol: "link")
+        WishlistMatrixMetric(title: "Approvals", value: "\(approvals.count)", symbol: "checkmark.seal")
+      }
+
+      Button("Create packet draft", systemImage: "doc.badge.plus") {
+        store.createWishlistPurchasePacketDraft(item)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var wishlistPurchaseDecisionQueueItems: [WishlistItem] {
