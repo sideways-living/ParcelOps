@@ -408,6 +408,20 @@ private struct WishlistPurchaseTimelineEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistPurchaseReadinessEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var passedChecks: Int
+  var totalChecks: Int
+  var blockers: [String]
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistCaptureSourceReadiness: Identifiable {
   var id: WishlistSource { source }
   var source: WishlistSource
@@ -513,6 +527,79 @@ private struct WishlistOperatorQueueRow: View {
 
       if !entry.item.operatorPurchaseBlockers.isEmpty {
         Text("Blockers: \(entry.item.operatorPurchaseBlockers.prefix(3).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistPurchaseReadinessRow: View {
+  var entry: WishlistPurchaseReadinessEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var progressText: String {
+    entry.totalChecks == 0 ? "Checks not run" : "\(entry.passedChecks)/\(entry.totalChecks) checks"
+  }
+
+  private var progressValue: Double {
+    guard entry.totalChecks > 0 else { return 0 }
+    return Double(entry.passedChecks) / Double(entry.totalChecks)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24, height: 24)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer(minLength: 8)
+
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.stage, color: entry.tone)
+          Text(progressText)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      ProgressView(value: progressValue)
+        .tint(entry.tone)
+
+      CompactMetadataGrid(minimumWidth: 125) {
+        WishlistMatrixMetric(title: "Seller", value: entry.item.storefront, symbol: "storefront.fill")
+        WishlistMatrixMetric(title: "Owner", value: entry.item.owner, symbol: "person.crop.circle")
+        WishlistMatrixMetric(title: "Readiness", value: entry.item.purchaseReadiness ?? entry.item.status, symbol: "cart.badge.questionmark")
+        WishlistMatrixMetric(title: "Blockers", value: "\(entry.blockers.count)", symbol: "exclamationmark.triangle.fill")
+      }
+
+      if !entry.blockers.isEmpty {
+        Text("Needs: \(entry.blockers.prefix(4).joined(separator: ", "))")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -1017,6 +1104,7 @@ struct WishlistView: View {
 
         wishlistNextActionGuidePanel
         wishlistPurchaseTimelinePanel
+        wishlistPurchaseReadinessChecklistPanel
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
         wishlistExceptionQueuePanel
@@ -1733,6 +1821,218 @@ struct WishlistView: View {
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var wishlistPurchaseReadinessEntries: [WishlistPurchaseReadinessEntry] {
+    store.wishlistItems
+      .filter(store.isActiveWishlistItem)
+      .map { item in
+        let checks = item.purchaseChecks ?? []
+        let passedChecks = checks.filter { $0.status == "Passed" }.count
+        let blockers = item.operatorPurchaseBlockers
+        let hasOptions = item.comparisonOptions?.isEmpty == false
+        let hasPreferredSeller = item.preferredOptionID != nil
+        let decisionAccepted = item.purchaseDecision?.reviewState == .accepted
+        let hasHandoff = item.purchaseHandoff != nil
+        let linkedOrder = item.purchaseHandoff?.linkedOrderID.flatMap { orderID in
+          store.orders.first { $0.id == orderID }
+        }
+
+        let stage: String
+        let detail: String
+        let nextAction: String
+        let nextSymbol: String
+        let tone: Color
+        let sortPriority: Int
+
+        if !hasOptions {
+          stage = "Needs comparison"
+          detail = "Add or brief seller options before assessing landed price, postage, trust, or purchase readiness."
+          nextAction = "Create brief"
+          nextSymbol = "doc.text.magnifyingglass"
+          tone = .blue
+          sortPriority = 10
+        } else if !hasPreferredSeller {
+          stage = "Choose seller"
+          detail = "Seller options exist, but no preferred option is selected for readiness checks and decision review."
+          nextAction = "Score sellers"
+          nextSymbol = "shield.checkered"
+          tone = .orange
+          sortPriority = 20
+        } else if checks.isEmpty || checks.contains(where: { $0.status != "Passed" }) {
+          stage = checks.isEmpty ? "Checks needed" : "Checks blocked"
+          detail = item.purchaseReadiness ?? "Run the local purchase readiness check before drafting or accepting a decision."
+          nextAction = "Run checks"
+          nextSymbol = "checklist.checked"
+          tone = checks.isEmpty ? .orange : .red
+          sortPriority = checks.isEmpty ? 30 : 35
+        } else if item.purchaseDecision == nil {
+          stage = "Decision needed"
+          detail = "Readiness checks are clear enough to draft a local purchase decision for review."
+          nextAction = "Draft decision"
+          nextSymbol = "doc.badge.plus"
+          tone = .purple
+          sortPriority = 40
+        } else if !decisionAccepted {
+          stage = "Decision review"
+          detail = "Purchase decision exists but still needs local review before an external purchase handoff."
+          nextAction = "Mark reviewed"
+          nextSymbol = "checkmark.seal.fill"
+          tone = .brown
+          sortPriority = 50
+        } else if !hasHandoff {
+          stage = "Handoff needed"
+          detail = "Decision is accepted. Prepare seller, account, expected order signal, and order-watch notes before buying externally."
+          nextAction = "Prepare handoff"
+          nextSymbol = "person.crop.circle.badge.checkmark"
+          tone = .purple
+          sortPriority = 60
+        } else if linkedOrder == nil {
+          stage = "Watch order"
+          detail = "Purchase handoff exists. Link the eventual Inbox confirmation or local order after the external purchase."
+          nextAction = "Order seen"
+          nextSymbol = "envelope.badge.fill"
+          tone = .teal
+          sortPriority = 70
+        } else {
+          stage = "Linked order"
+          detail = "Wishlist handoff is linked to \(linkedOrder?.orderNumber ?? "a local order"). Use Orders and Operations as the source of truth."
+          nextAction = "Focus item"
+          nextSymbol = "scope"
+          tone = .green
+          sortPriority = 90
+        }
+
+        return WishlistPurchaseReadinessEntry(
+          item: item,
+          passedChecks: passedChecks,
+          totalChecks: checks.count,
+          blockers: blockers,
+          stage: stage,
+          detail: detail,
+          nextAction: nextAction,
+          nextSymbol: nextSymbol,
+          tone: tone,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistPurchaseReadinessChecklistPanel: some View {
+    let entries = wishlistPurchaseReadinessEntries
+    let attentionEntries = entries.filter { $0.sortPriority < 90 }
+    let readyEntries = entries.filter { $0.sortPriority >= 90 }
+    let blockedChecks = entries.filter { $0.stage == "Checks blocked" }.count
+    let handoffNeeded = entries.filter { $0.stage == "Handoff needed" }.count
+    let watchNeeded = entries.filter { $0.stage == "Watch order" }.count
+
+    return SettingsPanel(title: "Wishlist purchase readiness checklist", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: attentionEntries.isEmpty ? "checkmark.seal.fill" : "checklist.checked")
+            .foregroundStyle(attentionEntries.isEmpty ? Color.green : Color.orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(attentionEntries.isEmpty ? "Wishlist purchase readiness is clear" : "Work these items before buying externally")
+              .font(.headline)
+            Text(attentionEntries.isEmpty
+              ? "Active Wishlist items either have linked order context or no counted readiness blocker."
+              : "This is the compact checklist for manual purchasing: compare, choose seller, run checks, review decision, prepare handoff, then watch for the order confirmation.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(attentionEntries.isEmpty ? "Clear" : "\(attentionEntries.count) to review", color: attentionEntries.isEmpty ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Active", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("To review", "\(attentionEntries.count)", attentionEntries.isEmpty ? .green : .orange),
+          ("Check blocks", "\(blockedChecks)", blockedChecks == 0 ? .green : .red),
+          ("Handoff", "\(handoffNeeded)", handoffNeeded == 0 ? .green : .purple),
+          ("Order watch", "\(watchNeeded)", watchNeeded == 0 ? .secondary : .teal),
+          ("Linked", "\(readyEntries.count)", readyEntries.isEmpty ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No active Wishlist items",
+            detail: "Add a manual item or use a local capture placeholder to start purchase readiness checks.",
+            symbol: "star.square.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistPurchaseReadinessRow(entry: entry) {
+                runWishlistPurchaseReadinessAction(for: entry)
+              } onTask: {
+                createWishlistPurchaseReadinessTask(for: entry)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+        }
+
+        Text("Readiness is local guidance only. ParcelOps does not buy the item, log into sellers, verify live price or stock, send payment, open a browser, mutate mailboxes, or run background monitoring.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistPurchaseReadinessAction(for entry: WishlistPurchaseReadinessEntry) {
+    switch entry.stage {
+    case "Needs comparison":
+      store.createWishlistComparisonPlan(entry.item)
+      store.createWishlistResearchRequest(from: entry.item)
+      selectedWorkflowFocus = .compare
+    case "Choose seller":
+      store.evaluateWishlistComparisonOptions(entry.item)
+      selectedWorkflowFocus = .compare
+    case "Checks needed", "Checks blocked":
+      store.runWishlistPurchaseReadinessCheck(entry.item)
+      selectedWorkflowFocus = .buy
+    case "Decision needed":
+      store.createWishlistPurchaseDecision(entry.item)
+      selectedWorkflowFocus = .buy
+    case "Decision review":
+      store.markWishlistPurchaseDecisionReviewed(entry.item)
+      selectedWorkflowFocus = .buy
+    case "Handoff needed":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+      selectedWorkflowFocus = .watch
+    case "Watch order":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+      selectedWorkflowFocus = .watch
+    default:
+      wishlistSearchText = entry.item.itemName
+    }
+    selectedSource = nil
+    selectedStatus = nil
+  }
+
+  private func createWishlistPurchaseReadinessTask(for entry: WishlistPurchaseReadinessEntry) {
+    switch entry.stage {
+    case "Decision needed", "Decision review", "Checks needed", "Checks blocked":
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    case "Handoff needed", "Watch order":
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    case "Choose seller":
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    default:
+      store.createReviewTask(from: entry.item)
     }
   }
 
