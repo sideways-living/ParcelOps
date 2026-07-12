@@ -2462,6 +2462,105 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(gate.metrics.first { $0.title == "Orders" }?.value, "0")
   }
 
+  func testMailboxProviderHandoffPacketTaskRefreshesExistingOpenTask() {
+    let mailboxID = UUID()
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        id: mailboxID,
+        oauthReadinessStatus: "Ready",
+        credentialStorageStatus: "GoogleSignIn cache available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.reviewTasks = []
+
+    store.createReviewTaskFromMailboxProviderHandoffPacket()
+    store.createReviewTaskFromMailboxProviderHandoffPacket()
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration && $0.linkedEntityID == "mailbox-provider-handoff-packet"
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.priority, .high)
+    XCTAssertEqual(tasks.first?.dueDate, "Today")
+    XCTAssertEqual(tasks.first?.assignee, "ParcelOps Operations")
+    XCTAssertTrue(tasks.first?.summary.contains("Mailbox provider handoff has blockers") == true)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Existing mailbox provider handoff packet task refreshed." })
+  }
+
+  func testMailboxProviderHandoffNoteRefreshesExistingOpenNote() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.handoffNotes = []
+
+    store.createHandoffNoteFromMailboxProviderHandoffPacket()
+    store.createHandoffNoteFromMailboxProviderHandoffPacket()
+
+    let notes = store.handoffNotes.filter {
+      $0.linkedEntityType == .integration && $0.linkedEntityID == "mailbox-provider-handoff-packet"
+    }
+    XCTAssertEqual(notes.count, 1)
+    XCTAssertEqual(notes.first?.assignee, "Mailbox team")
+    XCTAssertTrue(notes.first?.notes.contains("Shift handoff boundary:") == true)
+    XCTAssertTrue(notes.first?.notes.contains("It does not run Gmail, SpaceMail, Microsoft 365, IMAP, or Graph refreshes.") == true)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Existing mailbox provider handoff note refreshed." })
+  }
+
+  func testMailboxProviderReleaseGateTaskPromotesPrimaryOpenGate() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.reviewTasks = []
+
+    store.createReviewTaskFromMailboxProviderReleaseGate()
+    store.createReviewTaskFromMailboxProviderReleaseGate()
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration && $0.linkedEntityID == "mailbox-provider-release-gate"
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.priority, .high)
+    XCTAssertEqual(tasks.first?.dueDate, "Today")
+    XCTAssertTrue(tasks.first?.title.hasPrefix("Resolve mailbox provider gate:") == true)
+    XCTAssertTrue(tasks.first?.summary.contains("Primary open gate:") == true)
+    XCTAssertTrue(tasks.first?.summary.contains("Next action:") == true)
+    XCTAssertTrue(tasks.first?.summary.contains("Verdict: Blocked") == true)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Existing mailbox provider release gate task refreshed." })
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
