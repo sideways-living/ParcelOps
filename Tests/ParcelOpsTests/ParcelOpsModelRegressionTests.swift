@@ -275,6 +275,82 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(orderWatchItem?.detail.contains("No current Wishlist handoff") == true)
   }
 
+  func testWishlistOrderWatchMatchesExistingLocalOrder() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let order = makeOrder(
+      orderNumber: "ORDER-123",
+      trackingNumber: "TRACK-123",
+      destination: "Brisbane QLD",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Known Australian retailer Replacement scanner shipped with tracking."
+    )
+    resetWishlistState(store)
+    store.orders = [order]
+    store.wishlistItems = [item]
+
+    store.addWishlistOrderWatchRecord(item)
+    let stagedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    store.checkWishlistOrderWatchRecord(stagedRecord)
+
+    let checkedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    let checkedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(checkedRecord.linkedOrderID, order.id)
+    XCTAssertEqual(checkedRecord.watchStatus, "Matched local order")
+    XCTAssertEqual(checkedRecord.reviewState, .accepted)
+    XCTAssertTrue(checkedRecord.matchedOrderSummary.contains(order.orderNumber))
+    XCTAssertEqual(checkedItem.purchaseHandoff?.linkedOrderID, order.id)
+    XCTAssertEqual(checkedItem.purchaseReadiness, "Order watch matched local order")
+  }
+
+  func testWishlistOrderWatchBatchMatchesOpenRecordsOnly() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let matchedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let waitingItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Packing bench scale",
+      sellerName: "Warehouse Supplies",
+      linkedOrderID: nil
+    )
+    let order = makeOrder(
+      orderNumber: "ORDER-456",
+      trackingNumber: "TRACK-456",
+      destination: "Melbourne VIC",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Known Australian retailer Replacement scanner dispatched."
+    )
+    resetWishlistState(store)
+    store.orders = [order]
+    store.intakeEmails = []
+    store.wishlistItems = [matchedItem, waitingItem]
+    store.addWishlistOrderWatchRecord(matchedItem)
+    store.addWishlistOrderWatchRecord(waitingItem)
+
+    store.checkOpenWishlistOrderWatchRecords()
+
+    let matchedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == matchedItem.id })
+    let waitingRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == waitingItem.id })
+
+    XCTAssertEqual(matchedRecord.linkedOrderID, order.id)
+    XCTAssertEqual(matchedRecord.watchStatus, "Matched local order")
+    XCTAssertNil(waitingRecord.linkedOrderID)
+    XCTAssertEqual(waitingRecord.watchStatus, "No confirmation found yet")
+    XCTAssertEqual(waitingRecord.reviewState, .needsReview)
+  }
+
   func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
     let repository = InMemoryParcelOpsRepository()
     let store = ParcelOpsStore(repository: repository)
