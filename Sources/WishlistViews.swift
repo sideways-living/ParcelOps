@@ -1768,6 +1768,7 @@ struct WishlistView: View {
         wishlistPurchaseRecommendationPanel
         wishlistPurchaseDecisionRiskGatePanel
         wishlistPurchaseShortlistPanel
+        wishlistPurchaseDecisionRunwayPanel
         wishlistPurchasePacketPanel
         wishlistPurchaseDecisionQueuePanel
         wishlistPurchaseReadinessBlockerSummaryPanel
@@ -6693,6 +6694,110 @@ struct WishlistView: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var wishlistPurchaseDecisionRunwayPanel: some View {
+    let queueItems = wishlistPurchaseDecisionQueueItems
+    let readyToDraft = queueItems.filter { wishlistPurchaseDecisionPriority(for: $0) == 4 }
+    let needsReadiness = queueItems.filter { wishlistPurchaseDecisionPriority(for: $0) == 3 }
+    let needsSellerWork = queueItems.filter { wishlistPurchaseDecisionPriority(for: $0) <= 2 }
+    let drafted = queueItems.filter { $0.purchaseDecision != nil && $0.purchaseDecision?.reviewState != .accepted }
+    let acceptedNeedsHandoff = queueItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }
+    let leadingItem = readyToDraft.first ?? needsReadiness.first ?? drafted.first ?? needsSellerWork.first ?? acceptedNeedsHandoff.first
+
+    return SettingsPanel(title: "Purchase decision runway", symbol: "arrow.triangle.branch") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: readyToDraft.isEmpty && needsReadiness.isEmpty && needsSellerWork.isEmpty ? "checkmark.seal.fill" : "bag.badge.questionmark.fill")
+            .font(.title3)
+            .foregroundStyle(readyToDraft.isEmpty && needsReadiness.isEmpty && needsSellerWork.isEmpty ? .green : .brown)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(readyToDraft.isEmpty ? "Purchase decisions need prep or review" : "\(readyToDraft.count) item\(readyToDraft.count == 1 ? "" : "s") ready for decision draft")
+              .font(.headline)
+            Text(leadingItem.map { "\($0.itemName): \(wishlistPurchaseDecisionStageDetail(for: $0))" } ?? "No active Wishlist item is currently waiting in purchase decision flow.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(readyToDraft.isEmpty ? "\(queueItems.count) in flow" : "\(readyToDraft.count) ready", color: readyToDraft.isEmpty ? .secondary : .green)
+        }
+
+        MetricStrip(items: [
+          ("Decision flow", "\(queueItems.count)", queueItems.isEmpty ? .secondary : .blue),
+          ("Seller prep", "\(needsSellerWork.count)", needsSellerWork.isEmpty ? .green : .orange),
+          ("Readiness", "\(needsReadiness.count)", needsReadiness.isEmpty ? .green : .brown),
+          ("Ready draft", "\(readyToDraft.count)", readyToDraft.isEmpty ? .secondary : .green),
+          ("Draft review", "\(drafted.count)", drafted.isEmpty ? .secondary : .purple),
+          ("Handoff", "\(acceptedNeedsHandoff.count)", acceptedNeedsHandoff.isEmpty ? .secondary : .teal)
+        ])
+
+        if queueItems.isEmpty {
+          MVPEmptyState(
+            title: "No purchase decision work yet",
+            detail: "Seller options must exist before an item appears in the purchase decision runway.",
+            symbol: "bag.badge.questionmark.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 330), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(queueItems.prefix(5)) { item in
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: wishlistPurchaseDecisionActionSymbol(for: item))
+                    .foregroundStyle(wishlistPurchaseDecisionStageColor(for: item))
+                    .frame(width: 20, height: 20)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(item.itemName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(wishlistPurchaseDecisionStageTitle(for: item))
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(wishlistPurchaseDecisionStageColor(for: item))
+                      .lineLimit(2)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(wishlistPurchaseDecisionStageTitle(for: item), color: wishlistPurchaseDecisionStageColor(for: item))
+                }
+
+                Text(wishlistPurchaseDecisionStageDetail(for: item))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactActionRow {
+                  Button(wishlistPurchaseDecisionActionTitle(for: item), systemImage: wishlistPurchaseDecisionActionSymbol(for: item)) {
+                    runWishlistPurchaseDecisionAction(for: item)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = item.itemName
+                    selectedWorkflowFocus = .buy
+                    selectedSource = nil
+                    selectedStatus = nil
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(wishlistPurchaseDecisionStageColor(for: item).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                  .stroke(wishlistPurchaseDecisionStageColor(for: item).opacity(0.16), lineWidth: 1)
+              )
+            }
+          }
+        }
+
+        Text("Decision boundary: these actions only update local Wishlist records, checks, tasks, handoffs, and audit history. They do not open seller pages, log into accounts, purchase, pay, mutate mailboxes, or run monitoring.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 
   private var wishlistPurchaseDecisionQueueItems: [WishlistItem] {
