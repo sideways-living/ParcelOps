@@ -1997,6 +1997,165 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
   }
 
+  func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore()
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.auditEvents = []
+
+    let summary = store.gmailReleaseSelfCheckSummary(for: connection)
+    let setupItem = summary.items.first { $0.title == "Setup and callback" }
+    let signInItem = summary.items.first { $0.title == "Google sign-in" }
+    let refreshItem = summary.items.first { $0.title == "Manual read-only refresh" }
+
+    XCTAssertEqual(summary.verdict, "Gmail release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.completedCount, 0)
+    XCTAssertEqual(summary.totalCount, 6)
+    XCTAssertEqual(setupItem?.tone, "warning")
+    XCTAssertEqual(signInItem?.tone, "attention")
+    XCTAssertEqual(refreshItem?.tone, "neutral")
+    XCTAssertEqual(summary.nextAction, "Use Edit setup and update compiled plist/project values before live testing.")
+  }
+
+  func testGmailReleaseSelfCheckShowsSignInEvidenceWhileSetupRemainsBlocked() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore()
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.auditEvents = [
+      AuditEvent(
+        timestamp: "Today",
+        actor: "Local user",
+        action: .reviewed,
+        entityType: .gmailMailboxConnection,
+        entityID: mailboxID.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Gmail setup reviewed locally.",
+        beforeDetail: nil,
+        afterDetail: "Gmail sign-in evidence recorded."
+      )
+    ]
+
+    let summary = store.gmailReleaseSelfCheckSummary(for: connection)
+    let signInItem = summary.items.first { $0.title == "Google sign-in" }
+    let refreshItem = summary.items.first { $0.title == "Manual read-only refresh" }
+    let auditItem = summary.items.first { $0.title == "Audit evidence" }
+
+    XCTAssertEqual(summary.verdict, "Gmail release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(signInItem?.isComplete, true)
+    XCTAssertEqual(refreshItem?.isComplete, false)
+    XCTAssertEqual(refreshItem?.tone, "neutral")
+    XCTAssertEqual(auditItem?.isComplete, true)
+    XCTAssertEqual(summary.nextAction, "Use Edit setup and update compiled plist/project values before live testing.")
+  }
+
+  func testGmailReleaseSelfCheckShowsUncertainReviewWhileSetupRemainsBlocked() {
+    let mailboxID = UUID()
+    let uncertain = GmailReviewMessage(
+      providerMessageID: "gmail-uncertain-release",
+      sourceMailboxID: mailboxID,
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    var connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 9,
+      uncertain: 1
+    )
+    connection.connectionStatus = "Real Gmail: Fetch success"
+    connection.lastManualRefreshDate = "Today"
+    connection.uncertainMessages = [uncertain]
+    connection.classifierTestResults = [
+      GmailClassifierTestResult(
+        sampleName: "Ambiguous delivery sample",
+        decision: "Uncertain",
+        reason: "delivery-ish no id",
+        score: 2,
+        subjectPreview: "Delivery question",
+        detectedOrderNumber: "Order number needs review",
+        detectedTrackingNumber: "Tracking number needs review",
+        expectedDecision: "Uncertain",
+        decisionStatus: "Matched expected decision"
+      )
+    ]
+    let store = ParcelOpsStore()
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.auditEvents = [
+      AuditEvent(
+        timestamp: "Today",
+        actor: "Local user",
+        action: .reviewed,
+        entityType: .gmailMailboxConnection,
+        entityID: mailboxID.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real Gmail refresh completed.",
+        beforeDetail: nil,
+        afterDetail: "Manual read-only refresh evidence."
+      )
+    ]
+
+    let summary = store.gmailReleaseSelfCheckSummary(for: connection)
+    let filterItem = summary.items.first { $0.title == "Mixed-mailbox filtering" }
+    let refreshItem = summary.items.first { $0.title == "Manual read-only refresh" }
+
+    XCTAssertEqual(summary.verdict, "Gmail release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(refreshItem?.isComplete, true)
+    XCTAssertEqual(filterItem?.isComplete, false)
+    XCTAssertEqual(filterItem?.tone, "attention")
+    XCTAssertEqual(summary.nextAction, "Use Edit setup and update compiled plist/project values before live testing.")
+  }
+
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-1",
