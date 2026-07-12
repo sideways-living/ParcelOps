@@ -2300,6 +2300,42 @@ struct OperatorMVPReadinessCard: View {
     let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
     let hasMailboxRefresh = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let mailboxProviderLabel: String = {
+      switch (hasSpaceMailSetup, hasGmailSetup) {
+      case (true, true): return "SpaceMail and Gmail"
+      case (true, false): return "SpaceMail"
+      case (false, true): return "Gmail"
+      case (false, false): return "No mailbox"
+      }
+    }()
+    let mailboxCredentialDetail: String = {
+      if hasSpaceMailCredential && hasGmailConnectedAuth {
+        return "SpaceMail Keychain credential and Gmail Google sign-in evidence are both available."
+      }
+      if hasSpaceMailCredential {
+        return "SpaceMail Keychain credential is available for manual read-only IMAP refresh."
+      }
+      if hasGmailConnectedAuth {
+        return "Gmail Google sign-in evidence is available for manual read-only Gmail refresh."
+      }
+      if hasGmailSetup && hasSpaceMailSetup {
+        return "Set/check the SpaceMail Keychain password or complete Gmail Google sign-in from Mailbox Monitor or Settings."
+      }
+      if hasGmailSetup {
+        return "Complete Gmail Google sign-in from Mailbox Monitor or Settings before real Gmail refresh."
+      }
+      return "Set/check the SpaceMail Keychain password from Mailbox Monitor or Settings before real IMAP refresh."
+    }()
+    let mailboxRefreshDetail: String = {
+      let spaceMailRefreshed = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      let gmailRefreshed = store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      switch (spaceMailRefreshed, gmailRefreshed) {
+      case (true, true): return "SpaceMail and Gmail have both produced manual refresh result evidence."
+      case (true, false): return "SpaceMail has produced manual refresh result evidence."
+      case (false, true): return "Gmail has produced manual refresh result evidence."
+      case (false, false): return "Run a manual mailbox refresh when credentials or sign-in are ready."
+      }
+    }()
     let hasInboxEvidence = !store.intakeEmails.isEmpty || !store.importQueueItems.isEmpty || !store.acceptanceRecords.isEmpty
     let hasInboxOrder = store.orders.contains { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder }
     let hasWishlistItems = !store.wishlistItems.isEmpty
@@ -2323,7 +2359,7 @@ struct OperatorMVPReadinessCard: View {
       (
         "Mailbox setup",
         hasMailboxSetup
-          ? "At least one live mailbox path is configured for manual read-only intake."
+          ? "\(mailboxProviderLabel) configured for manual read-only intake."
           : "Add or review an active mailbox provider before expecting real intake.",
         hasMailboxSetup,
         hasMailboxSetup ? "success" : "warning",
@@ -2331,16 +2367,14 @@ struct OperatorMVPReadinessCard: View {
       ),
       (
         "Credential or sign-in",
-        hasMailboxCredentialOrAuth
-          ? "SpaceMail Keychain credential or Gmail Google sign-in evidence is available."
-          : "Set/check the SpaceMail Keychain password or complete Gmail Google sign-in from Mailbox Monitor or Settings.",
+        mailboxCredentialDetail,
         hasMailboxCredentialOrAuth,
         hasMailboxCredentialOrAuth ? "success" : "attention",
         hasGmailSetup && !hasSpaceMailSetup ? "person.badge.key.fill" : "key.horizontal.fill"
       ),
       (
         "Manual refresh evidence",
-        hasMailboxRefresh ? "At least one manual mailbox refresh has produced local result evidence." : "Run a manual mailbox refresh when credentials or sign-in are ready.",
+        mailboxRefreshDetail,
         hasMailboxRefresh,
         hasMailboxRefresh ? "success" : "attention",
         "arrow.down.to.line.compact"
