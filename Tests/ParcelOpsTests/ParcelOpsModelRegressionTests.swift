@@ -403,6 +403,52 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(closureTask.status, .open)
   }
 
+  func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    item.status = "Closed locally"
+    item.purchaseReadiness = "Wishlist operations closed locally"
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.reopenClosedWishlistItem(item)
+
+    let reopened = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(reopened.status, "Order confirmation linked")
+    XCTAssertEqual(reopened.purchaseReadiness, "Reopened locally after closure")
+    XCTAssertEqual(reopened.purchaseHandoff?.purchaseStatus, "Reopened locally for follow-up")
+    XCTAssertEqual(reopened.purchaseHandoff?.orderWatchStatus, "Reopened with linked local order")
+  }
+
+  func testWishlistReopenClosedItemWithoutLinkedOrderRestoresLinkingState() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    item.status = "Closed locally"
+    item.purchaseReadiness = "Wishlist operations closed locally"
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.reopenClosedWishlistItem(item)
+
+    let reopened = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(reopened.status, "Order confirmation needs linking")
+    XCTAssertEqual(reopened.purchaseReadiness, "Reopened locally after closure")
+    XCTAssertEqual(reopened.purchaseHandoff?.purchaseStatus, "Reopened locally for follow-up")
+    XCTAssertEqual(reopened.purchaseHandoff?.orderWatchStatus, "Reopened; order link needs review")
+  }
+
   func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
     let repository = InMemoryParcelOpsRepository()
     let store = ParcelOpsStore(repository: repository)
