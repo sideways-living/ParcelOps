@@ -124,6 +124,7 @@ struct OperationsWorkbenchView: View {
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
         || wishlistSellerEvidenceGapCount(for: item) > 0
         || wishlistNeedsPurchaseDecision(item)
+        || wishlistNeedsPurchasePacket(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
         || !wishlistHandoffSanityGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
@@ -151,6 +152,15 @@ struct OperationsWorkbenchView: View {
 
   private var wishlistBatchBriefNeeded: Bool {
     !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
+  }
+  private var wishlistPurchasePacketNeededItems: [WishlistItem] {
+    wishlistReleaseItems.filter(wishlistNeedsPurchasePacket)
+  }
+  private var wishlistPurchasePacketDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
   }
 
   private var wishlistReleaseItems: [WishlistItem] {
@@ -204,6 +214,16 @@ struct OperationsWorkbenchView: View {
     let checks = item.purchaseChecks ?? []
     let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
     return checksClear && item.purchaseDecision == nil
+  }
+  private func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
+    !(item.comparisonOptions ?? []).isEmpty && wishlistPurchasePacketDraft(for: item) == nil
+  }
+  private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
+    store.draftMessages.first {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
   }
 
   private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
@@ -1986,15 +2006,15 @@ struct OperationsWorkbenchView: View {
 
   @ViewBuilder
   private var wishlistPurchaseFollowUpPanel: some View {
-    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty || wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
+    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty || wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty || !wishlistPurchasePacketNeededItems.isEmpty || !wishlistPurchasePacketDrafts.isEmpty {
       SettingsPanel(title: "Wishlist purchase follow-up", symbol: "star.square.fill") {
-        Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, ready for a batch research packet, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
+        Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, ready for a packet, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count + (wishlistBatchBriefNeeded ? 1 : 0))", .purple),
+          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count + wishlistPurchasePacketNeededItems.count + (wishlistBatchBriefNeeded ? 1 : 0))", .purple),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
           ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
           ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
@@ -2002,6 +2022,8 @@ struct OperationsWorkbenchView: View {
           ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? .green : .red),
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? .green : .orange),
+          ("Purchase packets", "\(wishlistPurchasePacketNeededItems.count)", wishlistPurchasePacketNeededItems.isEmpty ? .green : .indigo),
+          ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .blue),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
           ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
@@ -2041,6 +2063,10 @@ struct OperationsWorkbenchView: View {
 
         ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in
           WishlistResearchWorkbenchRow(request: request, store: store)
+        }
+
+        ForEach(wishlistPurchasePacketNeededItems.prefix(3)) { item in
+          WishlistWorkbenchPurchasePacketRow(item: item, store: store)
         }
 
         ForEach(wishlistWorkbenchItems.prefix(4)) { item in
@@ -2866,6 +2892,67 @@ private struct WishlistWorkbenchFollowUpRow: View {
       .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
+  }
+}
+
+private struct WishlistWorkbenchPurchasePacketRow: View {
+  var item: WishlistItem
+  var store: ParcelOpsStore
+
+  private var optionCount: Int {
+    (item.comparisonOptions ?? []).count
+  }
+
+  private var selectedSeller: String {
+    item.purchaseDecision?.selectedSellerName
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.sellerName
+      }
+      ?? item.comparisonOptions?.first?.sellerName
+      ?? item.storefront
+  }
+
+  private var summary: String {
+    let total = item.purchaseDecision?.totalAUDSummary
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.estimatedAUDTotal
+      }
+      ?? item.estimatedCost
+    return "\(optionCount) seller option\(optionCount == 1 ? "" : "s") • \(selectedSeller) • \(total)"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(item.itemName, systemImage: "doc.badge.plus")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.indigo)
+        Spacer(minLength: 8)
+        Badge("Packet needed", color: .indigo)
+      }
+      Text(summary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Create one local packet before manual buying so seller choice, AUD total, postage, trust, approvals, links, and order-watch notes are reviewed together.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Create packet", systemImage: "doc.badge.plus") {
+          store.createWishlistPurchasePacketDraft(item)
+        }
+        NavigationLink {
+          WishlistView(store: store)
+        } label: {
+          Label("Open Wishlist", systemImage: "star.square.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .background(.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

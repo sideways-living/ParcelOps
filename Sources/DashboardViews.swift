@@ -685,6 +685,17 @@ struct DashboardView: View {
   private var wishlistBatchBriefNeeded: Bool {
     !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
   }
+  private var wishlistPurchasePacketNeededItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      !(item.comparisonOptions ?? []).isEmpty && wishlistPurchasePacketDraft(for: item) == nil
+    }
+  }
+  private var wishlistPurchasePacketDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
+  }
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary
   }
@@ -718,6 +729,13 @@ struct DashboardView: View {
     let checks = item.purchaseChecks ?? []
     let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
     return checksClear && item.purchaseDecision == nil
+  }
+  private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
+    store.draftMessages.first {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
   }
   private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
     var gaps: [String] = []
@@ -798,6 +816,9 @@ struct DashboardView: View {
     if wishlistBatchBriefNeeded {
       return "batch research brief needed (\(wishlistAgentReadyResearchRequests.count))"
     }
+    if !wishlistPurchasePacketNeededItems.isEmpty {
+      return "purchase packet needed (\(wishlistPurchasePacketNeededItems.count))"
+    }
     if !wishlistReadinessBlockedItems.isEmpty {
       let criticalPrefix = wishlistReadinessCriticalItems.isEmpty ? "" : "\(wishlistReadinessCriticalItems.count) critical, "
       return "\(criticalPrefix)\(wishlistReadinessBlockedItems.count) readiness-blocked"
@@ -859,6 +880,7 @@ struct DashboardView: View {
   private var wishlistDashboardNextAction: String {
     if wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty {
       if wishlistBatchBriefNeeded { return "Create batch research brief" }
+      if !wishlistPurchasePacketNeededItems.isEmpty { return "Create Wishlist purchase packet" }
       if !wishlistPurchasedNeedsOrderLinkItems.isEmpty { return "Link purchased Wishlist orders" }
       if !wishlistHandoffSanityBlockedItems.isEmpty { return "Complete purchase handoff sanity checks" }
       if !wishlistReleaseReadyItems.isEmpty { return "Review ready purchase handoffs" }
@@ -867,7 +889,7 @@ struct DashboardView: View {
     return "Clear: \(wishlistAttentionBlockerSummary)"
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistHandoffSanityBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0)
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistHandoffSanityBlockedItems.count + wishlistPurchasePacketNeededItems.count + (wishlistBatchBriefNeeded ? 1 : 0)
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -955,6 +977,9 @@ struct DashboardView: View {
     if wishlistBatchBriefNeeded {
       return "\(wishlistAgentReadyResearchRequests.count) Wishlist research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") are agent-ready and need one local batch packet before external comparison work."
     }
+    if !wishlistPurchasePacketNeededItems.isEmpty {
+      return "\(wishlistPurchasePacketNeededItems.count) Wishlist item\(wishlistPurchasePacketNeededItems.count == 1 ? "" : "s") with seller options need a local purchase packet draft before any manual buying."
+    }
     if !wishlistAttentionItems.isEmpty {
       return "\(wishlistAttentionItems.count) wishlist item\(wishlistAttentionItems.count == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
     }
@@ -978,7 +1003,7 @@ struct DashboardView: View {
     if highPriorityOperatorWorkbenchItems.count > 0 { return .workbench }
     if reopenedInboxDispatchHandoffCount > 0 { return .dispatch }
     if dispatchAttentionCount > 0 { return .dispatch }
-    if !wishlistAttentionItems.isEmpty || wishlistBatchBriefNeeded { return .wishlist }
+    if !wishlistAttentionItems.isEmpty || wishlistBatchBriefNeeded || !wishlistPurchasePacketNeededItems.isEmpty { return .wishlist }
     if taskAttentionCount > 0 { return .tasks }
     if setupAttentionCount > 0 { return .settings }
     return .audit
@@ -1040,10 +1065,10 @@ struct DashboardView: View {
       (
         "Wishlist",
         "Review purchase ideas, seller comparison, release checklist, manual handoff, and order-confirmation follow-up.",
-        wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistHandoffSanityBlockedItems.count,
+        wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistHandoffSanityBlockedItems.count + wishlistPurchasePacketNeededItems.count,
         "Wishlist",
         "star.square.fill",
-        wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
+        wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty && wishlistPurchasePacketNeededItems.isEmpty ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
       ),
       (
         "Tasks",
@@ -2162,15 +2187,15 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistReadinessBlockedItems.count + wishlistHandoffSanityBlockedItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
-              detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty
+              count: wishlistAttentionItems.count + wishlistResearchAttentionRequests.count + wishlistReleaseReadyItems.count + wishlistReadinessBlockedItems.count + wishlistHandoffSanityBlockedItems.count + wishlistPurchasePacketNeededItems.count + (wishlistBatchBriefNeeded ? 1 : 0) + wishlistAgentReadinessIssueCount,
+              detail: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty && wishlistPurchasePacketNeededItems.isEmpty
                 ? (wishlistBatchBriefNeeded
                   ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
-                  : "\(wishlistAgentReadiness.verdict). Readiness blockers: \(wishlistReadinessBlockedItems.count), release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
+                  : "\(wishlistAgentReadiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted, \(wishlistPurchasePacketNeededItems.count) needed. Readiness blockers: \(wishlistReadinessBlockedItems.count), release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
                 : "Top blockers: \(wishlistAttentionBlockerSummary). Agent verdict: \(wishlistAgentReadiness.verdict).",
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
-              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty && !wishlistBatchBriefNeeded ? wishlistAgentReadinessTint : .purple
+              tint: wishlistAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty && wishlistHandoffSanityBlockedItems.isEmpty && wishlistPurchasePacketNeededItems.isEmpty && !wishlistBatchBriefNeeded ? wishlistAgentReadinessTint : .purple
             ) {
               WishlistView(store: store)
             }
