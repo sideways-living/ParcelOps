@@ -2497,13 +2497,21 @@ private struct TaskDraftFollowUpRow: View {
   private var isWishlistBatchResearchDraft: Bool {
     draft.linkedEntityType == .wishlistItem && draft.linkedEntityID == "wishlist-research-batch"
   }
+  private var isWishlistPurchasePacketDraft: Bool {
+    draft.linkedEntityType == .wishlistItem
+      && draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+  }
 
   private var draftIcon: String {
-    isWishlistBatchResearchDraft ? "star.square.on.square.fill" : "envelope.open.fill"
+    if isWishlistBatchResearchDraft { return "star.square.on.square.fill" }
+    if isWishlistPurchasePacketDraft { return "doc.text.fill.viewfinder" }
+    return "envelope.open.fill"
   }
 
   private var sourceTitle: String {
-    isWishlistBatchResearchDraft ? "Wishlist batch research packet" : draft.channel.rawValue
+    if isWishlistBatchResearchDraft { return "Wishlist batch research packet" }
+    if isWishlistPurchasePacketDraft { return "Wishlist purchase packet" }
+    return draft.channel.rawValue
   }
 
   private var nextActionDetail: String {
@@ -2517,6 +2525,18 @@ private struct TaskDraftFollowUpRow: View {
         return "The batch packet was marked sent locally. Reopen it only if the Wishlist comparison research needs another pass."
       case .reopened:
         return "The batch packet is reopened. Update the brief or Wishlist request details before marking it ready again."
+      }
+    }
+    if isWishlistPurchasePacketDraft {
+      switch draft.status {
+      case .draft:
+        return "Review the local buying packet: seller choice, AUD total, postage, trust, approvals, purchase links, account context, and order-watch notes."
+      case .ready:
+        return "Use the packet outside ParcelOps for manual purchase work, then mark it sent locally once the handoff leaves the queue."
+      case .sentLocally:
+        return "The purchase packet is closed locally. Reopen only if seller, trust, pricing, approval, or order-watch details changed."
+      case .reopened:
+        return "The purchase packet is reopened. Update it before manual buying or purchase handoff continues."
       }
     }
     switch draft.status {
@@ -2579,8 +2599,15 @@ private struct TaskDraftFollowUpRow: View {
 
           Text(nextActionDetail)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(isWishlistBatchResearchDraft ? .purple : .secondary)
+            .foregroundStyle(isWishlistBatchResearchDraft || isWishlistPurchasePacketDraft ? .purple : .secondary)
             .fixedSize(horizontal: false, vertical: true)
+
+          if isWishlistPurchasePacketDraft {
+            Label("Local packet only. ParcelOps does not open product links, compare live prices, log in, buy, pay, or monitor orders in the background.", systemImage: "lock.doc.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
 
           if linkedOrder != nil {
             LinkedOrderContextPanel(
@@ -2600,6 +2627,16 @@ private struct TaskDraftFollowUpRow: View {
             Text(draft.createdDate)
               .font(.caption)
               .foregroundStyle(.secondary)
+          }
+
+          if draft.linkedEntityType == .wishlistItem {
+            NavigationLink {
+              WishlistView(store: store)
+            } label: {
+              Label("Open Wishlist item context", systemImage: "star.square.fill")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
           }
         }
       }

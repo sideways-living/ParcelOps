@@ -288,6 +288,12 @@ struct CommunicationView: View {
       $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
     }
   }
+  private var wishlistPurchasePacketDrafts: [DraftMessage] {
+    wishlistDrafts.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
+  }
 
   @ViewBuilder
   private var wishlistDraftFocusPanel: some View {
@@ -303,6 +309,7 @@ struct CommunicationView: View {
             ("Wishlist drafts", "\(wishlistDrafts.count)", wishlistDrafts.isEmpty ? .secondary : .purple),
             ("Open", "\(openWishlistDrafts.count)", openWishlistDrafts.isEmpty ? .green : .orange),
             ("Batch briefs", "\(wishlistBatchDrafts.count)", wishlistBatchDrafts.isEmpty ? .secondary : .blue),
+            ("Purchase packets", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .indigo),
             ("Ready", "\(wishlistDrafts.filter { $0.status == .ready }.count)", wishlistDrafts.contains { $0.status == .ready } ? .blue : .green),
             ("Needs review", "\(wishlistDrafts.filter { $0.reviewState != .accepted }.count)", wishlistDrafts.contains { $0.reviewState != .accepted } ? .orange : .green)
           ])
@@ -646,6 +653,7 @@ struct CommunicationView: View {
   private func wishlistDraftSortPriority(_ draft: DraftMessage) -> Int {
     var priority = 0
     if draft.linkedEntityID == "wishlist-research-batch" { priority += 45 }
+    if draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") { priority += 42 }
     if draft.status == .ready { priority += 40 }
     if draft.status == .reopened { priority += 30 }
     if draft.reviewState != .accepted { priority += 20 }
@@ -656,6 +664,7 @@ struct CommunicationView: View {
 
   private func wishlistDraftKind(for draft: DraftMessage) -> String {
     if draft.linkedEntityID == "wishlist-research-batch" { return "Batch research" }
+    if draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") { return "Purchase packet" }
     if draft.body.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
     if draft.body.localizedCaseInsensitiveContains("seller") { return "Seller follow-up" }
     return "Wishlist draft"
@@ -663,6 +672,7 @@ struct CommunicationView: View {
 
   private func wishlistDraftSymbol(for draft: DraftMessage) -> String {
     if draft.linkedEntityID == "wishlist-research-batch" { return "doc.text.magnifyingglass" }
+    if draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") { return "doc.text.fill.viewfinder" }
     if draft.body.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
     if draft.body.localizedCaseInsensitiveContains("seller") { return "storefront.fill" }
     return "star.square.fill"
@@ -679,6 +689,18 @@ struct CommunicationView: View {
         return "Batch packet is closed locally. Reopen only if comparison research needs another pass."
       case .reopened:
         return "Update the research scope or packet before marking ready again."
+      }
+    }
+    if draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") {
+      switch draft.status {
+      case .draft:
+        return "Review seller choice, AUD total, postage, trust, approvals, purchase links, and order-watch notes before any manual buying."
+      case .ready:
+        return "Use this packet as the local buying checklist outside ParcelOps. After manual purchase work is handled, mark it sent locally."
+      case .sentLocally:
+        return "Purchase packet is closed locally. Reopen only if seller, price, trust, approval, or order-watch details changed."
+      case .reopened:
+        return "Update the purchase packet before it is used for manual buying."
       }
     }
     var parts: [String] = []
@@ -1076,6 +1098,10 @@ struct DraftMessageRow: View {
 
   private var draftWarnings: [String] {
     var warnings: [String] = []
+    if draft.linkedEntityType == .wishlistItem && draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") {
+      warnings.append("Wishlist purchase packet: review seller, AUD total, postage, trust, approvals, purchase links, account context, and order-watch notes before any manual buying.")
+      warnings.append("Local boundary: ParcelOps does not open retailer links, log in, buy, pay, or monitor orders in the background.")
+    }
     if draft.status == .ready && !inboxOrders.isEmpty {
       warnings.append("Draft is ready. Send it outside ParcelOps, then mark sent locally.")
     }
