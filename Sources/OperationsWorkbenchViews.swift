@@ -127,6 +127,7 @@ struct OperationsWorkbenchView: View {
         || wishlistNeedsPurchasePacket(item)
         || !wishlistHandoffPackGaps(for: item).isEmpty
         || !wishlistHandoffSanityGaps(for: item).isEmpty
+        || !wishlistLinkedOrderDispatchGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
       )
     }
@@ -190,6 +191,9 @@ struct OperationsWorkbenchView: View {
   }
   private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
     wishlistReleaseItems.filter { !wishlistHandoffSanityGaps(for: $0).isEmpty }
+  }
+  private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistLinkedOrderDispatchGaps(for: $0).isEmpty }
   }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
     store.wishlistItems.filter { item in
@@ -270,6 +274,14 @@ struct OperationsWorkbenchView: View {
     if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
       gaps.append("order link")
     }
+    return gaps
+  }
+
+  private func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
+    var gaps: [String] = []
+    if store.suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+    if store.suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
     return gaps
   }
 
@@ -2022,6 +2034,7 @@ struct OperationsWorkbenchView: View {
           ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? .green : .red),
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? .green : .orange),
+          ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItems.count)", wishlistLinkedOrderDispatchGapItems.isEmpty ? .green : .blue),
           ("Purchase packets", "\(wishlistPurchasePacketNeededItems.count)", wishlistPurchasePacketNeededItems.isEmpty ? .green : .indigo),
           ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .blue),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
@@ -2784,6 +2797,14 @@ private struct WishlistWorkbenchFollowUpRow: View {
     return gaps
   }
 
+  private var linkedOrderDispatchGaps: [String] {
+    guard handoff?.linkedOrderID != nil else { return [] }
+    var gaps: [String] = []
+    if store.suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+    if store.suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
+    return gaps
+  }
+
   private var failedReadinessChecks: [WishlistPurchaseCheck] {
     (item.purchaseChecks ?? []).filter { $0.status != "Passed" }
   }
@@ -2806,6 +2827,9 @@ private struct WishlistWorkbenchFollowUpRow: View {
     }
     if !handoffSanityGaps.isEmpty {
       return "Resolve handoff sanity gaps: \(handoffSanityGaps.prefix(3).joined(separator: ", "))."
+    }
+    if !linkedOrderDispatchGaps.isEmpty {
+      return "Stage dispatch setup for the linked order: \(linkedOrderDispatchGaps.prefix(2).joined(separator: ", "))."
     }
     if handoff != nil && handoff?.linkedOrderID == nil {
       return "Ready for manual purchase handoff; watch for the order confirmation and link it locally."
@@ -2875,6 +2899,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Handoff sanity gaps: \(handoffSanityGaps.prefix(4).joined(separator: ", "))")
             .font(.caption2)
             .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !linkedOrderDispatchGaps.isEmpty {
+          Text("Linked order dispatch setup: \(linkedOrderDispatchGaps.prefix(3).joined(separator: ", "))")
+            .font(.caption2)
+            .foregroundStyle(.blue)
             .fixedSize(horizontal: false, vertical: true)
         }
         if handoff != nil && handoff?.linkedOrderID == nil && handoffGaps.isEmpty {
