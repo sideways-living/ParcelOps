@@ -20601,21 +20601,57 @@ final class ParcelOpsStore {
   }
 
   func createWishlistSellerEvidenceReviewTask(_ item: WishlistItem) {
-    let missingBySeller = (item.comparisonOptions ?? []).compactMap { option -> String? in
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    }
+    let missingBySeller = options.compactMap { option -> String? in
       let gaps = option.operatorSellerEvidenceGaps
       guard !gaps.isEmpty else { return nil }
       return "\(option.sellerName): \(gaps.joined(separator: ", "))"
     }
+    let sellerSummaries = options.map { option in
+      "- \(option.sellerName): total \(option.estimatedAUDTotal); postage \(option.postageCost) / \(option.postageTime); trust \(option.trustRating); score \(option.operatorSellerMatrixScore); gaps \(option.operatorSellerEvidenceGaps.isEmpty ? "none" : option.operatorSellerEvidenceGaps.joined(separator: ", "))."
+    }
     let taskTitle = "Review Wishlist seller evidence: \(item.itemName)"
     let taskSummary: String
     if missingBySeller.isEmpty {
-      taskSummary = "Seller evidence appears complete for \(item.itemName). Reconfirm live price, stock, delivery time, returns, warranty, seller trust, account, delivery address, and payment readiness before purchase."
+      taskSummary = """
+      Seller evidence appears complete for \(item.itemName).
+
+      Preferred seller:
+      \(preferred.map { "\($0.sellerName) - \($0.estimatedAUDTotal), postage \($0.postageCost) / \($0.postageTime), trust \($0.trustRating)." } ?? "No preferred seller selected.")
+
+      Local seller evidence:
+      \(sellerSummaries.isEmpty ? "- No seller options recorded." : sellerSummaries.joined(separator: "\n"))
+
+      Final manual checks before buying externally:
+      - Reconfirm live product page, stock, exact model/variant, and price.
+      - Reconfirm final AUD landed cost, currency conversion, postage cost, delivery ETA, returns, warranty, and seller identity.
+      - Confirm the buying account, delivery address, and payment method outside ParcelOps.
+      - Do not buy if delivery reliability, seller trust, returns/warranty, or total landed cost is unclear.
+
+      Local boundary: no web search, retailer lookup, browser automation, account login, checkout, purchase, payment, mailbox mutation, or external verification action occurred.
+      """
     } else {
-      taskSummary = [
-        "Confirm missing seller evidence before purchase for \(item.itemName).",
-        "Missing evidence: \(missingBySeller.joined(separator: "; ")).",
-        "Keep checks local until the user explicitly opens seller pages or decides to buy."
-      ].joined(separator: " ")
+      taskSummary = """
+      Confirm missing seller evidence before purchase for \(item.itemName).
+
+      Missing evidence:
+      \(missingBySeller.map { "- \($0)" }.joined(separator: "\n"))
+
+      Local seller evidence:
+      \(sellerSummaries.isEmpty ? "- No seller options recorded." : sellerSummaries.joined(separator: "\n"))
+
+      Evidence checklist:
+      - Product link: direct product page, not a generic storefront.
+      - AUD total: final landed AUD amount including item, GST/tax if known, postage, and fees.
+      - Postage cost/time: shipping cost and realistic delivery window to Australia.
+      - Seller trust: trust notes, recent reviews, returns, warranty, seller identity, and delivery reliability.
+      - Account/payment readiness: which account will be used and whether purchase details are ready outside ParcelOps.
+
+      Keep checks local until the user explicitly opens seller pages or decides to buy. No web search, retailer lookup, browser automation, account login, checkout, purchase, payment, mailbox mutation, or external verification action occurred.
+      """
     }
 
     if let existingIndex = reviewTasks.firstIndex(where: {

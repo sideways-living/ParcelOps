@@ -17238,7 +17238,7 @@ private struct WishlistPurchaseEvidenceDossierRow: View {
 
       CompactActionRow {
         Button(actionTitle, systemImage: actionSymbol, action: onAction)
-        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Evidence task", systemImage: "checklist", action: onTask)
         Button("Decision", systemImage: "doc.text.magnifyingglass", action: onDecision)
         Button("Item", systemImage: "scope", action: onFocus)
       }
