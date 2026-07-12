@@ -21284,20 +21284,25 @@ final class ParcelOpsStore {
   func recordWishlistPurchasedExternally(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
+    let expectedSignals = wishlistExpectedOrderConfirmationSignals(for: wishlistItems[index])
     var handoff = wishlistItems[index].purchaseHandoff
       ?? WishlistPurchaseHandoff(
         sellerName: wishlistItems[index].storefront,
         accountLabel: "\(wishlistItems[index].owner) account to confirm",
         purchaseStatus: "Ready for manual purchase decision",
-        expectedOrderSignals: "\(wishlistItems[index].storefront) | \(wishlistItems[index].itemName)",
+        expectedOrderSignals: expectedSignals,
         orderWatchStatus: "Not watching yet",
         linkedOrderID: nil,
         notes: "Manual handoff created when purchase was recorded.",
         updatedAt: "Now"
       )
+    if handoff.expectedOrderSignals.trimmingCharacters(in: .whitespacesAndNewlines).count < expectedSignals.count
+      || handoff.expectedOrderSignals.isPlaceholderValidationValue {
+      handoff.expectedOrderSignals = expectedSignals
+    }
     handoff.purchaseStatus = "Purchased externally, awaiting order confirmation"
-    handoff.orderWatchStatus = "Check Inbox, Mailbox Monitor, and Orders for confirmation from \(handoff.sellerName)."
-    handoff.notes = "Operator recorded that this was purchased outside ParcelOps. No payment credentials, checkout session, or retailer account details were stored."
+    handoff.orderWatchStatus = "Watch Inbox, Mailbox Monitor, and Orders for confirmation from \(handoff.sellerName). Expected signals: \(handoff.expectedOrderSignals)."
+    handoff.notes = "Operator recorded that this was purchased outside ParcelOps. Use the expected signal packet to match the next imported order confirmation. No payment credentials, checkout session, or retailer account details were stored."
     handoff.updatedAt = "Now"
     wishlistItems[index].purchaseHandoff = handoff
     wishlistItems[index].status = "Awaiting order confirmation"
@@ -21311,8 +21316,54 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist item marked purchased externally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nManual record only. ParcelOps did not purchase the item, store payment details, log in to a retailer, send email, or monitor a mailbox in the background."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nExpected confirmation signals: \(handoff.expectedOrderSignals).\nManual record only. ParcelOps did not purchase the item, store payment details, log in to a retailer, send email, or monitor a mailbox in the background."
     )
+  }
+
+  private func wishlistExpectedOrderConfirmationSignals(for item: WishlistItem) -> String {
+    let options = item.comparisonOptions ?? []
+    let preferredOption = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first { option in
+      option.recommendation.localizedCaseInsensitiveContains("recommend")
+        || option.recommendation.localizedCaseInsensitiveContains("preferred")
+        || option.recommendation.localizedCaseInsensitiveContains("best")
+    } ?? options.first
+    let seller = item.purchaseHandoff?.sellerName
+      ?? item.purchaseDecision?.selectedSellerName
+      ?? preferredOption?.sellerName
+      ?? item.storefront
+    let productHost = preferredOption?.productURL
+      .replacingOccurrences(of: "https://", with: "")
+      .replacingOccurrences(of: "http://", with: "")
+      .split(separator: "/")
+      .first
+      .map(String.init)
+    let rawSignals = [
+      seller,
+      item.itemName,
+      item.storefront,
+      item.purchaseDecision?.selectedSellerName,
+      preferredOption?.sellerName,
+      productHost,
+      "order confirmation",
+      "order number",
+      "receipt",
+      "invoice",
+      "dispatch",
+      "shipped",
+      "tracking"
+    ]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && !$0.isPlaceholderValidationValue }
+    var seen = Set<String>()
+    let uniqueSignals = rawSignals.filter { signal in
+      let key = signal.localizedLowercase
+      guard !seen.contains(key) else { return false }
+      seen.insert(key)
+      return true
+    }
+    return uniqueSignals.prefix(10).joined(separator: " | ")
   }
 
   func markWishlistOrderConfirmationSeen(_ item: WishlistItem) {
