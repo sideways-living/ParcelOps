@@ -505,6 +505,79 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(closureTask.status, .open)
   }
 
+  func testWishlistOperationsTrailCarriesLinkedOrderContext() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let linkedOrderID = UUID()
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: linkedOrderID
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.wishlistItems = [item]
+
+    stageWishlistOperationsTrail(store, for: item)
+
+    let inspection = try XCTUnwrap(store.receivingInspections.first)
+    let receipt = try XCTUnwrap(store.inventoryReceipts.first)
+    let location = try XCTUnwrap(store.storageLocations.first)
+    let custody = try XCTUnwrap(store.custodyRecords.first)
+    let label = try XCTUnwrap(store.labelReferenceRecords.first)
+    let scan = try XCTUnwrap(store.scanSessionRecords.first)
+    let manifest = try XCTUnwrap(store.shipmentManifestRecords.first)
+    let checklist = try XCTUnwrap(store.dispatchReadinessChecklists.first)
+
+    XCTAssertEqual(inspection.orderID, linkedOrderID)
+    XCTAssertEqual(receipt.orderID, linkedOrderID)
+    XCTAssertEqual(Set(location.orderIDs), [linkedOrderID])
+    XCTAssertEqual(custody.orderID, linkedOrderID)
+    XCTAssertEqual(label.orderID, linkedOrderID)
+    XCTAssertEqual(scan.orderID, linkedOrderID)
+    XCTAssertEqual(manifest.includedOrderIDs, [linkedOrderID])
+    XCTAssertEqual(checklist.orderIDs, [linkedOrderID])
+    XCTAssertEqual(receipt.receivingInspectionID, inspection.id)
+    XCTAssertEqual(custody.inventoryReceiptID, receipt.id)
+    XCTAssertEqual(custody.storageLocationID, location.id)
+    XCTAssertEqual(label.inventoryReceiptID, receipt.id)
+    XCTAssertEqual(label.custodyRecordID, custody.id)
+    XCTAssertEqual(scan.linkedLabelReferenceID, label.id)
+    XCTAssertEqual(scan.inventoryReceiptID, receipt.id)
+    XCTAssertEqual(manifest.inventoryReceiptIDs, [receipt.id])
+    XCTAssertEqual(manifest.custodyRecordIDs, [custody.id])
+    XCTAssertEqual(manifest.labelReferenceIDs, [label.id])
+    XCTAssertEqual(manifest.scanSessionIDs, [scan.id])
+    XCTAssertEqual(checklist.shipmentManifestID, manifest.id)
+    XCTAssertEqual(checklist.inventoryReceiptIDs, [receipt.id])
+    XCTAssertEqual(checklist.custodyRecordIDs, [custody.id])
+    XCTAssertEqual(checklist.labelReferenceIDs, [label.id])
+    XCTAssertEqual(checklist.scanSessionIDs, [scan.id])
+  }
+
+  func testWishlistSuggestionsReturnStagedOperationsTrail() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.wishlistItems = [item]
+    stageWishlistOperationsTrail(store, for: item)
+
+    XCTAssertEqual(store.suggestedReceivingInspections(for: item).map(\.id), store.receivingInspections.map(\.id))
+    XCTAssertEqual(store.suggestedInventoryReceipts(for: item).map(\.id), store.inventoryReceipts.map(\.id))
+    XCTAssertEqual(store.suggestedStorageLocations(for: item).map(\.id), store.storageLocations.map(\.id))
+    XCTAssertEqual(store.suggestedCustodyRecords(for: item).map(\.id), store.custodyRecords.map(\.id))
+    XCTAssertEqual(store.suggestedLabelReferenceRecords(for: item).map(\.id), store.labelReferenceRecords.map(\.id))
+    XCTAssertEqual(store.suggestedScanSessionRecords(for: item).map(\.id), store.scanSessionRecords.map(\.id))
+    XCTAssertEqual(store.suggestedShipmentManifestRecords(for: item).map(\.id), store.shipmentManifestRecords.map(\.id))
+    XCTAssertEqual(store.suggestedDispatchReadinessChecklists(for: item).map(\.id), store.dispatchReadinessChecklists.map(\.id))
+  }
+
   func testWishlistCloseSucceedsWithCompleteLocalOperationsTrail() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
