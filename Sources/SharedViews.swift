@@ -5097,7 +5097,7 @@ struct MailboxProviderQuickStatusCard: View {
     case "warning":
       return .red
     default:
-      return .teal
+      return .secondary
     }
   }
 }
@@ -5124,20 +5124,17 @@ struct MailboxProviderComparisonCard: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .top, spacing: 10) {
-        Image(systemName: "arrow.left.arrow.right.circle.fill")
-          .foregroundStyle(color)
-          .frame(width: 24)
-        VStack(alignment: .leading, spacing: 4) {
-          Text(summary.title)
-            .font(.headline)
-          Text(summary.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+      if isCompact {
+        VStack(alignment: .leading, spacing: 8) {
+          headerContent
+          Badge(summary.recommendedProvider, color: color)
         }
-        Spacer()
-        Badge(summary.recommendedProvider, color: color)
+      } else {
+        HStack(alignment: .top, spacing: 10) {
+          headerContent
+          Spacer()
+          Badge(summary.recommendedProvider, color: color)
+        }
       }
 
       MetricStrip(items: summary.metrics.map { metric in
@@ -5177,20 +5174,17 @@ struct MailboxProviderComparisonCard: View {
       LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
         ForEach(summary.providers) { provider in
           VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-              Image(systemName: provider.symbol)
-                .foregroundStyle(color(for: provider.tone))
-                .frame(width: 22)
-              VStack(alignment: .leading, spacing: 3) {
-                Text(provider.providerName)
-                  .font(.subheadline.weight(.semibold))
-                Text(provider.statusTitle)
-                  .font(.caption.weight(.semibold))
-                  .foregroundStyle(color(for: provider.tone))
-                  .fixedSize(horizontal: false, vertical: true)
+            if isCompact {
+              VStack(alignment: .leading, spacing: 8) {
+                providerHeader(provider)
+                Badge(provider.blockedCount > 0 ? "Needs setup" : "Available", color: color(for: provider.tone))
               }
-              Spacer()
-              Badge(provider.blockedCount > 0 ? "Needs setup" : "Available", color: color(for: provider.tone))
+            } else {
+              HStack(alignment: .top, spacing: 8) {
+                providerHeader(provider)
+                Spacer()
+                Badge(provider.blockedCount > 0 ? "Needs setup" : "Available", color: color(for: provider.tone))
+              }
             }
 
             Text(provider.detail)
@@ -5263,6 +5257,40 @@ struct MailboxProviderComparisonCard: View {
     .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  private var headerContent: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "arrow.left.arrow.right.circle.fill")
+        .foregroundStyle(color)
+        .frame(width: 24)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(summary.title)
+          .font(.headline)
+        Text(summary.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func providerHeader(_ provider: MailboxProviderComparisonItem) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: provider.symbol)
+        .foregroundStyle(color(for: provider.tone))
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(provider.providerName)
+          .font(.subheadline.weight(.semibold))
+        Text(provider.statusTitle)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color(for: provider.tone))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
   private func color(for tone: String) -> Color {
     switch tone {
     case "success":
@@ -5272,7 +5300,7 @@ struct MailboxProviderComparisonCard: View {
     case "warning":
       return .red
     default:
-      return .secondary
+      return .teal
     }
   }
 }
