@@ -1570,19 +1570,35 @@ struct WishlistView: View {
     .sheet(isPresented: $showPastedComparisonResultForm) {
       NavigationStack {
         WishlistPastedComparisonResultEditor(items: activeWishlistItems) { item, draft in
-          store.addWishlistSellerOptionFromPastedComparison(
-            item,
-            pastedText: draft.pastedText,
-            sellerHint: draft.sellerHint,
-            productURLHint: draft.productURLHint,
-            listedPriceHint: draft.listedPriceHint,
-            currencyHint: draft.currencyHint,
-            audTotalHint: draft.audTotalHint,
-            postageCostHint: draft.postageCostHint,
-            postageTimeHint: draft.postageTimeHint,
-            trustHint: draft.trustHint,
-            notes: draft.notes
-          )
+          if draft.splitIntoSellerOptions {
+            store.addWishlistSellerOptionsFromPastedComparisonBatch(
+              item,
+              pastedText: draft.pastedText,
+              sellerHint: draft.sellerHint,
+              productURLHint: draft.productURLHint,
+              listedPriceHint: draft.listedPriceHint,
+              currencyHint: draft.currencyHint,
+              audTotalHint: draft.audTotalHint,
+              postageCostHint: draft.postageCostHint,
+              postageTimeHint: draft.postageTimeHint,
+              trustHint: draft.trustHint,
+              notes: draft.notes
+            )
+          } else {
+            store.addWishlistSellerOptionFromPastedComparison(
+              item,
+              pastedText: draft.pastedText,
+              sellerHint: draft.sellerHint,
+              productURLHint: draft.productURLHint,
+              listedPriceHint: draft.listedPriceHint,
+              currencyHint: draft.currencyHint,
+              audTotalHint: draft.audTotalHint,
+              postageCostHint: draft.postageCostHint,
+              postageTimeHint: draft.postageTimeHint,
+              trustHint: draft.trustHint,
+              notes: draft.notes
+            )
+          }
           showPastedComparisonResultForm = false
         }
       }
@@ -14990,6 +15006,7 @@ private struct WishlistPastedComparisonResultDraft {
   var postageTimeHint = ""
   var trustHint = ""
   var notes = ""
+  var splitIntoSellerOptions = true
 
   var canSave: Bool {
     itemID != nil && !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -15027,13 +15044,18 @@ private struct WishlistPastedComparisonResultEditor: View {
       Section("Paste comparison result") {
         TextField("Paste seller comparison notes, quote summary, or future-agent output", text: $draft.pastedText, axis: .vertical)
           .lineLimit(5...12)
-        Text("ParcelOps reads this text locally and creates one seller option for review. It does not open retailer links, compare live websites, convert currency, quote postage, check trust services, log into accounts, buy, or pay.")
+        Toggle("Split blank-line or --- separated seller blocks into multiple options", isOn: $draft.splitIntoSellerOptions)
+        Text("ParcelOps reads this text locally and creates reviewable seller options. Use blank lines or --- between sellers in a future-agent or manual comparison result. It does not open retailer links, compare live websites, convert currency, quote postage, check trust services, log into accounts, buy, or pay.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
 
       Section("Optional overrides") {
+        Text("Overrides are used as fallbacks. If splitting is enabled, leave seller and URL blank when each pasted block already contains its own Seller, Retailer, Store, Merchant, URL, Price, AUD total, Postage, Delivery, or Trust line.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
         TextField("Seller or retailer", text: $draft.sellerHint)
         TextField("Product URL", text: $draft.productURLHint)
         TextField("Listed price", text: $draft.listedPriceHint)

@@ -18823,6 +18823,90 @@ final class ParcelOpsStore {
     return clean.isEmpty ? nil : clean
   }
 
+  private static func pastedComparisonBlocks(from text: String) -> [String] {
+    let normalized = text
+      .replacingOccurrences(of: "\r\n", with: "\n")
+      .replacingOccurrences(of: "\r", with: "\n")
+    let separatorNormalized = normalized
+      .components(separatedBy: .newlines)
+      .map { line -> String in
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == "---" || trimmed == "===" ? "" : line
+      }
+      .joined(separator: "\n")
+    let blocks = separatorNormalized
+      .components(separatedBy: "\n\n")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    return blocks.isEmpty ? [text.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty } : Array(blocks.prefix(8))
+  }
+
+  private static func wishlistComparisonOptionFromPastedResult(
+    pastedText: String,
+    sellerHint: String,
+    productURLHint: String,
+    listedPriceHint: String,
+    currencyHint: String,
+    audTotalHint: String,
+    postageCostHint: String,
+    postageTimeHint: String,
+    trustHint: String,
+    notes: String
+  ) -> WishlistComparisonOption {
+    let cleanText = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detectedURL = productURLHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? Self.firstURLString(in: cleanText)
+      : productURLHint.trimmingCharacters(in: .whitespacesAndNewlines)
+    let seller = Self.nonBlank(sellerHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["seller", "retailer", "store", "merchant"])
+      ?? Self.storefrontHint(from: detectedURL)
+    let listedPrice = Self.nonBlank(listedPriceHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["listed price", "price", "listed"])
+      ?? "Listed price needs review"
+    let currency = Self.nonBlank(currencyHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["currency"])
+      ?? (listedPrice.contains("$") ? "AUD" : "Currency needs review")
+    let audTotal = Self.nonBlank(audTotalHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["aud total", "total aud", "estimated aud", "landed", "landed cost", "total"])
+      ?? (currency.localizedCaseInsensitiveContains("AUD") ? listedPrice : "AUD total needs review")
+    let postageCost = Self.nonBlank(postageCostHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["postage cost", "shipping cost", "postage", "shipping"])
+      ?? "Postage cost needs review"
+    let postageTime = Self.nonBlank(postageTimeHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["postage time", "delivery time", "delivery", "eta"])
+      ?? "Postage time needs review"
+    let trust = Self.nonBlank(trustHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["trust rating", "seller trust", "trust"])
+      ?? "Seller trust needs review"
+    let summary = Self.clippedComparisonText(cleanText)
+    let trustNotes = [
+      trust,
+      cleanNotes.isEmpty ? nil : cleanNotes,
+      summary.isEmpty ? nil : "Pasted summary: \(summary)"
+    ]
+      .compactMap { $0 }
+      .joined(separator: " ")
+
+    return WishlistComparisonOption(
+      sellerName: seller.isPlaceholderValidationValue ? "Seller needs review" : seller,
+      productURL: detectedURL.isPlaceholderValidationValue ? "Product URL needs review" : detectedURL,
+      listedPrice: listedPrice,
+      currency: currency,
+      estimatedAUDTotal: audTotal,
+      postageCost: postageCost,
+      postageTime: postageTime,
+      sellerRegion: "Region needs review",
+      trustRating: trust,
+      trustNotes: trustNotes.isEmpty ? "Seller trust, returns, warranty, and delivery reliability need review." : trustNotes,
+      recommendation: "Pasted comparison result needs review",
+      lastChecked: Self.auditTimestamp(),
+      localScore: nil,
+      riskLevel: "Needs review",
+      decisionReason: "Created from a pasted comparison research result. Operator must verify live price, stock, AUD total, postage, seller trust, returns, warranty, account fit, and payment readiness before purchase."
+    )
+  }
+
   func promoteWishlistCaptureToItem(_ capture: WishlistCaptureCandidate) {
     guard wishlistCaptureCandidates.contains(where: { $0.id == capture.id }) else { return }
     wishlistCaptureCandidates.removeAll { $0.id == capture.id }
@@ -19587,57 +19671,17 @@ final class ParcelOpsStore {
   ) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
-    let cleanText = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
-    let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-    let detectedURL = productURLHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      ? Self.firstURLString(in: cleanText)
-      : productURLHint.trimmingCharacters(in: .whitespacesAndNewlines)
-    let seller = Self.nonBlank(sellerHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["seller", "retailer", "store", "merchant"])
-      ?? Self.storefrontHint(from: detectedURL)
-    let listedPrice = Self.nonBlank(listedPriceHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["listed price", "price", "listed"])
-      ?? "Listed price needs review"
-    let currency = Self.nonBlank(currencyHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["currency"])
-      ?? (listedPrice.contains("$") ? "AUD" : "Currency needs review")
-    let audTotal = Self.nonBlank(audTotalHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["aud total", "total aud", "estimated aud", "landed", "landed cost", "total"])
-      ?? (currency.localizedCaseInsensitiveContains("AUD") ? listedPrice : "AUD total needs review")
-    let postageCost = Self.nonBlank(postageCostHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["postage cost", "shipping cost", "postage", "shipping"])
-      ?? "Postage cost needs review"
-    let postageTime = Self.nonBlank(postageTimeHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["postage time", "delivery time", "delivery", "eta"])
-      ?? "Postage time needs review"
-    let trust = Self.nonBlank(trustHint)
-      ?? Self.labeledValue(in: cleanText, labels: ["trust rating", "seller trust", "trust"])
-      ?? "Seller trust needs review"
-    let summary = Self.clippedComparisonText(cleanText)
-    let trustNotes = [
-      trust,
-      cleanNotes.isEmpty ? nil : cleanNotes,
-      summary.isEmpty ? nil : "Pasted summary: \(summary)"
-    ]
-      .compactMap { $0 }
-      .joined(separator: " ")
-
-    let option = WishlistComparisonOption(
-      sellerName: seller.isPlaceholderValidationValue ? "Seller needs review" : seller,
-      productURL: detectedURL.isPlaceholderValidationValue ? "Product URL needs review" : detectedURL,
-      listedPrice: listedPrice,
-      currency: currency,
-      estimatedAUDTotal: audTotal,
-      postageCost: postageCost,
-      postageTime: postageTime,
-      sellerRegion: "Region needs review",
-      trustRating: trust,
-      trustNotes: trustNotes.isEmpty ? "Seller trust, returns, warranty, and delivery reliability need review." : trustNotes,
-      recommendation: "Pasted comparison result needs review",
-      lastChecked: Self.auditTimestamp(),
-      localScore: nil,
-      riskLevel: "Needs review",
-      decisionReason: "Created from a pasted comparison research result. Operator must verify live price, stock, AUD total, postage, seller trust, returns, warranty, account fit, and payment readiness before purchase."
+    let option = Self.wishlistComparisonOptionFromPastedResult(
+      pastedText: pastedText,
+      sellerHint: sellerHint,
+      productURLHint: productURLHint,
+      listedPriceHint: listedPriceHint,
+      currencyHint: currencyHint,
+      audTotalHint: audTotalHint,
+      postageCostHint: postageCostHint,
+      postageTimeHint: postageTimeHint,
+      trustHint: trustHint,
+      notes: notes
     )
     var options = wishlistItems[index].comparisonOptions ?? []
     options.append(option)
@@ -19664,6 +19708,82 @@ final class ParcelOpsStore {
       AUD total: \(option.estimatedAUDTotal)
       Postage: \(option.postageCost); \(option.postageTime)
       Trust: \(option.trustRating)
+      Manual paste-back only. No live retailer search, website scraping, browser automation, currency API, postage quote, seller trust service, account login, checkout, purchase, payment, mailbox mutation, or external service occurred.
+      """
+    )
+  }
+
+  func addWishlistSellerOptionsFromPastedComparisonBatch(
+    _ item: WishlistItem,
+    pastedText: String,
+    sellerHint: String,
+    productURLHint: String,
+    listedPriceHint: String,
+    currencyHint: String,
+    audTotalHint: String,
+    postageCostHint: String,
+    postageTimeHint: String,
+    trustHint: String,
+    notes: String
+  ) {
+    guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
+    let blocks = Self.pastedComparisonBlocks(from: pastedText)
+    guard !blocks.isEmpty else { return }
+    if blocks.count == 1 {
+      addWishlistSellerOptionFromPastedComparison(
+        item,
+        pastedText: pastedText,
+        sellerHint: sellerHint,
+        productURLHint: productURLHint,
+        listedPriceHint: listedPriceHint,
+        currencyHint: currencyHint,
+        audTotalHint: audTotalHint,
+        postageCostHint: postageCostHint,
+        postageTimeHint: postageTimeHint,
+        trustHint: trustHint,
+        notes: notes
+      )
+      return
+    }
+
+    let beforeDetail = wishlistItems[index].auditDetail
+    let newOptions = blocks.map { block in
+      Self.wishlistComparisonOptionFromPastedResult(
+        pastedText: block,
+        sellerHint: sellerHint,
+        productURLHint: productURLHint,
+        listedPriceHint: listedPriceHint,
+        currencyHint: currencyHint,
+        audTotalHint: audTotalHint,
+        postageCostHint: postageCostHint,
+        postageTimeHint: postageTimeHint,
+        trustHint: trustHint,
+        notes: notes
+      )
+    }
+    var options = wishlistItems[index].comparisonOptions ?? []
+    options.append(contentsOf: newOptions)
+    wishlistItems[index].comparisonOptions = options
+    wishlistItems[index].comparisonStatus = "Pasted comparison batch"
+    wishlistItems[index].purchaseReadiness = "Waiting for pasted seller batch review"
+    wishlistItems[index].comparisonNotes = "A pasted comparison batch created \(newOptions.count) local seller options. Verify live price, stock, AUD landed cost, postage, delivery time, seller trust, returns, warranty, account readiness, and payment readiness outside ParcelOps."
+    if wishlistItems[index].preferredOptionID == nil {
+      wishlistItems[index].preferredOptionID = newOptions.first?.id
+    }
+    persistWishlist()
+    logAudit(
+      action: .created,
+      entityType: .wishlistItem,
+      entityID: wishlistItems[index].id.uuidString,
+      entityLabel: wishlistItems[index].itemName,
+      summary: "Wishlist pasted comparison batch added locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: """
+      \(wishlistItems[index].auditDetail)
+      Seller options added: \(newOptions.count)
+      Sellers: \(newOptions.map(\.sellerName).joined(separator: ", "))
+      Blocks parsed: \(blocks.count)
+      Maximum blocks imported per paste: 8
       Manual paste-back only. No live retailer search, website scraping, browser automation, currency API, postage quote, seller trust service, account login, checkout, purchase, payment, mailbox mutation, or external service occurred.
       """
     )
