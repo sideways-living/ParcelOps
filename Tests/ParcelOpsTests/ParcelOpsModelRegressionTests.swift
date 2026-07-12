@@ -464,6 +464,113 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(stillOpen.purchaseReadiness, "Purchased externally; watch for confirmation")
   }
 
+  func testWishlistPriceWatchRuleMatchesSavedSellerQuote() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let rule = makeWishlistPriceWatchRule(
+      item: item,
+      targetAUDTotal: "AUD 120",
+      maxPostageCost: "AUD 15",
+      requiredTrustLevel: "Trusted",
+      allowedRegions: "Australia"
+    )
+    let quote = makeWishlistSellerQuote(
+      item: item,
+      sellerName: "Known Australian retailer",
+      estimatedAUDTotal: "AUD 109 delivered",
+      postageCost: "AUD 10",
+      sellerRegion: "Australia",
+      trustSummary: "Trusted seller with returns"
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistPriceWatchRules = [rule]
+    store.wishlistSellerQuotes = [quote]
+
+    store.evaluateWishlistPriceWatchRule(rule)
+
+    let evaluatedRule = try XCTUnwrap(store.wishlistPriceWatchRules.first)
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(evaluatedRule.ruleStatus, "Matched locally: Known Australian retailer")
+    XCTAssertEqual(evaluatedRule.reviewState, .needsReview)
+    XCTAssertNotEqual(evaluatedRule.lastEvaluatedDate, "Not evaluated")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Price watch rule matched locally; review before purchase")
+  }
+
+  func testWishlistPriceWatchRuleMonitorsWhenSavedQuotesDoNotMatch() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let rule = makeWishlistPriceWatchRule(
+      item: item,
+      targetAUDTotal: "AUD 100",
+      maxPostageCost: "AUD 10",
+      requiredTrustLevel: "Trusted",
+      allowedRegions: "Australia"
+    )
+    let quote = makeWishlistSellerQuote(
+      item: item,
+      sellerName: "Known Australian retailer",
+      estimatedAUDTotal: "AUD 149 delivered",
+      postageCost: "AUD 18",
+      sellerRegion: "Australia",
+      trustSummary: "Trusted seller with returns"
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistPriceWatchRules = [rule]
+    store.wishlistSellerQuotes = [quote]
+
+    store.evaluateWishlistPriceWatchRule(rule)
+
+    let evaluatedRule = try XCTUnwrap(store.wishlistPriceWatchRules.first)
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(evaluatedRule.ruleStatus, "Watching locally; no match")
+    XCTAssertEqual(evaluatedRule.reviewState, .monitor)
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Purchased externally; watch for confirmation")
+  }
+
+  func testWishlistPriceWatchRuleFlagsMissingLocalCandidates() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let rule = makeWishlistPriceWatchRule(
+      item: item,
+      targetAUDTotal: "AUD 120",
+      maxPostageCost: "AUD 15",
+      requiredTrustLevel: "Trusted",
+      allowedRegions: "Australia"
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistPriceWatchRules = [rule]
+    store.wishlistSellerQuotes = []
+    store.wishlistPriceSnapshots = []
+
+    store.evaluateWishlistPriceWatchRule(rule)
+
+    let evaluatedRule = try XCTUnwrap(store.wishlistPriceWatchRules.first)
+
+    XCTAssertEqual(evaluatedRule.ruleStatus, "No local quotes or snapshots")
+    XCTAssertEqual(evaluatedRule.reviewState, .needsReview)
+    XCTAssertNotEqual(evaluatedRule.lastEvaluatedDate, "Not evaluated")
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
@@ -1211,6 +1318,58 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     store.createWishlistScanSession(item)
     store.createWishlistShipmentManifest(item)
     store.createWishlistDispatchReadinessChecklist(item)
+  }
+
+  private func makeWishlistPriceWatchRule(
+    item: WishlistItem,
+    targetAUDTotal: String,
+    maxPostageCost: String,
+    requiredTrustLevel: String,
+    allowedRegions: String
+  ) -> WishlistPriceWatchRule {
+    WishlistPriceWatchRule(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      targetAUDTotal: targetAUDTotal,
+      maxPostageCost: maxPostageCost,
+      maximumDeliveryTime: "7 days",
+      requiredTrustLevel: requiredTrustLevel,
+      allowedRegions: allowedRegions,
+      ruleStatus: "Watching locally",
+      createdDate: "Today",
+      lastEvaluatedDate: "Not evaluated",
+      reviewState: .needsReview,
+      notes: "Local test rule."
+    )
+  }
+
+  private func makeWishlistSellerQuote(
+    item: WishlistItem,
+    sellerName: String,
+    estimatedAUDTotal: String,
+    postageCost: String,
+    sellerRegion: String,
+    trustSummary: String
+  ) -> WishlistSellerQuote {
+    WishlistSellerQuote(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: sellerName,
+      productURL: "https://example.com/replacement-scanner",
+      listedPrice: "99.00",
+      currency: "AUD",
+      estimatedAUDTotal: estimatedAUDTotal,
+      postageCost: postageCost,
+      postageTime: "3-5 business days",
+      sellerRegion: sellerRegion,
+      trustSummary: trustSummary,
+      returnsWarrantySummary: "Returns visible",
+      quoteSource: "Manual",
+      quoteStatus: "Captured locally",
+      capturedDate: "Today",
+      reviewState: .accepted,
+      notes: "Local saved quote."
+    )
   }
 
   private func makeSpaceMailConnection(
