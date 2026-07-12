@@ -385,6 +385,87 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(setupItem?.actionLabel, "Review Gmail setup")
   }
 
+  func testGmailHealthSummaryFlagsSetupBlockers() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let summary = store.gmailIntakeHealthSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Gmail setup blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.fetchedCount, 0)
+    XCTAssertEqual(summary.importedCount, 0)
+    XCTAssertEqual(summary.nextAction, "Open Mailbox Monitor or Settings, fix the Gmail setup blockers, then run Check readiness before sign-in.")
+  }
+
+  func testGmailHealthSummaryPreservesDuplicateRefreshCounts() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 10,
+      imported: 1,
+      filtered: 7,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "gmail-updated-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .duplicateRefreshed,
+        summary: "Duplicate refreshed existing Gmail intake"
+      ),
+      MailboxIngestRecord(
+        providerMessageID: "gmail-no-change-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .duplicateNoChange,
+        summary: "Duplicate did not change Gmail intake"
+      )
+    ]
+
+    let summary = store.gmailIntakeHealthSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Gmail setup blocked")
+    XCTAssertEqual(summary.fetchedCount, 10)
+    XCTAssertEqual(summary.importedCount, 1)
+    XCTAssertEqual(summary.filteredCount, 7)
+    XCTAssertEqual(summary.linkedIntakeCount, 1)
+    XCTAssertEqual(summary.duplicateRefreshedCount, 1)
+    XCTAssertEqual(summary.duplicateNoChangeCount, 1)
+  }
+
   func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
@@ -732,6 +813,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
   }
 
   private func makeGmailConnection(
+    id: UUID = UUID(),
     oauthReadinessStatus: String,
     credentialStorageStatus: String,
     fetched: Int,
@@ -740,6 +822,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     uncertain: Int?
   ) -> GmailMailboxConnection {
     GmailMailboxConnection(
+      id: id,
       displayName: "Gmail tracking inbox",
       emailAddress: "orders@example.test",
       monitoredLabelNames: "INBOX",
