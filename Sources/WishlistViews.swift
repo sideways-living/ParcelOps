@@ -266,6 +266,72 @@ private struct WishlistExceptionQueueRow: View {
   }
 }
 
+private struct WishlistPurchaseTimelineRow: View {
+  var entry: WishlistPurchaseTimelineEntry
+  var onFocus: () -> Void
+
+  private var progressText: String {
+    "\(entry.readyCount)/\(max(entry.totalCount, 1)) ready"
+  }
+
+  private var progressValue: Double {
+    guard entry.totalCount > 0 else { return 0 }
+    return Double(entry.readyCount) / Double(entry.totalCount)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        ZStack {
+          Circle()
+            .fill(entry.tone.opacity(0.14))
+          Image(systemName: entry.symbol)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(entry.tone)
+        }
+        .frame(width: 30, height: 30)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.title)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer(minLength: 8)
+
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(entry.attentionCount == 0 ? "Clear" : "\(entry.attentionCount) attention", color: entry.attentionCount == 0 ? .green : entry.tone)
+          Text(progressText)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      ProgressView(value: progressValue)
+        .tint(entry.tone)
+
+      CompactMetadataGrid(minimumWidth: 110) {
+        WishlistMatrixMetric(title: "Ready", value: "\(entry.readyCount)", symbol: "checkmark.circle.fill")
+        WishlistMatrixMetric(title: "Attention", value: "\(entry.attentionCount)", symbol: "exclamationmark.triangle.fill")
+        WishlistMatrixMetric(title: "Total", value: "\(entry.totalCount)", symbol: "sum")
+      }
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct WishlistDataQualityIssue: Identifiable {
   var id: String { title }
   var title: String
@@ -326,6 +392,20 @@ private struct WishlistExceptionQueueEntry: Identifiable {
   var sortPriority: Int
   var linkedOrder: TrackedOrder?
   var dataQualityEntry: WishlistDataQualityEntry?
+}
+
+private struct WishlistPurchaseTimelineEntry: Identifiable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var workflowFocus: WishlistWorkflowFocus
+  var readyCount: Int
+  var attentionCount: Int
+  var totalCount: Int
+  var symbol: String
+  var tone: Color
+  var nextAction: String
+  var sortPriority: Int
 }
 
 private struct WishlistCaptureSourceReadiness: Identifiable {
@@ -936,6 +1016,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistNextActionGuidePanel
+        wishlistPurchaseTimelinePanel
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
         wishlistExceptionQueuePanel
@@ -1473,6 +1554,181 @@ struct WishlistView: View {
         }
 
         Text("Boundary: this guide only reads and updates local Wishlist records. It does not browse retailer pages, compare live prices, convert currencies, quote postage, rate sellers externally, log into accounts, purchase, pay, or monitor order pages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistPurchaseTimelineEntries: [WishlistPurchaseTimelineEntry] {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let total = activeItems.count
+    let captureReady = activeItems.filter { item in
+      !item.itemName.isPlaceholderValidationValue
+        && !item.storefront.isPlaceholderValidationValue
+        && !item.storefrontURL.isPlaceholderValidationValue
+        && !item.estimatedCost.isPlaceholderValidationValue
+        && !item.owner.isPlaceholderValidationValue
+    }.count
+    let captureAttention = max(total - captureReady, 0)
+
+    let comparisonReady = activeItems.filter { item in
+      let options = item.comparisonOptions ?? []
+      return !options.isEmpty && item.preferredOptionID != nil
+    }.count
+    let comparisonAttention = activeItems.filter { item in
+      let options = item.comparisonOptions ?? []
+      return options.isEmpty || item.preferredOptionID == nil || options.contains { !$0.operatorSellerEvidenceGaps.isEmpty }
+    }.count
+
+    let decisionReady = activeItems.filter { $0.purchaseDecision?.reviewState == .accepted }.count
+    let decisionAttention = activeItems.filter { item in
+      item.purchaseDecision == nil && item.comparisonOptions?.isEmpty == false
+        || item.purchaseDecision?.reviewState != nil && item.purchaseDecision?.reviewState != .accepted
+    }.count
+
+    let handoffReady = activeItems.filter { $0.purchaseHandoff != nil }.count
+    let handoffAttention = activeItems.filter { item in
+      item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
+    }.count
+
+    let watchReady = activeItems.filter { item in
+      guard let linkedOrderID = item.purchaseHandoff?.linkedOrderID else { return false }
+      return store.orders.contains { $0.id == linkedOrderID }
+    }.count
+    let watchAttention = activeItems.filter { item in
+      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+    }.count + store.wishlistOrderWatchRecords.filter {
+      store.isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID == nil
+    }.count
+
+    let operationsReady = wishlistOperationsClosureReadinessEntries.filter {
+      $0.gaps.isEmpty && $0.openTaskCount == 0
+    }.count
+    let operationsAttention = wishlistLinkedOrderFollowUpDashboardEntries.filter {
+      $0.stage != "Ready for closure"
+    }.count + wishlistOperationsClosureReadinessEntries.filter {
+      !$0.gaps.isEmpty || $0.openTaskCount > 0
+    }.count
+
+    return [
+      WishlistPurchaseTimelineEntry(
+        title: "1. Capture",
+        detail: "Manual item, source, owner, URL, cost, and notes are clear enough to compare.",
+        workflowFocus: .capture,
+        readyCount: captureReady,
+        attentionCount: captureAttention,
+        totalCount: total,
+        symbol: "square.and.arrow.down.fill",
+        tone: captureAttention == 0 ? .green : .blue,
+        nextAction: "Focus capture",
+        sortPriority: 10
+      ),
+      WishlistPurchaseTimelineEntry(
+        title: "2. Compare",
+        detail: "Seller options, landed AUD cost, postage, trust, and preferred seller are locally reviewed.",
+        workflowFocus: .compare,
+        readyCount: comparisonReady,
+        attentionCount: comparisonAttention,
+        totalCount: total,
+        symbol: "chart.bar.doc.horizontal",
+        tone: comparisonAttention == 0 ? .green : .orange,
+        nextAction: "Focus compare",
+        sortPriority: 20
+      ),
+      WishlistPurchaseTimelineEntry(
+        title: "3. Decide",
+        detail: "Purchase decision and readiness checks are accepted before external buying.",
+        workflowFocus: .buy,
+        readyCount: decisionReady,
+        attentionCount: decisionAttention,
+        totalCount: total,
+        symbol: "checkmark.seal.fill",
+        tone: decisionAttention == 0 ? .green : .purple,
+        nextAction: "Focus decisions",
+        sortPriority: 30
+      ),
+      WishlistPurchaseTimelineEntry(
+        title: "4. Handoff",
+        detail: "Seller, account, expected order signals, and manual purchase notes are staged locally.",
+        workflowFocus: .buy,
+        readyCount: handoffReady,
+        attentionCount: handoffAttention,
+        totalCount: total,
+        symbol: "person.crop.circle.badge.checkmark",
+        tone: handoffAttention == 0 ? .green : .purple,
+        nextAction: "Focus handoff",
+        sortPriority: 40
+      ),
+      WishlistPurchaseTimelineEntry(
+        title: "5. Watch orders",
+        detail: "Inbox confirmations and local Orders are linked after the external purchase happens.",
+        workflowFocus: .watch,
+        readyCount: watchReady,
+        attentionCount: watchAttention,
+        totalCount: max(handoffReady, 1),
+        symbol: "envelope.badge.fill",
+        tone: watchAttention == 0 ? .green : .teal,
+        nextAction: "Focus watch",
+        sortPriority: 50
+      ),
+      WishlistPurchaseTimelineEntry(
+        title: "6. Operations",
+        detail: "Linked orders have receiving, inventory, storage, custody, label, dispatch, and closure context.",
+        workflowFocus: .operations,
+        readyCount: operationsReady,
+        attentionCount: operationsAttention,
+        totalCount: max(watchReady, 1),
+        symbol: "shippingbox.fill",
+        tone: operationsAttention == 0 ? .green : .brown,
+        nextAction: "Focus operations",
+        sortPriority: 60
+      )
+    ].sorted { $0.sortPriority < $1.sortPriority }
+  }
+
+  private var wishlistPurchaseTimelinePanel: some View {
+    let entries = wishlistPurchaseTimelineEntries
+    let attentionTotal = entries.reduce(0) { $0 + $1.attentionCount }
+    let readyTotal = entries.reduce(0) { $0 + $1.readyCount }
+
+    return SettingsPanel(title: "Wishlist purchase timeline", symbol: "timeline.selection") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: attentionTotal == 0 ? "checkmark.seal.fill" : "timeline.selection")
+            .foregroundStyle(attentionTotal == 0 ? Color.green : Color.blue)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("One local path from idea to order follow-up")
+              .font(.headline)
+            Text("This turns the long Wishlist workspace into six checkpoints: capture, compare, decide, handoff, watch orders, and operations.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(attentionTotal == 0 ? "Clear" : "\(attentionTotal) checks", color: attentionTotal == 0 ? .green : .blue)
+        }
+
+        MetricStrip(items: [
+          ("Timeline steps", "\(entries.count)", .blue),
+          ("Ready signals", "\(readyTotal)", readyTotal == 0 ? .secondary : .green),
+          ("Attention", "\(attentionTotal)", attentionTotal == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 330), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(entries) { entry in
+            WishlistPurchaseTimelineRow(entry: entry) {
+              selectedWorkflowFocus = entry.workflowFocus
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          }
+        }
+
+        Text("Timeline counts are local guidance only. ParcelOps does not verify live prices, stock, postage, seller trust, account state, payment, mailbox state, carrier status, dispatch booking, or delivery completion.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
