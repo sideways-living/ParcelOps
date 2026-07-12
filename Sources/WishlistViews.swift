@@ -726,6 +726,7 @@ struct WishlistView: View {
         wishlistPostPurchaseOrderWatchPanel
         wishlistPurchaseOperationsHandoffPanel
         wishlistLinkedOrderOperationsChecklistPanel
+        wishlistLinkedOrderFollowUpDashboardPanel
         wishlistOperationsClosureReadinessPanel
         wishlistOrderConfirmationMatchPacketPanel
         wishlistAgentResearchRunwayPanel
@@ -8801,6 +8802,172 @@ struct WishlistView: View {
       .forEach(runWishlistLinkedOrderOperationsChecklistAction)
   }
 
+  private var wishlistLinkedOrderFollowUpDashboardEntries: [WishlistLinkedOrderFollowUpDashboardEntry] {
+    wishlistLinkedOrderOperationsChecklistEntries
+      .compactMap { checklist -> WishlistLinkedOrderFollowUpDashboardEntry? in
+        guard let linkedOrder = checklist.linkedOrder else { return nil }
+        let openTasks = store.reviewTasks.filter { task in
+          task.linkedEntityType == .wishlistItem
+            && task.linkedEntityID == checklist.item.id.uuidString
+            && task.status != .completed
+        }
+        let missingPhases = checklist.phaseChecks.filter { !$0.1 }.map(\.0)
+        let hasTracking = !linkedOrder.trackingNumber.isPlaceholderValidationValue
+          && !linkedOrder.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let dispatchReady = checklist.phaseChecks.first(where: { $0.0 == "Dispatch" })?.1 == true
+        let receivingReady = checklist.phaseChecks.first(where: { $0.0 == "Receiving" })?.1 == true
+        let manifestReady = checklist.phaseChecks.first(where: { $0.0 == "Manifest" })?.1 == true
+
+        let stage: String
+        let detail: String
+        let nextAction: String
+        let nextSymbol: String
+        let tone: Color
+        let sortPriority: Int
+
+        if !hasTracking {
+          stage = "Tracking needs review"
+          detail = "Linked order exists, but tracking is still blank or placeholder. Confirm tracking from Inbox/order source before dispatch follow-up."
+          nextAction = "Task"
+          nextSymbol = "checklist"
+          tone = .orange
+          sortPriority = 10
+        } else if !receivingReady {
+          stage = "Receiving follow-up"
+          detail = "Tracking exists. Stage or review receiving before inventory, storage, custody, and dispatch."
+          nextAction = "Receiving"
+          nextSymbol = "checkmark.seal.fill"
+          tone = .teal
+          sortPriority = 20
+        } else if !manifestReady || !dispatchReady {
+          stage = "Dispatch follow-up"
+          detail = !manifestReady ? "Receiving path has started. Create the shipment manifest placeholder next." : "Manifest exists. Create the dispatch readiness checklist next."
+          nextAction = !manifestReady ? "Manifest" : "Dispatch"
+          nextSymbol = !manifestReady ? "paperplane.fill" : "checkmark.rectangle.stack.fill"
+          tone = .brown
+          sortPriority = 30
+        } else if !openTasks.isEmpty {
+          stage = "Tasks open"
+          detail = "\(openTasks.count) local follow-up task\(openTasks.count == 1 ? "" : "s") remain before closure."
+          nextAction = "Open task"
+          nextSymbol = "checklist"
+          tone = .purple
+          sortPriority = 40
+        } else if !missingPhases.isEmpty {
+          stage = "Ops gaps"
+          detail = "Missing \(missingPhases.prefix(3).joined(separator: ", ")) before local closure."
+          nextAction = checklist.nextAction
+          nextSymbol = checklist.nextSymbol
+          tone = .orange
+          sortPriority = 50
+        } else {
+          stage = "Ready for closure"
+          detail = "Tracking, receiving, dispatch, and follow-up task context are locally ready for closure review."
+          nextAction = "Closure check"
+          nextSymbol = "checkmark.seal.text.page.fill"
+          tone = .green
+          sortPriority = 60
+        }
+
+        return WishlistLinkedOrderFollowUpDashboardEntry(
+          checklist: checklist,
+          linkedOrder: linkedOrder,
+          openTaskCount: openTasks.count,
+          missingPhases: missingPhases,
+          stage: stage,
+          detail: detail,
+          nextAction: nextAction,
+          nextSymbol: nextSymbol,
+          tone: tone,
+          sortPriority: sortPriority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          return first.checklist.item.itemName.localizedCaseInsensitiveCompare(second.checklist.item.itemName) == .orderedAscending
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistLinkedOrderFollowUpDashboardPanel: some View {
+    let entries = wishlistLinkedOrderFollowUpDashboardEntries
+    let trackingReview = entries.filter { $0.stage == "Tracking needs review" }.count
+    let receivingFollowUp = entries.filter { $0.stage == "Receiving follow-up" }.count
+    let dispatchFollowUp = entries.filter { $0.stage == "Dispatch follow-up" }.count
+    let ready = entries.filter { $0.stage == "Ready for closure" }.count
+
+    return SettingsPanel(title: "Linked order follow-up dashboard", symbol: "shippingbox.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Use this once a Wishlist purchase is linked to an order. It keeps the daily follow-up focused on tracking, receiving, dispatch setup, open tasks, and closure readiness.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Linked orders", "\(entries.count)", entries.isEmpty ? .secondary : .blue),
+          ("Tracking review", "\(trackingReview)", trackingReview == 0 ? .green : .orange),
+          ("Receiving", "\(receivingFollowUp)", receivingFollowUp == 0 ? .green : .teal),
+          ("Dispatch", "\(dispatchFollowUp)", dispatchFollowUp == 0 ? .green : .brown),
+          ("Ready", "\(ready)", ready == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No linked Wishlist orders to follow up",
+            detail: "Once a Wishlist purchase is linked to an order, tracking, receiving, dispatch, and closure follow-up appears here.",
+            symbol: "shippingbox.circle.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 410), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistLinkedOrderFollowUpDashboardRow(entry: entry, store: store) {
+                runWishlistLinkedOrderFollowUpAction(for: entry)
+              } onTask: {
+                store.createWishlistPurchaseHandoffReviewTask(entry.checklist.item)
+              } onFocus: {
+                wishlistSearchText = entry.checklist.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more linked Wishlist order\(remaining == 1 ? "" : "s") are available in the detailed panels below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This dashboard is local-only. It does not poll carriers, update orders externally, receive stock, book dispatch, mutate mailboxes, send notifications, or contact retailers.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistLinkedOrderFollowUpAction(for entry: WishlistLinkedOrderFollowUpDashboardEntry) {
+    switch entry.stage {
+    case "Tracking needs review", "Tasks open":
+      store.createWishlistPurchaseHandoffReviewTask(entry.checklist.item)
+    case "Receiving follow-up":
+      store.createWishlistReceivingInspection(entry.checklist.item)
+    case "Dispatch follow-up":
+      if entry.checklist.phaseChecks.first(where: { $0.0 == "Manifest" })?.1 == false {
+        store.createWishlistShipmentManifest(entry.checklist.item)
+      } else {
+        store.createWishlistDispatchReadinessChecklist(entry.checklist.item)
+      }
+    case "Ready for closure":
+      store.checkWishlistOperationsClosureReadinessBatch()
+    default:
+      runWishlistLinkedOrderOperationsChecklistAction(for: entry.checklist)
+    }
+  }
+
   private var wishlistOperationsClosureReadinessEntries: [WishlistOperationsClosureReadinessEntry] {
     wishlistLinkedOrderOperationsChecklistEntries
       .map(wishlistOperationsClosureReadinessEntry(for:))
@@ -12598,6 +12765,20 @@ private struct WishlistLinkedOrderOperationsChecklistEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistLinkedOrderFollowUpDashboardEntry: Identifiable {
+  var id: UUID { checklist.item.id }
+  var checklist: WishlistLinkedOrderOperationsChecklistEntry
+  var linkedOrder: TrackedOrder
+  var openTaskCount: Int
+  var missingPhases: [String]
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
 private struct WishlistOperationsClosureReadinessEntry: Identifiable {
   var id: UUID { item.id }
   var item: WishlistItem
@@ -12688,6 +12869,85 @@ private struct WishlistPurchaseOperationsHandoffRow: View {
       .controlSize(.small)
     }
     .padding(10)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WishlistLinkedOrderFollowUpDashboardRow: View {
+  var entry: WishlistLinkedOrderFollowUpDashboardEntry
+  var store: ParcelOpsStore
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var trackingSummary: String {
+    entry.linkedOrder.trackingNumber.isPlaceholderValidationValue ? "Tracking needs review" : entry.linkedOrder.trackingNumber
+  }
+
+  private var phaseSummary: String {
+    entry.missingPhases.isEmpty ? "All core phases staged" : "Missing \(entry.missingPhases.prefix(4).joined(separator: ", "))"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.checklist.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text("\(entry.linkedOrder.orderNumber) • \(entry.linkedOrder.latestStatus)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 128) {
+        WishlistMatrixMetric(title: "Tracking", value: trackingSummary, symbol: "number.circle.fill")
+        WishlistMatrixMetric(title: "Carrier", value: entry.linkedOrder.carrier, symbol: "truck.box.fill")
+        WishlistMatrixMetric(title: "ETA", value: entry.linkedOrder.eta, symbol: "calendar")
+        WishlistMatrixMetric(title: "Destination", value: entry.linkedOrder.destination, symbol: "mappin.and.ellipse")
+        WishlistMatrixMetric(title: "Ops phases", value: phaseSummary, symbol: "checklist.checked")
+        WishlistMatrixMetric(title: "Open tasks", value: "\(entry.openTaskCount)", symbol: "checklist")
+      }
+
+      if !entry.missingPhases.isEmpty {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 6)], alignment: .leading, spacing: 6) {
+          ForEach(entry.missingPhases.prefix(8), id: \.self) { phase in
+            Badge(phase, color: .orange)
+          }
+        }
+      }
+
+      Text("Local follow-up only. This row does not poll carriers, update orders externally, receive stock, book dispatch, send notifications, or contact retailers.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        NavigationLink {
+          OrderDetailView(order: entry.linkedOrder, store: store)
+        } label: {
+          Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
