@@ -192,6 +192,13 @@ private struct WishlistLinkedOrderSummaryRow: View {
         } label: {
           Label("Open order", systemImage: "arrow.up.right.square.fill")
         }
+        if summary.manifestCount > 0 || summary.checklistCount > 0 {
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+        }
         if summary.manifestCount == 0 {
           Button("Stage manifest", systemImage: "paperplane.fill", action: onStageManifest)
         }
@@ -442,13 +449,6 @@ private struct WishlistExceptionQueueRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
-        if let linkedOrder = entry.linkedOrder {
-          NavigationLink {
-            OrderDetailView(order: linkedOrder, store: store)
-          } label: {
-            Label("Open order", systemImage: "arrow.up.right.square.fill")
-          }
-        }
         Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
@@ -14534,6 +14534,13 @@ private struct WishlistLinkedOrderOperationsChecklistRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactActionRow {
+        if let linkedOrder = entry.linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
         Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
         Button("Task", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
