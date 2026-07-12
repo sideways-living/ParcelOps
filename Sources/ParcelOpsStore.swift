@@ -21361,11 +21361,11 @@ final class ParcelOpsStore {
     guard item.purchaseHandoff != nil else { return [] }
     return intakeEmails
       .filter { email in
-        email.reviewState != .ignored && wishlistOrderConfirmationScore(item: item, email: email) >= 4
+        email.reviewState != .ignored && wishlistOrderConfirmationMatchDetail(item: item, email: email).score >= 4
       }
       .sorted { first, second in
-        let firstScore = wishlistOrderConfirmationScore(item: item, email: first)
-        let secondScore = wishlistOrderConfirmationScore(item: item, email: second)
+        let firstScore = wishlistOrderConfirmationMatchDetail(item: item, email: first).score
+        let secondScore = wishlistOrderConfirmationMatchDetail(item: item, email: second).score
         if firstScore == secondScore {
           return first.receivedDate > second.receivedDate
         }
@@ -21378,6 +21378,7 @@ final class ParcelOpsStore {
           let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
     let beforeDetail = wishlistItems[wishlistIndex].auditDetail
     let intakeBeforeDetail = intakeEmails[emailIndex].auditDetail
+    let matchDetail = wishlistOrderConfirmationMatchDetail(item: wishlistItems[wishlistIndex], email: intakeEmails[emailIndex])
 
     var linkedOrderID = intakeEmails[emailIndex].linkedOrderID
     if linkedOrderID == nil {
@@ -21418,7 +21419,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[wishlistIndex].itemName,
       summary: linkedOrderID == nil ? "Wishlist Inbox confirmation used locally." : "Wishlist Inbox confirmation linked to order locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[wishlistIndex].auditDetail)\nIntake before: \(intakeBeforeDetail)\nNo mailbox fetch, browser automation, retailer login, checkout, payment, notification, or external monitoring occurred."
+      afterDetail: "\(wishlistItems[wishlistIndex].auditDetail)\nMatch confidence: \(matchDetail.confidence) (\(matchDetail.score)). Reasons: \(matchDetail.reasons.joined(separator: ", ")).\nIntake before: \(intakeBeforeDetail)\nNo mailbox fetch, browser automation, retailer login, checkout, payment, notification, or external monitoring occurred."
     )
   }
 
@@ -21512,7 +21513,7 @@ final class ParcelOpsStore {
     wishlistItemsLinked(to: order).filter(isActiveWishlistItem)
   }
 
-  private func wishlistOrderConfirmationScore(item: WishlistItem, email: ForwardedEmailIntake) -> Int {
+  func wishlistOrderConfirmationMatchDetail(item: WishlistItem, email: ForwardedEmailIntake) -> (score: Int, confidence: String, reasons: [String]) {
     let handoff = item.purchaseHandoff
     let searchable = [
       email.sender,
@@ -21532,21 +21533,67 @@ final class ParcelOpsStore {
       .filter { $0.count >= 4 && !$0.isPlaceholderValidationValue }
 
     var score = 0
-    if !seller.isEmpty && searchable.contains(seller) { score += 3 }
-    if !itemName.isEmpty && searchable.contains(itemName) { score += 3 }
-    if signals.contains(where: { searchable.contains($0) }) { score += 2 }
-    if !email.detectedOrderNumber.isPlaceholderValidationValue { score += 3 }
-    if !email.detectedTrackingNumber.isPlaceholderValidationValue { score += 3 }
-    if searchable.contains("order") { score += 1 }
-    if searchable.contains("confirmation") || searchable.contains("confirmed") { score += 2 }
-    if searchable.contains("shipped") || searchable.contains("tracking") || searchable.contains("dispatch") || searchable.contains("delivery") { score += 2 }
-    if searchable.contains("invoice") || searchable.contains("receipt") { score += 1 }
-    if email.linkedOrderID != nil { score += 2 }
-    if email.reviewState == .reviewed { score += 1 }
+    var reasons: [String] = []
+    if !seller.isEmpty && searchable.contains(seller) {
+      score += 3
+      reasons.append("seller")
+    }
+    if !itemName.isEmpty && searchable.contains(itemName) {
+      score += 3
+      reasons.append("item name")
+    }
+    let matchedSignals = signals.filter { searchable.contains($0) }
+    if !matchedSignals.isEmpty {
+      score += 2
+      reasons.append("expected signal")
+    }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+      score += 3
+      reasons.append("order number")
+    }
+    if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+      score += 3
+      reasons.append("tracking number")
+    }
+    if searchable.contains("order") {
+      score += 1
+      reasons.append("order wording")
+    }
+    if searchable.contains("confirmation") || searchable.contains("confirmed") {
+      score += 2
+      reasons.append("confirmation wording")
+    }
+    if searchable.contains("shipped") || searchable.contains("tracking") || searchable.contains("dispatch") || searchable.contains("delivery") {
+      score += 2
+      reasons.append("shipping wording")
+    }
+    if searchable.contains("invoice") || searchable.contains("receipt") {
+      score += 1
+      reasons.append("receipt wording")
+    }
+    if email.linkedOrderID != nil {
+      score += 2
+      reasons.append("linked order")
+    }
+    if email.reviewState == .reviewed {
+      score += 1
+      reasons.append("reviewed intake")
+    }
     if searchable.contains("newsletter") || searchable.contains("unsubscribe") || searchable.contains("promotion") {
       score -= 3
+      reasons.append("marketing signal")
     }
-    return score
+    let confidence: String
+    if score >= 10 {
+      confidence = "High"
+    } else if score >= 7 {
+      confidence = "Medium"
+    } else if score >= 4 {
+      confidence = "Low"
+    } else {
+      confidence = "No match"
+    }
+    return (score, confidence, reasons.isEmpty ? ["no clear local signal"] : Array(reasons.prefix(6)))
   }
 
   private func localWishlistOptionEvaluation(for option: WishlistComparisonOption) -> (score: Int, risk: String, recommendation: String, reasons: [String]) {

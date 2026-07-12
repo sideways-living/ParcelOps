@@ -907,6 +907,7 @@ struct WishlistOrderWatchMatchRow: View {
       } else {
         VStack(alignment: .leading, spacing: 8) {
           ForEach(matches) { email in
+            let matchDetail = wishlistOrderWatchMatchDetail(email)
             HStack(alignment: .top, spacing: 10) {
               VStack(alignment: .leading, spacing: 3) {
                 Text(email.subject.isPlaceholderValidationValue ? "Imported confirmation" : email.subject)
@@ -919,6 +920,10 @@ struct WishlistOrderWatchMatchRow: View {
                 Text(wishlistOrderWatchEmailSummary(email))
                   .font(.caption2)
                   .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                Text("\(matchDetail.confidence) confidence • \(matchDetail.reasons.joined(separator: ", "))")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(matchDetail.color)
                   .lineLimit(2)
               }
               Spacer()
@@ -963,6 +968,83 @@ struct WishlistOrderWatchMatchRow: View {
       parts.append("Imported \(email.receivedDate)")
     }
     return parts.joined(separator: " • ")
+  }
+
+  private func wishlistOrderWatchMatchDetail(_ email: ForwardedEmailIntake) -> (score: Int, confidence: String, reasons: [String], color: Color) {
+    let searchable = [
+      email.sender,
+      email.subject,
+      email.rawBodyPreview,
+      email.detectedMerchant,
+      email.detectedOrderNumber,
+      email.detectedTrackingNumber
+    ]
+      .joined(separator: " ")
+      .localizedLowercase
+    let itemName = item.itemName.localizedLowercase
+    let seller = sellerLabel.localizedLowercase
+    let signals = expectedSignals
+      .components(separatedBy: CharacterSet(charactersIn: "|,"))
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
+      .filter { $0.count >= 4 && !$0.isPlaceholderValidationValue }
+
+    var score = 0
+    var reasons: [String] = []
+    if !seller.isEmpty && searchable.contains(seller) {
+      score += 3
+      reasons.append("seller")
+    }
+    if !itemName.isEmpty && searchable.contains(itemName) {
+      score += 3
+      reasons.append("item")
+    }
+    if signals.contains(where: { searchable.contains($0) }) {
+      score += 2
+      reasons.append("expected signal")
+    }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+      score += 3
+      reasons.append("order number")
+    }
+    if !email.detectedTrackingNumber.isPlaceholderValidationValue {
+      score += 3
+      reasons.append("tracking")
+    }
+    if searchable.contains("order") {
+      score += 1
+      reasons.append("order wording")
+    }
+    if searchable.contains("confirmation") || searchable.contains("confirmed") {
+      score += 2
+      reasons.append("confirmation")
+    }
+    if searchable.contains("shipped") || searchable.contains("tracking") || searchable.contains("dispatch") || searchable.contains("delivery") {
+      score += 2
+      reasons.append("shipping")
+    }
+    if searchable.contains("invoice") || searchable.contains("receipt") {
+      score += 1
+      reasons.append("receipt")
+    }
+    if email.linkedOrderID != nil {
+      score += 2
+      reasons.append("linked order")
+    }
+    if searchable.contains("newsletter") || searchable.contains("unsubscribe") || searchable.contains("promotion") {
+      score -= 3
+      reasons.append("marketing signal")
+    }
+
+    if score >= 10 {
+      return (score, "High", Array(reasons.prefix(5)), .green)
+    }
+    if score >= 7 {
+      return (score, "Medium", Array(reasons.prefix(5)), .teal)
+    }
+    if score >= 4 {
+      return (score, "Low", Array(reasons.prefix(5)), .orange)
+    }
+    return (score, "Weak", reasons.isEmpty ? ["no clear signal"] : Array(reasons.prefix(5)), .secondary)
   }
 }
 
