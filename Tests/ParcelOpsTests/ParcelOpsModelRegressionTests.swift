@@ -2193,6 +2193,155 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.lines.first?.tone, "success")
   }
 
+  func testMailboxProviderTestQueueFlagsGmailCompileConfigBlocker() {
+    let mailboxID = UUID()
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        id: mailboxID,
+        oauthReadinessStatus: "Ready",
+        credentialStorageStatus: "GoogleSignIn cache available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let summary = store.mailboxProviderTestQueueSummary
+
+    XCTAssertEqual(summary.title, "Mailbox provider test queue has blockers")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.currentProvider, "Gmail")
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "Gmail"
+        && item.phase == "Compile config"
+        && item.title == "Rebuild app with Gmail OAuth values"
+        && item.tone == "warning"
+        && !item.isComplete
+    })
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "Gmail"
+        && item.phase == "Refresh"
+        && item.title == "Gmail refresh evidence exists"
+        && item.isComplete
+    })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Evidence" }?.value, "10")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.tone, "warning")
+  }
+
+  func testMailboxProviderTestQueuePromotesOpenInboxTriage() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "123 Test Street",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        id: mailboxID,
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 1,
+        filtered: 9,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = [intake]
+    store.orders = []
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "spacemail-imported-queue",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported order update"
+      )
+    ]
+
+    let summary = store.mailboxProviderTestQueueSummary
+
+    XCTAssertTrue(summary.tone == "attention" || summary.tone == "warning")
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "Inbox"
+        && item.phase == "Triage"
+        && item.title == "Review mailbox-created intake"
+        && item.tone == "attention"
+        && !item.isComplete
+    })
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "SpaceMail"
+        && item.phase == "Refresh"
+        && item.title == "SpaceMail refresh evidence exists"
+        && item.evidence == "10 fetched, 1 imported, 0 uncertain."
+        && item.isComplete
+    })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Inbox" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Handoff" }?.value, "Review")
+  }
+
+  func testMailboxProviderTestQueueTreatsFilteredOnlyRefreshAsClearEvidence() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let summary = store.mailboxProviderTestQueueSummary
+
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "SpaceMail"
+        && item.phase == "Refresh"
+        && item.title == "SpaceMail refresh evidence exists"
+        && item.tone == "success"
+        && item.isComplete
+    })
+    XCTAssertTrue(summary.items.contains { item in
+      item.providerName == "Inbox"
+        && item.phase == "Triage"
+        && item.title == "Inbox triage is clear"
+        && item.tone == "success"
+        && item.isComplete
+    })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Inbox" }?.value, "0")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Evidence" }?.value, "10")
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
