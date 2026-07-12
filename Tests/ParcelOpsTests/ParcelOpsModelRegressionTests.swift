@@ -336,6 +336,55 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(decoded.refreshHistory?.first?.uncertainCount, 1)
   }
 
+  func testGmailPostRefreshActionPlanHandlesNoProvider() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+
+    let plan = store.gmailPostRefreshActionPlan
+
+    XCTAssertEqual(plan.title, "Gmail post-refresh actions unavailable")
+    XCTAssertEqual(plan.tone, "neutral")
+    XCTAssertEqual(plan.primaryAction, "Add Gmail setup")
+    XCTAssertEqual(plan.items.first { $0.title == "Finish setup and sign-in" }?.tone, "warning")
+  }
+
+  func testGmailPostRefreshActionPlanPrioritizesSetupBlockers() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      connection.id: GmailAuthSessionState(
+        connectionID: connection.id,
+        status: .notConnected,
+        signedInAccount: "Not signed in",
+        lastAuthAttemptDate: "Never",
+        lastSuccessfulAuthDate: "Never",
+        tokenStoreStatus: "GoogleSignIn cache pending",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Test setup is intentionally blocked."
+      )
+    ]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let plan = store.gmailPostRefreshActionPlan
+    let setupItem = plan.items.first { $0.title == "Finish setup and sign-in" }
+
+    XCTAssertEqual(plan.title, "Gmail setup blockers need review")
+    XCTAssertEqual(plan.tone, "warning")
+    XCTAssertEqual(plan.primaryAction, "Review Gmail setup")
+    XCTAssertEqual(setupItem?.tone, "warning")
+    XCTAssertEqual(setupItem?.actionLabel, "Review Gmail setup")
+  }
+
   func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
