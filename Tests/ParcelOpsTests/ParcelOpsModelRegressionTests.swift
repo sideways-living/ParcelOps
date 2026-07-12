@@ -291,6 +291,79 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(decoded.refreshHistory?.first?.uncertainCount, 1)
   }
 
+  func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderComparisonSummary
+
+    XCTAssertEqual(summary.title, "Choose a mailbox provider")
+    XCTAssertEqual(summary.recommendedProvider, "Add provider")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.providers.count, 2)
+    XCTAssertTrue(summary.actionItems.contains { $0.title == "Choose SpaceMail or Gmail" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Providers" }?.value, "0")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "1")
+  }
+
+  func testMailboxProviderComparisonTreatsQuietSpaceMailRefreshAsReady() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 8,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail" }
+
+    XCTAssertEqual(summary.title, "Mailbox intake is quiet")
+    XCTAssertEqual(summary.recommendedProvider, "SpaceMail")
+    XCTAssertEqual(summary.tone, "success")
+    XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail filtering is active")
+    XCTAssertEqual(spaceMail?.fetchedCount, 10)
+    XCTAssertEqual(spaceMail?.blockedCount, 0)
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "SpaceMail" && $0.title == "Monitor SpaceMail refreshes" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "8")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "0")
+  }
+
+  func testMailboxProviderComparisonFlagsGmailSetupBlockers() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        oauthReadinessStatus: "Needs review",
+        credentialStorageStatus: "GoogleSignIn cache pending",
+        fetched: 0,
+        imported: 0,
+        filtered: 0,
+        uncertain: nil
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Mailbox setup has blockers")
+    XCTAssertEqual(summary.recommendedProvider, "Gmail")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
+    XCTAssertEqual(gmail?.blockedCount, 2)
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Gmail" && $0.title == "Finish Gmail setup" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Providers" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "3")
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,
@@ -316,6 +389,60 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       latestStatus: latestStatus,
       timeline: [],
       contactHistory: []
+    )
+  }
+
+  private func makeSpaceMailConnection(
+    credentialStorageStatus: String,
+    fetched: Int,
+    imported: Int,
+    filtered: Int,
+    uncertain: Int
+  ) -> SpaceMailIMAPConnection {
+    SpaceMailIMAPConnection(
+      displayName: "SpaceMail tracking inbox",
+      emailAddressUsername: "orders@example.test",
+      imapHost: "mail.spacemail.com",
+      imapPort: "993",
+      securityMode: "SSL/TLS",
+      folderName: "INBOX",
+      connectionStatus: "Ready for IMAP",
+      lastManualRefreshDate: "Today",
+      setupNotes: "Local setup only",
+      credentialStorageStatus: credentialStorageStatus,
+      lastRefreshFetchedCount: fetched,
+      lastRefreshImportedCount: imported,
+      lastRefreshFilteredNonOrderCount: filtered,
+      lastRefreshUncertainCount: uncertain,
+      reviewState: .accepted
+    )
+  }
+
+  private func makeGmailConnection(
+    oauthReadinessStatus: String,
+    credentialStorageStatus: String,
+    fetched: Int,
+    imported: Int,
+    filtered: Int,
+    uncertain: Int?
+  ) -> GmailMailboxConnection {
+    GmailMailboxConnection(
+      displayName: "Gmail tracking inbox",
+      emailAddress: "orders@example.test",
+      monitoredLabelNames: "INBOX",
+      connectionStatus: "Placeholder configured",
+      lastManualRefreshDate: "Never",
+      setupNotes: "Local setup only",
+      oauthReadinessStatus: oauthReadinessStatus,
+      oauthClientIDPlaceholder: "placeholder-client-id",
+      redirectURIPlaceholder: "placeholder-callback-scheme",
+      requestedScopesSummary: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+      credentialStorageStatus: credentialStorageStatus,
+      lastRefreshFetchedCount: fetched,
+      lastRefreshImportedCount: imported,
+      lastRefreshFilteredNonOrderCount: filtered,
+      lastRefreshUncertainCount: uncertain,
+      reviewState: .needsReview
     )
   }
 }
