@@ -2175,7 +2175,7 @@ private struct MailboxGmailRunbookPanel: View {
   }
 }
 
-private struct MailboxGmailReadinessPanel: View {
+struct MailboxGmailReadinessPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: GmailIntakeHealthSummary? {

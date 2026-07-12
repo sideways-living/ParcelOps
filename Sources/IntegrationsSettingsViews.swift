@@ -641,6 +641,7 @@ struct IntegrationsView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
           GmailGoogleCloudSetupGuide()
+          MailboxGmailReadinessPanel(store: store)
           SettingsGmailManualRunbookPanel(store: store)
           CompactActionRow {
             Button(store.gmailMailboxConnections.isEmpty ? "Add Gmail setup" : "Show existing Gmail setup", systemImage: store.gmailMailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
