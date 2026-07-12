@@ -348,6 +348,7 @@ struct InboxView: View {
         InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
         mailboxHealthPanel
         missingOrderDiagnosticPanel
+        wishlistPurchaseReadinessPanel
         wishlistOrderWatchPanel
         triagePanel
         detailRoutes
@@ -377,6 +378,162 @@ struct InboxView: View {
   private var wishlistOrderWatchMatchCount: Int {
     wishlistOrderWatchItems.reduce(0) { partial, item in
       partial + store.suggestedWishlistOrderConfirmations(for: item).count
+    }
+  }
+
+  private var wishlistPurchaseReadinessItems: [WishlistItem] {
+    store.wishlistItems
+      .filter { item in
+        store.isActiveWishlistItem(item)
+          && (
+            !item.operatorPurchaseBlockers.isEmpty
+              || item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
+              || item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
+          )
+      }
+      .sorted { first, second in
+        let firstPriority = wishlistPurchaseReadinessPriority(for: first)
+        let secondPriority = wishlistPurchaseReadinessPriority(for: second)
+        if firstPriority == secondPriority {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstPriority < secondPriority
+      }
+  }
+
+  private var wishlistPurchaseDecisionGapCount: Int {
+    wishlistPurchaseReadinessItems.filter { $0.purchaseDecision == nil || $0.purchaseDecision?.reviewState != .accepted }.count
+  }
+
+  private var wishlistPurchaseHandoffGapCount: Int {
+    wishlistPurchaseReadinessItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }.count
+  }
+
+  private func wishlistPurchaseReadinessPriority(for item: WishlistItem) -> Int {
+    if item.comparisonOptions?.isEmpty != false { return 10 }
+    if item.preferredOptionID == nil { return 20 }
+    if item.purchaseChecks?.isEmpty != false { return 30 }
+    if item.purchaseChecks?.contains(where: { $0.status != "Passed" }) == true { return 35 }
+    if item.purchaseDecision == nil { return 40 }
+    if item.purchaseDecision?.reviewState != .accepted { return 50 }
+    if item.purchaseHandoff == nil { return 60 }
+    if item.purchaseHandoff?.linkedOrderID == nil { return 70 }
+    return 90
+  }
+
+  private func wishlistPurchaseReadinessStage(for item: WishlistItem) -> String {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10: return "Needs comparison"
+    case 20: return "Choose seller"
+    case 30: return "Run checks"
+    case 35: return "Clear checks"
+    case 40: return "Draft decision"
+    case 50: return "Review decision"
+    case 60: return "Prepare handoff"
+    case 70: return "Watch order"
+    default: return "Linked"
+    }
+  }
+
+  private func wishlistPurchaseReadinessColor(for item: WishlistItem) -> Color {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10: return .blue
+    case 20, 30: return .orange
+    case 35: return .red
+    case 40, 50, 60: return .purple
+    case 70: return .teal
+    default: return .green
+    }
+  }
+
+  private func runWishlistPurchaseReadinessAction(for item: WishlistItem) {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10:
+      store.createWishlistComparisonPlan(item)
+      store.createWishlistResearchRequest(from: item)
+    case 20:
+      store.evaluateWishlistComparisonOptions(item)
+    case 30, 35:
+      store.runWishlistPurchaseReadinessCheck(item)
+    case 40:
+      store.createWishlistPurchaseDecision(item)
+    case 50:
+      store.markWishlistPurchaseDecisionReviewed(item)
+    case 60:
+      store.prepareWishlistPurchaseHandoff(item)
+    case 70:
+      store.markWishlistOrderConfirmationSeen(item)
+    default:
+      break
+    }
+  }
+
+  @ViewBuilder
+  private var wishlistPurchaseReadinessPanel: some View {
+    if !wishlistPurchaseReadinessItems.isEmpty {
+      SettingsPanel(title: "Wishlist purchase readiness", symbol: "checklist.checked") {
+        Text("Wishlist items that need comparison, seller choice, readiness checks, decision review, manual purchase handoff, or order confirmation matching are shown here so they do not get buried in the full Wishlist workspace.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("To review", "\(wishlistPurchaseReadinessItems.count)", .orange),
+          ("Decision", "\(wishlistPurchaseDecisionGapCount)", wishlistPurchaseDecisionGapCount == 0 ? .green : .purple),
+          ("Handoff", "\(wishlistPurchaseHandoffGapCount)", wishlistPurchaseHandoffGapCount == 0 ? .green : .purple),
+          ("Order watch", "\(wishlistOrderWatchItems.count)", wishlistOrderWatchItems.isEmpty ? .secondary : .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 230 : 310), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(wishlistPurchaseReadinessItems.prefix(isCompact ? 3 : 6)) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "star.square.fill")
+                  .foregroundStyle(wishlistPurchaseReadinessColor(for: item))
+                  .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(item.itemName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text(item.operatorPurchaseNextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 6)
+                Badge(wishlistPurchaseReadinessStage(for: item), color: wishlistPurchaseReadinessColor(for: item))
+              }
+
+              CompactMetadataGrid(minimumWidth: 105) {
+                Label(item.storefront, systemImage: "storefront.fill")
+                Label(item.purchaseReadiness ?? item.status, systemImage: "cart.badge.questionmark")
+              }
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+
+              CompactActionRow {
+                Button(wishlistPurchaseReadinessStage(for: item), systemImage: "arrow.forward.circle.fill") {
+                  runWishlistPurchaseReadinessAction(for: item)
+                }
+                NavigationLink {
+                  WishlistView(store: store)
+                } label: {
+                  Label("Wishlist", systemImage: "star.square.fill")
+                }
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+            }
+            .padding(10)
+            .background(wishlistPurchaseReadinessColor(for: item).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("This panel only updates local Wishlist records, tasks, drafts, and audit history. It does not compare live sellers, buy items, open retailer accounts, send payments, mutate mailbox messages, or monitor orders in the background.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
