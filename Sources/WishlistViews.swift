@@ -1103,6 +1103,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistNextActionGuidePanel
+        wishlistPurchaseTriagePanel
         wishlistPurchaseTimelinePanel
         wishlistPurchaseReadinessChecklistPanel
         wishlistComparisonReadinessLadderPanel
@@ -1985,6 +1986,104 @@ struct WishlistView: View {
         }
 
         Text("Readiness is local guidance only. ParcelOps does not buy the item, log into sellers, verify live price or stock, send payment, open a browser, mutate mailboxes, or run background monitoring.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistPurchaseTriagePanel: some View {
+    let entries = wishlistPurchaseReadinessEntries
+    let blockedEntries = entries.filter { $0.sortPriority < 60 }
+    let handoffEntries = entries.filter { $0.stage == "Handoff needed" }
+    let watchEntries = entries.filter { $0.stage == "Watch order" }
+    let linkedEntries = entries.filter { $0.stage == "Linked order" }
+    let primaryEntry = blockedEntries.first ?? handoffEntries.first ?? watchEntries.first
+
+    return SettingsPanel(title: "Wishlist purchase triage", symbol: "cart.badge.questionmark") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: primaryEntry?.nextSymbol ?? "checkmark.seal.fill")
+            .foregroundStyle(primaryEntry?.tone ?? .green)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(primaryEntry.map { "Next purchase step: \($0.stage)" } ?? "No active purchase triage blockers")
+              .font(.headline)
+            Text(primaryEntry?.detail ?? "Wishlist items either have no purchase-stage work yet or are already linked to local order context.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(primaryEntry == nil ? "Clear" : "Action needed", color: primaryEntry?.tone ?? .green)
+        }
+
+        MetricStrip(items: [
+          ("Blocked", "\(blockedEntries.count)", blockedEntries.isEmpty ? .green : .orange),
+          ("Handoff", "\(handoffEntries.count)", handoffEntries.isEmpty ? .secondary : .purple),
+          ("Order watch", "\(watchEntries.count)", watchEntries.isEmpty ? .secondary : .teal),
+          ("Linked", "\(linkedEntries.count)", linkedEntries.isEmpty ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No active Wishlist purchase work",
+            detail: "Add a manual item or staged capture before purchase triage has anything to review.",
+            symbol: "star.square.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 320), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(Array(entries.prefix(4))) { entry in
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: entry.nextSymbol)
+                    .foregroundStyle(entry.tone)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.item.itemName)
+                      .font(.subheadline.weight(.semibold))
+                      .lineLimit(2)
+                    Text(entry.stage)
+                      .font(.caption.weight(.semibold))
+                      .foregroundStyle(entry.tone)
+                    Text(entry.detail)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(entry.stage, color: entry.tone)
+                }
+
+                CompactActionRow {
+                  Button(entry.nextAction, systemImage: entry.nextSymbol) {
+                    runWishlistPurchaseReadinessAction(for: entry)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = entry.item.itemName
+                    selectedSource = nil
+                    selectedStatus = nil
+                    selectedWorkflowFocus = .all
+                  }
+                  Button("Task", systemImage: "checklist") {
+                    createWishlistPurchaseReadinessTask(for: entry)
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              .overlay(RoundedRectangle(cornerRadius: 8).stroke(entry.tone.opacity(0.18)))
+            }
+          }
+        }
+
+        Text("Use this for local triage only. It does not compare live retailers, open websites, store payment details, purchase items, or watch seller pages in the background.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
