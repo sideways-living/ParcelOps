@@ -733,6 +733,117 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(draft.body, "Existing packet body")
   }
 
+  func testWishlistPurchaseDecisionReviewTaskRefreshesExistingOpenTask() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    item.purchaseDecision?.reviewState = .accepted
+    let existingTask = ReviewTask(
+      title: "Review Wishlist purchase decision: Old title",
+      summary: "Old summary",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      priority: .high,
+      dueDate: "Yesterday",
+      assignee: "Old owner",
+      status: .open,
+      createdDate: "Yesterday",
+      completedDate: nil,
+      reviewState: .accepted
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.reviewTasks = [existingTask]
+
+    store.createWishlistPurchaseDecisionReviewTask(item)
+
+    let refreshedTask = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(store.reviewTasks.count, 1)
+    XCTAssertEqual(refreshedTask.id, existingTask.id)
+    XCTAssertEqual(refreshedTask.title, "Review Wishlist purchase decision: Replacement scanner")
+    XCTAssertTrue(refreshedTask.summary.contains("Known Australian retailer"))
+    XCTAssertEqual(refreshedTask.priority, .normal)
+    XCTAssertEqual(refreshedTask.dueDate, "Today")
+    XCTAssertEqual(refreshedTask.assignee, item.owner)
+    XCTAssertEqual(refreshedTask.reviewState, .needsReview)
+  }
+
+  func testWishlistPurchaseHandoffReviewTaskReflectsOrderLinkState() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let unlinkedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let linkedItem = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Packing bench scale",
+      sellerName: "Warehouse Supplies",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [unlinkedItem, linkedItem]
+    store.reviewTasks = []
+
+    store.createWishlistPurchaseHandoffReviewTask(unlinkedItem)
+    store.createWishlistPurchaseHandoffReviewTask(linkedItem)
+
+    let unlinkedTask = try XCTUnwrap(store.reviewTasks.first { $0.linkedEntityID == unlinkedItem.id.uuidString })
+    let linkedTask = try XCTUnwrap(store.reviewTasks.first { $0.linkedEntityID == linkedItem.id.uuidString })
+
+    XCTAssertEqual(unlinkedTask.title, "Prepare Wishlist purchase handoff: Replacement scanner")
+    XCTAssertEqual(unlinkedTask.priority, .high)
+    XCTAssertEqual(unlinkedTask.reviewState, .accepted)
+    XCTAssertTrue(unlinkedTask.summary.contains("Expected order signals"))
+    XCTAssertEqual(linkedTask.priority, .normal)
+    XCTAssertEqual(linkedTask.reviewState, .accepted)
+    XCTAssertTrue(linkedTask.summary.contains("Warehouse Supplies"))
+  }
+
+  func testWishlistPurchaseHandoffReviewTaskRefreshesExistingOpenTask() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let existingTask = ReviewTask(
+      title: "Prepare Wishlist purchase handoff: Old title",
+      summary: "Old handoff summary",
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      priority: .normal,
+      dueDate: "Yesterday",
+      assignee: "Old owner",
+      status: .open,
+      createdDate: "Yesterday",
+      completedDate: nil,
+      reviewState: .accepted
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.reviewTasks = [existingTask]
+
+    store.createWishlistPurchaseHandoffReviewTask(item)
+
+    let refreshedTask = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(store.reviewTasks.count, 1)
+    XCTAssertEqual(refreshedTask.id, existingTask.id)
+    XCTAssertEqual(refreshedTask.title, "Prepare Wishlist purchase handoff: Replacement scanner")
+    XCTAssertEqual(refreshedTask.priority, .high)
+    XCTAssertEqual(refreshedTask.dueDate, "Today")
+    XCTAssertEqual(refreshedTask.assignee, item.owner)
+    XCTAssertTrue(refreshedTask.summary.contains("No purchase should be marked complete"))
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
