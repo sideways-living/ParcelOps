@@ -1787,6 +1787,7 @@ struct WishlistView: View {
         wishlistPurchaseAccountReadinessPanel
         wishlistPurchaseAccountLedgerPanel
         wishlistPurchaseWatchCommandCentrePanel
+        wishlistOrderConfirmationHandoffPanel
         wishlistPostPurchaseMonitorPanel
         wishlistOrderWatchRecordsPanel
         wishlistOrderConfirmationMatchingPanel
@@ -9667,6 +9668,140 @@ struct WishlistView: View {
       wishlistSearchText = entry.item.itemName
       selectedSource = nil
       selectedStatus = nil
+    }
+  }
+
+  private var wishlistOrderConfirmationHandoffPanel: some View {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let handoffItems = activeItems.filter { $0.purchaseHandoff != nil }
+    let linkedItems = handoffItems.filter { $0.purchaseHandoff?.linkedOrderID != nil }
+    let unlinkedItems = handoffItems.filter { $0.purchaseHandoff?.linkedOrderID == nil }
+    let purchasedAwaiting = unlinkedItems.filter { item in
+      item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+    }
+    let candidateEntries = unlinkedItems.map { item in
+      (item: item, matches: store.suggestedWishlistOrderConfirmations(for: item))
+    }
+    let withCandidates = candidateEntries.filter { !$0.matches.isEmpty }
+    let leadingItem = withCandidates.first?.item ?? purchasedAwaiting.first ?? unlinkedItems.first
+
+    return SettingsPanel(title: "Order confirmation handoff", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: withCandidates.isEmpty && purchasedAwaiting.isEmpty ? "envelope.badge.clock" : "link.badge.plus")
+            .font(.title3)
+            .foregroundStyle(withCandidates.isEmpty && purchasedAwaiting.isEmpty ? .blue : .teal)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(withCandidates.isEmpty ? "Watch for purchase confirmations" : "\(withCandidates.count) Wishlist purchase\(withCandidates.count == 1 ? "" : "s") have Inbox candidates")
+              .font(.headline)
+            Text(leadingItem.map { item in
+              let matches = store.suggestedWishlistOrderConfirmations(for: item)
+              if let first = matches.first {
+                return "\(item.itemName): possible confirmation '\(first.subject)' is ready to review."
+              }
+              if item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+                return "\(item.itemName): purchase recorded externally; refresh/check Inbox and link the confirmation when it arrives."
+              }
+              return "\(item.itemName): handoff prepared; record external purchase when complete, then match the confirmation."
+            } ?? "Prepare a purchase handoff before order confirmation matching becomes active.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(withCandidates.isEmpty ? "\(unlinkedItems.count) watching" : "\(withCandidates.count) candidates", color: withCandidates.isEmpty ? .orange : .green)
+        }
+
+        MetricStrip(items: [
+          ("Handoffs", "\(handoffItems.count)", handoffItems.isEmpty ? .secondary : .blue),
+          ("Awaiting", "\(purchasedAwaiting.count)", purchasedAwaiting.isEmpty ? .secondary : .orange),
+          ("With candidates", "\(withCandidates.count)", withCandidates.isEmpty ? .secondary : .teal),
+          ("Linked", "\(linkedItems.count)", linkedItems.isEmpty ? .secondary : .green),
+          ("Unlinked", "\(unlinkedItems.count)", unlinkedItems.isEmpty ? .green : .purple)
+        ])
+
+        if handoffItems.isEmpty {
+          MVPEmptyState(
+            title: "No Wishlist purchase handoff yet",
+            detail: "Accept a purchase decision or prepare a purchase handoff before ParcelOps can watch for a local Inbox/order confirmation.",
+            symbol: "envelope.badge.shield.half.filled"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 235 : 340), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(candidateEntries.prefix(5), id: \.item.id) { entry in
+              let item = entry.item
+              let handoff = item.purchaseHandoff
+              let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+                store.orders.first { $0.id == orderID }
+              }
+              let tone: Color = linkedOrder != nil ? .green : entry.matches.isEmpty ? .orange : .teal
+
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: linkedOrder != nil ? "checkmark.seal.fill" : entry.matches.isEmpty ? "envelope.badge.clock" : "link.badge.plus")
+                    .foregroundStyle(tone)
+                    .frame(width: 20, height: 20)
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(item.itemName)
+                      .font(.caption.weight(.semibold))
+                      .lineLimit(2)
+                    Text(handoff?.sellerName ?? item.storefront)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .lineLimit(1)
+                  }
+                  Spacer(minLength: 8)
+                  Badge(linkedOrder != nil ? "Order linked" : entry.matches.isEmpty ? "Awaiting" : "\(entry.matches.count) match\(entry.matches.count == 1 ? "" : "es")", color: tone)
+                }
+
+                Text(linkedOrder.map { "Linked to \($0.orderNumber). Continue in Orders, Dispatch, and Tasks." } ?? (entry.matches.first.map { "Best candidate: \($0.subject)" } ?? "Expected: \(handoff?.expectedOrderSignals ?? "order confirmation, receipt, dispatch, or tracking")"))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(3)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                CompactActionRow {
+                  if let first = entry.matches.first {
+                    Button("Use candidate", systemImage: "link.badge.plus") {
+                      store.confirmWishlistOrderFromIntake(item, email: first)
+                    }
+                  } else if linkedOrder == nil {
+                    Button("Mark seen", systemImage: "envelope.badge.fill") {
+                      store.markWishlistOrderConfirmationSeen(item)
+                    }
+                  }
+                  Button("Task", systemImage: "checklist") {
+                    store.createWishlistPurchaseHandoffReviewTask(item)
+                  }
+                  Button("Focus", systemImage: "scope") {
+                    wishlistSearchText = item.itemName
+                    selectedWorkflowFocus = .watch
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                  .stroke(tone.opacity(0.16), lineWidth: 1)
+              )
+            }
+          }
+        }
+
+        Text("Confirmation boundary: this matches existing local Inbox/order records only. It does not fetch mail, mark email read, contact sellers, open retailer accounts, purchase, pay, send notifications, or monitor in the background.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
