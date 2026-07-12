@@ -181,6 +181,91 @@ private struct WishlistLocalActivityRow: View {
   }
 }
 
+private struct WishlistExceptionQueueRow: View {
+  var entry: WishlistExceptionQueueEntry
+  var store: ParcelOpsStore
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var sellerSummary: String {
+    let options = entry.item.comparisonOptions ?? []
+    if let preferredID = entry.item.preferredOptionID,
+       let preferred = options.first(where: { $0.id == preferredID }) {
+      return "\(preferred.sellerName) • \(preferred.estimatedAUDTotal)"
+    }
+    if let first = options.first {
+      return "\(first.sellerName) • \(first.estimatedAUDTotal)"
+    }
+    return entry.item.storefront
+  }
+
+  private var orderSummary: String {
+    if let linkedOrder = entry.linkedOrder {
+      return "\(linkedOrder.orderNumber) • \(linkedOrder.latestStatus)"
+    }
+    if entry.item.purchaseHandoff?.linkedOrderID != nil {
+      return "Linked order ID recorded"
+    }
+    return "No linked order"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.issue)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(entry.tone)
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 130) {
+        WishlistMatrixMetric(title: "Seller", value: sellerSummary, symbol: "storefront.fill")
+        WishlistMatrixMetric(title: "Status", value: entry.item.status, symbol: "tag.fill")
+        WishlistMatrixMetric(title: "Owner", value: entry.item.owner, symbol: "person.crop.circle")
+        WishlistMatrixMetric(title: "Order", value: orderSummary, symbol: "link")
+      }
+
+      Text("Local follow-up only. Use this row to route review work; it does not buy items, contact sellers, mutate email, poll carriers, or update external systems.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        if let linkedOrder = entry.linkedOrder {
+          NavigationLink {
+            OrderDetailView(order: linkedOrder, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.up.right.square.fill")
+          }
+        }
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Item", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 private struct WishlistDataQualityIssue: Identifiable {
   var id: String { title }
   var title: String
@@ -227,6 +312,20 @@ private struct WishlistOperatorQueueEntry: Identifiable {
   var orderWatchSummary: String?
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistExceptionQueueEntry: Identifiable {
+  var id: String { "\(item.id.uuidString)-\(issue)" }
+  var item: WishlistItem
+  var issue: String
+  var detail: String
+  var stage: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+  var linkedOrder: TrackedOrder?
+  var dataQualityEntry: WishlistDataQualityEntry?
 }
 
 private struct WishlistCaptureSourceReadiness: Identifiable {
@@ -545,6 +644,173 @@ struct WishlistView: View {
       }
   }
 
+  private var wishlistExceptionQueueEntries: [WishlistExceptionQueueEntry] {
+    let dataQualityByItemID = Dictionary(uniqueKeysWithValues: wishlistDataQualityEntries.map { ($0.item.id, $0) })
+    let linkedFollowUpsByItemID = Dictionary(uniqueKeysWithValues: wishlistLinkedOrderFollowUpDashboardEntries.map { ($0.checklist.item.id, $0) })
+    let closureByItemID = Dictionary(uniqueKeysWithValues: wishlistOperationsClosureReadinessEntries.map { ($0.item.id, $0) })
+
+    var entries: [WishlistExceptionQueueEntry] = []
+
+    for item in store.wishlistItems.filter(store.isActiveWishlistItem) {
+      let options = item.comparisonOptions ?? []
+      let riskySeller = options.first { option in
+        let trust = option.trustRating.lowercased()
+        let risk = (option.riskLevel ?? "").lowercased()
+        return trust.contains("unknown")
+          || trust.contains("review")
+          || trust.contains("low")
+          || risk.contains("high")
+      }
+      let linkedOrder = item.purchaseHandoff?.linkedOrderID.flatMap { id in
+        store.orders.first { $0.id == id }
+      }
+
+      if let dataQuality = dataQualityByItemID[item.id], let firstIssue = dataQuality.issues.first {
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: firstIssue.title,
+          detail: firstIssue.detail,
+          stage: dataQuality.stage,
+          nextAction: dataQuality.nextAction,
+          nextSymbol: dataQuality.nextSymbol,
+          tone: firstIssue.color,
+          sortPriority: firstIssue.priority,
+          linkedOrder: linkedOrder,
+          dataQualityEntry: dataQuality
+        ))
+      }
+
+      if let riskySeller {
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: "Seller trust risk",
+          detail: "\(riskySeller.sellerName) needs local trust, delivery, returns, or source review before purchase.",
+          stage: "Compare",
+          nextAction: "Trust task",
+          nextSymbol: "shield.lefthalf.filled.badge.checkmark",
+          tone: .red,
+          sortPriority: 18,
+          linkedOrder: linkedOrder,
+          dataQualityEntry: nil
+        ))
+      }
+
+      if item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil {
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: "Purchase handoff missing",
+          detail: "Purchase decision is accepted locally, but seller/account/order-watch handoff has not been prepared.",
+          stage: "Buy",
+          nextAction: "Handoff",
+          nextSymbol: "person.crop.circle.badge.checkmark",
+          tone: .purple,
+          sortPriority: 28,
+          linkedOrder: linkedOrder,
+          dataQualityEntry: nil
+        ))
+      }
+
+      if item.purchaseHandoff != nil && linkedOrder == nil {
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: "Order link missing",
+          detail: "A purchase handoff exists, but no local order is linked yet. Match Inbox confirmation or create/link an order.",
+          stage: "Watch",
+          nextAction: "Order seen",
+          nextSymbol: "envelope.badge.fill",
+          tone: .teal,
+          sortPriority: 36,
+          linkedOrder: nil,
+          dataQualityEntry: nil
+        ))
+      }
+
+      if let followUp = linkedFollowUpsByItemID[item.id], followUp.stage != "Ready for closure" {
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: followUp.stage,
+          detail: followUp.detail,
+          stage: "Operations",
+          nextAction: followUp.nextAction,
+          nextSymbol: followUp.nextSymbol,
+          tone: followUp.tone,
+          sortPriority: 46,
+          linkedOrder: followUp.linkedOrder,
+          dataQualityEntry: nil
+        ))
+      }
+
+      if let closure = closureByItemID[item.id], !closure.gaps.isEmpty || closure.openTaskCount > 0 {
+        let taskDetail = closure.openTaskCount > 0 ? " \(closure.openTaskCount) follow-up task\(closure.openTaskCount == 1 ? "" : "s") still open." : ""
+        entries.append(WishlistExceptionQueueEntry(
+          item: item,
+          issue: "Closure blocked",
+          detail: "Closure gaps: \(closure.gaps.prefix(5).joined(separator: ", ")).\(taskDetail)",
+          stage: "Closure",
+          nextAction: closure.nextAction,
+          nextSymbol: closure.nextSymbol,
+          tone: closure.tone,
+          sortPriority: 56,
+          linkedOrder: closure.linkedOrder,
+          dataQualityEntry: nil
+        ))
+      }
+    }
+
+    return entries.sorted { first, second in
+      if first.sortPriority == second.sortPriority {
+        return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+      }
+      return first.sortPriority < second.sortPriority
+    }
+  }
+
+  private func runWishlistExceptionQueueAction(for entry: WishlistExceptionQueueEntry) {
+    if let dataQualityEntry = entry.dataQualityEntry {
+      runWishlistDataQualityAction(for: dataQualityEntry)
+      return
+    }
+
+    switch entry.issue {
+    case "Seller trust risk":
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    case "Purchase handoff missing":
+      store.prepareWishlistPurchaseHandoff(entry.item)
+    case "Order link missing":
+      store.markWishlistOrderConfirmationSeen(entry.item)
+    case "Tracking needs review", "Tasks open":
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    case "Receiving follow-up":
+      store.createWishlistReceivingInspection(entry.item)
+    case "Dispatch follow-up":
+      if store.suggestedShipmentManifestRecords(for: entry.item).isEmpty {
+        store.createWishlistShipmentManifest(entry.item)
+      } else {
+        store.createWishlistDispatchReadinessChecklist(entry.item)
+      }
+    case "Closure blocked":
+      store.checkWishlistOperationsClosureReadinessBatch()
+    default:
+      wishlistSearchText = entry.item.itemName
+      selectedSource = nil
+      selectedStatus = nil
+    }
+  }
+
+  private func createWishlistExceptionQueueTask(for entry: WishlistExceptionQueueEntry) {
+    if ["Seller trust risk"].contains(entry.issue) {
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    } else if ["Purchase handoff missing", "Order link missing", "Tracking needs review", "Tasks open"].contains(entry.issue) {
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    } else if entry.stage == "Operations" || entry.stage == "Closure" {
+      store.createWishlistPurchaseHandoffReviewTask(entry.item)
+    } else if entry.dataQualityEntry?.issues.contains(where: { $0.title.localizedCaseInsensitiveContains("decision") }) == true {
+      store.createWishlistPurchaseDecisionReviewTask(entry.item)
+    } else {
+      store.createReviewTask(from: entry.item)
+    }
+  }
+
   private var wishlistNextActionEntries: [WishlistNextActionEntry] {
     let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
     let activeResearchRequests = store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
@@ -672,6 +938,7 @@ struct WishlistView: View {
         wishlistNextActionGuidePanel
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
+        wishlistExceptionQueuePanel
         wishlistOperationsNextStepsPanel
         wishlistSellerDecisionSnapshotPanel
         wishlistComparisonBriefShortcutPanel
@@ -1558,6 +1825,78 @@ struct WishlistView: View {
         }
 
         Text("These controls only update local records, review tasks, drafts, and audit events. They do not compare live retailers, open accounts, purchase, pay, mutate mailboxes, scrape pages, run background jobs, or contact external services.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistExceptionQueuePanel: some View {
+    let entries = wishlistExceptionQueueEntries
+    let compare = entries.filter { $0.stage == "Compare" }.count
+    let buy = entries.filter { $0.stage == "Buy" }.count
+    let watch = entries.filter { $0.stage == "Watch" }.count
+    let operations = entries.filter { $0.stage == "Operations" || $0.stage == "Closure" }.count
+
+    return SettingsPanel(title: "Wishlist exception queue", symbol: "exclamationmark.triangle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: entries.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(entries.isEmpty ? Color.green : Color.orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(entries.isEmpty ? "No Wishlist exceptions need attention" : "Wishlist items needing operator follow-up")
+              .font(.headline)
+            Text(entries.isEmpty
+              ? "Capture, comparison, purchase handoff, order-watch, operations, and closure checks are not reporting urgent local blockers."
+              : "This queue pulls the highest-impact Wishlist blockers into one place so daily operators do not have to scan every detailed Wishlist panel.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(entries.isEmpty ? "Clear" : "\(entries.count) exception\(entries.count == 1 ? "" : "s")", color: entries.isEmpty ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Exceptions", "\(entries.count)", entries.isEmpty ? .green : .orange),
+          ("Compare", "\(compare)", compare == 0 ? .green : .red),
+          ("Buy", "\(buy)", buy == 0 ? .green : .purple),
+          ("Watch", "\(watch)", watch == 0 ? .green : .teal),
+          ("Ops/closure", "\(operations)", operations == 0 ? .green : .brown)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "Wishlist exception queue is clear",
+            detail: "New capture gaps, seller trust risks, missing purchase handoffs, unlinked orders, operations gaps, and closure blockers will appear here.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 260 : 390), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(10)) { entry in
+              WishlistExceptionQueueRow(entry: entry, store: store) {
+                runWishlistExceptionQueueAction(for: entry)
+              } onTask: {
+                createWishlistExceptionQueueTask(for: entry)
+              } onFocus: {
+                wishlistSearchText = entry.item.itemName
+                selectedSource = nil
+                selectedStatus = nil
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 10, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist exception\(remaining == 1 ? "" : "s") are available in the detailed sections below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This queue only routes local work. It does not scrape sellers, compare live prices, log in, purchase, mutate mailboxes, poll carriers, book dispatch, send notifications, or contact retailers.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
