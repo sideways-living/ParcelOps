@@ -1464,6 +1464,76 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistCaptureRunwayPanel: some View {
+    let candidates = store.wishlistCaptureCandidates
+    let readyCandidates = candidates.filter { $0.operatorCaptureGaps.isEmpty }
+    let gapCandidates = candidates.filter { !$0.operatorCaptureGaps.isEmpty }
+    let manualItems = store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.source == .manual }
+    let itemSellerOptionCount = store.wishlistItems.filter { item in
+      store.isActiveWishlistItem(item) && item.comparisonOptions?.isEmpty == false
+    }.count
+    let firstGap = gapCandidates.first
+
+    return SettingsPanel(title: "Capture runway", symbol: "square.and.arrow.down.badge.clock") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: gapCandidates.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .font(.title3)
+            .foregroundStyle(gapCandidates.isEmpty ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gapCandidates.isEmpty ? "Capture inputs are ready for review" : "Clean staged captures before comparison")
+              .font(.headline)
+            Text(firstGap.map { "Next: edit \($0.pageTitle.isPlaceholderValidationValue ? "the staged capture" : $0.pageTitle) and add \($0.operatorCaptureGaps.prefix(3).joined(separator: ", "))." } ?? "Use manual entry or staged capture placeholders to collect item name, seller/source, product URL, price clue, owner, and why the item is needed.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(gapCandidates.isEmpty ? "Ready" : "\(gapCandidates.count) gaps", color: gapCandidates.isEmpty ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Manual items", "\(manualItems.count)", manualItems.isEmpty ? .secondary : .green),
+          ("Staged", "\(candidates.count)", candidates.isEmpty ? .secondary : .blue),
+          ("Ready staged", "\(readyCandidates.count)", readyCandidates.isEmpty ? .secondary : .green),
+          ("Gaps", "\(gapCandidates.count)", gapCandidates.isEmpty ? .green : .orange),
+          ("Seller options", "\(itemSellerOptionCount)", itemSellerOptionCount == 0 ? .secondary : .teal)
+        ])
+
+        CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 150 : 190) {
+          Badge("1 Capture item", color: .blue)
+          Badge("2 Confirm seller/link", color: .teal)
+          Badge("3 Add price/postage clue", color: .orange)
+          Badge("4 Compare sellers later", color: .purple)
+          Badge("5 Decide manually", color: .pink)
+          Badge("6 Watch for order email", color: .green)
+        }
+
+        CompactActionRow {
+          Button("Manual item", systemImage: "plus", action: openManualWishlistItemForm)
+          Button("Paste product link", systemImage: "link.badge.plus") {
+            showPastedLinkCaptureForm = true
+          }
+          Button("Stage browser capture", systemImage: "puzzlepiece.extension.fill", action: store.addBrowserExtensionWishlistCapturePlaceholder)
+          if firstGap != nil {
+            Button("Focus capture gaps", systemImage: "line.3.horizontal.decrease.circle") {
+              selectedWorkflowFocus = .capture
+            }
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Capture boundary: this is local staging only. It does not install a browser extension, open retailer pages, compare prices, convert currency, estimate postage, rate sellers, log in, buy, pay, or monitor orders.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -1489,6 +1559,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistNextActionGuidePanel
+        wishlistCaptureRunwayPanel
         wishlistPurchaseStatePanel
         wishlistPurchaseTriagePanel
         wishlistPurchaseTimelinePanel
