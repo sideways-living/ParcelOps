@@ -2342,6 +2342,126 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Evidence" }?.value, "10")
   }
 
+  func testMailboxProviderHandoffPacketPromotesQueueAndBoundaries() {
+    let mailboxID = UUID()
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        id: mailboxID,
+        oauthReadinessStatus: "Ready",
+        credentialStorageStatus: "GoogleSignIn cache available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let packet = store.mailboxProviderHandoffPacketSummary
+    let queueSection = packet.sections.first { $0.title == "Next test queue" }
+    let setupSection = packet.sections.first { $0.title == "Setup readiness" }
+
+    XCTAssertEqual(packet.title, "Mailbox provider handoff has blockers")
+    XCTAssertEqual(packet.tone, "warning")
+    XCTAssertTrue(packet.reportText.contains("Boundaries:"))
+    XCTAssertTrue(packet.reportText.contains("It does not run mailbox refreshes"))
+    XCTAssertTrue(queueSection?.lines.contains { $0.contains("Gmail / Compile config: Rebuild app with Gmail OAuth values") } == true)
+    XCTAssertTrue(setupSection?.lines.contains { $0.contains("Gmail") } == true)
+    XCTAssertEqual(packet.metrics.first { $0.title == "Warnings" }?.tone, "warning")
+  }
+
+  func testMailboxProviderReleaseGateBlocksWhenNoProviderConfigured() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let gate = store.mailboxProviderReleaseGateSummary
+    let providerGate = gate.gates.first { $0.title == "Provider configured" }
+    let refreshGate = gate.gates.first { $0.title == "Manual refresh evidence exists" }
+
+    XCTAssertEqual(gate.verdict, "Blocked")
+    XCTAssertEqual(gate.tone, "warning")
+    XCTAssertEqual(providerGate?.isPassed, false)
+    XCTAssertEqual(providerGate?.tone, "warning")
+    XCTAssertEqual(refreshGate?.isPassed, false)
+    XCTAssertTrue(gate.reportText.contains("Local-only release gate computed from JSON-backed app state."))
+    XCTAssertTrue(gate.reportText.contains("No mailbox refresh, credential read, external service call"))
+    XCTAssertEqual(gate.metrics.first { $0.title == "Verdict" }?.value, "Blocked")
+    XCTAssertEqual(gate.metrics.first { $0.title == "Warnings" }?.tone, "warning")
+  }
+
+  func testMailboxProviderReleaseGateTracksImportedInboxHandoffGap() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "123 Test Street",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        id: mailboxID,
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 1,
+        filtered: 9,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "spacemail-imported-release-gate",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported order update"
+      )
+    ]
+    store.orders = []
+
+    let gate = store.mailboxProviderReleaseGateSummary
+    let triageGate = gate.gates.first { $0.title == "Inbox triage is actionable" }
+    let handoffGate = gate.gates.first { $0.title == "Order handoff is visible" }
+
+    XCTAssertEqual(triageGate?.isPassed, false)
+    XCTAssertEqual(triageGate?.tone, "attention")
+    XCTAssertEqual(handoffGate?.isPassed, false)
+    XCTAssertEqual(handoffGate?.tone, "attention")
+    XCTAssertTrue(gate.reportText.contains("Inbox triage is actionable"))
+    XCTAssertTrue(gate.reportText.contains("Order handoff is visible"))
+    XCTAssertEqual(gate.metrics.first { $0.title == "Orders" }?.value, "0")
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
