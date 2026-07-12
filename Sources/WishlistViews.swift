@@ -95,6 +95,9 @@ private struct WishlistLinkedOrderSummary: Identifiable {
   var id: UUID { item.id }
   var item: WishlistItem
   var order: TrackedOrder
+  var manifestCount: Int
+  var checklistCount: Int
+  var gaps: [String]
 }
 
 private struct WishlistPurchaseStateCard: View {
@@ -131,32 +134,69 @@ private struct WishlistPurchaseStateCard: View {
 private struct WishlistLinkedOrderSummaryRow: View {
   var summary: WishlistLinkedOrderSummary
   var store: ParcelOpsStore
+  var onStageManifest: () -> Void
+  var onStageChecklist: () -> Void
   var onFocus: () -> Void
 
+  private var tone: Color {
+    summary.gaps.isEmpty ? .green : .purple
+  }
+
+  private var statusText: String {
+    if summary.gaps.isEmpty {
+      return "Dispatch setup staged locally"
+    }
+    return "Needs \(summary.gaps.joined(separator: " and "))"
+  }
+
   var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: "link.badge.plus")
-        .foregroundStyle(.purple)
-        .frame(width: 22, height: 22)
-      VStack(alignment: .leading, spacing: 3) {
-        Text(summary.item.itemName)
-          .font(.caption.weight(.semibold))
-          .lineLimit(2)
-        Text("\(summary.order.orderNumber) • \(summary.order.store)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-        Text(summary.order.latestStatus)
-          .font(.caption2.weight(.semibold))
-          .foregroundStyle(summary.order.status.color)
-          .lineLimit(2)
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: summary.gaps.isEmpty ? "checkmark.seal.fill" : "link.badge.plus")
+          .foregroundStyle(tone)
+          .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(summary.item.itemName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(2)
+          Text("\(summary.order.orderNumber) • \(summary.order.store)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text(summary.order.latestStatus)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(summary.order.status.color)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 8)
+        VStack(alignment: .trailing, spacing: 5) {
+          Badge(summary.gaps.isEmpty ? "Ready trail" : "\(summary.gaps.count) gaps", color: tone)
+          Badge(summary.order.status.rawValue, color: summary.order.status.color)
+        }
       }
-      Spacer(minLength: 8)
+
+      Text(statusText)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 120) {
+        WishlistMatrixMetric(title: "Manifest", value: summary.manifestCount == 0 ? "Missing" : "\(summary.manifestCount) staged", symbol: "paperplane.fill")
+        WishlistMatrixMetric(title: "Readiness", value: summary.checklistCount == 0 ? "Missing" : "\(summary.checklistCount) staged", symbol: "checkmark.rectangle.stack.fill")
+        WishlistMatrixMetric(title: "Order", value: summary.order.orderNumber, symbol: "shippingbox.fill")
+      }
+
       CompactActionRow {
         NavigationLink {
           OrderDetailView(order: summary.order, store: store)
         } label: {
           Label("Open order", systemImage: "arrow.up.right.square.fill")
+        }
+        if summary.manifestCount == 0 {
+          Button("Stage manifest", systemImage: "paperplane.fill", action: onStageManifest)
+        }
+        if summary.checklistCount == 0 {
+          Button("Stage checklist", systemImage: "checkmark.rectangle.stack.fill", action: onStageChecklist)
         }
         Button("Focus item", systemImage: "scope", action: onFocus)
       }
@@ -164,10 +204,10 @@ private struct WishlistLinkedOrderSummaryRow: View {
       .controlSize(.mini)
     }
     .padding(10)
-    .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     .overlay(
       RoundedRectangle(cornerRadius: 8)
-        .stroke(.purple.opacity(0.16), lineWidth: 1)
+        .stroke(tone.opacity(0.16), lineWidth: 1)
     )
   }
 }
@@ -919,7 +959,18 @@ struct WishlistView: View {
     let linkedOrderSummaries = linkedOrders.compactMap { item -> WishlistLinkedOrderSummary? in
       guard let orderID = item.purchaseHandoff?.linkedOrderID,
             let order = store.orders.first(where: { $0.id == orderID }) else { return nil }
-      return WishlistLinkedOrderSummary(item: item, order: order)
+      let manifests = store.suggestedShipmentManifestRecords(for: item)
+      let checklists = store.suggestedDispatchReadinessChecklists(for: item)
+      var gaps: [String] = []
+      if manifests.isEmpty { gaps.append("manifest") }
+      if checklists.isEmpty { gaps.append("readiness") }
+      return WishlistLinkedOrderSummary(
+        item: item,
+        order: order,
+        manifestCount: manifests.count,
+        checklistCount: checklists.count,
+        gaps: gaps
+      )
     }
     let inboxCandidates = active.reduce(0) { total, item in
       total + store.suggestedWishlistOrderConfirmations(for: item).count
@@ -1021,6 +1072,10 @@ struct WishlistView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
               ForEach(Array(linkedOrderSummaries.prefix(3))) { summary in
                 WishlistLinkedOrderSummaryRow(summary: summary, store: store) {
+                  store.createWishlistShipmentManifest(summary.item)
+                } onStageChecklist: {
+                  store.createWishlistDispatchReadinessChecklist(summary.item)
+                } onFocus: {
                   wishlistSearchText = summary.item.itemName
                   selectedSource = nil
                   selectedStatus = nil
