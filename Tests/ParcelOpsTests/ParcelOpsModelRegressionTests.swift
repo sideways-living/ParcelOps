@@ -844,6 +844,127 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(refreshedTask.summary.contains("No purchase should be marked complete"))
   }
 
+  func testWishlistPurchaseLinkRecordUsesPreferredOption() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.auditEvents = []
+
+    store.addWishlistPurchaseLinkRecord(item)
+
+    let record = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+
+    XCTAssertEqual(store.wishlistPurchaseLinkRecords.count, 1)
+    XCTAssertEqual(record.wishlistItemID, item.id)
+    XCTAssertEqual(record.itemName, "Replacement scanner")
+    XCTAssertEqual(record.sellerName, "Known Australian retailer")
+    XCTAssertEqual(record.productURL, "https://example.com/replacement-scanner")
+    XCTAssertEqual(record.linkType, "Preferred purchase link")
+    XCTAssertEqual(record.estimatedAUDTotal, "AUD 109 delivered")
+    XCTAssertEqual(record.postageSummary, "AUD 10, 3-5 business days")
+    XCTAssertEqual(record.trustSummary, "Trusted")
+    XCTAssertEqual(record.accountContext, "Operations account")
+    XCTAssertTrue(record.selectedForPurchase)
+    XCTAssertEqual(record.reviewState, .needsReview)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Wishlist purchase link record added locally." })
+  }
+
+  func testWishlistPurchaseLinkSelectionKeepsOnlyOneSelected() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let firstRecord = WishlistPurchaseLinkRecord(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: "Known Australian retailer",
+      productURL: "https://example.com/replacement-scanner",
+      linkType: "Preferred purchase link",
+      estimatedAUDTotal: "AUD 109 delivered",
+      postageSummary: "AUD 10, 3-5 business days",
+      trustSummary: "Trusted",
+      readinessStatus: "Needs operator review",
+      accountContext: "Operations account",
+      selectedForPurchase: true,
+      createdDate: "Today",
+      lastCheckedDate: "Today",
+      reviewState: .needsReview,
+      notes: "Local test record."
+    )
+    let secondRecord = WishlistPurchaseLinkRecord(
+      wishlistItemID: item.id,
+      itemName: item.itemName,
+      sellerName: "Backup retailer",
+      productURL: "https://example.com/backup-scanner",
+      linkType: "Candidate seller link",
+      estimatedAUDTotal: "AUD 119 delivered",
+      postageSummary: "AUD 12, 4-6 business days",
+      trustSummary: "Trusted",
+      readinessStatus: "Needs operator review",
+      accountContext: "Operations account",
+      selectedForPurchase: false,
+      createdDate: "Today",
+      lastCheckedDate: "Today",
+      reviewState: .needsReview,
+      notes: "Local test record."
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistPurchaseLinkRecords = [firstRecord, secondRecord]
+
+    store.markWishlistPurchaseLinkSelected(secondRecord)
+
+    let selected = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first { $0.id == secondRecord.id })
+    let deselected = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first { $0.id == firstRecord.id })
+    let refreshedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertTrue(selected.selectedForPurchase)
+    XCTAssertEqual(selected.readinessStatus, "Selected for manual purchase review")
+    XCTAssertEqual(selected.reviewState, .needsReview)
+    XCTAssertFalse(deselected.selectedForPurchase)
+    XCTAssertEqual(refreshedItem.purchaseReadiness, "Purchase link selected locally")
+  }
+
+  func testWishlistPurchaseLinkReadyAndBlockedUpdateItemReadiness() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.addWishlistPurchaseLinkRecord(item)
+    var record = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+
+    store.markWishlistPurchaseLinkReady(record)
+
+    record = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+    var refreshedItem = try XCTUnwrap(store.wishlistItems.first)
+    XCTAssertEqual(record.readinessStatus, "Ready to open externally")
+    XCTAssertEqual(record.reviewState, .accepted)
+    XCTAssertEqual(refreshedItem.purchaseReadiness, "Purchase link ready for external manual buying")
+
+    store.blockWishlistPurchaseLinkRecord(record)
+
+    record = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+    refreshedItem = try XCTUnwrap(store.wishlistItems.first)
+    XCTAssertEqual(record.readinessStatus, "Blocked locally")
+    XCTAssertEqual(record.reviewState, .needsReview)
+    XCTAssertFalse(record.selectedForPurchase)
+    XCTAssertEqual(refreshedItem.purchaseReadiness, "Blocked by purchase link review")
+  }
+
   func testWishlistReopenClosedItemWithLinkedOrderRestoresFollowUpState() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
