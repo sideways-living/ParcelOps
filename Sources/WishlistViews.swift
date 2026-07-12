@@ -13263,7 +13263,7 @@ private struct WishlistOrderWatchRecordRow: View {
         Button("Reviewed", systemImage: "checkmark.seal", action: onReviewed)
           .disabled(record.reviewState == .accepted)
         Button("Block", systemImage: "exclamationmark.octagon", action: onBlock)
-        Button("Task", systemImage: "checklist", action: onTask)
+        Button(isLinked ? "Task" : "Find confirmation", systemImage: "checklist", action: onTask)
         Button("Item", systemImage: "scope", action: onFocus)
         Button("Remove", systemImage: "trash", action: onRemove)
       }

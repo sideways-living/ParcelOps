@@ -22725,7 +22725,7 @@ final class ParcelOpsStore {
   func checkWishlistOrderWatchRecord(_ record: WishlistOrderWatchRecord) {
     guard let index = wishlistOrderWatchRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistOrderWatchRecords[index].auditDetail
-    let matchedOrder = bestWishlistOrderMatch(for: wishlistItems.first { $0.id == wishlistOrderWatchRecords[index].wishlistItemID } ?? WishlistItem(
+    let watchedItem = wishlistItems.first { $0.id == wishlistOrderWatchRecords[index].wishlistItemID } ?? WishlistItem(
       itemName: wishlistOrderWatchRecords[index].itemName,
       storefront: wishlistOrderWatchRecords[index].sellerName,
       storefrontURL: "",
@@ -22735,10 +22735,17 @@ final class ParcelOpsStore {
       source: .manual,
       status: "",
       capturedDetail: wishlistOrderWatchRecords[index].expectedOrderSignals
-    ))
+    )
+    let matchedOrder = bestWishlistOrderMatch(for: watchedItem)
+    let confirmationCandidates = matchedOrder == nil ? suggestedWishlistOrderConfirmations(for: watchedItem) : []
+    let candidateSummary = confirmationCandidates.isEmpty
+      ? "No Inbox confirmation candidates found."
+      : "\(confirmationCandidates.count) Inbox confirmation candidate\(confirmationCandidates.count == 1 ? "" : "s") need review."
     wishlistOrderWatchRecords[index].linkedOrderID = matchedOrder?.id ?? wishlistOrderWatchRecords[index].linkedOrderID
-    wishlistOrderWatchRecords[index].matchedOrderSummary = matchedOrder.map { "\($0.orderNumber) from \($0.store)" } ?? "No local order match found"
-    wishlistOrderWatchRecords[index].watchStatus = matchedOrder == nil ? "No local match yet" : "Matched local order"
+    wishlistOrderWatchRecords[index].matchedOrderSummary = matchedOrder.map { "\($0.orderNumber) from \($0.store)" } ?? candidateSummary
+    wishlistOrderWatchRecords[index].watchStatus = matchedOrder == nil
+      ? (confirmationCandidates.isEmpty ? "No confirmation found yet" : "Inbox confirmation candidates need review")
+      : "Matched local order"
     wishlistOrderWatchRecords[index].lastCheckedDate = Self.auditTimestamp()
     wishlistOrderWatchRecords[index].reviewState = matchedOrder == nil ? .needsReview : .accepted
     if let wishlistItemID = wishlistOrderWatchRecords[index].wishlistItemID,
@@ -22755,17 +22762,26 @@ final class ParcelOpsStore {
       handoff?.orderWatchStatus = watchStatus
       handoff?.updatedAt = updatedAt
       wishlistItems[itemIndex].purchaseHandoff = handoff
-      wishlistItems[itemIndex].purchaseReadiness = matchedOrder == nil ? "Order watch checked; no local match yet" : "Order watch matched local order"
+      wishlistItems[itemIndex].purchaseReadiness = matchedOrder == nil
+        ? (confirmationCandidates.isEmpty ? "Order watch checked; refresh or review mailbox" : "Order confirmation candidate ready for review")
+        : "Order watch matched local order"
     }
     persistWishlist()
+    if matchedOrder == nil {
+      refreshWishlistOrderWatchFollowUpTask(record: wishlistOrderWatchRecords[index], candidateMatches: confirmationCandidates)
+    } else {
+      completeWishlistOrderWatchFollowUpTaskIfNeeded(record: wishlistOrderWatchRecords[index], matchedOrder: matchedOrder)
+    }
     logAudit(
       action: .evaluated,
       entityType: .wishlistItem,
       entityID: wishlistOrderWatchRecords[index].wishlistItemID?.uuidString ?? wishlistOrderWatchRecords[index].id.uuidString,
       entityLabel: wishlistOrderWatchRecords[index].itemName,
-      summary: matchedOrder == nil ? "Wishlist order watch checked with no local match." : "Wishlist order watch matched local order \(matchedOrder?.orderNumber ?? "").",
+      summary: matchedOrder == nil
+        ? (confirmationCandidates.isEmpty ? "Wishlist order watch checked with no confirmation found." : "Wishlist order watch found Inbox confirmation candidates.")
+        : "Wishlist order watch matched local order \(matchedOrder?.orderNumber ?? "").",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nLocal match check only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, or pay."
+      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nInbox candidates: \(confirmationCandidates.count). \(candidateSummary)\nLocal match check only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, or pay."
     )
   }
 
@@ -23088,13 +23104,109 @@ final class ParcelOpsStore {
   }
 
   func createWishlistOrderWatchRecordReviewTask(_ record: WishlistOrderWatchRecord) {
-    createReviewTask(
+    let item = wishlistItems.first { $0.id == record.wishlistItemID }
+    refreshWishlistOrderWatchFollowUpTask(
+      record: record,
+      candidateMatches: item.map { suggestedWishlistOrderConfirmations(for: $0) } ?? []
+    )
+  }
+
+  private func refreshWishlistOrderWatchFollowUpTask(record: WishlistOrderWatchRecord, candidateMatches: [ForwardedEmailIntake]) {
+    let linkedEntityID = record.wishlistItemID?.uuidString ?? record.id.uuidString
+    let hasCandidates = !candidateMatches.isEmpty
+    let title = hasCandidates
+      ? "Review Wishlist Inbox confirmation candidates: \(record.itemName)"
+      : "Find Wishlist order confirmation: \(record.itemName)"
+    let candidateLines = candidateMatches.prefix(3).map { email in
+      let order = email.detectedOrderNumber.isPlaceholderValidationValue ? "order needs review" : email.detectedOrderNumber
+      let tracking = email.detectedTrackingNumber.isPlaceholderValidationValue ? "tracking needs review" : email.detectedTrackingNumber
+      return "- \(email.subject): \(order), \(tracking), received \(email.receivedDate)."
+    }
+    let nextAction = hasCandidates
+      ? "Open Wishlist order watch, review the Inbox candidate rows, then use the correct confirmation to create or link the local order."
+      : "Run a manual mailbox refresh if needed, then review Inbox, Mailbox Monitor, and Orders for seller, receipt, dispatch, order number, or tracking signals."
+    let summary = [
+      "Wishlist order confirmation follow-up for \(record.itemName).",
+      "Seller: \(record.sellerName).",
+      "Account: \(record.accountLabel).",
+      "Expected signals: \(record.expectedOrderSignals).",
+      "Source to check: \(record.expectedMailboxOrSource).",
+      "Current watch status: \(record.watchStatus).",
+      "Inbox candidates: \(candidateMatches.count).",
+      candidateLines.isEmpty ? "Candidate preview: none found locally yet." : "Candidate preview:\n\(candidateLines.joined(separator: "\n"))",
+      "Next action: \(nextAction)",
+      "Boundary: this task is local follow-up only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, pay, or access retailer accounts."
+    ].joined(separator: "\n")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == linkedEntityID
+        && ($0.title.localizedCaseInsensitiveContains("Wishlist order confirmation")
+          || $0.title.localizedCaseInsensitiveContains("Wishlist Inbox confirmation")
+          || $0.title.localizedCaseInsensitiveContains("Review order watch"))
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = title
+      reviewTasks[existingIndex].summary = summary
+      reviewTasks[existingIndex].priority = hasCandidates ? .urgent : .high
+      reviewTasks[existingIndex].dueDate = "Today"
+      reviewTasks[existingIndex].assignee = "Wishlist review"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Wishlist order confirmation follow-up task refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nInbox candidates: \(candidateMatches.count). No duplicate task was created. No mailbox fetch, background polling, retailer access, checkout, payment, purchase, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: title,
+      summary: summary,
       linkedEntityType: .wishlistItem,
-      linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
-      label: "Review order watch: \(record.itemName)",
-      summary: "Review Wishlist order watch for \(record.itemName). Seller \(record.sellerName), account \(record.accountLabel), expected signals \(record.expectedOrderSignals), source \(record.expectedMailboxOrSource), status \(record.watchStatus).",
-      priority: record.reviewState == .accepted ? .normal : .high,
-      assignee: "Wishlist review"
+      linkedEntityID: linkedEntityID,
+      priority: hasCandidates ? .urgent : .high,
+      dueDate: "Today",
+      assignee: "Wishlist review",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(task, summary: "Wishlist order confirmation follow-up task created locally.")
+  }
+
+  private func completeWishlistOrderWatchFollowUpTaskIfNeeded(record: WishlistOrderWatchRecord, matchedOrder: TrackedOrder?) {
+    guard let matchedOrder else { return }
+    let linkedEntityID = record.wishlistItemID?.uuidString ?? record.id.uuidString
+    guard let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == linkedEntityID
+        && ($0.title.localizedCaseInsensitiveContains("Wishlist order confirmation")
+          || $0.title.localizedCaseInsensitiveContains("Wishlist Inbox confirmation")
+          || $0.title.localizedCaseInsensitiveContains("Review order watch"))
+        && $0.status != .completed
+    }) else { return }
+    let beforeDetail = reviewTasks[existingIndex].auditDetail
+    reviewTasks[existingIndex].status = .completed
+    reviewTasks[existingIndex].completedDate = Self.auditTimestamp()
+    reviewTasks[existingIndex].reviewState = .accepted
+    reviewTasks[existingIndex].summary += "\nCompleted locally because the Wishlist order watch matched order \(matchedOrder.orderNumber) from \(matchedOrder.store)."
+    persistReviewTasks()
+    logAudit(
+      action: .completed,
+      entityType: .reviewTask,
+      entityID: reviewTasks[existingIndex].id.uuidString,
+      entityLabel: reviewTasks[existingIndex].title,
+      summary: "Wishlist order confirmation follow-up task completed after local order match.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nMatched order: \(matchedOrder.orderNumber). No mailbox fetch, background polling, retailer access, checkout, payment, purchase, or mailbox mutation occurred."
     )
   }
 
