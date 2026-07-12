@@ -681,6 +681,7 @@ struct WishlistView: View {
   @State private var editingCaptureCandidate: WishlistCaptureCandidate?
   @State private var showManualWishlistItemForm = false
   @State private var showPastedLinkCaptureForm = false
+  @State private var showPastedComparisonResultForm = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var statuses: [String] {
@@ -688,6 +689,14 @@ struct WishlistView: View {
   }
 
   private let wishlistSources: [WishlistSource] = [.pdf, .screenshot, .shareSheet, .browserExtension, .manual]
+
+  private var activeWishlistItems: [WishlistItem] {
+    store.wishlistItems
+      .filter(store.isActiveWishlistItem)
+      .sorted { first, second in
+        first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+      }
+  }
 
   private var closedWishlistItems: [WishlistItem] {
     store.wishlistItems
@@ -1098,6 +1107,9 @@ struct WishlistView: View {
         CompactActionRow {
           Button("Paste product link", systemImage: "link.badge.plus") {
             showPastedLinkCaptureForm = true
+          }
+          Button("Paste comparison result", systemImage: "doc.text.magnifyingglass") {
+            showPastedComparisonResultForm = true
           }
           Button("PDF placeholder", systemImage: "doc.badge.plus", action: store.uploadWishlistPDFPlaceholder)
           Button("Screenshot placeholder", systemImage: "photo.badge.plus", action: store.addWishlistScreenshotPlaceholder)
@@ -1552,6 +1564,26 @@ struct WishlistView: View {
             notes: draft.notes
           )
           showPastedLinkCaptureForm = false
+        }
+      }
+    }
+    .sheet(isPresented: $showPastedComparisonResultForm) {
+      NavigationStack {
+        WishlistPastedComparisonResultEditor(items: activeWishlistItems) { item, draft in
+          store.addWishlistSellerOptionFromPastedComparison(
+            item,
+            pastedText: draft.pastedText,
+            sellerHint: draft.sellerHint,
+            productURLHint: draft.productURLHint,
+            listedPriceHint: draft.listedPriceHint,
+            currencyHint: draft.currencyHint,
+            audTotalHint: draft.audTotalHint,
+            postageCostHint: draft.postageCostHint,
+            postageTimeHint: draft.postageTimeHint,
+            trustHint: draft.trustHint,
+            notes: draft.notes
+          )
+          showPastedComparisonResultForm = false
         }
       }
     }
@@ -11051,6 +11083,9 @@ struct WishlistView: View {
         }
 
         CompactActionRow {
+          Button("Paste comparison result", systemImage: "doc.text.magnifyingglass") {
+            showPastedComparisonResultForm = true
+          }
           NavigationLink {
             CommunicationView(store: store)
           } label: {
@@ -14936,6 +14971,104 @@ private struct WishlistPastedLinkCaptureEditor: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Stage") {
           onSave(draft)
+        }
+        .disabled(!draft.canSave)
+      }
+    }
+  }
+}
+
+private struct WishlistPastedComparisonResultDraft {
+  var itemID: UUID?
+  var pastedText = ""
+  var sellerHint = ""
+  var productURLHint = ""
+  var listedPriceHint = ""
+  var currencyHint = ""
+  var audTotalHint = ""
+  var postageCostHint = ""
+  var postageTimeHint = ""
+  var trustHint = ""
+  var notes = ""
+
+  var canSave: Bool {
+    itemID != nil && !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+private struct WishlistPastedComparisonResultEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  var items: [WishlistItem]
+  @State private var draft = WishlistPastedComparisonResultDraft()
+  var onSave: (WishlistItem, WishlistPastedComparisonResultDraft) -> Void
+
+  private var selectedItem: WishlistItem? {
+    guard let itemID = draft.itemID else { return nil }
+    return items.first { $0.id == itemID }
+  }
+
+  var body: some View {
+    Form {
+      Section("Wishlist item") {
+        if items.isEmpty {
+          Text("No active Wishlist items are available. Add or promote a Wishlist item before pasting comparison research.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          Picker("Item", selection: $draft.itemID) {
+            Text("Choose item").tag(Optional<UUID>.none)
+            ForEach(items) { item in
+              Text(item.itemName).tag(Optional(item.id))
+            }
+          }
+        }
+      }
+
+      Section("Paste comparison result") {
+        TextField("Paste seller comparison notes, quote summary, or future-agent output", text: $draft.pastedText, axis: .vertical)
+          .lineLimit(5...12)
+        Text("ParcelOps reads this text locally and creates one seller option for review. It does not open retailer links, compare live websites, convert currency, quote postage, check trust services, log into accounts, buy, or pay.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Section("Optional overrides") {
+        TextField("Seller or retailer", text: $draft.sellerHint)
+        TextField("Product URL", text: $draft.productURLHint)
+        TextField("Listed price", text: $draft.listedPriceHint)
+        TextField("Currency", text: $draft.currencyHint)
+        TextField("Estimated AUD total", text: $draft.audTotalHint)
+        TextField("Postage cost", text: $draft.postageCostHint)
+        TextField("Postage time", text: $draft.postageTimeHint)
+        TextField("Trust rating or trust note", text: $draft.trustHint)
+        TextField("Operator notes", text: $draft.notes, axis: .vertical)
+          .lineLimit(2...5)
+      }
+
+      Section("Review boundary") {
+        Text("The created seller option stays in manual review until price, AUD landed cost, postage, delivery time, seller trust, returns/warranty, account fit, and payment readiness are checked outside ParcelOps.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .onAppear {
+      if draft.itemID == nil {
+        draft.itemID = items.first?.id
+      }
+    }
+    .navigationTitle("Paste Comparison Result")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") {
+          dismiss()
+        }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Add option") {
+          guard let selectedItem else { return }
+          onSave(selectedItem, draft)
         }
         .disabled(!draft.canSave)
       }
