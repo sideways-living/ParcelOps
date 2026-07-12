@@ -233,6 +233,48 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(summary.verdict.contains("blocker area"))
   }
 
+  func testWishlistAgentReadinessSummaryFlagsOrderWatchGap() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    let summary = store.wishlistAgentReadinessSummary
+    let orderWatchItem = summary.items.first { $0.title == "Post-purchase order watch" }
+
+    XCTAssertEqual(summary.title, "Wishlist agent path needs operator review")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.orderWatchGapCount, 1)
+    XCTAssertEqual(orderWatchItem?.status, "1 open")
+    XCTAssertEqual(orderWatchItem?.tone, "attention")
+    XCTAssertTrue(orderWatchItem?.detail.contains("order confirmation") == true)
+  }
+
+  func testWishlistAgentReadinessSummaryClearsLinkedOrderWatchGap() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    let summary = store.wishlistAgentReadinessSummary
+    let orderWatchItem = summary.items.first { $0.title == "Post-purchase order watch" }
+
+    XCTAssertEqual(summary.orderWatchGapCount, 0)
+    XCTAssertEqual(orderWatchItem?.status, "No open watch gaps")
+    XCTAssertEqual(orderWatchItem?.tone, "success")
+    XCTAssertTrue(orderWatchItem?.detail.contains("No current Wishlist handoff") == true)
+  }
+
   func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
     let repository = InMemoryParcelOpsRepository()
     let store = ParcelOpsStore(repository: repository)
