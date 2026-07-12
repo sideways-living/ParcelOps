@@ -82,6 +82,37 @@ private struct WishlistPriceWatchDecisionEntry: Identifiable {
   var sortPriority: Int
 }
 
+private struct WishlistPurchaseStateCard: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 22, height: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(color.opacity(0.16), lineWidth: 1)
+    )
+  }
+}
+
 private struct WishlistLocalActivityRow: View {
   var event: AuditEvent
   var onCreateTask: () -> Void
@@ -744,6 +775,92 @@ struct WishlistView: View {
       || !wishlistSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var wishlistPurchaseStatePanel: some View {
+    let active = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let readyToBuy = active.filter { item in
+      guard let handoff = item.purchaseHandoff else { return false }
+      let purchased = handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+      return handoff.linkedOrderID == nil && !purchased
+    }
+    let waitingForConfirmation = active.filter { item in
+      guard let handoff = item.purchaseHandoff else { return false }
+      return handoff.linkedOrderID == nil
+        && (handoff.purchaseStatus.localizedCaseInsensitiveContains("purchased")
+          || item.status.localizedCaseInsensitiveContains("awaiting order")
+          || item.purchaseReadiness?.localizedCaseInsensitiveContains("watch") == true)
+    }
+    let linkedOrders = active.filter { $0.purchaseHandoff?.linkedOrderID != nil }
+    let inboxCandidates = active.reduce(0) { total, item in
+      total + store.suggestedWishlistOrderConfirmations(for: item).count
+    }
+    let blockers = active.filter { !$0.operatorPurchaseBlockers.isEmpty }
+    let primaryWaiting = waitingForConfirmation.first
+    let primaryReady = readyToBuy.first
+    let primaryBlocked = blockers.first
+
+    return SettingsPanel(title: "Wishlist purchase state", symbol: "cart.badge.questionmark") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Daily purchase view: decide what is ready to buy, what has already been bought outside ParcelOps, and what still needs an Inbox/order confirmation link.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Ready to buy", "\(readyToBuy.count)", readyToBuy.isEmpty ? .secondary : .blue),
+          ("Waiting", "\(waitingForConfirmation.count)", waitingForConfirmation.isEmpty ? .secondary : .green),
+          ("Inbox matches", "\(inboxCandidates)", inboxCandidates == 0 ? .secondary : .teal),
+          ("Linked orders", "\(linkedOrders.count)", linkedOrders.isEmpty ? .secondary : .purple),
+          ("Blocked", "\(blockers.count)", blockers.isEmpty ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistPurchaseStateCard(
+            title: "Next confirmation to find",
+            detail: primaryWaiting.map { "\($0.itemName): \($0.purchaseHandoff?.orderWatchStatus ?? $0.purchaseReadiness ?? "Watch Inbox and Orders")" } ?? "No externally purchased Wishlist item is currently waiting for confirmation.",
+            symbol: "envelope.badge.fill",
+            color: waitingForConfirmation.isEmpty ? .secondary : .green
+          )
+          WishlistPurchaseStateCard(
+            title: "Next item ready to buy",
+            detail: primaryReady.map { "\($0.itemName): \($0.purchaseHandoff?.sellerName ?? $0.storefront), \($0.purchaseHandoff?.accountLabel ?? $0.owner)" } ?? "No item is marked ready for manual external purchase.",
+            symbol: "bag.fill",
+            color: readyToBuy.isEmpty ? .secondary : .blue
+          )
+          WishlistPurchaseStateCard(
+            title: "Top blocker",
+            detail: primaryBlocked.map { "\($0.itemName): \($0.operatorPurchaseBlockers.prefix(3).joined(separator: ", "))" } ?? "No active Wishlist item has purchase blockers.",
+            symbol: "exclamationmark.triangle.fill",
+            color: blockers.isEmpty ? .green : .orange
+          )
+        }
+
+        CompactActionRow {
+          Button("Show buy queue", systemImage: "cart.fill") {
+            selectedWorkflowFocus = .buy
+            selectedSource = nil
+            selectedStatus = nil
+          }
+          Button("Show watch queue", systemImage: "envelope.badge.fill") {
+            selectedWorkflowFocus = .watch
+            selectedSource = nil
+            selectedStatus = nil
+          }
+          Button("Check open watches", systemImage: "magnifyingglass") {
+            store.checkOpenWishlistOrderWatchRecords()
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        Text("This panel uses local Wishlist, Inbox, and order records only. It does not buy items, log in to retailers, fetch mail, poll in the background, store payment details, or mutate mailbox messages.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var gmailWishlistCandidateEmails: [ForwardedEmailIntake] {
     store.intakeEmails
       .filter { email in
@@ -1119,6 +1236,7 @@ struct WishlistView: View {
         .buttonStyle(.bordered)
 
         wishlistNextActionGuidePanel
+        wishlistPurchaseStatePanel
         wishlistPurchaseTriagePanel
         wishlistPurchaseTimelinePanel
         wishlistPurchaseReadinessChecklistPanel
