@@ -1545,6 +1545,82 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(decoded.refreshHistory?.first?.uncertainCount, 1)
   }
 
+  func testGmailConnectionPersistsAcrossRepositoryReload() throws {
+    let repository = InMemoryParcelOpsRepository()
+    let mailboxID = UUID()
+    let uncertain = GmailReviewMessage(
+      providerMessageID: "gmail-ambiguous-1",
+      sourceMailboxID: mailboxID,
+      sender: "person@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "order-ish no tracking id",
+      capturedDate: "Today"
+    )
+    let connection = GmailMailboxConnection(
+      id: mailboxID,
+      displayName: "Gmail tracking inbox",
+      emailAddress: "orders@example.test",
+      monitoredLabelNames: "INBOX, Orders",
+      connectionStatus: "Real Gmail: Fetch success",
+      lastManualRefreshDate: "Today",
+      setupNotes: "Local Gmail setup.",
+      oauthReadinessStatus: "Ready",
+      googleCloudProjectHint: "ParcelOps Gmail intake",
+      oauthClientIDPlaceholder: "client-id-placeholder",
+      redirectURIPlaceholder: "app.bitrig.parcelops:/oauth2redirect/google",
+      requestedScopesSummary: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+      consentScreenNotes: "Internal testing only.",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      mailboxMode: .mixedFiltered,
+      lastRefreshFetchedCount: 10,
+      lastRefreshImportedCount: 2,
+      lastRefreshDuplicateCount: 1,
+      lastRefreshFilteredNonOrderCount: 6,
+      lastRefreshUncertainCount: 1,
+      lastRefreshSummary: "2 imported, 6 filtered, 1 uncertain",
+      lastRefreshFilteredExamples: ["Newsletter"],
+      lastRefreshUncertainExamples: ["Delivery question"],
+      lastRefreshReasonBreakdown: [
+        SpaceMailClassifierReasonCount(decision: "Imported", reason: "strong order evidence", count: 2),
+        SpaceMailClassifierReasonCount(decision: "Filtered", reason: "filtered marketing", count: 6)
+      ],
+      uncertainMessages: [uncertain],
+      filteredMessages: [],
+      refreshHistory: [
+        GmailRefreshHistoryEntry(
+          timestamp: "Today",
+          eventType: "Real refresh",
+          status: "Fetch success",
+          fetchedCount: 10,
+          importedCount: 2,
+          duplicateCount: 1,
+          filteredNonOrderCount: 6,
+          uncertainCount: 1,
+          summary: "Manual Gmail refresh completed."
+        )
+      ],
+      reviewState: .accepted
+    )
+
+    repository.saveGmailMailboxConnections([connection])
+
+    let reloadedStore = ParcelOpsStore(repository: repository)
+    let reloaded = try XCTUnwrap(reloadedStore.gmailMailboxConnections.first { $0.id == mailboxID })
+
+    XCTAssertEqual(reloaded.emailAddress, "orders@example.test")
+    XCTAssertEqual(reloaded.oauthReadinessStatus, "Ready")
+    XCTAssertEqual(reloaded.credentialStorageStatus, "GoogleSignIn cache available")
+    XCTAssertEqual(reloaded.lastRefreshFetchedCount, 10)
+    XCTAssertEqual(reloaded.lastRefreshImportedCount, 2)
+    XCTAssertEqual(reloaded.lastRefreshFilteredNonOrderCount, 6)
+    XCTAssertEqual(reloaded.lastRefreshUncertainCount, 1)
+    XCTAssertEqual(reloaded.uncertainMessages?.first?.subject, "Delivery question")
+    XCTAssertEqual(reloaded.refreshHistory?.first?.summary, "Manual Gmail refresh completed.")
+    XCTAssertEqual(reloaded.lastRefreshReasonBreakdown?.first?.reason, "strong order evidence")
+  }
+
   func testGmailPostRefreshActionPlanHandlesNoProvider() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.gmailMailboxConnections = []
@@ -1673,6 +1749,62 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.linkedIntakeCount, 1)
     XCTAssertEqual(summary.duplicateRefreshedCount, 1)
     XCTAssertEqual(summary.duplicateNoChangeCount, 1)
+  }
+
+  func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let uncertain = GmailReviewMessage(
+      providerMessageID: "gmail-ambiguous-1",
+      sourceMailboxID: mailboxID,
+      sender: "person@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "order-ish no tracking id",
+      capturedDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var refreshedConnection = connection
+    refreshedConnection.connectionStatus = "Real Gmail: Fetch success"
+    refreshedConnection.lastManualRefreshDate = "Today"
+    refreshedConnection.lastRefreshSummary = "1 imported, 8 filtered, 1 uncertain"
+    refreshedConnection.uncertainMessages = [uncertain]
+    store.gmailMailboxConnections = [refreshedConnection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available for manual read-only refresh."
+      )
+    ]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let health = store.gmailIntakeHealthSummary(for: refreshedConnection)
+    let plan = store.gmailPostRefreshActionPlan
+
+    XCTAssertEqual(health.verdict, "Gmail setup blocked")
+    XCTAssertEqual(health.tone, "warning")
+    XCTAssertEqual(health.pendingUncertainReviewCount, 1)
+    XCTAssertEqual(health.importedCount, 1)
+    XCTAssertEqual(plan.title, "Gmail setup blockers need review")
+    XCTAssertEqual(plan.primaryAction, "Review Gmail setup")
+    XCTAssertEqual(plan.items.first { $0.title == "Finish setup and sign-in" }?.tone, "warning")
+    XCTAssertEqual(plan.items.first { $0.title == "Review uncertain messages" }?.count, 1)
   }
 
   func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
