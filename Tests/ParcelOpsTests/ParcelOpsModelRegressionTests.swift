@@ -539,6 +539,57 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "3")
   }
 
+  func testMailboxProviderComparisonPrioritizesOperatorWorkOverSetupBlockers() {
+    let uncertainMessage = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-uncertain-mixed",
+      sourceMailboxID: UUID(),
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 1,
+        filtered: 8,
+        uncertain: 1,
+        uncertainMessages: [uncertainMessage]
+      )
+    ]
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        oauthReadinessStatus: "Needs review",
+        credentialStorageStatus: "GoogleSignIn cache pending",
+        fetched: 0,
+        imported: 0,
+        filtered: 0,
+        uncertain: nil
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let summary = store.mailboxProviderComparisonSummary
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail" }
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Mailbox intake needs operator review")
+    XCTAssertEqual(summary.recommendedProvider, "SpaceMail + Gmail")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail has operator work")
+    XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "SpaceMail" && $0.title == "Review SpaceMail intake" })
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Gmail" && $0.title == "Finish Gmail setup" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
+  }
+
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-1",
