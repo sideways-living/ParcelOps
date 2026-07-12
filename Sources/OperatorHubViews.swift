@@ -3351,6 +3351,12 @@ private struct DispatchInboxOrderRow: View {
       return gaps.isEmpty ? nil : (item, gaps)
     }
   }
+  private var wishlistDispatchSetupGaps: [(item: WishlistItem, gaps: [String])] {
+    linkedWishlistItems.compactMap { item in
+      let gaps = wishlistDispatchSetupGaps(for: item)
+      return gaps.isEmpty ? nil : (item, gaps)
+    }
+  }
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
     return store.intakeEmails.filter { email in
@@ -3396,6 +3402,9 @@ private struct DispatchInboxOrderRow: View {
             if !wishlistHandoffSanityGaps.isEmpty {
               Badge("\(wishlistHandoffSanityGaps.count) handoff gap", color: .orange)
             }
+            if !wishlistDispatchSetupGaps.isEmpty {
+              Badge("\(wishlistDispatchSetupGaps.count) dispatch setup", color: .blue)
+            }
             if !partialFollowUpTasks.isEmpty {
               Badge("\(partialFollowUpTasks.count) verify task", color: .orange)
             }
@@ -3428,10 +3437,35 @@ private struct DispatchInboxOrderRow: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.pink)
           ForEach(linkedWishlistItems.prefix(2)) { item in
-            Text("\(item.itemName) • \(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status)")
-              .font(.caption2)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 5) {
+              Text("\(item.itemName) • \(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              let setupGaps = wishlistDispatchSetupGaps(for: item)
+              if !setupGaps.isEmpty {
+                Text("Dispatch setup gaps: \(setupGaps.joined(separator: ", "))")
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(.blue)
+                  .fixedSize(horizontal: false, vertical: true)
+                CompactActionRow {
+                  if setupGaps.contains("manifest") {
+                    Button("Stage manifest", systemImage: "list.bullet.clipboard.fill") {
+                      store.createWishlistShipmentManifest(item)
+                      feedbackMessage = "Wishlist dispatch manifest staged locally."
+                    }
+                  }
+                  if setupGaps.contains("readiness checklist") {
+                    Button("Stage readiness", systemImage: "checkmark.rectangle.stack.fill") {
+                      store.createWishlistDispatchReadinessChecklist(item)
+                      feedbackMessage = "Wishlist dispatch readiness checklist staged locally."
+                    }
+                  }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+              }
+            }
           }
           ForEach(wishlistHandoffSanityGaps.prefix(2), id: \.item.id) { entry in
             Text("Handoff sanity gaps for \(entry.item.itemName): \(entry.gaps.prefix(4).joined(separator: ", "))")
@@ -3497,6 +3531,7 @@ private struct DispatchInboxOrderRow: View {
   private var rowColor: Color {
     if needsPreDispatchVerification { return .orange }
     if !wishlistHandoffSanityGaps.isEmpty { return .orange }
+    if !wishlistDispatchSetupGaps.isEmpty { return .blue }
     if !linkedWishlistItems.isEmpty { return .pink }
     return order.status == .exception ? .orange : .teal
   }
@@ -3519,9 +3554,21 @@ private struct DispatchInboxOrderRow: View {
         let gapSummary = wishlistHandoffSanityGaps.flatMap(\.gaps).prefix(3).joined(separator: ", ")
         return "Next: resolve Wishlist handoff sanity gaps before manifest or readiness setup: \(gapSummary)."
       }
+      if !wishlistDispatchSetupGaps.isEmpty {
+        let gapSummary = wishlistDispatchSetupGaps.flatMap(\.gaps).prefix(3).joined(separator: ", ")
+        return "Next: stage missing Wishlist dispatch setup locally: \(gapSummary)."
+      }
       return "Next: confirm the Wishlist purchase handoff, then decide whether this order needs manifest or readiness setup."
     }
     return "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist."
+  }
+
+  private func wishlistDispatchSetupGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
+    var gaps: [String] = []
+    if store.suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+    if store.suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
+    return gaps
   }
 
   private func wishlistDispatchHandoffSanityGaps(for item: WishlistItem) -> [String] {
