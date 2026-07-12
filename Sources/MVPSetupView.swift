@@ -15,6 +15,7 @@ struct MVPSetupView: View {
         header
         MVPUsableVersionPanel(store: store)
         MVPDevelopmentProgressPanel(store: store)
+        MVPRemainingWorkPanel(store: store)
         MVPCompletionRoadmapPanel(store: store)
         MVPDevelopmentStatusPanel(store: store)
         MVPMailboxProviderStatusPanel(store: store)
@@ -106,6 +107,177 @@ struct MVPSetupView: View {
       Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+struct MVPRemainingWorkPanel: View {
+  var store: ParcelOpsStore
+
+  private var hasManualMailboxRefreshEvidence: Bool {
+    store.spaceMailIntakeHealthSummaries.contains { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 }
+      || store.gmailIntakeHealthSummaries.contains { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 }
+  }
+
+  private var hasInboxToOrderHandoff: Bool {
+    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
+    return store.orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
+  private var hasWishlistWorkflow: Bool {
+    store.wishlistItems.contains(where: store.isActiveWishlistItem)
+      || !store.wishlistCaptureCandidates.isEmpty
+      || !store.wishlistResearchRequests.isEmpty
+  }
+
+  private var wishlistNeedsHumanReviewCount: Int {
+    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
+    let stagedCaptureCount = store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+    let researchScopeCount = store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && !$0.agentBriefGaps.isEmpty }.count
+    let orderWatchCount = store.wishlistOrderWatchRecords.filter(store.isActiveWishlistOrderWatchRecord).count
+    let purchaseReadyCount = activeItems.filter {
+      $0.status.localizedCaseInsensitiveContains("ready")
+        || ($0.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready")
+    }.count
+    return stagedCaptureCount + researchScopeCount + orderWatchCount + purchaseReadyCount
+  }
+
+  private var localFlowTone: Color {
+    hasManualMailboxRefreshEvidence && hasInboxToOrderHandoff ? .green : .orange
+  }
+
+  private var localFlowStatus: String {
+    hasManualMailboxRefreshEvidence && hasInboxToOrderHandoff ? "Usable" : "Prove once"
+  }
+
+  private var mailboxStatus: String {
+    if hasManualMailboxRefreshEvidence { return "Manual path active" }
+    if !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty { return "Setup exists" }
+    return "Setup needed"
+  }
+
+  private var mailboxTone: Color {
+    if hasManualMailboxRefreshEvidence { return .green }
+    if !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty { return .orange }
+    return .secondary
+  }
+
+  private var wishlistStatus: String {
+    if !hasWishlistWorkflow { return "Optional" }
+    if wishlistNeedsHumanReviewCount > 0 { return "Review \(wishlistNeedsHumanReviewCount)" }
+    return "Ready"
+  }
+
+  private var wishlistTone: Color {
+    if !hasWishlistWorkflow { return .secondary }
+    return wishlistNeedsHumanReviewCount > 0 ? .purple : .green
+  }
+
+  private var nextBestAction: String {
+    if !hasManualMailboxRefreshEvidence {
+      return "Run one manual read-only SpaceMail or Gmail refresh, then check the summary before adding more integrations."
+    }
+    if !hasInboxToOrderHandoff {
+      return "Create or link one order from a confirmed Inbox row and verify its source trail."
+    }
+    if wishlistNeedsHumanReviewCount > 0 {
+      return "Review the active Wishlist capture, research, purchase, or order-watch items before treating Wishlist as routine."
+    }
+    return "Run a focused hands-on QA pass and record only issues that block normal operator use."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Remaining work by area", symbol: "map.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: localFlowStatus == "Usable" ? "checkmark.seal.fill" : "checklist")
+            .foregroundStyle(localFlowTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(localFlowStatus == "Usable" ? "Core workflow is usable; hardening remains" : "Prove the live intake-to-order path once")
+              .font(.headline)
+            Text("This panel is the short answer to where development stands: the local app is largely built, but each real provider and Wishlist path still needs focused QA before it should be treated as routine.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(localFlowStatus, color: localFlowTone)
+        }
+
+        MetricStrip(items: [
+          ("Core flow", localFlowStatus, localFlowTone),
+          ("Mailbox", mailboxStatus, mailboxTone),
+          ("Inbox orders", hasInboxToOrderHandoff ? "Linked" : "Needed", hasInboxToOrderHandoff ? .green : .orange),
+          ("Wishlist", wishlistStatus, wishlistTone),
+          ("External APIs", "Later", .secondary)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
+          remainingWorkBlock(
+            title: "Daily operator MVP",
+            detail: hasInboxToOrderHandoff
+              ? "Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Settings have a usable local path. Remaining work is QA, copy/layout polish, and clearing old test noise."
+              : "The UI and records exist. The next proof point is one confirmed Inbox row becoming a linked order with a visible source trail.",
+            status: hasInboxToOrderHandoff ? "Mostly built" : "Needs proof",
+            symbol: "square.grid.2x2.fill",
+            color: hasInboxToOrderHandoff ? .green : .orange
+          )
+          remainingWorkBlock(
+            title: "Mailbox intake",
+            detail: hasManualMailboxRefreshEvidence
+              ? "Manual read-only intake has evidence. Keep hardening parser/classifier edge cases before adding background sync or more mailbox automation."
+              : "Provider setup exists only when SpaceMail or Gmail is configured. Prove one manual read-only refresh before relying on live intake.",
+            status: mailboxStatus,
+            symbol: "tray.and.arrow.down.fill",
+            color: mailboxTone
+          )
+          remainingWorkBlock(
+            title: "Wishlist purchasing",
+            detail: hasWishlistWorkflow
+              ? "Manual capture, staged browser-extension candidates, comparison planning, purchase handoff, and order-watch records exist locally. Agent research, live retailer comparison, browser extension sync, checkout, and account monitoring are still not connected."
+              : "Wishlist is available, but no active planning data is present yet. Start with manual capture or staged browser-extension candidates.",
+            status: wishlistStatus,
+            symbol: "star.square.fill",
+            color: wishlistTone
+          )
+          remainingWorkBlock(
+            title: "Post-MVP integrations",
+            detail: "Shopify, carrier tracking APIs, outbound email, live price monitoring, trust-rating services, notifications, calendars, OCR, scanners, and background jobs should wait until the manual workflows are stable.",
+            status: "Not next",
+            symbol: "network.slash",
+            color: .secondary
+          )
+        }
+
+        Label(nextBestAction, systemImage: "arrow.forward.circle.fill")
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(localFlowTone)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func remainingWorkBlock(title: String, detail: String, status: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label(title, systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+        Spacer(minLength: 8)
+        Badge(status, color: color)
+      }
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
