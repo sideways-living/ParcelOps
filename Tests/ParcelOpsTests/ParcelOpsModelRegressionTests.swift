@@ -1946,6 +1946,89 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "3")
   }
 
+  func testMailboxProviderComparisonKeepsGmailSetupBlockedEvenWithQuietRefreshEvidence() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Mailbox setup has blockers")
+    XCTAssertEqual(summary.recommendedProvider, "Gmail")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
+    XCTAssertEqual(gmail?.fetchedCount, 10)
+    XCTAssertEqual(gmail?.blockedCount, 1)
+    XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "10")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "10")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "2")
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Gmail" && $0.title == "Finish Gmail setup" })
+  }
+
+  func testMailboxProviderComparisonSummarizesSpaceMailAndGmailSideBySide() {
+    let mailboxID = UUID()
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 8,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        id: mailboxID,
+        oauthReadinessStatus: "Needs review",
+        credentialStorageStatus: "GoogleSignIn cache pending",
+        fetched: 0,
+        imported: 0,
+        filtered: 0,
+        uncertain: nil
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail" }
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Mailbox setup has blockers")
+    XCTAssertEqual(summary.recommendedProvider, "SpaceMail + Gmail")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail filtering is active")
+    XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
+    XCTAssertTrue(summary.decisionRules.contains { $0.title == "Both providers can run side by side" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Providers" }?.value, "2")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "10")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "8")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "2")
+  }
+
   func testMailboxProviderComparisonPrioritizesOperatorWorkOverSetupBlockers() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-mixed",
