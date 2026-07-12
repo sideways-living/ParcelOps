@@ -673,6 +673,7 @@ struct WishlistView: View {
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
         wishlistOperationsNextStepsPanel
+        wishlistSellerDecisionSnapshotPanel
         wishlistComparisonBriefShortcutPanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
@@ -1728,6 +1729,197 @@ struct WishlistView: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var wishlistSellerDecisionSnapshotEntries: [WishlistSellerDecisionSnapshotEntry] {
+    store.wishlistItems
+      .filter(store.isActiveWishlistItem)
+      .compactMap { item -> WishlistSellerDecisionSnapshotEntry? in
+        let options = item.comparisonOptions ?? []
+        let preferred = item.preferredOptionID.flatMap { preferredID in
+          options.first { $0.id == preferredID }
+        } ?? options.first
+        let bestScored = options.sorted { first, second in
+          if (first.localScore ?? -1) == (second.localScore ?? -1) {
+            return first.sellerName.localizedCaseInsensitiveCompare(second.sellerName) == .orderedAscending
+          }
+          return (first.localScore ?? -1) > (second.localScore ?? -1)
+        }.first
+        let selected = preferred ?? bestScored
+        let gaps = options.flatMap(\.operatorSellerEvidenceGaps)
+        var seenGaps = Set<String>()
+        let uniqueGaps = gaps.filter { gap in
+          let key = gap.localizedLowercase
+          guard !seenGaps.contains(key) else { return false }
+          seenGaps.insert(key)
+          return true
+        }
+        let trustReview = options.contains { option in
+          option.trustRating.localizedCaseInsensitiveContains("unknown")
+            || option.trustRating.localizedCaseInsensitiveContains("review")
+            || option.trustRating.localizedCaseInsensitiveContains("needs")
+            || (option.riskLevel ?? "").localizedCaseInsensitiveContains("high")
+        }
+        let missingPreferred = !options.isEmpty && item.preferredOptionID == nil
+
+        let stage: String
+        let detail: String
+        let tone: Color
+        let nextAction: String
+        let nextSymbol: String
+        let priority: Int
+
+        if options.isEmpty {
+          stage = "Need sellers"
+          detail = "No seller options are recorded yet. Add or draft a comparison before choosing where to buy."
+          tone = .orange
+          nextAction = "Create plan"
+          nextSymbol = "magnifyingglass.circle"
+          priority = 10
+        } else if !uniqueGaps.isEmpty {
+          stage = "Evidence gaps"
+          detail = "Missing \(uniqueGaps.prefix(4).joined(separator: ", "))."
+          tone = .orange
+          nextAction = "Score options"
+          nextSymbol = "chart.bar.doc.horizontal"
+          priority = 20
+        } else if missingPreferred {
+          stage = "Choose seller"
+          detail = "Seller options are recorded but no preferred seller has been selected."
+          tone = .purple
+          nextAction = "Score options"
+          nextSymbol = "chart.bar.doc.horizontal"
+          priority = 30
+        } else if trustReview {
+          stage = "Trust review"
+          detail = "Seller trust or delivery reliability needs operator review before purchase handoff."
+          tone = .red
+          nextAction = "Trust task"
+          nextSymbol = "shield.lefthalf.filled"
+          priority = 40
+        } else if item.purchaseDecision == nil {
+          stage = "Decision ready"
+          detail = "Seller option fields look complete enough for a local purchase decision draft."
+          tone = .green
+          nextAction = "Draft decision"
+          nextSymbol = "doc.badge.plus"
+          priority = 50
+        } else {
+          return nil
+        }
+
+        return WishlistSellerDecisionSnapshotEntry(
+          item: item,
+          selectedOption: selected,
+          optionCount: options.count,
+          gapCount: uniqueGaps.count,
+          gapSummary: uniqueGaps.isEmpty ? "No seller evidence gaps counted." : uniqueGaps.prefix(4).joined(separator: ", "),
+          stage: stage,
+          detail: detail,
+          nextAction: nextAction,
+          nextSymbol: nextSymbol,
+          tone: tone,
+          sortPriority: priority
+        )
+      }
+      .sorted { first, second in
+        if first.sortPriority == second.sortPriority {
+          if first.gapCount == second.gapCount {
+            return first.item.itemName.localizedCaseInsensitiveCompare(second.item.itemName) == .orderedAscending
+          }
+          return first.gapCount > second.gapCount
+        }
+        return first.sortPriority < second.sortPriority
+      }
+  }
+
+  private var wishlistSellerDecisionSnapshotPanel: some View {
+    let entries = wishlistSellerDecisionSnapshotEntries
+    let needSellers = entries.filter { $0.stage == "Need sellers" }.count
+    let evidenceGaps = entries.filter { $0.stage == "Evidence gaps" }.count
+    let trustReview = entries.filter { $0.stage == "Trust review" }.count
+    let decisionReady = entries.filter { $0.stage == "Decision ready" }.count
+
+    return SettingsPanel(title: "Seller decision snapshot", symbol: "storefront.circle.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: entries.isEmpty ? "checkmark.seal.fill" : "storefront.fill")
+            .foregroundStyle(entries.isEmpty ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(entries.isEmpty ? "Seller decisions are locally tidy" : "Seller decisions need operator review")
+              .font(.headline)
+            Text(entries.isEmpty
+              ? "No active Wishlist item is missing seller options, preferred seller choice, trust review, or decision drafting."
+              : "Review seller choice, AUD landed total, postage timing, and trust evidence before any external purchase.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(entries.isEmpty ? "Clear" : "\(entries.count) item\(entries.count == 1 ? "" : "s")", color: entries.isEmpty ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Need sellers", "\(needSellers)", needSellers == 0 ? .green : .orange),
+          ("Evidence gaps", "\(evidenceGaps)", evidenceGaps == 0 ? .green : .purple),
+          ("Trust review", "\(trustReview)", trustReview == 0 ? .green : .red),
+          ("Decision ready", "\(decisionReady)", decisionReady == 0 ? .secondary : .green)
+        ])
+
+        if entries.isEmpty {
+          MVPEmptyState(
+            title: "No seller decision work waiting",
+            detail: "Wishlist items either have seller decisions moving forward or are not ready for seller review yet.",
+            symbol: "storefront.circle.fill"
+          )
+        } else {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(entries.prefix(8)) { entry in
+              WishlistSellerDecisionSnapshotRow(entry: entry) {
+                runWishlistSellerDecisionSnapshotAction(for: entry)
+              } onTask: {
+                store.createWishlistSellerEvidenceReviewTask(entry.item)
+              } onFocus: {
+                selectedWorkflowFocus = .compare
+                selectedSource = nil
+                selectedStatus = nil
+                wishlistSearchText = entry.item.itemName
+              }
+            }
+          }
+
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller decision item\(remaining == 1 ? "" : "s") are available in the detailed comparison panels below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        Text("This snapshot is local-only. It does not browse retailer sites, convert currency, quote postage, check live stock, verify seller trust externally, log into accounts, buy, or pay.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func runWishlistSellerDecisionSnapshotAction(for entry: WishlistSellerDecisionSnapshotEntry) {
+    switch entry.stage {
+    case "Need sellers":
+      store.createWishlistComparisonPlan(entry.item)
+      store.createWishlistResearchRequest(from: entry.item)
+    case "Evidence gaps", "Choose seller":
+      store.evaluateWishlistComparisonOptions(entry.item)
+    case "Trust review":
+      store.createWishlistSellerEvidenceReviewTask(entry.item)
+    case "Decision ready":
+      store.createWishlistPurchaseDecision(entry.item)
+    default:
+      selectedWorkflowFocus = .compare
+      wishlistSearchText = entry.item.itemName
+    }
   }
 
   private var wishlistComparisonBriefShortcutPanel: some View {
@@ -11731,6 +11923,103 @@ private struct WishlistPurchaseWatchCommandCentreEntry: Identifiable {
   var nextSymbol: String
   var tone: Color
   var sortPriority: Int
+}
+
+private struct WishlistSellerDecisionSnapshotEntry: Identifiable {
+  var id: UUID { item.id }
+  var item: WishlistItem
+  var selectedOption: WishlistComparisonOption?
+  var optionCount: Int
+  var gapCount: Int
+  var gapSummary: String
+  var stage: String
+  var detail: String
+  var nextAction: String
+  var nextSymbol: String
+  var tone: Color
+  var sortPriority: Int
+}
+
+private struct WishlistSellerDecisionSnapshotRow: View {
+  var entry: WishlistSellerDecisionSnapshotEntry
+  var onAction: () -> Void
+  var onTask: () -> Void
+  var onFocus: () -> Void
+
+  private var sellerSummary: String {
+    guard let option = entry.selectedOption else {
+      return entry.item.storefront.isPlaceholderValidationValue ? "Seller options not recorded" : entry.item.storefront
+    }
+    return "\(option.sellerName) • \(option.estimatedAUDTotal)"
+  }
+
+  private var postageSummary: String {
+    guard let option = entry.selectedOption else { return "Postage not recorded" }
+    return "\(option.postageCost) • \(option.postageTime)"
+  }
+
+  private var trustSummary: String {
+    entry.selectedOption?.trustRating ?? "Trust not recorded"
+  }
+
+  private var scoreSummary: String {
+    guard let score = entry.selectedOption?.localScore else { return "Unscored" }
+    return "\(score)/100"
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: entry.nextSymbol)
+          .foregroundStyle(entry.tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(entry.item.itemName)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
+          Text(entry.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(entry.stage, color: entry.tone)
+      }
+
+      CompactMetadataGrid(minimumWidth: 128) {
+        WishlistMatrixMetric(title: "Seller", value: sellerSummary, symbol: "storefront.fill")
+        WishlistMatrixMetric(title: "Postage", value: postageSummary, symbol: "truck.box.fill")
+        WishlistMatrixMetric(title: "Trust", value: trustSummary, symbol: "shield.lefthalf.filled")
+        WishlistMatrixMetric(title: "Score", value: scoreSummary, symbol: "chart.bar.doc.horizontal")
+      }
+
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Badge("\(entry.optionCount) option\(entry.optionCount == 1 ? "" : "s")", color: entry.optionCount == 0 ? .orange : .blue)
+        Badge("\(entry.gapCount) gap\(entry.gapCount == 1 ? "" : "s")", color: entry.gapCount == 0 ? .green : .orange)
+      }
+
+      Text(entry.gapSummary)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(entry.gapCount == 0 ? Color.green : entry.tone)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text("Review live price, stock, postage, seller trust, returns, account fit, and payment details outside ParcelOps before buying.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactActionRow {
+        Button(entry.nextAction, systemImage: entry.nextSymbol, action: onAction)
+        Button("Task", systemImage: "checklist", action: onTask)
+        Button("Focus", systemImage: "scope", action: onFocus)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 private struct WishlistPurchaseWatchCommandCentreRow: View {
