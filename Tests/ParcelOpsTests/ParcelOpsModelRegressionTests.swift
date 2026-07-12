@@ -1807,6 +1807,72 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(plan.items.first { $0.title == "Review uncertain messages" }?.count, 1)
   }
 
+  func testGmailLabelReadinessDefaultsMissingLabelsToSetupWarning() {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    connection.monitoredLabelNames = "   "
+    let store = ParcelOpsStore()
+
+    let summary = store.gmailLabelReadinessSummary(for: connection)
+
+    XCTAssertEqual(summary.status, "Label missing")
+    XCTAssertEqual(summary.primaryLabel, "INBOX")
+    XCTAssertEqual(summary.labelCount, 0)
+    XCTAssertEqual(summary.refreshMode, "Default would be INBOX")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.nextAction, "Edit setup and add the exact Gmail label to check.")
+  }
+
+  func testGmailLabelReadinessTreatsInboxAsSystemLabel() {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    connection.monitoredLabelNames = " inbox "
+    let store = ParcelOpsStore()
+
+    let summary = store.gmailLabelReadinessSummary(for: connection)
+
+    XCTAssertEqual(summary.status, "Label ready")
+    XCTAssertEqual(summary.primaryLabel, "inbox")
+    XCTAssertEqual(summary.labelCount, 1)
+    XCTAssertEqual(summary.refreshMode, "System label INBOX")
+    XCTAssertEqual(summary.tone, "success")
+    XCTAssertTrue(summary.detail.contains("read-only message list request"))
+  }
+
+  func testGmailLabelReadinessWarnsWhenMultipleLabelsAreConfigured() {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    connection.monitoredLabelNames = "Order Updates, INBOX"
+    let store = ParcelOpsStore()
+
+    let summary = store.gmailLabelReadinessSummary(for: connection)
+
+    XCTAssertEqual(summary.status, "Primary label selected")
+    XCTAssertEqual(summary.primaryLabel, "Order Updates")
+    XCTAssertEqual(summary.labelCount, 2)
+    XCTAssertEqual(summary.refreshMode, "Custom label search")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.nextAction, "Put the label you want fetched first, or run separate setup records for separate labels.")
+  }
+
   func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
