@@ -165,6 +165,74 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(decidedItem.operatorPurchaseBlockers, ["link order after confirmation"])
   }
 
+  func testWishlistAgentReadinessSummaryHandlesNoActiveItems() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    resetWishlistState(store)
+
+    let summary = store.wishlistAgentReadinessSummary
+
+    XCTAssertEqual(summary.title, "Wishlist agent path not started")
+    XCTAssertEqual(summary.tone, "neutral")
+    XCTAssertEqual(summary.readyBriefCount, 0)
+    XCTAssertEqual(summary.sellerOptionGapCount, 0)
+    XCTAssertEqual(summary.trustReviewCount, 0)
+    XCTAssertEqual(summary.orderWatchGapCount, 0)
+  }
+
+  func testWishlistAgentReadinessSummaryFlagsSellerEvidenceBlockers() {
+    let weakOption = WishlistComparisonOption(
+      sellerName: "Unknown overseas seller",
+      productURL: "Pending",
+      listedPrice: "49.00",
+      currency: "USD",
+      estimatedAUDTotal: "Pending AUD total",
+      postageCost: "Pending",
+      postageTime: "Pending",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No delivery evidence.",
+      recommendation: "Needs review",
+      lastChecked: "Never",
+      localScore: nil,
+      riskLevel: "High risk",
+      decisionReason: nil
+    )
+    let item = WishlistItem(
+      itemName: "Replacement scanner",
+      storefront: "Unknown overseas seller",
+      storefrontURL: "Pending",
+      estimatedCost: "Pending",
+      owner: "Receiving desk",
+      pool: "Operations",
+      source: .manual,
+      status: "Comparing",
+      capturedDetail: "Needed for receiving desk",
+      comparisonStatus: "Options need review",
+      comparisonNotes: "Weak seller evidence",
+      purchaseReadiness: "Waiting for seller evidence",
+      preferredOptionID: weakOption.id,
+      comparisonOptions: [weakOption],
+      purchaseChecks: [],
+      purchaseDecision: nil,
+      purchaseHandoff: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    let summary = store.wishlistAgentReadinessSummary
+    let evidenceItem = summary.items.first { $0.title == "Seller comparison evidence" }
+    let trustItem = summary.items.first { $0.title == "Seller trust gate" }
+
+    XCTAssertEqual(summary.title, "Wishlist agent path has blockers")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertGreaterThan(summary.sellerOptionGapCount, 0)
+    XCTAssertEqual(summary.trustReviewCount, 1)
+    XCTAssertEqual(evidenceItem?.tone, "warning")
+    XCTAssertEqual(trustItem?.tone, "warning")
+    XCTAssertTrue(summary.verdict.contains("blocker area"))
+  }
+
   func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
     let repository = InMemoryParcelOpsRepository()
     let store = ParcelOpsStore(repository: repository)
@@ -829,6 +897,21 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         updatedAt: "Today"
       )
     )
+  }
+
+  private func resetWishlistState(_ store: ParcelOpsStore) {
+    store.wishlistItems = []
+    store.wishlistCaptureCandidates = []
+    store.wishlistResearchRequests = []
+    store.wishlistPriceSnapshots = []
+    store.wishlistSellerQuotes = []
+    store.wishlistPriceWatchRules = []
+    store.wishlistSellerTrustRecords = []
+    store.wishlistPurchaseAccountRecords = []
+    store.wishlistPurchaseApprovalRecords = []
+    store.wishlistPurchaseLinkRecords = []
+    store.wishlistOrderWatchRecords = []
+    store.deletedWishlistItems = []
   }
 
   private func makeSpaceMailConnection(
