@@ -612,11 +612,25 @@ struct OrdersView: View {
 
 private struct OrderWishlistSourceRow: View {
   var item: WishlistItem
+  var store: ParcelOpsStore
   var onTask: () -> Void
   var onDraft: () -> Void
+  var onFeedback: (String) -> Void
 
   private var handoff: WishlistPurchaseHandoff? {
     item.purchaseHandoff
+  }
+
+  private var manifests: [ShipmentManifestRecord] {
+    store.suggestedShipmentManifestRecords(for: item)
+  }
+
+  private var checklists: [DispatchReadinessChecklist] {
+    store.suggestedDispatchReadinessChecklists(for: item)
+  }
+
+  private var hasLinkedOrder: Bool {
+    handoff?.linkedOrderID != nil
   }
 
   var body: some View {
@@ -636,6 +650,9 @@ private struct OrderWishlistSourceRow: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
+        if hasLinkedOrder {
+          wishlistDispatchStatus
+        }
       }
       Spacer(minLength: 8)
       VStack(alignment: .trailing, spacing: 6) {
@@ -654,6 +671,43 @@ private struct OrderWishlistSourceRow: View {
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var wishlistDispatchStatus: some View {
+    let missingManifest = manifests.isEmpty
+    let missingReadiness = checklists.isEmpty
+
+    VStack(alignment: .leading, spacing: 5) {
+      Text(missingManifest || missingReadiness ? "Wishlist dispatch setup needs staging" : "Wishlist dispatch setup is staged")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(missingManifest || missingReadiness ? .orange : .green)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Manifest links: \(manifests.count) • readiness links: \(checklists.count)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if missingManifest || missingReadiness {
+        CompactActionRow {
+          if missingManifest {
+            Button("Stage manifest", systemImage: "list.bullet.clipboard.fill") {
+              store.createWishlistShipmentManifest(item)
+              onFeedback("Wishlist dispatch manifest staged locally from order detail. No retailer, payment, carrier, mailbox, or external service was contacted.")
+            }
+          }
+          if missingReadiness {
+            Button("Stage readiness", systemImage: "checkmark.rectangle.stack.fill") {
+              store.createWishlistDispatchReadinessChecklist(item)
+              onFeedback("Wishlist dispatch readiness checklist staged locally from order detail. Check Dispatch for the outbound queue.")
+            }
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(.top, 2)
   }
 }
 
@@ -1971,12 +2025,14 @@ struct OrderDetailView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
               ForEach(wishlistItems) { item in
-                OrderWishlistSourceRow(item: item) {
+                OrderWishlistSourceRow(item: item, store: store) {
                   store.createReviewTask(from: item)
                   feedbackMessage = "Wishlist follow-up task created locally from order source trail. No retailer, payment, browser, mailbox, or external service was contacted."
                 } onDraft: {
                   store.createDraftMessage(from: item)
                   feedbackMessage = "Wishlist review draft created locally from order source trail. No message was sent."
+                } onFeedback: { message in
+                  feedbackMessage = message
                 }
               }
             }
