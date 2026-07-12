@@ -494,6 +494,65 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.nextAction, "Open the parser review queue, reprocess if needed, or create a follow-up task.")
   }
 
+  func testSpaceMailPostRefreshActionPlanTreatsFilteredOnlyRefreshAsClear() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let plan = store.spaceMailPostRefreshActionPlan
+
+    XCTAssertEqual(plan.title, "SpaceMail post-refresh queue is clear")
+    XCTAssertEqual(plan.tone, "success")
+    XCTAssertEqual(plan.primaryAction, "Wait for new order mail or run another manual refresh")
+    XCTAssertEqual(plan.items.first { $0.title == "Review imported Inbox rows" }?.tone, "success")
+    XCTAssertEqual(plan.items.first { $0.title == "Check filtered examples" }?.count, 0)
+  }
+
+  func testSpaceMailPostRefreshActionPlanPrioritizesUncertainReview() {
+    let uncertainMessage = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-uncertain-2",
+      sourceMailboxID: UUID(),
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 8,
+        uncertain: 1,
+        uncertainMessages: [uncertainMessage]
+      )
+    ]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+
+    let plan = store.spaceMailPostRefreshActionPlan
+    let uncertainItem = plan.items.first { $0.title == "Review uncertain messages" }
+
+    XCTAssertEqual(plan.title, "SpaceMail post-refresh actions need review")
+    XCTAssertEqual(plan.tone, "attention")
+    XCTAssertEqual(plan.primaryAction, "Review uncertain previews")
+    XCTAssertEqual(uncertainItem?.count, 1)
+    XCTAssertEqual(uncertainItem?.tone, "attention")
+    XCTAssertEqual(uncertainItem?.actionLabel, "Review uncertain previews")
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,
