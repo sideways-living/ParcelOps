@@ -351,6 +351,58 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(waitingRecord.reviewState, .needsReview)
   }
 
+  func testWishlistClosureBlockedByMissingOperationsTrail() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.reviewTasks = []
+    store.wishlistItems = [item]
+
+    store.closeWishlistItemLocally(item)
+
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+    let closureTask = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertNotEqual(updatedItem.status, "Closed locally")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Purchased externally; watch for confirmation")
+    XCTAssertEqual(closureTask.linkedEntityType, .wishlistItem)
+    XCTAssertEqual(closureTask.linkedEntityID, item.id.uuidString)
+    XCTAssertTrue(closureTask.title.contains("Close Wishlist item"))
+    XCTAssertTrue(closureTask.summary.contains("receiving"))
+    XCTAssertTrue(closureTask.summary.contains("dispatch"))
+  }
+
+  func testWishlistClosureReadinessBatchCreatesTaskForGaps() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.reviewTasks = []
+    store.wishlistItems = [item]
+
+    store.checkWishlistOperationsClosureReadinessBatch()
+
+    let closureTask = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(closureTask.linkedEntityType, .wishlistItem)
+    XCTAssertEqual(closureTask.linkedEntityID, "wishlist-closure-readiness-batch")
+    XCTAssertEqual(closureTask.title, "Follow up Wishlist closure readiness")
+    XCTAssertTrue(closureTask.summary.contains("closure gaps"))
+    XCTAssertTrue(closureTask.summary.contains("local only"))
+    XCTAssertEqual(closureTask.status, .open)
+  }
+
   func testWishlistInboxConfirmationCreatesAndLinksOrder() throws {
     let repository = InMemoryParcelOpsRepository()
     let store = ParcelOpsStore(repository: repository)
@@ -1030,6 +1082,17 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     store.wishlistPurchaseLinkRecords = []
     store.wishlistOrderWatchRecords = []
     store.deletedWishlistItems = []
+  }
+
+  private func resetWishlistOperationsTrail(_ store: ParcelOpsStore) {
+    store.receivingInspections = []
+    store.inventoryReceipts = []
+    store.storageLocations = []
+    store.custodyRecords = []
+    store.labelReferenceRecords = []
+    store.scanSessionRecords = []
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
   }
 
   private func makeSpaceMailConnection(
