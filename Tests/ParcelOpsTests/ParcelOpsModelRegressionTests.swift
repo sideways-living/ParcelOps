@@ -1158,6 +1158,99 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(store.activeWishlistItemsLinked(to: createdOrder).map(\.id), [item.id])
   }
 
+  func testWishlistConversionCreatesLocalOrderDraftAndLinksHandoff() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    item.purchaseHandoff = nil
+    resetWishlistState(store)
+    store.orders = []
+    store.wishlistItems = [item]
+    store.auditEvents = []
+
+    store.convertWishlistToOrder(item)
+
+    let createdOrder = try XCTUnwrap(store.orders.first)
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertTrue(createdOrder.orderNumber.hasPrefix("WISH-"))
+    XCTAssertEqual(createdOrder.store, item.storefront)
+    XCTAssertEqual(createdOrder.source, .manual)
+    XCTAssertEqual(createdOrder.latestStatus, "Converted from wishlist and awaiting purchase confirmation")
+    XCTAssertEqual(updatedItem.purchaseHandoff?.linkedOrderID, createdOrder.id)
+    XCTAssertEqual(updatedItem.status, "Linked to order draft")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Local order draft created from Wishlist")
+    XCTAssertEqual(store.activeWishlistItemsLinked(to: createdOrder).map(\.id), [item.id])
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Order draft created from wishlist item." })
+  }
+
+  func testWishlistManualOrderLinkMatchesExistingOrder() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let order = makeOrder(
+      orderNumber: "ORDER-789",
+      trackingNumber: "TRACK-789",
+      destination: "Brisbane QLD",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Known Australian retailer Replacement scanner order confirmation."
+    )
+    resetWishlistState(store)
+    store.orders = [order]
+    store.wishlistItems = [item]
+
+    store.linkWishlistItemToOrder(item)
+
+    let linkedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertEqual(linkedItem.purchaseHandoff?.linkedOrderID, order.id)
+    XCTAssertEqual(linkedItem.purchaseHandoff?.purchaseStatus, "Linked to existing local order")
+    XCTAssertEqual(linkedItem.status, "Linked to existing order")
+    XCTAssertEqual(linkedItem.purchaseReadiness, "Existing local order linked")
+    XCTAssertEqual(store.activeWishlistItemsLinked(to: order).map(\.id), [item.id])
+  }
+
+  func testWishlistManualOrderLinkWithoutMatchFlagsReview() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    item.purchaseHandoff = nil
+    let unrelatedOrder = makeOrder(
+      orderNumber: "ORDER-000",
+      trackingNumber: "TRACK-000",
+      destination: "Perth WA",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Warehouse Supplies packing tape order."
+    )
+    resetWishlistState(store)
+    store.orders = [unrelatedOrder]
+    store.wishlistItems = [item]
+
+    store.linkWishlistItemToOrder(item)
+
+    let updatedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertNil(updatedItem.purchaseHandoff?.linkedOrderID)
+    XCTAssertEqual(updatedItem.purchaseHandoff?.purchaseStatus, "Order link needs manual selection")
+    XCTAssertEqual(updatedItem.status, "Order link needs review")
+    XCTAssertEqual(updatedItem.purchaseReadiness, "Choose or create local order before downstream handoff")
+    XCTAssertTrue(store.activeWishlistItemsLinked(to: unrelatedOrder).isEmpty)
+  }
+
   func testSpaceMailConnectionDecodesOldJSONDefaults() throws {
     let json = """
     {
