@@ -191,6 +191,106 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(decoded.refreshHistory.isEmpty)
   }
 
+  func testGmailConnectionDecodesOldJSONDefaults() throws {
+    let json = """
+    {
+      "displayName": "Gmail tracking inbox",
+      "emailAddress": "orders@example.test",
+      "monitoredLabelNames": "INBOX, Orders",
+      "connectionStatus": "Placeholder configured",
+      "lastManualRefreshDate": "Never",
+      "setupNotes": "Local setup notes only",
+      "reviewState": "Needs review"
+    }
+    """.data(using: .utf8)!
+
+    let decoded = try JSONDecoder().decode(GmailMailboxConnection.self, from: json)
+
+    XCTAssertEqual(decoded.mailboxMode, .mixedFiltered)
+    XCTAssertEqual(decoded.oauthReadinessStatus, "Needs review")
+    XCTAssertEqual(decoded.requestedScopesSummary, "openid email profile https://www.googleapis.com/auth/gmail.readonly")
+    XCTAssertEqual(decoded.credentialStorageStatus, "GoogleSignIn cache pending")
+    XCTAssertEqual(decoded.lastRefreshFetchedCount, 0)
+    XCTAssertEqual(decoded.lastRefreshImportedCount, 0)
+    XCTAssertEqual(decoded.lastRefreshDuplicateCount, 0)
+    XCTAssertEqual(decoded.lastRefreshFilteredNonOrderCount, 0)
+    XCTAssertNil(decoded.lastRefreshUncertainCount)
+    XCTAssertEqual(decoded.lastRefreshSummary, "No Gmail refresh has run yet.")
+    XCTAssertNil(decoded.uncertainMessages)
+    XCTAssertNil(decoded.filteredMessages)
+    XCTAssertNil(decoded.refreshHistory)
+  }
+
+  func testGmailConnectionPreservesRefreshMetadata() throws {
+    let messageID = UUID()
+    let historyID = UUID()
+    let json = """
+    {
+      "displayName": "Gmail tracking inbox",
+      "emailAddress": "orders@example.test",
+      "monitoredLabelNames": "INBOX, Orders",
+      "connectionStatus": "Real Gmail: Fetch success",
+      "lastManualRefreshDate": "Today",
+      "setupNotes": "Local setup notes only",
+      "oauthReadinessStatus": "Ready",
+      "requestedScopesSummary": "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+      "credentialStorageStatus": "GoogleSignIn cache available",
+      "mailboxMode": "Mixed mailbox, filter likely order emails only",
+      "lastRefreshFetchedCount": 10,
+      "lastRefreshImportedCount": 2,
+      "lastRefreshDuplicateCount": 3,
+      "lastRefreshFilteredNonOrderCount": 4,
+      "lastRefreshUncertainCount": 1,
+      "lastRefreshSummary": "2 imported, 4 filtered, 1 uncertain",
+      "lastRefreshFilteredExamples": ["Newsletter"],
+      "lastRefreshUncertainExamples": ["Delivery question"],
+      "uncertainMessages": [
+        {
+          "id": "\(messageID.uuidString)",
+          "providerMessageID": "gmail-msg-1",
+          "sourceMailboxID": "\(UUID().uuidString)",
+          "sender": "sender@example.test",
+          "subject": "Delivery question",
+          "receivedDate": "Today",
+          "bodyPreview": "Can you check whether this relates to an order?",
+          "reason": "delivery-ish no id",
+          "capturedDate": "Today"
+        }
+      ],
+      "refreshHistory": [
+        {
+          "id": "\(historyID.uuidString)",
+          "timestamp": "Today",
+          "eventType": "Real refresh",
+          "status": "Fetch success",
+          "fetchedCount": 10,
+          "importedCount": 2,
+          "duplicateCount": 3,
+          "filteredNonOrderCount": 4,
+          "uncertainCount": 1,
+          "summary": "Manual Gmail refresh completed."
+        }
+      ],
+      "reviewState": "Needs review"
+    }
+    """.data(using: .utf8)!
+
+    let decoded = try JSONDecoder().decode(GmailMailboxConnection.self, from: json)
+
+    XCTAssertEqual(decoded.mailboxMode, .mixedFiltered)
+    XCTAssertEqual(decoded.lastRefreshFetchedCount, 10)
+    XCTAssertEqual(decoded.lastRefreshImportedCount, 2)
+    XCTAssertEqual(decoded.lastRefreshDuplicateCount, 3)
+    XCTAssertEqual(decoded.lastRefreshFilteredNonOrderCount, 4)
+    XCTAssertEqual(decoded.lastRefreshUncertainCount, 1)
+    XCTAssertEqual(decoded.lastRefreshSummary, "2 imported, 4 filtered, 1 uncertain")
+    XCTAssertEqual(decoded.lastRefreshFilteredExamples, ["Newsletter"])
+    XCTAssertEqual(decoded.lastRefreshUncertainExamples, ["Delivery question"])
+    XCTAssertEqual(decoded.uncertainMessages?.first?.subject, "Delivery question")
+    XCTAssertEqual(decoded.uncertainMessages?.first?.reason, "delivery-ish no id")
+    XCTAssertEqual(decoded.refreshHistory?.first?.uncertainCount, 1)
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,

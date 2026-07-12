@@ -2663,6 +2663,81 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.filterKeywordHints = filterKeywordHints
     self.reviewState = reviewState
   }
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case displayName
+    case emailAddress
+    case monitoredLabelNames
+    case connectionStatus
+    case lastManualRefreshDate
+    case setupNotes
+    case oauthReadinessStatus
+    case googleCloudProjectHint
+    case oauthClientIDPlaceholder
+    case redirectURIPlaceholder
+    case requestedScopesSummary
+    case consentScreenNotes
+    case credentialStorageStatus
+    case mailboxMode
+    case lastRefreshFetchedCount
+    case lastRefreshImportedCount
+    case lastRefreshDuplicateCount
+    case lastRefreshFilteredNonOrderCount
+    case lastRefreshUncertainCount
+    case lastRefreshSummary
+    case lastRefreshFilteredExamples
+    case lastRefreshUncertainExamples
+    case lastRefreshReasonBreakdown
+    case uncertainMessages
+    case filteredMessages
+    case classifierTestSummary
+    case classifierTestResults
+    case refreshHistory
+    case trustedSenderHints
+    case importKeywordHints
+    case uncertainKeywordHints
+    case filterKeywordHints
+    case reviewState
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+    displayName = try container.decode(String.self, forKey: .displayName)
+    emailAddress = try container.decode(String.self, forKey: .emailAddress)
+    monitoredLabelNames = try container.decode(String.self, forKey: .monitoredLabelNames)
+    connectionStatus = try container.decode(String.self, forKey: .connectionStatus)
+    lastManualRefreshDate = try container.decode(String.self, forKey: .lastManualRefreshDate)
+    setupNotes = try container.decode(String.self, forKey: .setupNotes)
+    oauthReadinessStatus = try container.decodeIfPresent(String.self, forKey: .oauthReadinessStatus) ?? "Needs review"
+    googleCloudProjectHint = try container.decodeIfPresent(String.self, forKey: .googleCloudProjectHint)
+    oauthClientIDPlaceholder = try container.decodeIfPresent(String.self, forKey: .oauthClientIDPlaceholder)
+    redirectURIPlaceholder = try container.decodeIfPresent(String.self, forKey: .redirectURIPlaceholder)
+    requestedScopesSummary = try container.decodeIfPresent(String.self, forKey: .requestedScopesSummary) ?? "openid email profile https://www.googleapis.com/auth/gmail.readonly"
+    consentScreenNotes = try container.decodeIfPresent(String.self, forKey: .consentScreenNotes)
+    credentialStorageStatus = try container.decodeIfPresent(String.self, forKey: .credentialStorageStatus) ?? "GoogleSignIn cache pending"
+    mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
+    lastRefreshFetchedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFetchedCount) ?? 0
+    lastRefreshImportedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshImportedCount) ?? 0
+    lastRefreshDuplicateCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshDuplicateCount) ?? 0
+    lastRefreshFilteredNonOrderCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFilteredNonOrderCount) ?? 0
+    lastRefreshUncertainCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshUncertainCount)
+    lastRefreshSummary = try container.decodeIfPresent(String.self, forKey: .lastRefreshSummary) ?? "No Gmail refresh has run yet."
+    lastRefreshFilteredExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshFilteredExamples)
+    lastRefreshUncertainExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshUncertainExamples)
+    lastRefreshReasonBreakdown = try container.decodeIfPresent([SpaceMailClassifierReasonCount].self, forKey: .lastRefreshReasonBreakdown)
+    uncertainMessages = try container.decodeIfPresent([GmailReviewMessage].self, forKey: .uncertainMessages)
+    filteredMessages = try container.decodeIfPresent([GmailReviewMessage].self, forKey: .filteredMessages)
+    classifierTestSummary = try container.decodeIfPresent(String.self, forKey: .classifierTestSummary)
+    classifierTestResults = try container.decodeIfPresent([GmailClassifierTestResult].self, forKey: .classifierTestResults)
+    refreshHistory = try container.decodeIfPresent([GmailRefreshHistoryEntry].self, forKey: .refreshHistory)
+    trustedSenderHints = try container.decodeIfPresent([String].self, forKey: .trustedSenderHints)
+    importKeywordHints = try container.decodeIfPresent([String].self, forKey: .importKeywordHints)
+    uncertainKeywordHints = try container.decodeIfPresent([String].self, forKey: .uncertainKeywordHints)
+    filterKeywordHints = try container.decodeIfPresent([String].self, forKey: .filterKeywordHints)
+    reviewState = try container.decode(ReviewState.self, forKey: .reviewState)
+  }
 }
 
 struct ShopifyConnection: Identifiable, Hashable, Codable {
