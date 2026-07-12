@@ -672,6 +672,7 @@ struct WishlistView: View {
         wishlistNextActionGuidePanel
         wishlistComparisonReadinessLadderPanel
         wishlistOperatorControlCentrePanel
+        wishlistOperationsNextStepsPanel
         wishlistComparisonBriefShortcutPanel
         wishlistWorkflowFocusPanel
         wishlistOperatorQueuePanel
@@ -1559,6 +1560,174 @@ struct WishlistView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var wishlistOperationsNextStepsPanel: some View {
+    let handoffEntries = wishlistPurchaseOperationsHandoffItems
+    let linkedEntries = wishlistLinkedOrderOperationsChecklistEntries
+    let closureEntries = wishlistOperationsClosureReadinessEntries
+    let needsOrderLink = handoffEntries.filter { entry in
+      entry.linkedOrder == nil || entry.gaps.contains { $0.localizedCaseInsensitiveContains("order") }
+    }
+    let needsOperationalRecords = handoffEntries.filter { !$0.gaps.isEmpty }
+    let linkedButIncomplete = linkedEntries.filter { entry in
+      entry.phaseChecks.contains { !$0.1 }
+    }
+    let blockedClosure = closureEntries.filter { entry in
+      !entry.gaps.isEmpty || entry.openTaskCount > 0
+    }
+    let readyToClose = closureEntries.filter { entry in
+      entry.gaps.isEmpty && entry.openTaskCount == 0
+    }
+    let totalAttention = needsOrderLink.count + needsOperationalRecords.count + linkedButIncomplete.count + blockedClosure.count
+    let leadingText: String
+    if totalAttention == 0 {
+      leadingText = readyToClose.isEmpty
+        ? "No purchased Wishlist item is waiting on operations handoff."
+        : "\(readyToClose.count) Wishlist item\(readyToClose.count == 1 ? "" : "s") look locally ready for closure review."
+    } else {
+      leadingText = "Focus the operations handoff queue before closing Wishlist purchases."
+    }
+
+    return SettingsPanel(title: "Wishlist operations next steps", symbol: "shippingbox.and.arrow.backward.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: totalAttention == 0 ? "checkmark.seal.fill" : "arrow.triangle.branch")
+            .foregroundStyle(totalAttention == 0 ? .green : .orange)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(totalAttention == 0 ? "Operations handoff is locally clear" : "Operations handoff needs attention")
+              .font(.headline)
+            Text(leadingText)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(totalAttention == 0 ? "Clear" : "\(totalAttention) gap\(totalAttention == 1 ? "" : "s")", color: totalAttention == 0 ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Need order link", "\(needsOrderLink.count)", needsOrderLink.isEmpty ? .green : .teal),
+          ("Need records", "\(needsOperationalRecords.count)", needsOperationalRecords.isEmpty ? .green : .orange),
+          ("Incomplete", "\(linkedButIncomplete.count)", linkedButIncomplete.isEmpty ? .green : .purple),
+          ("Closure blocked", "\(blockedClosure.count)", blockedClosure.isEmpty ? .green : .brown),
+          ("Ready to close", "\(readyToClose.count)", readyToClose.isEmpty ? .secondary : .green)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 235 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
+          wishlistOperationsNextStepCard(
+            title: "1. Match purchase to order",
+            detail: needsOrderLink.isEmpty ? "No purchase handoff is waiting for an order link." : "Use Inbox or Orders confirmations to link purchased Wishlist items to tracked orders.",
+            count: needsOrderLink.count,
+            color: needsOrderLink.isEmpty ? .green : .teal,
+            symbol: "link.badge.plus",
+            buttonTitle: "Focus watch",
+            action: {
+              selectedWorkflowFocus = .watch
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          )
+
+          wishlistOperationsNextStepCard(
+            title: "2. Stage downstream records",
+            detail: needsOperationalRecords.isEmpty ? "Receiving, inventory, storage, custody, label, manual-check, and dispatch placeholders are staged where needed." : "Create the next missing local operations records for purchased items.",
+            count: needsOperationalRecords.count,
+            color: needsOperationalRecords.isEmpty ? .green : .orange,
+            symbol: "wand.and.stars",
+            buttonTitle: "Stage records",
+            action: {
+              stageNextWishlistOperationsRecords(for: Array(handoffEntries.prefix(8)))
+              selectedWorkflowFocus = .operations
+            }
+          )
+
+          wishlistOperationsNextStepCard(
+            title: "3. Complete linked setup",
+            detail: linkedButIncomplete.isEmpty ? "Linked Wishlist orders have no counted operations setup gaps." : "Review linked-order, receiving, stock, storage, custody, label, manual-check, and dispatch setup.",
+            count: linkedButIncomplete.count,
+            color: linkedButIncomplete.isEmpty ? .green : .purple,
+            symbol: "checklist.checked",
+            buttonTitle: "Focus setup",
+            action: {
+              selectedWorkflowFocus = .operations
+              selectedSource = nil
+              selectedStatus = nil
+              wishlistSearchText = ""
+            }
+          )
+
+          wishlistOperationsNextStepCard(
+            title: "4. Check closure readiness",
+            detail: blockedClosure.isEmpty ? "No local closure blockers are counted." : "Run the closure check after downstream records and follow-up tasks are staged.",
+            count: blockedClosure.count,
+            color: blockedClosure.isEmpty ? .green : .brown,
+            symbol: "checkmark.seal.text.page.fill",
+            buttonTitle: "Check closure",
+            action: store.checkWishlistOperationsClosureReadinessBatch
+          )
+        }
+
+        CompactActionRow {
+          Button("Stage next records", systemImage: "wand.and.stars") {
+            stageNextWishlistOperationsRecords(for: Array(handoffEntries.prefix(8)))
+          }
+          .disabled(needsOperationalRecords.isEmpty)
+          Button("Closure check", systemImage: "checkmark.seal.text.page.fill", action: store.checkWishlistOperationsClosureReadinessBatch)
+            .disabled(closureEntries.isEmpty)
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+
+        Text("This is a local operator summary. It does not receive stock, scan labels, book dispatch, contact sellers, update retailer accounts, or close external orders.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func wishlistOperationsNextStepCard(
+    title: String,
+    detail: String,
+    count: Int,
+    color: Color,
+    symbol: String,
+    buttonTitle: String,
+    action: @escaping () -> Void
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(title, systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+        Spacer(minLength: 8)
+        Badge("\(count)", color: color)
+      }
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Button(buttonTitle, systemImage: symbol, action: action)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(count == 0 && title != "4. Check closure readiness")
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var wishlistComparisonBriefShortcutPanel: some View {
