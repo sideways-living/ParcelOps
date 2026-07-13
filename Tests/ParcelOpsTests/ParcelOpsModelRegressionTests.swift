@@ -2841,6 +2841,79 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.nextAction, "Use Edit setup and update compiled plist/project values before live testing.")
   }
 
+  func testGmailSetupHandoffTaskRefreshesExistingOpenTask() {
+    let mailboxID = UUID()
+    var connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromGmailOAuthPlan(connection)
+    connection.oauthReadinessStatus = "Ready"
+    connection.credentialStorageStatus = "GoogleSignIn cache available"
+    store.createReviewTaskFromGmailOAuthPlan(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail config handoff")
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Operations")
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Review Gmail setup before real sign-in.") == true)
+    XCTAssertTrue(tasks.first?.summary.contains("Compiled client:") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail setup handoff review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
+  func testGmailSetupHandoffTaskCreatesNewTaskAfterCompletedTask() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Needs review",
+      credentialStorageStatus: "GoogleSignIn cache pending",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromGmailOAuthPlan(connection)
+    guard let firstTask = store.reviewTasks.first else {
+      XCTFail("Expected Gmail setup handoff task.")
+      return
+    }
+    store.completeReviewTask(firstTask)
+    store.createReviewTaskFromGmailOAuthPlan(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail config handoff")
+    }
+    XCTAssertEqual(tasks.count, 2)
+    XCTAssertEqual(tasks.filter { $0.status == .completed }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.status == .open }.count, 1)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task completed." })
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from Gmail setup handoff." })
+  }
+
   func testGmailReleaseSelfCheckTaskRefreshesExistingOpenTask() {
     let mailboxID = UUID()
     var connection = makeGmailConnection(

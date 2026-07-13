@@ -16566,12 +16566,39 @@ final class ParcelOpsStore {
     let plan = gmailOAuthImplementationPlan(for: connection)
     let readiness = gmailOAuthReadinessSummary(for: connection)
     let blockers = readiness.missingFields.isEmpty ? "No current readiness blockers." : "Current readiness blockers: \(readiness.missingFields.joined(separator: ", "))."
+    let taskSummary = "Review Gmail setup before real sign-in. \(plan.statusText). \(readiness.statusText). \(blockers) Compiled client: \(readiness.compiledClientIDStatus). Compiled callback: \(readiness.compiledCallbackSchemeStatus)."
+    let priority: TaskPriority = readiness.isReady && plan.completedCount == plan.totalCount ? .normal : .high
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail config handoff")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up \(connection.displayName) Gmail config handoff"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .urgent ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail setup handoff review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail setup handoff. No duplicate task was created. No Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
       label: "\(connection.displayName) Gmail config handoff",
-      summary: "Review Gmail setup before real sign-in. \(plan.statusText). \(readiness.statusText). \(blockers) Compiled client: \(readiness.compiledClientIDStatus). Compiled callback: \(readiness.compiledCallbackSchemeStatus).",
-      priority: readiness.isReady && plan.completedCount == plan.totalCount ? .normal : .high,
+      summary: taskSummary,
+      priority: priority,
       assignee: "Operations"
     )
     logAudit(
