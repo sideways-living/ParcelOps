@@ -866,6 +866,48 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertFalse(decision.selectedSellerName.localizedCaseInsensitiveContains("Too-cheap"))
   }
 
+  func testWishlistPurchaseDecisionFallsBackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyFirstOption = WishlistComparisonOption(
+      sellerName: "First cheap risky seller",
+      productURL: "https://risk-first.example/scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns or warranty evidence.",
+      recommendation: "Do not prefer without review",
+      lastChecked: "Today",
+      localScore: 20,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but poor trust evidence."
+    )
+    let trustedOption = try XCTUnwrap(item.comparisonOptions?.first)
+    item.comparisonOptions = [riskyFirstOption, trustedOption]
+    item.preferredOptionID = nil
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.createWishlistPurchaseDecision(item)
+
+    let decision = try XCTUnwrap(store.wishlistItems.first?.purchaseDecision)
+
+    XCTAssertEqual(decision.selectedSellerName, "Known Australian retailer")
+    XCTAssertEqual(decision.selectedOptionID, trustedOption.id)
+    XCTAssertTrue(decision.rejectedOptionsSummary.contains("First cheap risky seller"))
+    XCTAssertFalse(decision.selectedSellerName.localizedCaseInsensitiveContains("cheap risky"))
+  }
+
   func testWishlistPurchaseDecisionReviewProgressesToManualHandoffReadiness() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
@@ -1123,6 +1165,49 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(record.selectedForPurchase)
     XCTAssertEqual(record.reviewState, .needsReview)
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Wishlist purchase link record added locally." })
+  }
+
+  func testWishlistPurchaseLinkRecordFallsBackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyFirstOption = WishlistComparisonOption(
+      sellerName: "First cheap risky seller",
+      productURL: "https://risk-first.example/scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns or warranty evidence.",
+      recommendation: "Do not prefer without review",
+      lastChecked: "Today",
+      localScore: 20,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but poor trust evidence."
+    )
+    let trustedOption = try XCTUnwrap(item.comparisonOptions?.first)
+    item.comparisonOptions = [riskyFirstOption, trustedOption]
+    item.preferredOptionID = nil
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.addWishlistPurchaseLinkRecord(item)
+
+    let record = try XCTUnwrap(store.wishlistPurchaseLinkRecords.first)
+
+    XCTAssertEqual(record.sellerName, "Known Australian retailer")
+    XCTAssertEqual(record.productURL, trustedOption.productURL)
+    XCTAssertEqual(record.estimatedAUDTotal, "AUD 109 delivered")
+    XCTAssertEqual(record.trustSummary, "Trusted")
+    XCTAssertFalse(record.selectedForPurchase)
   }
 
   func testWishlistPurchaseLinkSelectionKeepsOnlyOneSelected() throws {

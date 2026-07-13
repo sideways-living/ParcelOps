@@ -21084,7 +21084,7 @@ final class ParcelOpsStore {
     let beforeDetail = wishlistItems[index].auditDetail
     let current = wishlistItems[index]
     let options = current.comparisonOptions ?? []
-    let selectedOption = options.first { $0.id == current.preferredOptionID } ?? options.first
+    let selectedOption = selectedWishlistSellerOption(for: current)
     let rejectedOptions = options
       .filter { $0.id != selectedOption?.id }
       .map { "\($0.sellerName): \($0.estimatedAUDTotal), trust \($0.trustRating)" }
@@ -23308,9 +23308,7 @@ final class ParcelOpsStore {
   }
 
   func addWishlistPurchaseLinkRecord(_ item: WishlistItem) {
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let decision = item.purchaseDecision
     let sellerName = decision?.selectedSellerName ?? preferredOption?.sellerName ?? item.storefront
     let productURL = preferredOption?.productURL ?? item.storefrontURL
@@ -23341,6 +23339,23 @@ final class ParcelOpsStore {
       summary: "Wishlist purchase link record added locally.",
       afterDetail: "\(record.auditDetail)\nSource item: \(item.auditDetail)\nNo browser automation, seller login, checkout, payment, purchase, or network call occurred."
     )
+  }
+
+  private func selectedWishlistSellerOption(for item: WishlistItem) -> WishlistComparisonOption? {
+    let options = item.comparisonOptions ?? []
+    if let preferredOptionID = item.preferredOptionID,
+       let preferred = options.first(where: { $0.id == preferredOptionID }) {
+      return preferred
+    }
+    return options.sorted { first, second in
+      if first.operatorSellerMatrixScore != second.operatorSellerMatrixScore {
+        return first.operatorSellerMatrixScore > second.operatorSellerMatrixScore
+      }
+      if first.operatorSellerEvidenceGaps.count != second.operatorSellerEvidenceGaps.count {
+        return first.operatorSellerEvidenceGaps.count < second.operatorSellerEvidenceGaps.count
+      }
+      return first.lastChecked > second.lastChecked
+    }.first
   }
 
   func markWishlistPurchaseLinkSelected(_ record: WishlistPurchaseLinkRecord) {
