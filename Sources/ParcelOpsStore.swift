@@ -1723,11 +1723,11 @@ final class ParcelOpsStore {
         title: "Release validation checkpoint recorded",
         requirement: "Before release-candidate use, capture the current mailbox provider gate as a local review task.",
         evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed.",
-        nextAction: releaseGateTasks.isEmpty
+        nextAction: openReleaseGateTaskCount == 0
           ? "Create a review task from the mailbox provider release gate before the next hands-on test pass."
           : "Keep the release gate task current if provider setup or refresh evidence changes.",
-        isPassed: !releaseGateTasks.isEmpty,
-        tone: releaseGateTasks.isEmpty ? "attention" : "success",
+        isPassed: openReleaseGateTaskCount > 0,
+        tone: openReleaseGateTaskCount == 0 ? "attention" : "success",
         symbol: "checkmark.seal"
       )
     ]
@@ -1793,7 +1793,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxCreatedOrderCount)", tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Checkpoint", value: releaseGateTasks.isEmpty ? "Needed" : "Recorded", tone: releaseGateTasks.isEmpty ? "attention" : "success")
+        SpaceMailReleaseSnapshotMetric(title: "Checkpoint", value: openReleaseGateTaskCount == 0 ? "Needed" : "Open", tone: openReleaseGateTaskCount == 0 ? "attention" : "success")
       ],
       gates: gates
     )

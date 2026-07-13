@@ -3196,11 +3196,25 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(refreshedCheckpointGate?.isPassed, true)
     XCTAssertEqual(refreshedCheckpointGate?.tone, "success")
-    XCTAssertEqual(refreshedGate.metrics.first { $0.title == "Checkpoint" }?.value, "Recorded")
+    XCTAssertEqual(refreshedGate.metrics.first { $0.title == "Checkpoint" }?.value, "Open")
     XCTAssertTrue(store.reviewTasks.contains {
       $0.linkedEntityType == .integration
         && $0.linkedEntityID == "mailbox-provider-release-gate"
     })
+
+    if let checkpointTask = store.reviewTasks.first(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-release-gate"
+    }) {
+      store.completeReviewTask(checkpointTask)
+    }
+
+    let completedGate = store.mailboxProviderReleaseGateSummary
+    let completedCheckpointGate = completedGate.gates.first { $0.title == "Release validation checkpoint recorded" }
+
+    XCTAssertEqual(completedCheckpointGate?.isPassed, false)
+    XCTAssertEqual(completedCheckpointGate?.tone, "attention")
+    XCTAssertEqual(completedGate.metrics.first { $0.title == "Checkpoint" }?.value, "Needed")
   }
 
   func testLocalDataHygieneSnapshotLogsWithoutMutatingOperationalRecords() {
