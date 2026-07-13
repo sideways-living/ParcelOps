@@ -954,6 +954,11 @@ struct AuditView: View {
           } label: {
             Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
           }
+          Button {
+            store.recordGmailReleaseReadinessSnapshot()
+          } label: {
+            Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+          }
           Button(showTechnicalDiagnostics ? "Hide technical diagnostics" : "Show technical diagnostics", systemImage: showTechnicalDiagnostics ? "eye.slash" : "eye") {
             showTechnicalDiagnostics.toggle()
           }
