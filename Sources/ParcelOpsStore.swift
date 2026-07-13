@@ -24992,6 +24992,13 @@ final class ParcelOpsStore {
       event.entityType == .gmailMailboxConnection &&
         (event.entityID == connection.id.uuidString || event.entityLabel == connection.displayName)
     }
+    let releaseSelfCheckTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail release self-check")
+    }
+    let openReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status != .completed }.count
+    let completedReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status == .completed }.count
     let hasActionableReview = connection.lastRefreshImportedCount > 0 || pendingUncertain > 0
     let filteredReviewStateClear = pendingUncertain == 0 && pendingFiltered == 0
 
@@ -25037,6 +25044,14 @@ final class ParcelOpsStore {
         isComplete: health.tone != "warning" && (connection.lastRefreshImportedCount > 0 || hasRefreshOutcome),
         tone: health.tone == "warning" ? "warning" : health.tone,
         symbolName: "tray.full.fill"
+      ),
+      GmailReleaseSelfCheckItem(
+        title: "Release task assigned",
+        detail: "\(releaseSelfCheckTasks.count) Gmail release self-check task\(releaseSelfCheckTasks.count == 1 ? "" : "s") recorded, \(openReleaseSelfCheckTaskCount) open, \(completedReleaseSelfCheckTaskCount) completed.",
+        nextAction: openReleaseSelfCheckTaskCount > 0 ? "Keep the open Gmail release task current until this mailbox path is accepted for daily use." : "Create a Gmail release self-check task before treating this mailbox path as release-ready.",
+        isComplete: openReleaseSelfCheckTaskCount > 0,
+        tone: openReleaseSelfCheckTaskCount > 0 ? "success" : "attention",
+        symbolName: "checkmark.seal"
       ),
       GmailReleaseSelfCheckItem(
         title: "Audit evidence",
