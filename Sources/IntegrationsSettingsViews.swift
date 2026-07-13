@@ -672,11 +672,7 @@ struct IntegrationsView: View {
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
-              activeRefreshTask: store.reviewTasks.first {
-                $0.linkedEntityType == .integration
-                  && $0.linkedEntityID == "gmail-latest-refresh-\(connection.id.uuidString)"
-                  && $0.status != .completed
-              }
+              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -715,6 +711,8 @@ struct IntegrationsView: View {
               store.dismissUncertainGmailMessage(message, for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+            } onCreateUncertainDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "uncertain")
             } onTrustUncertainSender: { message in
               store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
             } onImportUncertainHint: { message in
@@ -727,6 +725,8 @@ struct IntegrationsView: View {
               store.dismissFilteredGmailMessage(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+            } onCreateFilteredDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "filtered")
             } onTrustFilteredSender: { message in
               store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
             } onImportFilteredHint: { message in
@@ -1380,12 +1380,14 @@ struct GmailMailboxConnectionRow: View {
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
   var onCreateUncertainTask: (GmailReviewMessage) -> Void
+  var onCreateUncertainDraft: (GmailReviewMessage) -> Void
   var onTrustUncertainSender: (GmailReviewMessage) -> Void
   var onImportUncertainHint: (GmailReviewMessage) -> Void
   var onFilterUncertainHint: (GmailReviewMessage) -> Void
   var onImportFiltered: (GmailReviewMessage) -> Void
   var onDismissFiltered: (GmailReviewMessage) -> Void
   var onCreateFilteredTask: (GmailReviewMessage) -> Void
+  var onCreateFilteredDraft: (GmailReviewMessage) -> Void
   var onTrustFilteredSender: (GmailReviewMessage) -> Void
   var onImportFilteredHint: (GmailReviewMessage) -> Void
   var onFilterFilteredHint: (GmailReviewMessage) -> Void
@@ -1428,12 +1430,14 @@ struct GmailMailboxConnectionRow: View {
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
     onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
+    onCreateUncertainDraft: @escaping (GmailReviewMessage) -> Void,
     onTrustUncertainSender: @escaping (GmailReviewMessage) -> Void,
     onImportUncertainHint: @escaping (GmailReviewMessage) -> Void,
     onFilterUncertainHint: @escaping (GmailReviewMessage) -> Void,
     onImportFiltered: @escaping (GmailReviewMessage) -> Void,
     onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
     onCreateFilteredTask: @escaping (GmailReviewMessage) -> Void,
+    onCreateFilteredDraft: @escaping (GmailReviewMessage) -> Void,
     onTrustFilteredSender: @escaping (GmailReviewMessage) -> Void,
     onImportFilteredHint: @escaping (GmailReviewMessage) -> Void,
     onFilterFilteredHint: @escaping (GmailReviewMessage) -> Void,
@@ -1469,12 +1473,14 @@ struct GmailMailboxConnectionRow: View {
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
     self.onCreateUncertainTask = onCreateUncertainTask
+    self.onCreateUncertainDraft = onCreateUncertainDraft
     self.onTrustUncertainSender = onTrustUncertainSender
     self.onImportUncertainHint = onImportUncertainHint
     self.onFilterUncertainHint = onFilterUncertainHint
     self.onImportFiltered = onImportFiltered
     self.onDismissFiltered = onDismissFiltered
     self.onCreateFilteredTask = onCreateFilteredTask
+    self.onCreateFilteredDraft = onCreateFilteredDraft
     self.onTrustFilteredSender = onTrustFilteredSender
     self.onImportFilteredHint = onImportFilteredHint
     self.onFilterFilteredHint = onFilterFilteredHint
@@ -1936,6 +1942,10 @@ struct GmailMailboxConnectionRow: View {
                   onCreateUncertainTask(message)
                 }
                 .buttonStyle(.bordered)
+                Button("Draft", systemImage: "envelope.open.fill") {
+                  onCreateUncertainDraft(message)
+                }
+                .buttonStyle(.bordered)
                 Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
                   onDismissUncertain(message)
                 }
@@ -1999,6 +2009,10 @@ struct GmailMailboxConnectionRow: View {
                 .buttonStyle(.bordered)
                 Button("Task", systemImage: "checklist") {
                   onCreateFilteredTask(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Draft", systemImage: "envelope.open.fill") {
+                  onCreateFilteredDraft(message)
                 }
                 .buttonStyle(.bordered)
                 Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {

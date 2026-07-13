@@ -16294,6 +16294,89 @@ final class ParcelOpsStore {
     )
   }
 
+  func createDraftMessage(from gmailMessage: GmailReviewMessage, connection: GmailMailboxConnection, reviewQueue: String) {
+    let label = gmailMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : gmailMessage.subject
+    let recipient = gmailMessage.sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "operations@parcelops.example" : gmailMessage.sender
+    let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let body = [
+      baseBody,
+      "",
+      "Gmail preview: \(reviewQueue)",
+      "Reason: \(gmailMessage.reason)",
+      "Provider message ID: \(gmailMessage.providerMessageID)",
+      "Boundary: Created from stored safe Gmail preview only. No Gmail API call, OAuth token, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
+    ].joined(separator: "\n")
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.body.localizedCaseInsensitiveContains(gmailMessage.providerMessageID)
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].recipient = recipient
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing Gmail preview draft refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nProvider message ID: \(gmailMessage.providerMessageID). Refreshed from stored Gmail preview only. No duplicate draft was created. No Gmail API call, OAuth token, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let draft = DraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      templateID: selectedTemplate?.id,
+      recipient: recipient,
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message created from \(reviewQueue) Gmail preview.",
+      afterDetail: "\(draft.auditDetail)\nProvider message ID: \(gmailMessage.providerMessageID). Created from stored Gmail preview only. No Gmail API call, OAuth token, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
+    )
+  }
+
+  func activeGmailLatestRefreshTask(for connection: GmailMailboxConnection) -> ReviewTask? {
+    let taskID = "gmail-latest-refresh-" + connection.id.uuidString
+    return reviewTasks.first { task in
+      task.linkedEntityType == .integration
+        && task.linkedEntityID == taskID
+        && task.status != .completed
+    }
+  }
+
   func createReviewTaskFromGmailClassifierTuning(_ connection: GmailMailboxConnection) {
     let uncertainCount = connection.uncertainMessages?.count ?? connection.lastRefreshUncertainCount ?? 0
     let filteredCount = connection.filteredMessages?.count ?? 0

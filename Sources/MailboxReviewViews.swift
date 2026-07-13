@@ -533,11 +533,7 @@ struct MailboxView: View {
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
-              activeRefreshTask: store.reviewTasks.first {
-                $0.linkedEntityType == .integration
-                  && $0.linkedEntityID == "gmail-latest-refresh-\(connection.id.uuidString)"
-                  && $0.status != .completed
-              }
+              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -576,6 +572,8 @@ struct MailboxView: View {
               store.dismissUncertainGmailMessage(message, for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+            } onCreateUncertainDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "uncertain")
             } onTrustUncertainSender: { message in
               store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
             } onImportUncertainHint: { message in
@@ -588,6 +586,8 @@ struct MailboxView: View {
               store.dismissFilteredGmailMessage(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+            } onCreateFilteredDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "filtered")
             } onTrustFilteredSender: { message in
               store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
             } onImportFilteredHint: { message in
@@ -2770,6 +2770,7 @@ struct GmailNeedsReviewPreviewRow: View {
   var symbol: String = "questionmark.folder.fill"
   var onImport: () -> Void
   var onCreateTask: () -> Void
+  var onCreateDraft: () -> Void = {}
   var onDismiss: () -> Void
   var onTrustSender: () -> Void = {}
   var onImportHint: () -> Void = {}
@@ -2826,6 +2827,7 @@ struct GmailNeedsReviewPreviewRow: View {
       CompactActionRow {
         Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
         Button("Task", systemImage: "checklist", action: onCreateTask)
+        Button("Draft", systemImage: "envelope.open.fill", action: onCreateDraft)
         Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
       }
       ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
@@ -3966,6 +3968,8 @@ struct NeedsReviewView: View {
                           store.importUncertainGmailMessage(message, for: connection)
                         } onCreateTask: {
                           store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+                        } onCreateDraft: {
+                          store.createDraftMessage(from: message, connection: connection, reviewQueue: "uncertain")
                         } onDismiss: {
                           store.dismissUncertainGmailMessage(message, for: connection)
                         } onTrustSender: {
@@ -4002,6 +4006,8 @@ struct NeedsReviewView: View {
                           store.importFilteredGmailMessage(message, for: connection)
                         } onCreateTask: {
                           store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+                        } onCreateDraft: {
+                          store.createDraftMessage(from: message, connection: connection, reviewQueue: "filtered")
                         } onDismiss: {
                           store.dismissFilteredGmailMessage(message, for: connection)
                         } onTrustSender: {
