@@ -10010,15 +10010,24 @@ final class ParcelOpsStore {
   }
 
   private func detectedOrderNumber(in text: String) -> String {
-    let patterns = [
+    let labelledPatterns = [
       #"(?i)\border\s+([A-Z0-9][A-Z0-9._/-]{2,30})\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\b"#,
       #"(?i)\b(?:order|order\s+no\.?|order\s+number|order\s+id|order\s+ref(?:erence)?|purchase\s+order|po)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
-      #"(?i)\b(?:confirmation|receipt|invoice)\s*(?:number|no\.?|id|ref(?:erence)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
+      #"(?i)\b(?:confirmation|receipt|invoice)\s*(?:number|no\.?|id|ref(?:erence)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#
+    ]
+    for pattern in labelledPatterns {
+      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+         isLikelyOrderIdentifier(value) {
+        return value
+      }
+    }
+
+    let genericPatterns = [
       #"\b[A-Z]{2,8}-\d{3,12}\b"#,
       #"\b[A-Z]{2,8}\d{4,14}\b"#
     ]
-    for pattern in patterns {
-      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+    for pattern in genericPatterns {
+      if let value = firstGenericOrderMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
          isLikelyOrderIdentifier(value) {
         return value
       }
@@ -10028,9 +10037,9 @@ final class ParcelOpsStore {
 
   private func detectedTrackingNumber(in text: String, excluding orderNumber: String) -> String {
     let patterns = [
-      #"(?i)\b(?:shipped|shipping|shipment)\s+(?:with\s+)?tracking\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
-      #"(?i)\b(?:tracking|tracking\s+number|tracking\s+no\.?|track\s+no\.?|shipment\s+number|shipment\s+id|parcel\s+number|consignment|consignment\s+number|awb|waybill)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
-      #"(?i)\b(?:carrier|courier)\s*(?:ref(?:erence)?|number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:shipped|shipping|shipment)\s+(?:with\s+)?tracking\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:tracking\s+update|tracking\s+number|tracking\s+no\.?|tracking|track\s+no\.?|shipment\s+number|shipment\s+id|parcel\s+number|consignment|consignment\s+number|awb|waybill)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:carrier|courier)\s*(?:ref(?:erence)?|number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
       #"\b(?:1Z[0-9A-Z]{16}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{2,6}\d{6,22}[A-Z0-9]*)\b"#
     ]
     for pattern in patterns {
@@ -10066,6 +10075,22 @@ final class ParcelOpsStore {
     return String(text[swiftRange]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  private func firstGenericOrderMatch(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex.matches(in: text, range: range)
+    for match in matches {
+      guard let matchRange = Range(match.range(at: 0), in: text) else { continue }
+      let prefixStart = text.index(matchRange.lowerBound, offsetBy: -min(32, text.distance(from: text.startIndex, to: matchRange.lowerBound)), limitedBy: text.startIndex) ?? text.startIndex
+      let prefix = String(text[prefixStart..<matchRange.lowerBound]).lowercased()
+      if prefix.range(of: #"(tracking|shipment|parcel|consignment|waybill|awb)\s+(update|number|no\.?|id|ref)?\s*$"#, options: .regularExpression) != nil {
+        continue
+      }
+      return String(text[matchRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return nil
+  }
+
   private func cleanDetectedIdentifier(_ value: String) -> String? {
     var cleaned = value
       .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
@@ -10082,19 +10107,21 @@ final class ParcelOpsStore {
   }
 
   private func isLikelyOrderIdentifier(_ value: String) -> Bool {
-    let normalized = value.normalizedValidationKey
+    let normalized = value.normalizedValidationKey.uppercased()
     guard normalized.count >= 4, normalized.count <= 32 else { return false }
     guard normalized.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
-    let blocked = ["ORDER", "ORDERS", "NUMBER", "CONFIRMATION", "RECEIPT", "INVOICE", "TRACKING", "SHIPMENT"]
+    let blocked = ["ORDER", "ORDERS", "NUMBER", "CONFIRMATION", "RECEIPT", "INVOICE", "TRACKING", "SHIPMENT", "SHIPPING", "SHIPPED", "UPDATE", "DETAIL", "DETAILS", "INCLUDED", "NOTIFICATION", "ACCOUNT", "DELIVERY", "PURCHASE", "SPACEMAIL"]
     return !blocked.contains(normalized)
+      && !blocked.contains { normalized.contains($0) }
   }
 
   private func isLikelyTrackingIdentifier(_ value: String) -> Bool {
-    let normalized = value.normalizedValidationKey
+    let normalized = value.normalizedValidationKey.uppercased()
     guard normalized.count >= 5, normalized.count <= 34 else { return false }
     guard normalized.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
-    let blocked = ["TRACKING", "SHIPMENT", "CONSIGNMENT", "NUMBER", "ORDER"]
+    let blocked = ["TRACKING", "SHIPMENT", "CONSIGNMENT", "NUMBER", "ORDER", "SHIPPING", "SHIPPED", "UPDATE", "DETAIL", "DETAILS", "INCLUDED", "NOTIFICATION", "ACCOUNT", "DELIVERY", "PURCHASE", "SPACEMAIL"]
     return !blocked.contains(normalized)
+      && !blocked.contains { normalized.contains($0) }
   }
 
   private func safeAuditPreview(_ value: String, limit: Int) -> String {

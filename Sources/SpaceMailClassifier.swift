@@ -43,7 +43,8 @@ enum SpaceMailMailboxRelevanceClassifier {
     let hardNonOrderSignals = [
       "newsletter", "promotion", "marketing", "sale ends", "final days",
       "password reset", "security alert", "verification code", "calendar", "invitation",
-      "webinar", "social", "follow us"
+      "webinar", "social", "follow us", "free delivery", "next purchase",
+      "receipt is ready", "monthly receipt"
     ]
     let footerSignals = ["unsubscribe", "privacy policy", "terms of service", "view this email", "sent securely from spacemail"]
     let orderQuestionSignals = [
@@ -107,7 +108,7 @@ enum SpaceMailMailboxRelevanceClassifier {
       )
     }
 
-    if hasOrderQuestionSignal && !hasHardNonOrderSignal && !(hasOrderNumber || hasTrackingNumber || hasClearShipmentPhrase) {
+    if hasOrderQuestionSignal && !hasHardNonOrderSignal && !hasClearShipmentPhrase {
       return result(.uncertain, "order/delivery question without detected id")
     }
 
@@ -254,15 +255,24 @@ enum SpaceMailMailboxRelevanceClassifier {
   }
 
   private static func detectedOrderNumber(in text: String) -> String {
-    let patterns = [
+    let labelledPatterns = [
       #"(?i)\border\s+([A-Z0-9][A-Z0-9._/-]{2,30})\s+(?:has\s+)?(?:shipped|shipping|dispatched|sent)\b"#,
       #"(?i)\b(?:order|order\s+no\.?|order\s+number|order\s+id|order\s+ref(?:erence)?|purchase\s+order|po)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
-      #"(?i)\b(?:confirmation|receipt|invoice)\s*(?:number|no\.?|id|ref(?:erence)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#,
+      #"(?i)\b(?:confirmation|receipt|invoice)\s*(?:number|no\.?|id|ref(?:erence)?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,30})"#
+    ]
+    for pattern in labelledPatterns {
+      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+         isLikelyOrderIdentifier(value) {
+        return value
+      }
+    }
+
+    let genericPatterns = [
       #"\b[A-Z]{2,8}-\d{3,12}\b"#,
       #"\b[A-Z]{2,8}\d{4,14}\b"#
     ]
-    for pattern in patterns {
-      if let value = firstMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
+    for pattern in genericPatterns {
+      if let value = firstGenericOrderMatch(in: text, pattern: pattern).flatMap(cleanDetectedIdentifier),
          isLikelyOrderIdentifier(value) {
         return value
       }
@@ -272,9 +282,9 @@ enum SpaceMailMailboxRelevanceClassifier {
 
   private static func detectedTrackingNumber(in text: String, excluding orderNumber: String) -> String {
     let patterns = [
-      #"(?i)\b(?:shipped|shipping|shipment)\s+(?:with\s+)?tracking\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
-      #"(?i)\b(?:tracking|tracking\s+number|tracking\s+no\.?|track\s+no\.?|shipment\s+number|shipment\s+id|parcel\s+number|consignment|consignment\s+number|awb|waybill)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
-      #"(?i)\b(?:carrier|courier)\s*(?:ref(?:erence)?|number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:shipped|shipping|shipment)\s+(?:with\s+)?tracking\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:tracking\s+update|tracking\s+number|tracking\s+no\.?|tracking|track\s+no\.?|shipment\s+number|shipment\s+id|parcel\s+number|consignment|consignment\s+number|awb|waybill)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
+      #"(?i)\b(?:carrier|courier)\s*(?:ref(?:erence)?|number|no\.?)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{4,34}?)(?=\s+(?:sent|from|via|to|for|is|in|and|expected|delivery|arriving|https?://)|[.,;\n\r]|$)"#,
       #"\b(?:1Z[0-9A-Z]{16}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{2,6}\d{6,22}[A-Z0-9]*)\b"#
     ]
     for pattern in patterns {
@@ -303,6 +313,22 @@ enum SpaceMailMailboxRelevanceClassifier {
     return String(text[swiftRange]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  private static func firstGenericOrderMatch(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex.matches(in: text, range: range)
+    for match in matches {
+      guard let matchRange = Range(match.range(at: 0), in: text) else { continue }
+      let prefixStart = text.index(matchRange.lowerBound, offsetBy: -min(32, text.distance(from: text.startIndex, to: matchRange.lowerBound)), limitedBy: text.startIndex) ?? text.startIndex
+      let prefix = String(text[prefixStart..<matchRange.lowerBound]).lowercased()
+      if prefix.range(of: #"(tracking|shipment|parcel|consignment|waybill|awb)\s+(update|number|no\.?|id|ref)?\s*$"#, options: .regularExpression) != nil {
+        continue
+      }
+      return String(text[matchRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return nil
+  }
+
   private static func cleanDetectedIdentifier(_ value: String) -> String? {
     var cleaned = value
       .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
@@ -319,16 +345,19 @@ enum SpaceMailMailboxRelevanceClassifier {
   }
 
   private static func isLikelyOrderIdentifier(_ value: String) -> Bool {
-    let normalized = value.normalizedValidationKey
+    let normalized = value.normalizedValidationKey.uppercased()
     guard normalized.count >= 3 else { return false }
-    let rejected = ["ORDER", "NUMBER", "TRACKING", "SHIPPED", "SHIPPING", "SENT", "SECURELY", "SPACEMAIL", "FINAL", "DAYS"]
+    guard normalized.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
+    let rejected = ["ORDER", "NUMBER", "TRACKING", "SHIPPED", "SHIPPING", "SHIPMENT", "SENT", "SECURELY", "SPACEMAIL", "FINAL", "DAYS", "RECEIPT", "READY", "DELIVERY", "PURCHASE", "UPDATE", "DETAIL", "DETAILS", "INCLUDED", "NOTIFICATION", "ACCOUNT"]
     return !rejected.contains(normalized)
+      && !rejected.contains { normalized.contains($0) }
   }
 
   private static func isLikelyTrackingIdentifier(_ value: String) -> Bool {
-    let normalized = value.normalizedValidationKey
+    let normalized = value.normalizedValidationKey.uppercased()
     guard normalized.count >= 5 else { return false }
-    let rejected = ["TRACKING", "NUMBER", "ORDER", "SHIPPED", "SHIPPING", "SENTSECURELY", "SPACEMAIL"]
+    let rejected = ["TRACKING", "NUMBER", "ORDER", "SHIPPED", "SHIPPING", "SHIPMENT", "SENTSECURELY", "SPACEMAIL", "DELIVERY", "PURCHASE", "RECEIPT", "UPDATE", "DETAIL", "DETAILS", "INCLUDED", "NOTIFICATION", "ACCOUNT"]
     return !rejected.contains(normalized)
+      && !rejected.contains { normalized.contains($0) }
   }
 }

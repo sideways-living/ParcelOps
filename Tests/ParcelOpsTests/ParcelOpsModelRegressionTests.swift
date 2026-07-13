@@ -4646,6 +4646,73 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.nextAction, "Open the parser review queue, reprocess if needed, or create a follow-up task.")
   }
 
+  func testSpaceMailClassifierSuiteKeepsMixedMailboxDecisionsConservative() throws {
+    var connection = makeSpaceMailConnection(
+      credentialStorageStatus: "Password reference available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    connection.mailboxMode = .mixedFiltered
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.auditEvents = []
+
+    store.runSpaceMailClassifierTestSuite(for: connection)
+
+    let updatedConnection = try XCTUnwrap(store.spaceMailIMAPConnections.first)
+    let results = updatedConnection.classifierTestResults
+    XCTAssertEqual(results.count, 9)
+    XCTAssertEqual(results.first { $0.sampleName == "Expected import: clear order shipped" }?.decision, "Imported")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected import: clear order shipped" }?.detectedOrderNumber, "TEST-123")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected import: clear order shipped" }?.detectedTrackingNumber, "ABC123")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected uncertain: delivery question" }?.decision, "Uncertain")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected uncertain: order follow-up missing IDs" }?.decision, "Uncertain")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected filter: marketing final days" }?.decision, "Filtered")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected filter: free delivery marketing" }?.decision, "Filtered")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected filter: security alert" }?.decision, "Filtered")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected filter: generic receipt" }?.decision, "Filtered")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected import: refund with order" }?.decision, "Imported")
+    XCTAssertEqual(results.first { $0.sampleName == "Expected import: tracking update" }?.decision, "Imported")
+    XCTAssertTrue(results.allSatisfy { $0.decisionStatus.localizedCaseInsensitiveContains("passed") })
+    XCTAssertTrue(results.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }.allSatisfy { $0.parserStatus.localizedCaseInsensitiveContains("passed") })
+    XCTAssertTrue(updatedConnection.classifierTestSummary.contains("3 imported, 2 uncertain, 4 filtered"))
+    XCTAssertTrue(store.intakeEmails.isEmpty)
+    XCTAssertTrue(store.mailboxIngestRecords.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "SpaceMail classifier test suite ran locally." })
+  }
+
+  func testSpaceMailAmbiguousClassifierAddsUncertainPreviewWithoutInboxImport() throws {
+    var connection = makeSpaceMailConnection(
+      credentialStorageStatus: "Password reference available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    connection.mailboxMode = .mixedFiltered
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.auditEvents = []
+
+    store.testSpaceMailAmbiguousClassifier(for: connection)
+
+    let updatedConnection = try XCTUnwrap(store.spaceMailIMAPConnections.first)
+    XCTAssertEqual(updatedConnection.uncertainMessages.count, 1)
+    XCTAssertEqual(updatedConnection.uncertainMessages.first?.subject, "Delivery question")
+    XCTAssertEqual(updatedConnection.uncertainMessages.first?.reason, "order/delivery question without detected id")
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainCount, 1)
+    XCTAssertTrue(updatedConnection.lastRefreshSummary.contains("uncertain sample preview"))
+    XCTAssertTrue(store.intakeEmails.isEmpty)
+    XCTAssertTrue(store.mailboxIngestRecords.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "SpaceMail mixed-mailbox classifier sample tested locally." })
+  }
+
   func testSpaceMailPostRefreshActionPlanTreatsFilteredOnlyRefreshAsClear() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.spaceMailIMAPConnections = [
