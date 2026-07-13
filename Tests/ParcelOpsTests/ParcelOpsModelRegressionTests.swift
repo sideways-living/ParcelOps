@@ -2617,6 +2617,71 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testWorkbenchMailboxProviderReleaseGateTaskKeepsIntegrationContext() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    guard let item = store.workbenchItems.first(where: { $0.source == .mailboxProviderGate }) else {
+      XCTFail("Expected mailbox provider release gate Workbench item.")
+      return
+    }
+
+    store.createReviewTask(from: item)
+
+    XCTAssertEqual(store.reviewTasks.count, 1)
+    let task = store.reviewTasks[0]
+    XCTAssertEqual(task.linkedEntityType, .integration)
+    XCTAssertEqual(task.linkedEntityID, "mailbox-provider-release-gate")
+    XCTAssertEqual(task.priority, .high)
+    XCTAssertEqual(task.status, .open)
+    XCTAssertEqual(task.assignee, "ParcelOps Operations")
+    XCTAssertTrue(task.title.contains("Mailbox provider release gate"))
+    XCTAssertTrue(task.summary.contains("Next action:"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.entityType == .reviewTask
+        && event.summary == "Review task created from integration."
+        && event.entityID == task.id.uuidString
+    })
+  }
+
+  func testWorkbenchMailboxProviderReleaseGateDraftKeepsIntegrationContext() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.draftMessages = []
+    store.auditEvents = []
+
+    guard let item = store.workbenchItems.first(where: { $0.source == .mailboxProviderGate }) else {
+      XCTFail("Expected mailbox provider release gate Workbench item.")
+      return
+    }
+
+    store.createDraftMessage(from: item)
+
+    XCTAssertEqual(store.draftMessages.count, 1)
+    let draft = store.draftMessages[0]
+    XCTAssertEqual(draft.linkedEntityType, .integration)
+    XCTAssertEqual(draft.linkedEntityID, "mailbox-provider-release-gate")
+    XCTAssertEqual(draft.recipient, "operations@parcelops.example")
+    XCTAssertEqual(draft.status, .draft)
+    XCTAssertEqual(draft.reviewState, .needsReview)
+    XCTAssertTrue(draft.subject.contains("Mailbox provider release gate"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.entityType == .draftMessage
+        && event.summary == "Draft message created locally."
+        && event.entityID == draft.id.uuidString
+    })
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
