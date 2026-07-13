@@ -823,6 +823,49 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.purchaseReadiness, "Decision needs review before purchase")
   }
 
+  func testWishlistPurchaseDecisionDoesNotPreferCheapRiskySellerOverExplicitTrustedChoice() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let trustedOptionID = UUID()
+    var item = makeReadyWishlistItem(
+      optionID: trustedOptionID,
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyCheapOption = WishlistComparisonOption(
+      sellerName: "Too-cheap overseas marketplace",
+      productURL: "https://example-risk.test/replacement-scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns, warranty, delivery history, or seller identity evidence.",
+      recommendation: "Reject unless verified manually",
+      lastChecked: "Today",
+      localScore: 22,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but unsafe delivery and trust profile."
+    )
+    item.comparisonOptions?.insert(riskyCheapOption, at: 0)
+    item.preferredOptionID = trustedOptionID
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.createWishlistPurchaseDecision(item)
+
+    let decision = try XCTUnwrap(store.wishlistItems.first?.purchaseDecision)
+
+    XCTAssertEqual(decision.selectedOptionID, trustedOptionID)
+    XCTAssertEqual(decision.selectedSellerName, "Known Australian retailer")
+    XCTAssertTrue(decision.rejectedOptionsSummary.contains("Too-cheap overseas marketplace"))
+    XCTAssertTrue(decision.rejectedOptionsSummary.contains("trust Unknown"))
+    XCTAssertFalse(decision.selectedSellerName.localizedCaseInsensitiveContains("Too-cheap"))
+  }
+
   func testWishlistPurchaseDecisionReviewProgressesToManualHandoffReadiness() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
