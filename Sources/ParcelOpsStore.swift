@@ -21388,9 +21388,7 @@ final class ParcelOpsStore {
 
   func createWishlistSellerEvidenceReviewTask(_ item: WishlistItem) {
     let options = item.comparisonOptions ?? []
-    let preferred = item.preferredOptionID.flatMap { preferredID in
-      options.first { $0.id == preferredID }
-    }
+    let preferred = selectedWishlistSellerOption(for: item)
     let missingBySeller = options.compactMap { option -> String? in
       let gaps = option.operatorSellerEvidenceGaps
       guard !gaps.isEmpty else { return nil }
@@ -21405,8 +21403,8 @@ final class ParcelOpsStore {
       taskSummary = """
       Seller evidence appears complete for \(item.itemName).
 
-      Preferred seller:
-      \(preferred.map { "\($0.sellerName) - \($0.estimatedAUDTotal), postage \($0.postageCost) / \($0.postageTime), trust \($0.trustRating)." } ?? "No preferred seller selected.")
+      Selected seller:
+      \(preferred.map { "\($0.sellerName) - \($0.estimatedAUDTotal), postage \($0.postageCost) / \($0.postageTime), trust \($0.trustRating)." } ?? "No seller selected.")
 
       Local seller evidence:
       \(sellerSummaries.isEmpty ? "- No seller options recorded." : sellerSummaries.joined(separator: "\n"))
@@ -22105,14 +22103,7 @@ final class ParcelOpsStore {
   }
 
   private func wishlistExpectedOrderConfirmationSignals(for item: WishlistItem) -> String {
-    let options = item.comparisonOptions ?? []
-    let preferredOption = item.preferredOptionID.flatMap { preferredID in
-      options.first { $0.id == preferredID }
-    } ?? options.first { option in
-      option.recommendation.localizedCaseInsensitiveContains("recommend")
-        || option.recommendation.localizedCaseInsensitiveContains("preferred")
-        || option.recommendation.localizedCaseInsensitiveContains("best")
-    } ?? options.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let seller = item.purchaseHandoff?.sellerName
       ?? item.purchaseDecision?.selectedSellerName
       ?? preferredOption?.sellerName
@@ -22541,9 +22532,7 @@ final class ParcelOpsStore {
   }
 
   func addWishlistPriceSnapshot(_ item: WishlistItem) {
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let timestamp = Self.auditTimestamp()
     let snapshot = WishlistPriceSnapshot(
       wishlistItemID: item.id,
@@ -22634,9 +22623,7 @@ final class ParcelOpsStore {
 
   func addWishlistSellerQuotePlaceholder(_ item: WishlistItem) {
     let timestamp = Self.auditTimestamp()
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let quote = WishlistSellerQuote(
       wishlistItemID: item.id,
       itemName: item.itemName,
@@ -22772,9 +22759,7 @@ final class ParcelOpsStore {
 
   func addWishlistPriceWatchRule(_ item: WishlistItem) {
     let timestamp = Self.auditTimestamp()
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let rule = WishlistPriceWatchRule(
       wishlistItemID: item.id,
       itemName: item.itemName,
@@ -23061,9 +23046,7 @@ final class ParcelOpsStore {
   }
 
   func addWishlistPurchaseAccountRecord(_ item: WishlistItem) {
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let handoff = item.purchaseHandoff
     let sellerName = handoff?.sellerName ?? preferredOption?.sellerName ?? item.storefront
     let record = WishlistPurchaseAccountRecord(
@@ -23184,9 +23167,7 @@ final class ParcelOpsStore {
   }
 
   func addWishlistPurchaseApprovalRecord(_ item: WishlistItem) {
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    } ?? item.comparisonOptions?.first
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let decision = item.purchaseDecision
     let sellerName = decision?.selectedSellerName ?? preferredOption?.sellerName ?? item.storefront
     let record = WishlistPurchaseApprovalRecord(
@@ -24043,9 +24024,7 @@ final class ParcelOpsStore {
 
   func createDraftMessage(from item: WishlistItem) {
     let options = item.comparisonOptions ?? []
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      options.first { $0.id == optionID }
-    }
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let decision = item.purchaseDecision
     let handoff = item.purchaseHandoff
     let checks = item.purchaseChecks ?? []
@@ -24053,7 +24032,14 @@ final class ParcelOpsStore {
     let optionSummary = options
       .prefix(4)
       .map { option in
-        let marker = option.id == item.preferredOptionID ? "Preferred - " : ""
+        let marker: String
+        if option.id == item.preferredOptionID {
+          marker = "Preferred - "
+        } else if option.id == preferredOption?.id {
+          marker = "Best scored fallback - "
+        } else {
+          marker = ""
+        }
         let gaps = option.operatorSellerEvidenceGaps
         return "\(marker)\(option.sellerName): \(option.estimatedAUDTotal), postage \(option.postageCost), \(option.postageTime), trust \(option.trustRating), evidence \(gaps.isEmpty ? "complete" : "missing \(gaps.joined(separator: ", "))")"
       }

@@ -778,6 +778,33 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertNotEqual(evaluatedRule.lastEvaluatedDate, "Not evaluated")
   }
 
+  func testWishlistPriceQuoteAndWatchRecordsFallbackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let (item, trustedOption) = try makeWishlistItemWithRiskyFirstOption()
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    store.addWishlistPriceSnapshot(item)
+    store.addWishlistSellerQuotePlaceholder(item)
+    store.addWishlistPriceWatchRule(item)
+
+    let snapshot = try XCTUnwrap(store.wishlistPriceSnapshots.first)
+    let quote = try XCTUnwrap(store.wishlistSellerQuotes.first)
+    let rule = try XCTUnwrap(store.wishlistPriceWatchRules.first)
+
+    XCTAssertEqual(snapshot.sellerName, "Known Australian retailer")
+    XCTAssertEqual(snapshot.productURL, trustedOption.productURL)
+    XCTAssertEqual(snapshot.estimatedAUDTotal, "AUD 109 delivered")
+    XCTAssertEqual(snapshot.trustSignal, "Trusted")
+    XCTAssertEqual(quote.sellerName, "Known Australian retailer")
+    XCTAssertEqual(quote.productURL, trustedOption.productURL)
+    XCTAssertEqual(quote.trustSummary, "Trusted")
+    XCTAssertEqual(rule.targetAUDTotal, "AUD 109 delivered")
+    XCTAssertEqual(rule.maxPostageCost, "AUD 10")
+    XCTAssertEqual(rule.requiredTrustLevel, "Trusted")
+    XCTAssertEqual(rule.allowedRegions, "Australia")
+  }
+
   func testWishlistPurchaseDecisionUsesPreferredSellerOption() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let preferredOptionID = UUID()
@@ -1297,6 +1324,33 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(record.estimatedAUDTotal, "AUD 109 delivered")
     XCTAssertEqual(record.trustSummary, "Trusted")
     XCTAssertFalse(record.selectedForPurchase)
+  }
+
+  func testWishlistAccountApprovalAndDraftFallbackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var (item, trustedOption) = try makeWishlistItemWithRiskyFirstOption()
+    item.purchaseDecision = nil
+    item.purchaseHandoff = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.draftMessages = []
+
+    store.addWishlistPurchaseAccountRecord(item)
+    store.addWishlistPurchaseApprovalRecord(item)
+    store.createDraftMessage(from: item)
+
+    let account = try XCTUnwrap(store.wishlistPurchaseAccountRecords.first)
+    let approval = try XCTUnwrap(store.wishlistPurchaseApprovalRecords.first)
+    let draft = try XCTUnwrap(store.draftMessages.first)
+
+    XCTAssertEqual(account.sellerName, "Known Australian retailer")
+    XCTAssertTrue(account.expectedOrderEmailSignals.contains("Known Australian retailer"))
+    XCTAssertEqual(approval.sellerName, "Known Australian retailer")
+    XCTAssertEqual(approval.approvedAUDLimit, "AUD 109 delivered")
+    XCTAssertTrue(draft.body.contains("Preferred seller: Known Australian retailer"))
+    XCTAssertTrue(draft.body.contains("Best scored fallback - Known Australian retailer"))
+    XCTAssertTrue(draft.body.contains(trustedOption.estimatedAUDTotal))
+    XCTAssertFalse(draft.body.contains("Preferred seller: First cheap risky seller"))
   }
 
   func testWishlistPurchaseLinkSelectionKeepsOnlyOneSelected() throws {
@@ -4547,6 +4601,36 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         updatedAt: "Today"
       )
     )
+  }
+
+  private func makeWishlistItemWithRiskyFirstOption() throws -> (WishlistItem, WishlistComparisonOption) {
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyFirstOption = WishlistComparisonOption(
+      sellerName: "First cheap risky seller",
+      productURL: "https://risk-first.example/scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns or warranty evidence.",
+      recommendation: "Do not prefer without review",
+      lastChecked: "Today",
+      localScore: 20,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but poor trust evidence."
+    )
+    let trustedOption = try XCTUnwrap(item.comparisonOptions?.first)
+    item.comparisonOptions = [riskyFirstOption, trustedOption]
+    item.preferredOptionID = nil
+    return (item, trustedOption)
   }
 
   private func resetWishlistState(_ store: ParcelOpsStore) {
