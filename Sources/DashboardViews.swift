@@ -2910,6 +2910,7 @@ private struct CompactInboxSourceTrailCoverage: View {
   var missingSourceTrailOrders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueMissingSourceTrailOrders: [TrackedOrder] { uniqueDashboardOrders(missingSourceTrailOrders) }
   private var missingCount: Int { max(total - withSourceTrail, 0) }
   private var coverageLabel: String {
     guard total > 0 else { return "No Inbox or Wishlist-created orders yet" }
@@ -2927,7 +2928,7 @@ private struct CompactInboxSourceTrailCoverage: View {
         color: missingCount == 0 ? .green : .orange
       )
 
-      ForEach(missingSourceTrailOrders) { order in
+      ForEach(uniqueMissingSourceTrailOrders) { order in
         DashboardOrderCompactLink(order: order, store: store) {
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
@@ -4094,13 +4095,35 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
   return "\(order.customer) • \(order.carrier) • \(order.trackingNumber)"
 }
 
+private func uniqueDashboardOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+  var seen: Set<UUID> = []
+  var unique: [TrackedOrder] = []
+  for order in orders where !seen.contains(order.id) {
+    seen.insert(order.id)
+    unique.append(order)
+  }
+  return unique
+}
+
+private func uniqueDashboardShipmentManifests(_ manifests: [ShipmentManifestRecord]) -> [ShipmentManifestRecord] {
+  var seen: Set<UUID> = []
+  var unique: [ShipmentManifestRecord] = []
+  for manifest in manifests where !seen.contains(manifest.id) {
+    seen.insert(manifest.id)
+    unique.append(manifest)
+  }
+  return unique
+}
+
 struct CompactOrderList: View {
   var orders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
+
   var body: some View {
     CompactList(title: "Active/problem orders", symbol: "shippingbox.fill") {
-      if orders.isEmpty {
+      if uniqueOrders.isEmpty {
         CompactRow(
           title: "No problem orders",
           detail: "Active and review-needed orders will appear here.",
@@ -4108,7 +4131,7 @@ struct CompactOrderList: View {
           color: .green
         )
       } else {
-        ForEach(orders) { order in
+        ForEach(uniqueOrders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
@@ -4128,9 +4151,11 @@ struct CompactInboxCreatedOrderList: View {
   var orders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
+
   var body: some View {
     CompactList(title: "Inbox-created orders", symbol: "tray.and.arrow.down.fill") {
-      if orders.isEmpty {
+      if uniqueOrders.isEmpty {
         CompactRow(
           title: "No Inbox-created orders waiting",
           detail: "Orders created from Inbox triage will appear here for quick follow-up.",
@@ -4138,7 +4163,7 @@ struct CompactInboxCreatedOrderList: View {
           color: .green
         )
       } else {
-        ForEach(orders) { order in
+        ForEach(uniqueOrders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
@@ -4158,9 +4183,11 @@ struct CompactPartialInboxOrderList: View {
   var orders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
+
   var body: some View {
     CompactList(title: "Verify before dispatch", symbol: "exclamationmark.triangle.fill") {
-      if orders.isEmpty {
+      if uniqueOrders.isEmpty {
         CompactRow(
           title: "No partial Inbox order blockers",
           detail: "Inbox-created orders have no promoted missing-detail blocker.",
@@ -4168,7 +4195,7 @@ struct CompactPartialInboxOrderList: View {
           color: .green
         )
       } else {
-        ForEach(orders) { order in
+        ForEach(uniqueOrders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
@@ -4188,9 +4215,11 @@ struct CompactInboxDispatchGapList: View {
   var orders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
+
   var body: some View {
     CompactList(title: "Inbox orders missing dispatch setup", symbol: "tray.and.arrow.down.fill") {
-      if orders.isEmpty {
+      if uniqueOrders.isEmpty {
         CompactRow(
           title: "No Inbox dispatch gaps",
           detail: "Reviewed or active Inbox-created orders have no promoted dispatch setup gap.",
@@ -4198,7 +4227,7 @@ struct CompactInboxDispatchGapList: View {
           color: .green
         )
       } else {
-        ForEach(orders) { order in
+        ForEach(uniqueOrders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
@@ -4218,9 +4247,11 @@ struct CompactInboxDispatchSetupList: View {
   var orders: [TrackedOrder]
   var store: ParcelOpsStore
 
+  private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
+
   var body: some View {
     CompactList(title: "Inbox dispatch setup pending", symbol: "checkmark.rectangle.stack.fill") {
-      if orders.isEmpty {
+      if uniqueOrders.isEmpty {
         CompactRow(
           title: "No Inbox dispatch setup pending",
           detail: "Verified Inbox-created orders have no promoted readiness follow-up.",
@@ -4228,7 +4259,7 @@ struct CompactInboxDispatchSetupList: View {
           color: .green
         )
       } else {
-        ForEach(orders) { order in
+        ForEach(uniqueOrders) { order in
           let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
@@ -4249,9 +4280,11 @@ struct CompactReopenedInboxDispatchHandoffList: View {
   var checklists: [DispatchReadinessChecklist]
   var store: ParcelOpsStore
 
+  private var uniqueManifests: [ShipmentManifestRecord] { uniqueDashboardShipmentManifests(manifests) }
+
   var body: some View {
     CompactList(title: "Reopened Inbox dispatch handoffs", symbol: "arrow.counterclockwise.circle.fill") {
-      if manifests.isEmpty && checklists.isEmpty {
+      if uniqueManifests.isEmpty && checklists.isEmpty {
         CompactRow(
           title: "No reopened handoffs",
           detail: "Inbox-created dispatch handoffs have no promoted reopened records.",
@@ -4259,7 +4292,7 @@ struct CompactReopenedInboxDispatchHandoffList: View {
           color: .green
         )
       } else {
-        ForEach(manifests) { manifest in
+        ForEach(uniqueManifests) { manifest in
           NavigationLink {
             ShipmentManifestsView(store: store)
           } label: {
@@ -4905,9 +4938,11 @@ struct CompactShipmentManifestList: View {
   var records: [ShipmentManifestRecord]
   var store: ParcelOpsStore
 
+  private var uniqueRecords: [ShipmentManifestRecord] { uniqueDashboardShipmentManifests(records) }
+
   var body: some View {
     CompactList(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
-      ForEach(records) { record in
+      ForEach(uniqueRecords) { record in
         NavigationLink {
           ShipmentManifestsView(store: store)
         } label: {
