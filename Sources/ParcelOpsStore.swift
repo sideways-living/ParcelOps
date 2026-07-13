@@ -840,7 +840,10 @@ final class ParcelOpsStore {
     var items: [MailboxProviderTestQueueItem] = []
 
     for provider in setup.providers {
-      let incompleteChecks = provider.checks.filter { !$0.isComplete }
+      let incompleteChecks = provider.checks.filter { !$0.isComplete && $0.tone != "neutral" }
+      if provider.tone == "neutral" && incompleteChecks.isEmpty {
+        continue
+      }
       if incompleteChecks.isEmpty {
         items.append(
           MailboxProviderTestQueueItem(
@@ -1560,7 +1563,12 @@ final class ParcelOpsStore {
     let releasePlan = mailboxReleaseTestPlanSummary
     let timeline = mailboxRunTimelineSummary
     let providerCount = spaceMailIMAPConnections.count + gmailMailboxConnections.count
-    let setupIncompleteCount = setup.providers.reduce(0) { $0 + $1.checks.filter { !$0.isComplete }.count }
+    let setupIncompleteCount = setup.providers.reduce(0) { total, provider in
+      total + provider.checks.filter { !$0.isComplete && provider.tone != "neutral" && $0.tone != "neutral" }.count
+    }
+    let setupWarningCount = setup.providers.reduce(0) { total, provider in
+      total + provider.checks.filter { !$0.isComplete && provider.tone != "neutral" && $0.tone == "warning" }.count
+    }
     let openQueueCount = queue.items.filter { !$0.isComplete }.count
     let warningTroubleCount = troubleshooting.issues.filter { $0.tone == "warning" }.count
     let attentionTroubleCount = troubleshooting.issues.filter { $0.tone == "attention" }.count
@@ -1600,7 +1608,7 @@ final class ParcelOpsStore {
         evidence: "\(setupIncompleteCount) incomplete setup check\(setupIncompleteCount == 1 ? "" : "s").",
         nextAction: "Use the provider setup checklist and fix missing credential/OAuth/readiness values.",
         isPassed: setupIncompleteCount == 0,
-        tone: setupIncompleteCount == 0 ? "success" : warningBlockerCount == 0 ? "attention" : "warning",
+        tone: setupIncompleteCount == 0 ? "success" : setupWarningCount == 0 ? "attention" : "warning",
         symbol: "checklist.checked"
       ),
       MailboxProviderReleaseGateItem(

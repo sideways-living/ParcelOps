@@ -2618,6 +2618,32 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Evidence" }?.value, "10")
   }
 
+  func testMailboxProviderReleaseGateIgnoresOptionalMissingProviderChecks() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let queue = store.mailboxProviderTestQueueSummary
+    let gate = store.mailboxProviderReleaseGateSummary
+    let setupGate = gate.gates.first { $0.title == "Setup checklist complete enough" }
+
+    XCTAssertFalse(queue.items.contains { $0.providerName == "Gmail" && $0.phase == "Setup" })
+    XCTAssertEqual(setupGate?.isPassed, true)
+    XCTAssertEqual(setupGate?.tone, "success")
+    XCTAssertTrue(setupGate?.evidence.contains("0 incomplete setup checks") == true)
+  }
+
   func testMailboxProviderHandoffPacketPromotesQueueAndBoundaries() {
     let mailboxID = UUID()
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
