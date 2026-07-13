@@ -11173,6 +11173,36 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordLocalDataHygieneSnapshot() {
+    let summary = localDataHygieneSummary
+    let metricLines = summary.metrics.map { "\($0.title): \($0.value) - \($0.detail)" }
+    let exampleLines = summary.examples.isEmpty
+      ? ["Examples: none currently flagged."]
+      : summary.examples.map { "Example: \($0)" }
+    let afterLines = [
+      "Verdict: \(summary.verdict)",
+      "Detail: \(summary.detail)",
+      "Signal count: \(summary.signalCount)",
+      "Next action: \(summary.nextAction)",
+      "Metrics:"
+    ] + metricLines + [
+      "Examples:"
+    ] + exampleLines + [
+      "Boundaries:"
+    ] + summary.boundaries
+
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "local-data-hygiene",
+      entityLabel: "Local data hygiene",
+      summary: summary.signalCount == 0
+        ? "Local data hygiene snapshot recorded with no active signals."
+        : "Local data hygiene snapshot recorded for operator review.",
+      afterDetail: afterLines.joined(separator: "\n")
+    )
+  }
+
   func createReviewTaskFromOperatorTestSession() {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

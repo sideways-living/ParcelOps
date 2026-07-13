@@ -2647,6 +2647,54 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(gate.reportText.contains("Optional providers not configured: Gmail"))
   }
 
+  func testLocalDataHygieneSnapshotLogsWithoutMutatingOperationalRecords() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "Unknown sender",
+      subject: "No subject",
+      receivedDate: "Today",
+      rawBodyPreview: "Content-Type: text/plain\nOrder details need review.",
+      detectedMerchant: "Unknown Sender",
+      detectedOrderNumber: "Order number needs review",
+      detectedTrackingNumber: "Tracking number needs review",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let ingest = MailboxIngestRecord(
+      providerMessageID: "provider-message-1",
+      sourceMailboxID: mailboxID,
+      intakeEmailID: intake.id,
+      capturedDate: "Today",
+      status: .imported,
+      summary: "Imported test intake."
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [ingest]
+    store.orders = []
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    let beforeIntake = store.intakeEmails
+    let beforeIngest = store.mailboxIngestRecords
+
+    store.recordLocalDataHygieneSnapshot()
+
+    XCTAssertEqual(store.intakeEmails, beforeIntake)
+    XCTAssertEqual(store.mailboxIngestRecords, beforeIngest)
+    XCTAssertTrue(store.orders.isEmpty)
+    XCTAssertTrue(store.reviewTasks.isEmpty)
+    XCTAssertEqual(store.auditEvents.count, 1)
+    XCTAssertEqual(store.auditEvents.first?.action, .evaluated)
+    XCTAssertEqual(store.auditEvents.first?.entityType, .settings)
+    XCTAssertEqual(store.auditEvents.first?.entityID, "local-data-hygiene")
+    XCTAssertEqual(store.auditEvents.first?.summary, "Local data hygiene snapshot recorded for operator review.")
+    XCTAssertTrue(store.auditEvents.first?.afterDetail?.contains("Signal count:") == true)
+    XCTAssertTrue(store.auditEvents.first?.afterDetail?.contains("Intake placeholders: 1") == true)
+    XCTAssertTrue(store.auditEvents.first?.afterDetail?.contains("No mailbox refresh, Keychain read, network call, or mailbox mutation runs from this card.") == true)
+  }
+
   func testMailboxProviderHandoffPacketPromotesQueueAndBoundaries() {
     let mailboxID = UUID()
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
