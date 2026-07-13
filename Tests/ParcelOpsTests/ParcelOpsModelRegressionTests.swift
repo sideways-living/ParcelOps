@@ -3493,6 +3493,30 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from Gmail release self-check." })
   }
 
+  func testGmailReleaseReadinessSnapshotLogsWithoutExternalWork() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.auditEvents = []
+
+    store.recordGmailReleaseReadinessSnapshot()
+
+    XCTAssertEqual(store.auditEvents.count, 1)
+    let event = store.auditEvents[0]
+    XCTAssertEqual(event.entityType, .gmailMailboxConnection)
+    XCTAssertEqual(event.entityID, connection.id.uuidString)
+    XCTAssertTrue(event.summary.contains("Gmail release snapshot"))
+    XCTAssertTrue(event.afterDetail?.contains("ParcelOps Gmail local release snapshot") == true)
+    XCTAssertTrue(event.afterDetail?.contains("No Google sign-in, Gmail API request, token access, mailbox fetch") == true)
+  }
+
   func testGmailShiftHandoffNoteRefreshesExistingOpenNote() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Ready",

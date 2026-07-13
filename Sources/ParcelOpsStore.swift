@@ -2659,6 +2659,19 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordGmailReleaseReadinessSnapshot() {
+    let snapshot = gmailReleaseReadinessSnapshot
+    let connection = gmailMailboxConnections.first
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection?.id.uuidString ?? "gmail-release-readiness",
+      entityLabel: connection?.displayName ?? "Gmail release readiness",
+      summary: snapshot.verdict,
+      afterDetail: "\(snapshot.reportText)\n\nSnapshot only. No Google sign-in, Gmail API request, token access, mailbox fetch, classifier import, external service call, or mailbox mutation occurred."
+    )
+  }
+
   var gmailReleaseBlockerSummary: MailboxReleaseBlockerSummary {
     let readinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
     let setupPlans = gmailMailboxConnections.map(gmailSetupTestChecklist(for:))

@@ -1586,6 +1586,11 @@ struct OperationsWorkbenchView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         CompactActionRow {
+          Button {
+            store.recordGmailReleaseReadinessSnapshot()
+          } label: {
+            Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+          }
           NavigationLink {
             MailboxView(store: store)
           } label: {
