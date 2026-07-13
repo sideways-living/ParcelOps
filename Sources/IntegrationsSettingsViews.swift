@@ -2358,13 +2358,14 @@ struct GmailMailboxConnectionRow: View {
             Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
             Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
             Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
-            Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
-              .disabled(!canRunRealGmailRefresh)
+            Button(gmailRealRefreshActionLabel, systemImage: gmailRealRefreshActionSymbol, action: onRealRefresh)
+              .disabled(hasMissingCoreGmailSetup)
           }
           if !canRunRealGmailRefresh {
-            Label(gmailRealRefreshDisabledReason, systemImage: "lock.fill")
+            Label(gmailRealRefreshGuidanceText, systemImage: hasMissingCoreGmailSetup ? "lock.fill" : "shield.lefthalf.filled")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
         VStack(alignment: .leading, spacing: 6) {
@@ -2472,10 +2473,23 @@ struct GmailMailboxConnectionRow: View {
     readiness.isReady && authState.status == .connected
   }
 
-  private var gmailRealRefreshDisabledReason: String {
+  private var gmailRealRefreshActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Run real Gmail refresh" }
+    if !readiness.isReady { return "Record refresh preflight" }
+    if authState.status != .connected { return "Check refresh auth" }
+    return "Run real Gmail refresh"
+  }
+
+  private var gmailRealRefreshActionSymbol: String {
+    if !readiness.isReady { return "shield.lefthalf.filled" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailRealRefreshGuidanceText: String {
     if hasMissingCoreGmailSetup { return "Real refresh waits for saved Gmail setup fields." }
-    if !readiness.isReady { return "Real refresh waits for callback/readiness to match the compiled app." }
-    if authState.status != .connected { return "Real refresh waits for a successful Google sign-in." }
+    if !readiness.isReady { return "Preflight is available and will stop before Google sign-in, token requests, Gmail API calls, or mailbox access until callback/readiness matches the compiled app." }
+    if authState.status != .connected { return "Auth check is available and should stop before Gmail API calls if no signed-in Google account or read-only scope is available." }
     return "Real refresh is available."
   }
 
