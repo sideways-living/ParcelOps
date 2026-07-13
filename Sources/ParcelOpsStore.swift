@@ -20771,6 +20771,14 @@ final class ParcelOpsStore {
         && $0.linkedOrderID == nil
         && $0.reviewState != .accepted
     }.count
+    let linkedOrderItems = activeItems.filter { $0.purchaseHandoff?.linkedOrderID != nil }
+    let operationsClosureGapItems = linkedOrderItems.filter { !wishlistOperationsClosureGaps(for: $0).isEmpty }
+    let operationsClosureGapPreview = operationsClosureGapItems
+      .prefix(3)
+      .map { item in
+        "\(item.itemName): \(wishlistOperationsClosureGaps(for: item).prefix(4).joined(separator: ", "))"
+      }
+      .joined(separator: "; ")
     let readyPurchaseLinks = wishlistPurchaseLinkRecords.filter {
       isActiveWishlistPurchaseLinkRecord($0)
         && $0.selectedForPurchase
@@ -20820,6 +20828,21 @@ final class ParcelOpsStore {
         detail: orderWatchGaps == 0 ? "No current Wishlist handoff is waiting for local order confirmation linking." : "After buying externally, the order confirmation still needs to be found in Inbox/Orders and linked locally.",
         tone: orderWatchGaps == 0 ? "success" : "attention",
         nextAction: orderWatchGaps == 0 ? "Keep monitoring manually only when purchases occur." : "Use order-watch records and Inbox linked-order shortcuts after mailbox refresh."
+      ),
+      WishlistAgentReadinessItem(
+        title: "Operations closure trail",
+        status: linkedOrderItems.isEmpty ? "No linked orders" : (operationsClosureGapItems.isEmpty ? "Closure trail clear" : "\(operationsClosureGapItems.count) gap\(operationsClosureGapItems.count == 1 ? "" : "s")"),
+        detail: linkedOrderItems.isEmpty
+          ? "No Wishlist purchase handoff is linked to a local order yet."
+          : operationsClosureGapItems.isEmpty
+            ? "Linked Wishlist orders have receiving, inventory, storage, custody, label, manual check, manifest, dispatch, and open-task closure checks clear."
+            : "Linked Wishlist orders still need local operations evidence before closing. \(operationsClosureGapPreview)",
+        tone: linkedOrderItems.isEmpty ? "neutral" : (operationsClosureGapItems.isEmpty ? "success" : "attention"),
+        nextAction: linkedOrderItems.isEmpty
+          ? "Link an order after an external purchase confirmation arrives."
+          : operationsClosureGapItems.isEmpty
+            ? "Close the Wishlist item locally only after final operator review."
+            : "Stage or review receiving, inventory, storage, custody, label, manual check, manifest, dispatch, and open tasks before closure."
       )
     ]
 

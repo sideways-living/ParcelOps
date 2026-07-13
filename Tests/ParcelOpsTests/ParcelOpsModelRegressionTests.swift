@@ -275,6 +275,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(orderWatchItem?.detail.contains("No current Wishlist handoff") == true)
   }
 
+  func testWishlistAgentReadinessSummaryFlagsLinkedOrderClosureGaps() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.wishlistItems = [item]
+
+    let summary = store.wishlistAgentReadinessSummary
+    let operationsItem = summary.items.first { $0.title == "Operations closure trail" }
+
+    XCTAssertEqual(summary.title, "Wishlist agent path needs operator review")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(operationsItem?.status, "1 gap")
+    XCTAssertEqual(operationsItem?.tone, "attention")
+    XCTAssertTrue(operationsItem?.detail.contains("Linked Wishlist orders still need local operations evidence") == true)
+    XCTAssertTrue(operationsItem?.nextAction.contains("receiving, inventory") == true)
+  }
+
+  func testWishlistAgentReadinessSummaryClearsCompleteOperationsTrail() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.wishlistItems = [item]
+    stageWishlistOperationsTrail(store, for: item)
+
+    let summary = store.wishlistAgentReadinessSummary
+    let operationsItem = summary.items.first { $0.title == "Operations closure trail" }
+
+    XCTAssertEqual(operationsItem?.status, "Closure trail clear")
+    XCTAssertEqual(operationsItem?.tone, "success")
+    XCTAssertTrue(operationsItem?.detail.contains("receiving, inventory, storage") == true)
+    XCTAssertTrue(operationsItem?.nextAction.contains("Close the Wishlist item locally") == true)
+  }
+
   func testWishlistAgentReadinessSnapshotLogsWithoutCreatingWork() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
