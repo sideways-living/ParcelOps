@@ -111,7 +111,11 @@ struct OperationsWorkbenchView: View {
   }
 
   private var draftFollowUpItems: [DraftMessage] {
-    Array(store.draftMessagesNeedingReview.prefix(5))
+    let providerDrafts = store.mailboxProviderDraftMessagesNeedingReview
+    let otherDrafts = store.draftMessagesNeedingReview.filter { draft in
+      !providerDrafts.contains(where: { $0.id == draft.id })
+    }
+    return Array((providerDrafts + otherDrafts).prefix(5))
   }
   private var wishlistWorkbenchItems: [WishlistItem] {
     store.wishlistItems.filter { item in

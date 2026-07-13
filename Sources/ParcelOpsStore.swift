@@ -4835,6 +4835,10 @@ final class ParcelOpsStore {
     }
   }
 
+  var mailboxProviderDraftMessagesNeedingReview: [DraftMessage] {
+    draftMessagesNeedingReview.filter { isMailboxProviderDraft($0) }
+  }
+
   var enabledContactCount: Int {
     contactDirectoryEntries.filter(\.isEnabled).count
   }

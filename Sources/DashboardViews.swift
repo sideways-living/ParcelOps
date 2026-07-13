@@ -147,6 +147,30 @@ struct DashboardView: View {
   private var mailboxHealthAttentionCount: Int {
     spaceMailHealthAttentionCount + gmailHealthAttentionCount
   }
+  private var mailboxDiagnosticDrafts: [DraftMessage] {
+    store.mailboxProviderDraftMessagesNeedingReview
+  }
+  private var mailboxDiagnosticDraftStatusTitle: String {
+    guard let draft = mailboxDiagnosticDrafts.first else {
+      return "No mailbox diagnostic drafts waiting"
+    }
+    switch draft.status {
+    case .draft:
+      return "Mailbox diagnostic draft needs review"
+    case .ready:
+      return "Mailbox diagnostic draft is ready to send"
+    case .reopened:
+      return "Mailbox diagnostic draft was reopened"
+    case .sentLocally:
+      return "Mailbox diagnostic draft still needs closure"
+    }
+  }
+  private var mailboxDiagnosticDraftStatusDetail: String {
+    guard let draft = mailboxDiagnosticDrafts.first else {
+      return "Create a diagnostic draft from the mailbox troubleshooting card only when provider setup, refresh, parser, Inbox, or release evidence needs a handoff."
+    }
+    return "\(draft.subject) • \(draft.recipient). Use Tasks to mark the draft ready, sent locally, or reopened after the provider handoff is complete."
+  }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.spaceMailIntakeHealthSummaries.first
   }
@@ -1224,6 +1248,7 @@ struct DashboardView: View {
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
         MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        mailboxDiagnosticDraftPanel
         OperatorMVPReadinessCard(store: store)
         LocalDataHygieneSummaryCard(
           store: store,
@@ -2149,6 +2174,71 @@ struct DashboardView: View {
     }
   }
 
+  private var mailboxDiagnosticDraftPanel: some View {
+    SettingsPanel(title: "Mailbox diagnostic drafts", symbol: "stethoscope") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: mailboxDiagnosticDrafts.isEmpty ? "checkmark.seal.fill" : "envelope.open.fill")
+            .font(.title3)
+            .foregroundStyle(mailboxDiagnosticDrafts.isEmpty ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(mailboxDiagnosticDraftStatusTitle)
+              .font(.headline)
+            Text(mailboxDiagnosticDraftStatusDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(mailboxDiagnosticDrafts.count) open", color: mailboxDiagnosticDrafts.isEmpty ? .green : .orange)
+        }
+
+        MetricStrip(items: [
+          ("Open provider drafts", "\(mailboxDiagnosticDrafts.count)", mailboxDiagnosticDrafts.isEmpty ? .green : .orange),
+          ("All review drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
+          ("Troubleshooting", store.mailboxProviderTroubleshootingSummary.tone == "success" ? "Clear" : "Review", store.mailboxProviderTroubleshootingSummary.tone == "success" ? .green : .orange),
+          ("Release gate", store.mailboxProviderReleaseGateSummary.tone == "success" ? "Ready" : "Review", store.mailboxProviderReleaseGateSummary.tone == "success" ? .green : .orange)
+        ])
+
+        if mailboxDiagnosticDrafts.isEmpty {
+          MVPEmptyState(
+            title: "No mailbox provider draft is waiting",
+            detail: "Use this area only when provider evidence needs a handoff packet. Routine mailbox refreshes should stay in Mailbox Monitor and Audit.",
+            symbol: "checkmark.seal.fill"
+          )
+        } else {
+          CompactDraftMessageList(drafts: Array(mailboxDiagnosticDrafts.prefix(3)), store: store)
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
+          }
+          Button("Refresh draft packet", systemImage: "arrow.triangle.2.circlepath") {
+            store.createDraftMessageFromMailboxProviderTroubleshooting()
+            feedbackMessage = "Mailbox diagnostic draft created or refreshed. Check Tasks."
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("Local-only boundary: this panel creates or reviews a local diagnostic draft only. It does not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph, OAuth, token storage, outbound email, notifications, or mailbox mutation.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   @ViewBuilder
   private var spaceMailFollowUpPanel: some View {
     if mailboxFollowUpNeedsDashboardAttention {
@@ -2490,12 +2580,15 @@ struct DashboardView: View {
               ("Tasks", "\(store.reviewTasksNeedingAttention.count)", .orange),
               ("Handoffs", "\(store.handoffNotesNeedingAttention.count)", .blue),
               ("Drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
+              ("Provider drafts", "\(mailboxDiagnosticDrafts.count)", mailboxDiagnosticDrafts.isEmpty ? .green : .orange),
               ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
               ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
             ])
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)), store: store)
             CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)), store: store)
-            CompactDraftMessageList(drafts: Array(store.draftMessagesNeedingReview.prefix(3)), store: store)
+            CompactDraftMessageList(drafts: Array((mailboxDiagnosticDrafts + store.draftMessagesNeedingReview.filter { draft in
+              !mailboxDiagnosticDrafts.contains(where: { $0.id == draft.id })
+            }).prefix(3)), store: store)
           }
         }
       }

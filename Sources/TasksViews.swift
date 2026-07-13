@@ -25,7 +25,7 @@ struct TasksView: View {
 
   private var draftFollowUpItems: [DraftMessage] {
     let reviewDrafts = Array(store.draftMessagesNeedingReview.filter { store.isActiveWishlistDraft($0) }.prefix(6))
-    let providerDrafts = store.draftMessagesNeedingReview.filter { store.isMailboxProviderDraft($0) }
+    let providerDrafts = store.mailboxProviderDraftMessagesNeedingReview
     let batchDrafts = wishlistBatchResearchDrafts.filter { draft in
       draft.status != .sentLocally || draft.reviewState != .accepted
     }

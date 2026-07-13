@@ -2775,6 +2775,47 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(store.draftMessagesNeedingReview.map(\.id), [draft.id])
   }
 
+  func testMailboxProviderDraftQueueOnlyIncludesOpenProviderDrafts() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.draftMessages = []
+
+    store.createDraftMessageFromMailboxProviderTroubleshooting()
+    let providerDraftID = store.draftMessages[0].id
+
+    let closedProviderDraft = DraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-closed",
+      templateID: nil,
+      recipient: "ops@example.com",
+      subject: "Mailbox provider diagnostics closed",
+      body: "Mailbox provider diagnostic packet already sent.",
+      channel: .email,
+      createdDate: "1 Jul 2026",
+      status: .sentLocally,
+      reviewState: .accepted
+    )
+    let unrelatedDraft = DraftMessage(
+      linkedEntityType: .order,
+      linkedEntityID: UUID().uuidString,
+      templateID: nil,
+      recipient: "customer@example.com",
+      subject: "General order note",
+      body: "Follow up with customer.",
+      channel: .email,
+      createdDate: "1 Jul 2026",
+      status: .draft,
+      reviewState: .needsReview
+    )
+    store.draftMessages.append(contentsOf: [closedProviderDraft, unrelatedDraft])
+
+    XCTAssertEqual(store.mailboxProviderDraftMessagesNeedingReview.map(\.id), [providerDraftID])
+    XCTAssertTrue(store.draftMessagesNeedingReview.contains { $0.id == providerDraftID })
+    XCTAssertFalse(store.mailboxProviderDraftMessagesNeedingReview.contains { $0.id == closedProviderDraft.id })
+    XCTAssertFalse(store.mailboxProviderDraftMessagesNeedingReview.contains { $0.id == unrelatedDraft.id })
+  }
+
   func testMailboxProviderTroubleshootingSentAcceptedDraftStaysClosed() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.spaceMailIMAPConnections = []
