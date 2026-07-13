@@ -16604,6 +16604,31 @@ final class ParcelOpsStore {
         ? "No incomplete self-check items at task creation time."
         : "Incomplete items: \(openItems.map { "\($0.title) - \($0.nextAction)" }.joined(separator: "; "))"
     ].joined(separator: " ")
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail release self-check")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up \(connection.displayName) Gmail release self-check"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail release self-check review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail release self-check. No duplicate task was created. No Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,

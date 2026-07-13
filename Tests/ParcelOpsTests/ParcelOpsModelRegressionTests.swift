@@ -2841,6 +2841,84 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.nextAction, "Use Edit setup and update compiled plist/project values before live testing.")
   }
 
+  func testGmailReleaseSelfCheckTaskRefreshesExistingOpenTask() {
+    let mailboxID = UUID()
+    var connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+    connection.connectionStatus = "Real Gmail: Fetch success"
+    connection.lastManualRefreshDate = "Today"
+    connection.lastRefreshFetchedCount = 10
+    connection.lastRefreshFilteredNonOrderCount = 10
+    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail release self-check")
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.priority, .high)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Gmail release blocked") == true)
+    XCTAssertTrue(tasks.first?.summary.contains("Next action:") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail release self-check review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
+  func testGmailReleaseSelfCheckTaskCreatesNewTaskAfterCompletedTask() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+    guard let firstTask = store.reviewTasks.first else {
+      XCTFail("Expected Gmail release self-check task.")
+      return
+    }
+    store.completeReviewTask(firstTask)
+    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Gmail release self-check")
+    }
+    XCTAssertEqual(tasks.count, 2)
+    XCTAssertEqual(tasks.filter { $0.status == .completed }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.status == .open }.count, 1)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task completed." })
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from Gmail release self-check." })
+  }
+
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-1",
