@@ -1621,6 +1621,98 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(reloaded.lastRefreshReasonBreakdown?.first?.reason, "strong order evidence")
   }
 
+  func testGmailPreviewTaskRefreshesExistingOpenProviderMessageTask() {
+    let mailboxID = UUID()
+    let message = GmailReviewMessage(
+      providerMessageID: "gmail-preview-task-1",
+      sourceMailboxID: mailboxID,
+      sender: "person@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "order-ish no tracking id",
+      capturedDate: "Today"
+    )
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 9,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+    store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.summary.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.priority, .normal)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Review uncertain Gmail preview") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail preview review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
+  func testGmailPreviewTaskCreatesNewTaskAfterCompletedTask() {
+    let mailboxID = UUID()
+    let message = GmailReviewMessage(
+      providerMessageID: "gmail-preview-task-completed",
+      sourceMailboxID: mailboxID,
+      sender: "offers@example.test",
+      subject: "Possible order update",
+      receivedDate: "Today",
+      bodyPreview: "This may relate to an order.",
+      reason: "filtered review requested",
+      capturedDate: "Today"
+    )
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+    guard let firstTask = store.reviewTasks.first else {
+      XCTFail("Expected Gmail preview task.")
+      return
+    }
+    store.completeReviewTask(firstTask)
+    store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.summary.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(tasks.count, 2)
+    XCTAssertEqual(tasks.filter { $0.status == .completed }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.status == .open }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.priority == .low }.count, 2)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task completed." })
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from filtered Gmail preview." })
+  }
+
   func testGmailPostRefreshActionPlanHandlesNoProvider() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.gmailMailboxConnections = []

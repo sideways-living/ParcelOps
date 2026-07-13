@@ -16249,12 +16249,39 @@ final class ParcelOpsStore {
 
   func createReviewTask(from gmailMessage: GmailReviewMessage, connection: GmailMailboxConnection, reviewQueue: String) {
     let title = gmailMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : gmailMessage.subject
+    let priority: TaskPriority = reviewQueue.localizedCaseInsensitiveContains("uncertain") ? .normal : .low
+    let taskSummary = "Review \(reviewQueue) Gmail preview from \(gmailMessage.sender): \(gmailMessage.reason). Provider message ID: \(gmailMessage.providerMessageID). Use Mailbox Monitor to import true order mail or dismiss local false positives."
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.summary.localizedCaseInsensitiveContains(gmailMessage.providerMessageID)
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up \(safeAuditPreview(title, limit: 80))"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail preview review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nProvider message ID: \(gmailMessage.providerMessageID). Refreshed from stored Gmail preview only. No duplicate task was created. No Gmail API call, OAuth token, mailbox fetch, Inbox import, full message body logging, or mailbox mutation occurred."
+      )
+      return
+    }
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
       label: title,
-      summary: "Review \(reviewQueue) Gmail preview from \(gmailMessage.sender): \(gmailMessage.reason). Provider message ID: \(gmailMessage.providerMessageID). Use Mailbox Monitor to import true order mail or dismiss local false positives.",
-      priority: reviewQueue.localizedCaseInsensitiveContains("uncertain") ? .normal : .low,
+      summary: taskSummary,
+      priority: priority,
       assignee: "Mailbox team"
     )
     logAudit(
