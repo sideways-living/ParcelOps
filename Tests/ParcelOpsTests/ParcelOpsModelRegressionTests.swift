@@ -4145,6 +4145,73 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(event.afterDetail?.contains("No Google sign-in, Gmail API request, token access, mailbox fetch") == true)
   }
 
+  func testGmailReleaseReadinessSnapshotRequiresOpenReleaseTask() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.auditEvents = [
+      AuditEvent(
+        timestamp: "Today",
+        actor: "Local user",
+        action: .reviewed,
+        entityType: .gmailMailboxConnection,
+        entityID: mailboxID.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Gmail setup reviewed locally.",
+        afterDetail: "Local audit evidence only."
+      )
+    ]
+
+    store.recordGmailReleaseReadinessSnapshot()
+
+    let missingTaskEvent = store.auditEvents.first
+    XCTAssertTrue(missingTaskEvent?.summary.contains("Gmail release snapshot") == true)
+    XCTAssertTrue(missingTaskEvent?.afterDetail?.contains("Release task gate: open task needed") == true)
+    XCTAssertTrue(missingTaskEvent?.afterDetail?.contains("Open Gmail release self-check tasks: 0") == true)
+
+    store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+    store.auditEvents = []
+    store.recordGmailReleaseReadinessSnapshot()
+
+    let openTaskEvent = store.auditEvents.first
+    XCTAssertTrue(openTaskEvent?.summary.contains("Gmail release snapshot") == true)
+    XCTAssertTrue(openTaskEvent?.summary != "Gmail release snapshot: release task needed")
+    XCTAssertTrue(openTaskEvent?.afterDetail?.contains("Release task gate: open task present") == true)
+    XCTAssertTrue(openTaskEvent?.afterDetail?.contains("Open Gmail release self-check tasks: 1") == true)
+
+    if let task = store.reviewTasks.first {
+      store.completeReviewTask(task)
+    }
+    store.auditEvents = []
+    store.recordGmailReleaseReadinessSnapshot()
+
+    let completedTaskEvent = store.auditEvents.first
+    XCTAssertTrue(completedTaskEvent?.summary.contains("Gmail release snapshot") == true)
+    XCTAssertTrue(completedTaskEvent?.afterDetail?.contains("Release task gate: open task needed") == true)
+    XCTAssertTrue(completedTaskEvent?.afterDetail?.contains("Completed Gmail release self-check tasks: 1") == true)
+  }
+
   func testGmailShiftHandoffNoteRefreshesExistingOpenNote() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Ready",
