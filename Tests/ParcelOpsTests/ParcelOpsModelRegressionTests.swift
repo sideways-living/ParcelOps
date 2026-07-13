@@ -2448,6 +2448,71 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.nextAction, "Put the label you want fetched first, or run separate setup records for separate labels.")
   }
 
+  func testGmailOAuthReadinessRequiresCompiledClientAndCallbackConfiguration() {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    connection.googleCloudProjectHint = "ParcelOps Gmail intake"
+    connection.oauthClientIDPlaceholder = "1234567890-abcdef.apps.googleusercontent.com"
+    connection.redirectURIPlaceholder = "com.googleusercontent.apps.1234567890-abcdef"
+    connection.consentScreenNotes = "Internal test consent screen prepared."
+    let store = ParcelOpsStore()
+
+    let readiness = store.gmailOAuthReadinessSummary(for: connection)
+
+    XCTAssertFalse(readiness.isReady)
+    XCTAssertTrue(readiness.missingFields.contains { $0.localizedCaseInsensitiveContains("Compiled App Info.plist GIDClientID") })
+    XCTAssertTrue(readiness.missingFields.contains { $0.localizedCaseInsensitiveContains("compiled") && $0.localizedCaseInsensitiveContains("callback") })
+    XCTAssertTrue(readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("compiled"))
+    XCTAssertTrue(readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("compiled"))
+    XCTAssertEqual(readiness.expectedCallbackScheme, "com.googleusercontent.apps.1234567890-abcdef")
+  }
+
+  func testGmailReleaseSelfCheckStaysBlockedWhenCompiledOAuthConfigurationIsMissing() {
+    let mailboxID = UUID()
+    var connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 8,
+      imported: 1,
+      filtered: 6,
+      uncertain: 0
+    )
+    connection.googleCloudProjectHint = "ParcelOps Gmail intake"
+    connection.oauthClientIDPlaceholder = "1234567890-abcdef.apps.googleusercontent.com"
+    connection.redirectURIPlaceholder = "com.googleusercontent.apps.1234567890-abcdef"
+    connection.consentScreenNotes = "Internal test consent screen prepared."
+    let store = ParcelOpsStore()
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    let summary = store.gmailReleaseSelfCheckSummary(for: connection)
+    let setupItem = summary.items.first { $0.title == "Setup and callback" }
+
+    XCTAssertEqual(summary.verdict, "Gmail release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(setupItem?.isComplete, false)
+    XCTAssertEqual(setupItem?.tone, "warning")
+    XCTAssertTrue(setupItem?.detail.localizedCaseInsensitiveContains("Compiled App Info.plist") == true)
+  }
+
   func testMailboxProviderComparisonRequiresAProviderWhenNoneConfigured() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
