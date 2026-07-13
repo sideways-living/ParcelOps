@@ -3228,6 +3228,142 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(uncertainItem?.actionLabel, "Review uncertain previews")
   }
 
+  func testSpaceMailUncertainPreviewTaskRefreshesExistingOpenProviderMessageTask() {
+    let mailboxID = UUID()
+    let message = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-preview-task-1",
+      sourceMailboxID: mailboxID,
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 9,
+      uncertain: 1,
+      uncertainMessages: [message]
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTask(from: message, connection: connection)
+    store.createReviewTask(from: message, connection: connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.summary.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.priority, .normal)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Review uncertain SpaceMail preview") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing uncertain SpaceMail preview review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
+  func testSpaceMailFilteredPreviewTaskRefreshesExistingOpenProviderMessageTask() {
+    let mailboxID = UUID()
+    let message = SpaceMailFilteredMessage(
+      providerMessageID: "spacemail-filtered-task-1",
+      sourceMailboxID: mailboxID,
+      sender: "offers@example.test",
+      subject: "Final days",
+      receivedDate: "Today",
+      bodyPreview: "Marketing promotion that was filtered from mixed mailbox intake.",
+      reason: "marketing",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTask(from: message, connection: connection)
+    store.createReviewTask(from: message, connection: connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.summary.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.priority, .low)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Review filtered SpaceMail preview") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing filtered SpaceMail preview review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
+  func testSpaceMailPreviewTaskCreatesNewTaskAfterCompletedTask() {
+    let mailboxID = UUID()
+    let message = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-preview-task-completed",
+      sourceMailboxID: mailboxID,
+      sender: "person@example.test",
+      subject: "Possible delivery update",
+      receivedDate: "Today",
+      bodyPreview: "This may relate to a delivery but has no tracking number yet.",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 9,
+      uncertain: 1,
+      uncertainMessages: [message]
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTask(from: message, connection: connection)
+    guard let firstTask = store.reviewTasks.first else {
+      XCTFail("Expected SpaceMail preview task.")
+      return
+    }
+    store.completeReviewTask(firstTask)
+    store.createReviewTask(from: message, connection: connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.summary.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(tasks.count, 2)
+    XCTAssertEqual(tasks.filter { $0.status == .completed }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.status == .open }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.priority == .normal }.count, 2)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task completed." })
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from integration." })
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,

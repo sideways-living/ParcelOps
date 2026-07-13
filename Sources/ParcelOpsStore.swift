@@ -17102,11 +17102,38 @@ final class ParcelOpsStore {
   }
 
   func createReviewTask(from uncertainMessage: SpaceMailUncertainMessage, connection: SpaceMailIMAPConnection) {
+    let title = uncertainMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : uncertainMessage.subject
+    let taskSummary = "Review uncertain SpaceMail preview from \(uncertainMessage.sender): \(uncertainMessage.reason). Provider message ID: \(uncertainMessage.providerMessageID). Import only if this is real order work; otherwise dismiss locally."
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.summary.localizedCaseInsensitiveContains(uncertainMessage.providerMessageID)
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up uncertain SpaceMail: \(safeAuditPreview(title, limit: 80))"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = .normal
+      reviewTasks[existingIndex].dueDate = "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing uncertain SpaceMail preview review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nProvider message ID: \(uncertainMessage.providerMessageID). Refreshed from stored SpaceMail preview only. No duplicate task was created. No IMAP connection, Keychain read, mailbox fetch, Inbox import, full message body logging, or mailbox mutation occurred."
+      )
+      return
+    }
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      label: uncertainMessage.subject.isEmpty ? connection.displayName : uncertainMessage.subject,
-      summary: "Review uncertain SpaceMail preview from \(uncertainMessage.sender): \(uncertainMessage.reason)",
+      label: title,
+      summary: taskSummary,
       priority: .normal,
       assignee: "Mailbox team"
     )
@@ -17186,11 +17213,38 @@ final class ParcelOpsStore {
   }
 
   func createReviewTask(from filteredMessage: SpaceMailFilteredMessage, connection: SpaceMailIMAPConnection) {
+    let title = filteredMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : filteredMessage.subject
+    let taskSummary = "Review filtered SpaceMail preview from \(filteredMessage.sender): \(filteredMessage.reason). Provider message ID: \(filteredMessage.providerMessageID). Import only if this is real order work; otherwise dismiss locally."
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.summary.localizedCaseInsensitiveContains(filteredMessage.providerMessageID)
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up filtered SpaceMail: \(safeAuditPreview(title, limit: 80))"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = .low
+      reviewTasks[existingIndex].dueDate = "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing filtered SpaceMail preview review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nProvider message ID: \(filteredMessage.providerMessageID). Refreshed from stored SpaceMail preview only. No duplicate task was created. No IMAP connection, Keychain read, mailbox fetch, Inbox import, full message body logging, or mailbox mutation occurred."
+      )
+      return
+    }
     createReviewTask(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      label: filteredMessage.subject.isEmpty ? connection.displayName : filteredMessage.subject,
-      summary: "Review filtered SpaceMail preview from \(filteredMessage.sender): \(filteredMessage.reason)",
+      label: title,
+      summary: taskSummary,
       priority: .low,
       assignee: "Mailbox team"
     )
